@@ -75,7 +75,7 @@
 
   /* ── Dark table rows ── */
   .dark .bg-warm {
-    @apply bg-gray-750;
+    @apply bg-gray-700;
   }
 }
 
