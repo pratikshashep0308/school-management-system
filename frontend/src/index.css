@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #f2ede6;
+    color: #0f0e17;
+  }
+
+  .dark body, body.dark {
+    background-color: #111827;
+    color: #f9fafb;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #e4ddd4; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9aa0ac; }
+  .dark ::-webkit-scrollbar-thumb { background: #374151; }
+}
+
+@layer components {
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply bg-accent text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-accent-dark transition-all duration-200 active:scale-95 flex items-center gap-2;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate border border-border px-5 py-2.5 rounded-xl font-medium text-sm hover:border-slate transition-all duration-200;
+  }
+  .dark .btn-secondary {
+    @apply bg-gray-700 text-gray-200 border-gray-600 hover:border-gray-400;
+  }
+  .btn-danger {
+    @apply bg-red-50 text-red-600 border border-red-200 px-5 py-2.5 rounded-xl font-medium text-sm hover:bg-red-100 transition-all;
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply bg-white rounded-2xl border border-border;
+  }
+  .dark .card {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  /* ── Forms ── */
+  .form-input {
+    @apply w-full px-4 py-3 border-[1.5px] border-border rounded-xl text-sm font-sans bg-white text-ink focus:outline-none focus:border-accent transition-colors;
+  }
+  .dark .form-input {
+    @apply bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-accent;
+  }
+  .form-label {
+    @apply block text-[11px] font-semibold uppercase tracking-wide text-slate mb-2;
+  }
+  .dark .form-label {
+    @apply text-gray-400;
+  }
+
+  /* ── Status badges ── */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold;
+  }
+
+  /* ── Layout helpers ── */
+  .page-header {
+    @apply flex items-center justify-between mb-6;
+  }
+  .table-th {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-muted;
+  }
+
+  /* ── Dark table rows ── */
+  .dark .bg-warm {
+    @apply bg-gray-750;
+  }
+}
+
+/* ── Dark mode overrides ── */
+.dark {
+  --color-ink: #f9fafb;
+  --color-paper: #111827;
+  --color-warm: #1f2937;
+  --color-border: #374151;
+  --color-muted: #9ca3af;
+  --color-slate: #d1d5db;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn   { from { opacity: 0; transform: translateY(8px);  } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn  { from { opacity: 0; transform: translateX(-12px);} to { opacity: 1; transform: translateX(0); } }
+@keyframes scaleIn  { from { opacity: 0; transform: scale(0.96);      } to { opacity: 1; transform: scale(1);    } }
+@keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.animate-fade-in  { animation: fadeIn  0.3s ease forwards; }
+.animate-slide-in { animation: slideIn 0.3s ease forwards; }
+.animate-scale-in { animation: scaleIn 0.25s ease forwards; }
