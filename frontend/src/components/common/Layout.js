@@ -19,7 +19,7 @@ export default function Layout() {
   const { isDark, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const title = PAGE_TITLES[location.pathname] || 'EduCore';
+  const title = PAGE_TITLES[location.pathname] || 'The Future Step School';
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
 

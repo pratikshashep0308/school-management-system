@@ -181,7 +181,7 @@ export default function ParentDashboard() {
             <div className="grid sm:grid-cols-3 gap-3">
               {[
                 { icon: '📞', label: 'Call School', sub: '+91 11 2345 6789', action: () => {} },
-                { icon: '✉️', label: 'Email Admin', sub: 'admin@educore.ac.in', action: () => {} },
+                { icon: '✉️', label: 'Email Admin', sub: 'inquiry@thefuturestepschool.in', action: () => {} },
                 { icon: '💬', label: 'Message Teacher', sub: 'Send a message', action: () => navigate('/notifications') },
               ].map(c => (
                 <button key={c.label} onClick={c.action} className="card p-4 text-left hover:-translate-y-0.5 transition-all border-border hover:border-accent/40">

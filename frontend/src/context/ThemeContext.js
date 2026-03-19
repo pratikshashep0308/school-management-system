@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => localStorage.getItem('educore-theme') || 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('tfs-theme') || 'light');
 
   useEffect(() => {
     const root = document.documentElement;
@@ -12,7 +12,7 @@ export const ThemeProvider = ({ children }) => {
     } else {
       root.classList.remove('dark');
     }
-    localStorage.setItem('educore-theme', theme);
+    localStorage.setItem('tfs-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');

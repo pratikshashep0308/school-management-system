@@ -115,7 +115,7 @@ export default function Profile() {
                 <input className="form-input bg-warm cursor-not-allowed capitalize" value={ROLE_LABELS[user?.role] || user?.role || ''} readOnly />
               </FormGroup>
               <FormGroup label="School">
-                <input className="form-input bg-warm cursor-not-allowed" value="EduCore Academy" readOnly />
+                <input className="form-input bg-warm cursor-not-allowed" value="The Future Step School" readOnly />
               </FormGroup>
             </div>
             <div className="flex gap-3">

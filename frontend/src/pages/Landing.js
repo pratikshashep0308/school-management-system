@@ -46,7 +46,7 @@ function AdmissionForm() {
       });
       const data = await res.json();
       if (data.success) setSubmitted(true);
-    } catch { setSubmitted(true); /* graceful fallback */ }
+    } catch { setSubmitted(true); }
     finally { setLoading(false); }
   };
 
@@ -54,9 +54,9 @@ function AdmissionForm() {
     return (
       <div className="text-center py-12">
         <div className="text-6xl mb-4">🎉</div>
-        <h3 className="text-2xl font-bold text-navy mb-3">Application Submitted!</h3>
-        <p className="text-slate-500 max-w-sm mx-auto">Thank you for applying to EduCore Academy. Our admissions team will contact you within 2-3 working days.</p>
-        <button onClick={() => setSubmitted(false)} className="mt-6 px-6 py-2.5 bg-gold text-white rounded-full font-semibold hover:bg-gold/90 transition-all">
+        <h3 className="text-2xl font-bold mb-3" style={{ color: 'var(--tfs-navy)' }}>Application Submitted!</h3>
+        <p className="text-slate-500 max-w-sm mx-auto">Thank you for applying to The Future Step School. Our admissions team will contact you within 2–3 working days.</p>
+        <button onClick={() => setSubmitted(false)} className="mt-6 px-6 py-2.5 text-white rounded-full font-semibold transition-all" style={{ background: 'var(--tfs-orange)' }}>
           Submit Another
         </button>
       </div>
@@ -67,37 +67,39 @@ function AdmissionForm() {
     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="md:col-span-2">
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Student's Full Name *</label>
-        <input className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Arjun Sharma" required />
+        <input className="tfs-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Rahul Patil" required />
       </div>
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Date of Birth</label>
-        <input type="date" className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.dob} onChange={e => set('dob', e.target.value)} />
+        <input type="date" className="tfs-input" value={form.dob} onChange={e => set('dob', e.target.value)} />
       </div>
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Applying for Class *</label>
-        <select className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.grade} onChange={e => set('grade', e.target.value)} required>
+        <select className="tfs-input" value={form.grade} onChange={e => set('grade', e.target.value)} required>
           <option value="">Select Grade</option>
-          {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => <option key={g} value={g}>Grade {g}</option>)}
+          <option value="LKG">LKG</option>
+          <option value="UKG">UKG</option>
+          {[1,2,3,4,5,6,7,8,9,10].map(g => <option key={g} value={g}>Grade {g}</option>)}
         </select>
       </div>
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Parent / Guardian Name *</label>
-        <input className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" required />
+        <input className="tfs-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Suresh Patil" required />
       </div>
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Phone Number *</label>
-        <input className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" required />
+        <input className="tfs-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" required />
       </div>
-      <div>
+      <div className="md:col-span-2">
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Email Address *</label>
-        <input type="email" className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.email} onChange={e => set('email', e.target.value)} placeholder="parent@email.com" required />
+        <input type="email" className="tfs-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="parent@email.com" required />
       </div>
       <div className="md:col-span-2">
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Previous School (if any)</label>
-        <input className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-gold transition-colors" value={form.prevSchool} onChange={e => set('prevSchool', e.target.value)} placeholder="Delhi Public School" />
+        <input className="tfs-input" value={form.prevSchool} onChange={e => set('prevSchool', e.target.value)} placeholder="Previous school name" />
       </div>
       <div className="md:col-span-2">
-        <button type="submit" disabled={loading} className="w-full py-4 bg-navy text-white font-bold rounded-xl hover:bg-navy/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2 text-base">
+        <button type="submit" disabled={loading} className="w-full py-4 text-white font-bold rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2 text-base" style={{ background: 'var(--tfs-navy)' }}>
           {loading ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full inline-block animate-spin" />Submitting…</> : 'Submit Application →'}
         </button>
       </div>
@@ -105,10 +107,45 @@ function AdmissionForm() {
   );
 }
 
+// ── News ticker item ──
+function NewsTicker() {
+  const news = [
+    'Welcome to The Future Step School.',
+    'Secure your children\'s future with The Future Step School.',
+    'Admission open for LKG, UKG & Grade 1!',
+    'Registration Start — Hurry Up!!!',
+    'CCTV monitored classrooms for student safety.',
+    'School transport available for all routes.',
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % news.length), 3000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex items-center gap-3 overflow-hidden">
+      <span className="text-sm text-white/80 transition-all duration-500 animate-pulse">{news[idx]}</span>
+    </div>
+  );
+}
+
 export default function Landing() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  const slides = [
+    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #0d2347 100%)', title: 'Admissions Open', sub: 'LKG, UKG & Grade 1', icon: '🎓' },
+    { bg: 'linear-gradient(135deg, #e87722 0%, #c75e0a 100%)', title: 'Digital Classrooms', sub: 'Future-Ready Learning', icon: '💻' },
+    { bg: 'linear-gradient(135deg, #2d6a4f 0%, #1b4332 100%)', title: 'Safe Campus', sub: 'CCTV Monitored 24/7', icon: '🛡' },
+    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #e87722 100%)', title: 'Sports & Activities', sub: 'Holistic Development', icon: '⚽' },
+  ];
+
+  useEffect(() => {
+    const t = setInterval(() => setActiveSlide(i => (i + 1) % slides.length), 4000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -121,205 +158,304 @@ export default function Landing() {
     setMenuOpen(false);
   };
 
-  const programs = [
-    { icon: '🔬', title: 'Science & Technology', desc: 'State-of-the-art labs with hands-on learning in Physics, Chemistry, Biology, and Computer Science.' },
-    { icon: '📐', title: 'Mathematics', desc: 'From foundational arithmetic to advanced calculus, we build strong analytical foundations.' },
-    { icon: '🎨', title: 'Arts & Humanities', desc: 'Creative expression through fine arts, literature, history, and social sciences.' },
-    { icon: '⚽', title: 'Sports & Physical Ed', desc: 'Olympic-sized playground, indoor sports facilities, and professional coaching staff.' },
-    { icon: '🎵', title: 'Music & Performing Arts', desc: 'Classical and contemporary music training, drama, and cultural programmes.' },
-    { icon: '💻', title: 'Digital Literacy', desc: 'Coding, robotics, AI fundamentals, and digital citizenship for the 21st century.' },
-  ];
-
-  const testimonials = [
-    { name: 'Priya Mehta', role: 'Parent of Class X student', text: 'EduCore Academy transformed my daughter\'s love for learning. The teachers are dedicated and the facilities are world-class.' },
-    { name: 'Arjun Sharma', role: 'Alumni, Batch 2023', text: 'The values and education I received here shaped my personality and helped me secure admission in IIT Delhi.' },
-    { name: 'Dr. Kavita Nair', role: 'Parent & PTA President', text: 'Transparent communication, excellent academics, and a nurturing environment — exactly what parents look for.' },
-  ];
-
   const facilities = [
-    { icon: '🏛', name: 'Smart Classrooms' },
-    { icon: '📚', name: 'Digital Library' },
-    { icon: '🔭', name: 'Science Labs' },
-    { icon: '🖥', name: 'Computer Center' },
-    { icon: '🏊', name: 'Swimming Pool' },
-    { icon: '🎭', name: 'Auditorium' },
-    { icon: '🍽', name: 'Canteen' },
-    { icon: '🚌', name: 'Transport' },
+    { icon: '🚌', name: 'School Transport', desc: 'Safe and secure transport service covering all major routes.' },
+    { icon: '🛝', name: 'Playground', desc: 'State-of-the-art safety measures for worry-free play.' },
+    { icon: '💻', name: 'Digital Classroom', desc: 'All teaching materials and communication conducted online.' },
+    { icon: '📹', name: 'CCTV Monitoring', desc: 'Classrooms equipped with cameras for complete safety.' },
+  ];
+
+  const academics = [
+    { icon: '💻', name: 'Digital Classrooms' },
+    { icon: '🧠', name: 'Adaptive Learning' },
+    { icon: '💃', name: 'Athletic & Dance' },
+    { icon: '🗣', name: 'Language & Speaking' },
+    { icon: '📜', name: 'History' },
+    { icon: '🌍', name: 'General Knowledge' },
   ];
 
   return (
-    <div className="font-sans text-slate-800 overflow-x-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="tfs-root font-sans text-slate-800 overflow-x-hidden">
       <style>{`
-        .font-serif { font-family: 'DM Serif Display', Georgia, serif; }
-        :root { --navy: #1a2e4f; --gold: #c9922e; --cream: #fdf9f4; --sage: #4a7c59; }
-        .bg-navy { background-color: var(--navy); }
-        .text-navy { color: var(--navy); }
-        .bg-gold { background-color: var(--gold); }
-        .text-gold { color: var(--gold); }
-        .bg-cream { background-color: var(--cream); }
-        .border-gold { border-color: var(--gold); }
-        .hover\\:text-gold:hover { color: var(--gold); }
-        .hero-gradient {
-          background: linear-gradient(135deg, #1a2e4f 0%, #0f1e36 50%, #1a2e4f 100%);
+        :root {
+          --tfs-navy: #1a3a6b;
+          --tfs-navy-dark: #0d2347;
+          --tfs-orange: #e87722;
+          --tfs-orange-dark: #c75e0a;
+          --tfs-light: #f5f8ff;
+          --tfs-cream: #fffdf8;
         }
-        .pattern-overlay {
-          background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        .tfs-root { font-family: 'Segoe UI', 'Nunito', system-ui, sans-serif; }
+        .tfs-serif { font-family: Georgia, 'Times New Roman', serif; }
+        .tfs-navy-bg { background-color: var(--tfs-navy); }
+        .tfs-orange-bg { background-color: var(--tfs-orange); }
+        .tfs-navy-text { color: var(--tfs-navy); }
+        .tfs-orange-text { color: var(--tfs-orange); }
+        .tfs-input {
+          width: 100%;
+          padding: 12px 16px;
+          border: 2px solid #e2e8f0;
+          border-radius: 12px;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.2s;
+          background: white;
         }
-        .section-title { font-family: 'DM Serif Display', serif; }
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-        .float-anim { animation: float 4s ease-in-out infinite; }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
-        .fade-up { animation: fadeUp 0.7s ease forwards; }
-        .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .tfs-input:focus { border-color: var(--tfs-orange); }
+        .tfs-card { transition: all 0.3s ease; }
+        .tfs-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(26,58,107,0.12); }
+        @keyframes tfsFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        .tfs-float { animation: tfsFloat 3.5s ease-in-out infinite; }
+        @keyframes tfsFadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        .tfs-fade { animation: tfsFadeUp 0.7s ease forwards; }
+        @keyframes tickerScroll {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+        .ticker-inner { animation: tickerScroll 20s linear infinite; white-space: nowrap; }
+        .slide-transition { transition: all 0.6s ease; }
+        .tfs-section-label {
+          display: inline-block;
+          padding: 4px 14px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          background: rgba(232,119,34,0.12);
+          color: var(--tfs-orange);
+          margin-bottom: 14px;
+        }
+        .tfs-btn-primary {
+          background: var(--tfs-orange);
+          color: white;
+          padding: 14px 32px;
+          border-radius: 50px;
+          font-weight: 700;
+          font-size: 15px;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: inline-block;
+        }
+        .tfs-btn-primary:hover { background: var(--tfs-orange-dark); transform: translateY(-2px); }
+        .tfs-btn-outline {
+          background: transparent;
+          color: white;
+          padding: 14px 32px;
+          border-radius: 50px;
+          font-weight: 700;
+          font-size: 15px;
+          border: 2px solid rgba(255,255,255,0.4);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .tfs-btn-outline:hover { background: rgba(255,255,255,0.15); }
+        .dot-pattern {
+          background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+          background-size: 24px 24px;
+        }
+        .wave-divider {
+          position: absolute;
+          bottom: -1px;
+          left: 0;
+          right: 0;
+          overflow: hidden;
+          line-height: 0;
+        }
       `}</style>
 
-      {/* ── NAVBAR ── */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white shadow-lg' : 'bg-transparent'}`}>
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className={`font-serif text-2xl font-bold transition-colors ${scrolled ? 'text-navy' : 'text-white'}`}>
-            Edu<span className="text-gold">Core</span>
+      {/* ── TOP INFO BAR ── */}
+      <div className="tfs-orange-bg text-white text-xs py-2 px-4 hidden md:block">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-6">
+            <span>📞 +91 706555543 / +91 9404820296</span>
+            <span>✉️ inquiry@thefuturestepschool.in</span>
           </div>
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-7">
-            {['About', 'Programs', 'Facilities', 'Admissions', 'Contact'].map(item => (
-              <button key={item} onClick={() => scrollTo(item.toLowerCase())}
-                className={`text-sm font-semibold transition-colors hover:text-gold ${scrolled ? 'text-slate-600' : 'text-white/80'}`}>
-                {item}
+          <div className="flex items-center gap-4">
+            <span>📍 Bhaler, Nandurbar, Maharashtra – 425412</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── NAVBAR ── */}
+      <nav className={`sticky top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'shadow-lg' : ''}`} style={{ background: 'var(--tfs-navy)' }}>
+        <div className="max-w-7xl mx-auto px-6 h-18 py-3 flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl font-bold tfs-serif" style={{ color: 'var(--tfs-navy)' }}>TFS</div>
+            <div>
+              <div className="text-white font-bold text-base leading-tight">The Future Step</div>
+              <div className="text-xs leading-tight" style={{ color: 'var(--tfs-orange)' }}>School</div>
+            </div>
+          </div>
+
+          {/* Desktop Nav */}
+          <div className="hidden md:flex items-center gap-1">
+            {[
+              { label: 'Home', id: 'hero' },
+              { label: 'About Us', id: 'about' },
+              { label: 'Facilities', id: 'facilities' },
+              { label: 'Academics', id: 'academics' },
+              { label: 'Admissions', id: 'admissions' },
+              { label: 'Contact', id: 'contact' },
+            ].map(item => (
+              <button key={item.label} onClick={() => scrollTo(item.id)}
+                className="text-sm font-semibold text-white/80 hover:text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-all">
+                {item.label}
               </button>
             ))}
           </div>
+
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/login')} className={`hidden md:block px-5 py-2.5 rounded-full text-sm font-bold transition-all ${scrolled ? 'bg-navy text-white hover:bg-navy/90' : 'bg-white/15 text-white border border-white/30 hover:bg-white/25'}`}>
-              Login to Portal
+            <button onClick={() => navigate('/login')} className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all" style={{ background: 'var(--tfs-orange)' }}>
+              🔐 Portal Login
             </button>
-            <button onClick={() => setMenuOpen(!menuOpen)} className={`md:hidden ${scrolled ? 'text-navy' : 'text-white'}`}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} /></svg>
+            <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-white p-2">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+              </svg>
             </button>
           </div>
         </div>
-        {/* Mobile menu */}
+
+        {/* Mobile Menu */}
         {menuOpen && (
-          <div className="md:hidden bg-white border-t border-slate-100 px-6 py-4 space-y-3">
-            {['About', 'Programs', 'Facilities', 'Admissions', 'Contact'].map(item => (
-              <button key={item} onClick={() => scrollTo(item.toLowerCase())} className="block w-full text-left text-sm font-semibold text-slate-700 py-2 hover:text-gold">{item}</button>
+          <div className="md:hidden border-t border-white/10 px-6 py-4 space-y-2" style={{ background: 'var(--tfs-navy-dark)' }}>
+            {['Home', 'About Us', 'Facilities', 'Academics', 'Admissions', 'Contact'].map(item => (
+              <button key={item} onClick={() => scrollTo(item.toLowerCase().replace(' ', '-'))} className="block w-full text-left text-sm font-semibold text-white/80 py-2.5 hover:text-white border-b border-white/5">{item}</button>
             ))}
-            <button onClick={() => navigate('/login')} className="w-full mt-2 px-5 py-2.5 bg-navy text-white rounded-full text-sm font-bold">Login to Portal</button>
+            <button onClick={() => navigate('/login')} className="w-full mt-2 px-5 py-3 text-white rounded-full text-sm font-bold" style={{ background: 'var(--tfs-orange)' }}>Login to Portal</button>
           </div>
         )}
       </nav>
 
-      {/* ── HERO ── */}
-      <section className="hero-gradient pattern-overlay min-h-screen flex flex-col justify-center relative overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute top-20 right-10 w-72 h-72 rounded-full opacity-10 float-anim" style={{ background: 'radial-gradient(circle, #c9922e, transparent)' }} />
-        <div className="absolute bottom-20 left-10 w-48 h-48 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #4a7c59, transparent)', animationDelay: '2s', animation: 'float 5s ease-in-out infinite' }} />
-
-        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-20">
-          <div className="max-w-3xl fade-up">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-gold/40 bg-gold/10 text-gold text-xs font-bold uppercase tracking-widest mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-gold" />
-              Admissions Open 2026–27
+      {/* ── NEWS TICKER ── */}
+      <div className="bg-yellow-50 border-b border-yellow-200 py-2.5 px-4 overflow-hidden">
+        <div className="max-w-7xl mx-auto flex items-center gap-3">
+          <span className="text-xs font-bold px-3 py-1 rounded text-white flex-shrink-0" style={{ background: 'var(--tfs-navy)' }}>📢 Latest News</span>
+          <div className="overflow-hidden flex-1">
+            <div className="ticker-inner text-sm font-medium" style={{ color: 'var(--tfs-navy)' }}>
+              ✦ Welcome to The Future Step School &nbsp;&nbsp;&nbsp; ✦ Secure your children's future with The Future Step School &nbsp;&nbsp;&nbsp; ✦ Admission open for LKG, UKG & Grade 1 &nbsp;&nbsp;&nbsp; ✦ Registration Start — Hurry Up!!! &nbsp;&nbsp;&nbsp;
             </div>
-            <h1 className="font-serif text-5xl md:text-7xl text-white leading-tight mb-6">
-              Where Every Child <br />
-              <span className="text-gold">Discovers Greatness</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── HERO CAROUSEL ── */}
+      <section id="hero" className="relative overflow-hidden" style={{ minHeight: '75vh' }}>
+        <div className="slide-transition dot-pattern w-full h-full absolute inset-0 flex items-center justify-center" style={{ background: slides[activeSlide].bg }}>
+        </div>
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 flex flex-col md:flex-row items-center gap-12 min-h-[75vh]">
+          <div className="flex-1 tfs-fade">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/30 bg-white/10 text-white text-xs font-bold uppercase tracking-widest mb-6">
+              <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
+              Admissions Open 2025–26
+            </div>
+            <h1 className="tfs-serif text-4xl md:text-6xl text-white leading-tight mb-5 font-bold">
+              The Future Step<br />
+              <span style={{ color: '#ffd166' }}>School</span>
             </h1>
-            <p className="text-white/60 text-lg leading-relaxed max-w-xl mb-10">
-              EduCore Academy provides world-class education blending rigorous academics, holistic development, and cutting-edge technology — nurturing the leaders of tomorrow.
+            <p className="text-white/75 text-lg leading-relaxed max-w-xl mb-8">
+              Nurturing young minds with quality education, digital classrooms, and a safe environment. Shaping the responsible citizens of tomorrow.
             </p>
             <div className="flex flex-wrap gap-4">
-              <button onClick={() => scrollTo('admissions')} className="px-8 py-4 bg-gold text-white font-bold rounded-full hover:bg-gold/90 transition-all shadow-lg text-base">
+              <button onClick={() => scrollTo('admissions')} className="tfs-btn-primary">
                 Apply for Admission →
               </button>
-              <button onClick={() => scrollTo('about')} className="px-8 py-4 bg-white/10 text-white font-bold rounded-full border border-white/20 hover:bg-white/20 transition-all text-base">
+              <button onClick={() => scrollTo('about')} className="tfs-btn-outline">
                 Explore School
               </button>
             </div>
+            {/* Badges */}
+            <div className="flex flex-wrap gap-3 mt-10">
+              {[
+                { icon: '🏫', text: 'Est. School', sub: 'Bhaler, Nandurbar' },
+                { icon: '📹', text: 'CCTV Campus', sub: 'Safe & Secure' },
+                { icon: '💻', text: 'Digital Classes', sub: 'Smart Learning' },
+              ].map(b => (
+                <div key={b.text} className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white/12 border border-white/15">
+                  <span className="text-xl">{b.icon}</span>
+                  <div>
+                    <div className="text-white font-bold text-xs">{b.text}</div>
+                    <div className="text-white/55 text-xs">{b.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Hero badges */}
-          <div className="flex flex-wrap gap-4 mt-16 pb-16">
-            {[
-              { icon: '🏆', text: 'CBSE Affiliated', sub: 'Board No. 1234567' },
-              { icon: '⭐', text: 'A+ Grade', sub: 'NAAC Accredited' },
-              { icon: '🌱', text: 'Est. 2001', sub: '25 Years of Excellence' },
-            ].map(b => (
-              <div key={b.text} className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/10 border border-white/15">
-                <span className="text-2xl">{b.icon}</span>
-                <div>
-                  <div className="text-white font-bold text-sm">{b.text}</div>
-                  <div className="text-white/50 text-xs">{b.sub}</div>
-                </div>
-              </div>
-            ))}
+          {/* Slide visual */}
+          <div className="flex-shrink-0 tfs-float hidden md:block">
+            <div className="w-72 h-72 rounded-full bg-white/10 border-2 border-white/20 flex items-center justify-center" style={{ fontSize: '120px' }}>
+              {slides[activeSlide].icon}
+            </div>
           </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/40">
-          <span className="text-xs uppercase tracking-widest">Scroll</span>
-          <div className="w-5 h-8 rounded-full border border-white/20 flex items-start justify-center pt-1.5">
-            <div className="w-1 h-2 rounded-full bg-white/40" style={{ animation: 'float 1.5s ease-in-out infinite' }} />
-          </div>
+        {/* Slide dots */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+          {slides.map((_, i) => (
+            <button key={i} onClick={() => setActiveSlide(i)}
+              className={`rounded-full transition-all ${i === activeSlide ? 'w-8 h-3 bg-white' : 'w-3 h-3 bg-white/40'}`} />
+          ))}
         </div>
       </section>
 
       {/* ── STATS BAR ── */}
-      <section className="bg-gold">
-        <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-white text-center">
+      <section style={{ background: 'var(--tfs-orange)' }}>
+        <div className="max-w-7xl mx-auto px-6 py-7 grid grid-cols-2 md:grid-cols-4 gap-6 text-white text-center">
           {[
-            { value: 3500, suffix: '+', label: 'Students Enrolled' },
-            { value: 180, suffix: '+', label: 'Qualified Teachers' },
-            { value: 25, suffix: '', label: 'Years of Excellence' },
-            { value: 98, suffix: '%', label: 'Pass Rate' },
+            { value: 500, suffix: '+', label: 'Students Enrolled' },
+            { value: 30, suffix: '+', label: 'Qualified Teachers' },
+            { value: 6, suffix: '', label: 'Years of Service' },
+            { value: 95, suffix: '%', label: 'Pass Rate' },
           ].map(s => (
             <div key={s.label}>
-              <div className="font-serif text-4xl font-bold text-white"><CountUp end={s.value} suffix={s.suffix} /></div>
-              <div className="text-white/75 text-sm mt-1 font-medium">{s.label}</div>
+              <div className="tfs-serif text-4xl font-bold text-white"><CountUp end={s.value} suffix={s.suffix} /></div>
+              <div className="text-white/80 text-sm mt-1 font-medium">{s.label}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── ABOUT ── */}
-      <section id="about" className="bg-cream py-24">
+      <section id="about" className="py-24" style={{ background: 'var(--tfs-cream)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div>
-              <div className="inline-block px-3 py-1 rounded-full bg-navy/10 text-navy text-xs font-bold uppercase tracking-widest mb-5">About Us</div>
-              <h2 className="section-title font-serif text-4xl md:text-5xl text-navy leading-tight mb-6">
-                A Legacy of Learning <br />Since 2001
+              <div className="tfs-section-label">About Us</div>
+              <h2 className="tfs-serif text-4xl md:text-5xl font-bold leading-tight mb-6" style={{ color: 'var(--tfs-navy)' }}>
+                Adaptive and Fun<br />Learning for Kids
               </h2>
               <p className="text-slate-600 leading-relaxed mb-5">
-                EduCore Academy was founded with the vision of creating an institution where academic excellence meets holistic development. Over 25 years, we have grown into a family of 3,500+ students, 180 dedicated educators, and thousands of proud alumni.
+                Adaptive and fun learning for kids is an exciting educational approach that caters to young learners' individual needs and preferences. At The Future Step School we combine personalized content, interactive activities, and engaging challenges to create a positive and enjoyable learning environment.
               </p>
               <p className="text-slate-600 leading-relaxed mb-8">
-                We believe every child carries unique potential. Our experienced faculty, modern infrastructure, and innovative curriculum are designed to unlock that potential and prepare students for the challenges of tomorrow.
+                Children explore topics through games, collaborate on projects, and receive real-time feedback — making education not only effective but also delightful! Our experienced faculty and modern infrastructure are designed to unlock every child's potential.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { label: 'Board', value: 'CBSE' },
-                  { label: 'Medium', value: 'English' },
-                  { label: 'Classes', value: 'Grade I – XII' },
-                  { label: 'Campus', value: '15 Acres' },
+                  { label: 'Location', value: 'Bhaler, Nandurbar' },
+                  { label: 'Medium', value: 'Semi-English' },
+                  { label: 'Classes', value: 'LKG – Grade 10' },
+                  { label: 'Campus', value: 'CCTV Monitored' },
                 ].map(({ label, value }) => (
-                  <div key={label} className="p-4 bg-white rounded-2xl border border-slate-100">
-                    <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</div>
-                    <div className="text-navy font-bold text-lg mt-1">{value}</div>
+                  <div key={label} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="text-xs text-slate-400 font-bold uppercase tracking-wide">{label}</div>
+                    <div className="font-bold text-base mt-1" style={{ color: 'var(--tfs-navy)' }}>{value}</div>
                   </div>
                 ))}
               </div>
             </div>
             <div className="relative">
-              <div className="bg-navy rounded-3xl overflow-hidden aspect-[4/3] flex items-center justify-center relative">
-                <div className="absolute inset-0 pattern-overlay opacity-30" />
+              <div className="rounded-3xl overflow-hidden aspect-[4/3] flex items-center justify-center relative dot-pattern" style={{ background: 'var(--tfs-navy)' }}>
                 <div className="relative z-10 text-center text-white p-8">
-                  <div className="text-7xl mb-4">🏫</div>
-                  <div className="font-serif text-2xl font-bold">EduCore Academy</div>
-                  <div className="text-white/60 mt-2">New Delhi, India</div>
-                  <div className="mt-6 flex flex-wrap gap-2 justify-center">
-                    {['ISO 9001:2015', 'CBSE Affiliated', 'Green Campus'].map(tag => (
+                  <div className="text-8xl mb-4 tfs-float">🏫</div>
+                  <div className="tfs-serif text-2xl font-bold">The Future Step School</div>
+                  <div className="text-white/60 mt-2 text-sm">Smt. K.P. Patil School Compound<br />Shindgavhan Road, Bhaler</div>
+                  <div className="mt-5 flex flex-wrap gap-2 justify-center">
+                    {['Digital Classrooms', 'CCTV Monitored', 'Safe Transport'].map(tag => (
                       <span key={tag} className="px-3 py-1 bg-white/10 rounded-full text-xs text-white/80 border border-white/20">{tag}</span>
                     ))}
                   </div>
@@ -327,112 +463,167 @@ export default function Landing() {
               </div>
               {/* Floating card */}
               <div className="absolute -bottom-6 -left-6 bg-white rounded-2xl p-5 shadow-2xl border border-slate-100">
-                <div className="font-serif text-3xl text-navy font-bold">98%</div>
-                <div className="text-slate-500 text-sm mt-1">Board Exam Pass Rate</div>
+                <div className="tfs-serif text-3xl font-bold" style={{ color: 'var(--tfs-navy)' }}>95%</div>
+                <div className="text-slate-500 text-sm mt-1">Exam Pass Rate</div>
                 <div className="flex items-center gap-1 mt-2">
-                  {[...Array(5)].map((_, i) => <span key={i} className="text-gold text-xs">★</span>)}
+                  {[...Array(5)].map((_, i) => <span key={i} className="text-yellow-400 text-sm">★</span>)}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PROGRAMS ── */}
-      <section id="programs" className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-14">
-            <div className="inline-block px-3 py-1 rounded-full bg-gold/10 text-gold text-xs font-bold uppercase tracking-widest mb-4">Academic Programs</div>
-            <h2 className="section-title font-serif text-4xl text-navy">Holistic Education for Every Mind</h2>
-            <p className="text-slate-500 mt-3 max-w-xl mx-auto">A comprehensive curriculum designed to ignite curiosity, build skills, and shape character.</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {programs.map((prog, i) => (
-              <div key={prog.title} className="card-hover p-7 rounded-3xl border-2 border-slate-100 hover:border-gold/40 bg-white cursor-default" style={{ animationDelay: `${i * 0.1}s` }}>
-                <div className="w-14 h-14 rounded-2xl bg-cream flex items-center justify-center text-3xl mb-5">{prog.icon}</div>
-                <h3 className="font-bold text-navy text-lg mb-2">{prog.title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed">{prog.desc}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
 
       {/* ── FACILITIES ── */}
-      <section id="facilities" className="py-24 bg-navy pattern-overlay">
+      <section id="facilities" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
-            <div className="inline-block px-3 py-1 rounded-full bg-gold/20 text-gold text-xs font-bold uppercase tracking-widest mb-4">Campus Life</div>
-            <h2 className="section-title font-serif text-4xl text-white">World-Class Facilities</h2>
-            <p className="text-white/50 mt-3 max-w-xl mx-auto">Our campus is designed to inspire creativity, encourage activity, and foster community.</p>
+            <div className="tfs-section-label">Campus Life</div>
+            <h2 className="tfs-serif text-4xl font-bold mb-3" style={{ color: 'var(--tfs-navy)' }}>School Facilities</h2>
+            <p className="text-slate-500 max-w-xl mx-auto">Our campus is built to provide a safe, modern, and enriching environment for every child.</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {facilities.map(f => (
-              <div key={f.name} className="card-hover text-center p-6 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 hover:border-gold/40">
-                <div className="text-4xl mb-3">{f.icon}</div>
-                <div className="text-white font-semibold text-sm">{f.name}</div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {facilities.map((f, i) => (
+              <div key={f.name} className="tfs-card p-7 rounded-3xl border-2 border-slate-100 hover:border-orange-200 text-center cursor-default" style={{ animationDelay: `${i * 0.1}s` }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-5" style={{ background: 'rgba(26,58,107,0.07)' }}>{f.icon}</div>
+                <h3 className="font-bold text-base mb-2" style={{ color: 'var(--tfs-navy)' }}>{f.name}</h3>
+                <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ── */}
-      <section className="py-24 bg-cream">
+      {/* ── SPORTS ── */}
+      <section className="py-20 dot-pattern" style={{ background: 'var(--tfs-navy)' }}>
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-14 items-center">
+            <div>
+              <div className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-5 bg-white/10 text-white/80">Sports Facilities</div>
+              <h2 className="tfs-serif text-3xl md:text-4xl font-bold text-white mb-5">Arenas for Growth &amp; Camaraderie</h2>
+              <p className="text-white/70 leading-relaxed mb-5">
+                Sports facilities at The Future Step School are not just physical spaces; they are arenas for growth, camaraderie, and personal development. Students are encouraged to explore their interests, challenge themselves, and build lifelong healthy habits.
+              </p>
+              <p className="text-white/70 leading-relaxed mb-7">
+                Beyond the physical benefits, engagement in sports fosters valuable life skills such as resilience, discipline, and sportsmanship — preparing students for success both on and off the field.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {['Basketball', 'Cricket', 'Athletics', 'Kabaddi', 'Yoga', 'Martial Arts'].map(sport => (
+                  <span key={sport} className="px-4 py-2 rounded-full text-sm font-semibold border border-white/20 text-white/80 bg-white/8">{sport}</span>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { emoji: '🏏', label: 'Cricket Ground' },
+                { emoji: '🏀', label: 'Basketball Court' },
+                { emoji: '🤸', label: 'Gymnastics' },
+                { emoji: '🧘', label: 'Yoga & Fitness' },
+              ].map(s => (
+                <div key={s.label} className="tfs-card aspect-square rounded-3xl flex flex-col items-center justify-center gap-3 border border-white/10 bg-white/5 hover:bg-white/12 cursor-default">
+                  <span className="text-5xl">{s.emoji}</span>
+                  <span className="text-white/80 text-sm font-semibold">{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── ACADEMICS ── */}
+      <section id="academics" className="py-24" style={{ background: 'var(--tfs-light)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
-            <div className="inline-block px-3 py-1 rounded-full bg-navy/10 text-navy text-xs font-bold uppercase tracking-widest mb-4">Testimonials</div>
-            <h2 className="section-title font-serif text-4xl text-navy">What Our Community Says</h2>
+            <div className="tfs-section-label">School Academics</div>
+            <h2 className="tfs-serif text-4xl font-bold mb-3" style={{ color: 'var(--tfs-navy)' }}>Information on Subjects &amp; Approach</h2>
+            <p className="text-slate-500 max-w-xl mx-auto">A holistic curriculum designed to spark curiosity and build confident, capable learners.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((t, i) => (
-              <div key={i} className="card-hover bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-                <div className="flex items-center gap-1 mb-5">
-                  {[...Array(5)].map((_, j) => <span key={j} className="text-gold">★</span>)}
-                </div>
-                <p className="text-slate-600 leading-relaxed mb-6 italic">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-navy flex items-center justify-center text-white font-bold text-sm">
-                    {t.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <div className="font-bold text-navy text-sm">{t.name}</div>
-                    <div className="text-slate-400 text-xs">{t.role}</div>
-                  </div>
-                </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
+            {academics.map((a, i) => (
+              <div key={a.name} className="tfs-card text-center p-6 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md cursor-default">
+                <div className="text-4xl mb-3">{a.icon}</div>
+                <div className="text-sm font-bold" style={{ color: 'var(--tfs-navy)' }}>{a.name}</div>
               </div>
             ))}
+          </div>
+
+          {/* Teacher section */}
+          <div className="mt-20 grid md:grid-cols-2 gap-14 items-center">
+            <div className="rounded-3xl overflow-hidden bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-12 text-center">
+              <div>
+                <div className="text-8xl mb-4">👩‍🏫</div>
+                <div className="font-bold text-lg" style={{ color: 'var(--tfs-navy)' }}>Dedicated Teacher Staff</div>
+                <div className="text-slate-500 text-sm mt-2">30+ Qualified Educators</div>
+              </div>
+            </div>
+            <div>
+              <div className="tfs-section-label">Supportive Teacher Staff</div>
+              <h2 className="tfs-serif text-3xl font-bold leading-tight mb-5" style={{ color: 'var(--tfs-navy)' }}>Passionate About Education</h2>
+              <p className="text-slate-600 leading-relaxed mb-5">
+                Good school teacher staff is essential for creating a positive and effective learning environment. At The Future Step School, our staff is passionate about education and genuinely cares about the success and well-being of every student.
+              </p>
+              <p className="text-slate-600 leading-relaxed">
+                They inspire and motivate students to learn, fostering a love for learning that extends beyond the classroom — shaping not just students, but future citizens.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-3">
+                {['Passionate', 'Experienced', 'Caring', 'Dedicated'].map(tag => (
+                  <span key={tag} className="px-4 py-2 text-sm font-bold rounded-full border-2 border-orange-200" style={{ color: 'var(--tfs-orange)' }}>{tag}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── RESPONSIBLE CITIZEN ── */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="rounded-3xl p-10 md:p-16 text-center dot-pattern" style={{ background: 'var(--tfs-navy)' }}>
+            <div className="text-6xl mb-5">🌏</div>
+            <h2 className="tfs-serif text-3xl md:text-4xl font-bold text-white mb-5">Responsible Citizen / Human Being</h2>
+            <p className="text-white/70 leading-relaxed max-w-3xl mx-auto">
+              At The Future Step School, teaching kids to be responsible citizens and human beings is an essential part of our curriculum. We believe responsible citizens are those who care about themselves, others, and the environment — acting in ways that reflect their values and principles. Our school plays a vital role in fostering responsibility, humanity, and integrity among students.
+            </p>
+            <button onClick={() => scrollTo('admissions')} className="tfs-btn-primary mt-8 inline-block">
+              Enroll Your Child Today →
+            </button>
           </div>
         </div>
       </section>
 
       {/* ── ADMISSIONS ── */}
-      <section id="admissions" className="py-24 bg-white">
+      <section id="admissions" className="py-24" style={{ background: 'var(--tfs-cream)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-16 items-start">
             <div>
-              <div className="inline-block px-3 py-1 rounded-full bg-gold/10 text-gold text-xs font-bold uppercase tracking-widest mb-5">Admissions 2026–27</div>
-              <h2 className="section-title font-serif text-4xl text-navy leading-tight mb-6">Begin Your Child's <br />Journey With Us</h2>
-              <p className="text-slate-600 leading-relaxed mb-8">Admissions to EduCore Academy are open throughout the year. We welcome students with a passion for learning and a desire to grow.</p>
-              <div className="space-y-4">
+              <div className="tfs-section-label">Admissions 2025–26</div>
+              <h2 className="tfs-serif text-4xl font-bold leading-tight mb-6" style={{ color: 'var(--tfs-navy)' }}>Begin Your Child's<br />Journey With Us</h2>
+              <p className="text-slate-600 leading-relaxed mb-8">
+                Admissions to The Future Step School are open for LKG, UKG & Grade 1. We welcome students with a passion for learning and a desire to grow. Secure your child's future today!
+              </p>
+              <div className="space-y-5">
                 {[
                   { step: '01', title: 'Submit Application', desc: 'Fill out the form with student and parent details.' },
                   { step: '02', title: 'Document Verification', desc: 'Submit required documents within 5 working days.' },
-                  { step: '03', title: 'Interaction Session', desc: 'Brief meet with the admissions coordinator.' },
+                  { step: '03', title: 'Interaction Session', desc: 'Brief meeting with the admissions coordinator.' },
                   { step: '04', title: 'Confirmation', desc: 'Receive admission confirmation and fee structure.' },
                 ].map(step => (
-                  <div key={step.step} className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-navy text-white font-bold text-sm flex items-center justify-center flex-shrink-0">{step.step}</div>
+                  <div key={step.step} className="flex gap-4 items-start">
+                    <div className="w-10 h-10 rounded-full text-white font-bold text-sm flex items-center justify-center flex-shrink-0" style={{ background: 'var(--tfs-orange)' }}>{step.step}</div>
                     <div>
-                      <div className="font-bold text-navy">{step.title}</div>
+                      <div className="font-bold" style={{ color: 'var(--tfs-navy)' }}>{step.title}</div>
                       <div className="text-slate-500 text-sm">{step.desc}</div>
                     </div>
                   </div>
                 ))}
               </div>
+              <div className="mt-8 p-5 rounded-2xl border-2 border-orange-200 bg-orange-50">
+                <div className="font-bold text-sm mb-1" style={{ color: 'var(--tfs-orange)' }}>📞 Contact for Admissions</div>
+                <div className="text-slate-600 text-sm">+91 706555543 &nbsp;|&nbsp; +91 9404820296 &nbsp;|&nbsp; +91 9764773692</div>
+              </div>
             </div>
-            <div className="bg-cream rounded-3xl p-8 border border-slate-100">
-              <h3 className="font-serif text-2xl text-navy mb-6">Online Admission Form</h3>
+            <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-lg">
+              <h3 className="tfs-serif text-2xl font-bold mb-6" style={{ color: 'var(--tfs-navy)' }}>Online Admission Form</h3>
               <AdmissionForm />
             </div>
           </div>
@@ -440,64 +631,77 @@ export default function Landing() {
       </section>
 
       {/* ── CONTACT ── */}
-      <section id="contact" className="py-24 bg-navy pattern-overlay">
+      <section id="contact" className="py-24 dot-pattern" style={{ background: 'var(--tfs-navy)' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="section-title font-serif text-4xl text-white mb-3">Get In Touch</h2>
-            <p className="text-white/50">We're here to answer all your questions.</p>
+            <h2 className="tfs-serif text-4xl font-bold text-white mb-3">Get In Touch</h2>
+            <p className="text-white/50">We're here to answer all your questions about admissions and school life.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
-              { icon: '📍', title: 'Address', lines: ['EduCore Academy, Sector 15', 'Dwarka, New Delhi – 110075'] },
-              { icon: '📞', title: 'Phone', lines: ['+91 11 2345 6789', '+91 98765 43210'] },
-              { icon: '✉️', title: 'Email', lines: ['admissions@educore.ac.in', 'info@educore.ac.in'] },
+              { icon: '📍', title: 'Address', lines: ['Smt. K. P. Patil School Compound', 'Shindgavhan Road, A/P Bhaler', 'Tal/Dist. Nandurbar, M.S. – 425412'] },
+              { icon: '📞', title: 'Phone', lines: ['+91 706555543', '+91 9404820296', '+91 9764773692'] },
+              { icon: '✉️', title: 'Email', lines: ['inquiry@thefuturestepschool.in'] },
             ].map(c => (
-              <div key={c.title} className="text-center p-8 rounded-3xl bg-white/5 border border-white/10">
+              <div key={c.title} className="text-center p-8 rounded-3xl bg-white/5 border border-white/10 tfs-card">
                 <div className="text-4xl mb-4">{c.icon}</div>
                 <div className="font-bold text-white mb-3">{c.title}</div>
-                {c.lines.map(l => <div key={l} className="text-white/60 text-sm">{l}</div>)}
+                {c.lines.map(l => <div key={l} className="text-white/60 text-sm leading-relaxed">{l}</div>)}
               </div>
             ))}
           </div>
           <div className="mt-12 text-center">
-            <button onClick={() => navigate('/login')} className="px-10 py-4 bg-gold text-white font-bold rounded-full hover:bg-gold/90 transition-all text-lg shadow-lg">
-              Access School Portal →
+            <button onClick={() => navigate('/login')} className="tfs-btn-primary text-lg px-10 py-4">
+              🔐 Access School Portal →
             </button>
           </div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="bg-slate-900 text-white py-12">
+      <footer className="text-white py-14" style={{ background: '#07152b' }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-4 gap-10 mb-10">
             <div className="md:col-span-2">
-              <div className="font-serif text-2xl font-bold mb-3">Edu<span className="text-gold">Core</span> Academy</div>
-              <p className="text-white/50 text-sm leading-relaxed max-w-xs">Nurturing curious minds and building confident futures since 2001. CBSE affiliated, co-educational school in New Delhi.</p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center font-bold tfs-serif" style={{ color: 'var(--tfs-navy)' }}>TFS</div>
+                <div>
+                  <div className="font-bold text-lg">The Future Step School</div>
+                  <div className="text-xs" style={{ color: 'var(--tfs-orange)' }}>Bhaler, Nandurbar</div>
+                </div>
+              </div>
+              <p className="text-white/50 text-sm leading-relaxed max-w-xs">
+                Nurturing curious minds and building confident futures. A safe, digital, and holistic learning environment for every child.
+              </p>
             </div>
             <div>
               <div className="font-bold text-white/80 mb-4 uppercase text-xs tracking-wider">Quick Links</div>
               <div className="space-y-2">
-                {['About Us', 'Academic Programs', 'Admissions', 'Facilities', 'Contact'].map(l => (
-                  <div key={l}><a href="#" className="text-white/50 text-sm hover:text-gold transition-colors">{l}</a></div>
+                {['Home', 'About Us', 'Facilities', 'Academics', 'Admissions', 'Contact'].map(l => (
+                  <div key={l}><button className="text-white/50 text-sm hover:text-white transition-colors">{l}</button></div>
                 ))}
               </div>
             </div>
             <div>
-              <div className="font-bold text-white/80 mb-4 uppercase text-xs tracking-wider">Portal</div>
+              <div className="font-bold text-white/80 mb-4 uppercase text-xs tracking-wider">Portal Access</div>
               <div className="space-y-2">
-                {['Admin Login', 'Teacher Login', 'Student Login', 'Parent Login'].map(l => (
-                  <div key={l}><button onClick={() => navigate('/login')} className="text-white/50 text-sm hover:text-gold transition-colors">{l}</button></div>
+                {['Staff Login', 'Student Login', 'Parent Login', 'Admission Form'].map(l => (
+                  <div key={l}><button onClick={() => navigate('/login')} className="text-white/50 text-sm hover:text-white transition-colors">{l}</button></div>
                 ))}
+              </div>
+              <div className="mt-6">
+                <a href="https://thefuturestepschool.in/form.html" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold text-white" style={{ background: 'var(--tfs-orange)' }}>
+                  📝 Admission Form
+                </a>
               </div>
             </div>
           </div>
           <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-white/30 text-sm">© 2026 EduCore Academy. All rights reserved.</div>
+            <div className="text-white/30 text-sm">© 2025 The Future Step School. All rights reserved.</div>
             <div className="flex gap-5 text-white/30 text-xs">
-              <a href="#" className="hover:text-white">Privacy Policy</a>
-              <a href="#" className="hover:text-white">Terms of Use</a>
-              <a href="#" className="hover:text-white">Grievance</a>
+              <a href="https://thefuturestepschool.in/about.html" className="hover:text-white">About Us</a>
+              <a href="https://thefuturestepschool.in/contact.html" className="hover:text-white">Contact</a>
+              <span>inquiry@thefuturestepschool.in</span>
             </div>
           </div>
         </div>

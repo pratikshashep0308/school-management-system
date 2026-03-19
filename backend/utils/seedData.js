@@ -27,69 +27,72 @@ const seed = async () => {
 
   console.log('🏫 Creating school...');
   const school = await School.create({
-    name: 'Delhi Public School', address: 'Sector 45, Gurugram, Haryana',
-    phone: '0124-1234567', email: 'info@dps.edu.in',
-    principalName: 'Dr. Sunita Sharma', board: 'CBSE', establishedYear: 1985
+    name: 'The Future Step School',
+    address: 'Smt. K. P. Patil School Compound, Shindgavhan Road, A/P Bhaler, Tal/Dist. Nandurbar, M.S.',
+    phone: '+91 9404820296',
+    email: 'inquiry@thefuturestepschool.in',
+    principalName: 'Dr. Suresh Patil',
+    board: 'SSC / Semi-English',
+    establishedYear: 2018
   });
 
   console.log('👤 Creating users...');
   const superAdmin = await User.create({ name: 'Super Admin', email: 'superadmin@school.com', password: 'Admin@123', role: 'superAdmin', school: school._id });
   const admin = await User.create({ name: 'School Admin', email: 'admin@school.com', password: 'Admin@123', role: 'schoolAdmin', school: school._id });
-  const accountant = await User.create({ name: 'Rahul Verma', email: 'accountant@school.com', password: 'Admin@123', role: 'accountant', school: school._id });
-  const librarian = await User.create({ name: 'Sunita Rao', email: 'librarian@school.com', password: 'Admin@123', role: 'librarian', school: school._id });
-  const transport = await User.create({ name: 'Mohan Das', email: 'transport@school.com', password: 'Admin@123', role: 'transportManager', school: school._id });
+  const accountant = await User.create({ name: 'Rahul Deshmukh', email: 'accountant@school.com', password: 'Admin@123', role: 'accountant', school: school._id });
+  const librarian = await User.create({ name: 'Sunita Patil', email: 'librarian@school.com', password: 'Admin@123', role: 'librarian', school: school._id });
+  const transport = await User.create({ name: 'Mohan Rathod', email: 'transport@school.com', password: 'Admin@123', role: 'transportManager', school: school._id });
 
   console.log('📚 Creating subjects...');
   const subjects = await Subject.insertMany([
     { name: 'Mathematics', code: 'MATH', type: 'both', school: school._id },
-    { name: 'Physics', code: 'PHY', type: 'both', school: school._id },
-    { name: 'Chemistry', code: 'CHEM', type: 'both', school: school._id },
-    { name: 'Biology', code: 'BIO', type: 'both', school: school._id },
+    { name: 'Science', code: 'SCI', type: 'both', school: school._id },
     { name: 'English', code: 'ENG', type: 'theory', school: school._id },
-    { name: 'History', code: 'HIST', type: 'theory', school: school._id },
-    { name: 'Computer Science', code: 'CS', type: 'both', school: school._id },
+    { name: 'Marathi', code: 'MAR', type: 'theory', school: school._id },
+    { name: 'Hindi', code: 'HIN', type: 'theory', school: school._id },
+    { name: 'Social Science', code: 'SST', type: 'theory', school: school._id },
+    { name: 'General Knowledge', code: 'GK', type: 'theory', school: school._id },
   ]);
 
   console.log('🎓 Creating teachers...');
   const teacherUsers = await User.insertMany([
-    { name: 'Mr. Rajesh Sharma', email: 'teacher@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543210', school: school._id },
-    { name: 'Dr. Meena Patel', email: 'meena.patel@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543211', school: school._id },
-    { name: 'Ms. Lakshmi Iyer', email: 'lakshmi.iyer@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543212', school: school._id },
-    { name: 'Mr. Anand Kumar', email: 'anand.kumar@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543213', school: school._id },
+    { name: 'Mr. Vijay Chaudhari', email: 'teacher@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543210', school: school._id },
+    { name: 'Mrs. Rekha Nikam', email: 'rekha.nikam@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543211', school: school._id },
+    { name: 'Mr. Santosh Borse', email: 'santosh.borse@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543212', school: school._id },
+    { name: 'Mrs. Priya Sonawane', email: 'priya.sonawane@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543213', school: school._id },
   ]);
 
   const teachers = await Teacher.insertMany([
-    { user: teacherUsers[0]._id, employeeId: 'EMP-001', subjects: [subjects[0]._id], qualification: 'M.Sc Mathematics', experience: 12, school: school._id },
-    { user: teacherUsers[1]._id, employeeId: 'EMP-002', subjects: [subjects[1]._id], qualification: 'Ph.D Physics', experience: 15, school: school._id },
-    { user: teacherUsers[2]._id, employeeId: 'EMP-003', subjects: [subjects[4]._id], qualification: 'M.A English', experience: 8, school: school._id },
-    { user: teacherUsers[3]._id, employeeId: 'EMP-004', subjects: [subjects[2]._id], qualification: 'M.Sc Chemistry', experience: 10, school: school._id },
+    { user: teacherUsers[0]._id, employeeId: 'TFS-EMP-001', subjects: [subjects[0]._id], qualification: 'M.Sc Mathematics', experience: 8, school: school._id },
+    { user: teacherUsers[1]._id, employeeId: 'TFS-EMP-002', subjects: [subjects[1]._id], qualification: 'M.Sc Science', experience: 10, school: school._id },
+    { user: teacherUsers[2]._id, employeeId: 'TFS-EMP-003', subjects: [subjects[2]._id], qualification: 'M.A English', experience: 6, school: school._id },
+    { user: teacherUsers[3]._id, employeeId: 'TFS-EMP-004', subjects: [subjects[3]._id], qualification: 'M.A Marathi', experience: 7, school: school._id },
   ]);
 
   console.log('🏛 Creating classes...');
   const classes = await Class.insertMany([
-    { name: 'Class X', grade: 10, section: 'A', classTeacher: teachers[0]._id, subjects: subjects.slice(0, 5).map(s => s._id), capacity: 40, room: '101', school: school._id },
-    { name: 'Class X', grade: 10, section: 'B', classTeacher: teachers[1]._id, subjects: subjects.slice(0, 5).map(s => s._id), capacity: 40, room: '102', school: school._id },
-    { name: 'Class IX', grade: 9, section: 'A', classTeacher: teachers[2]._id, subjects: subjects.slice(0, 5).map(s => s._id), capacity: 40, room: '201', school: school._id },
-    { name: 'Class XI', grade: 11, section: 'Science', classTeacher: teachers[3]._id, subjects: subjects.slice(0, 4).map(s => s._id), capacity: 35, room: '301', school: school._id },
+    { name: 'Class LKG', grade: 0, section: 'A', classTeacher: teachers[0]._id, subjects: subjects.slice(0, 3).map(s => s._id), capacity: 30, room: '101', school: school._id },
+    { name: 'Class UKG', grade: 0, section: 'A', classTeacher: teachers[1]._id, subjects: subjects.slice(0, 3).map(s => s._id), capacity: 30, room: '102', school: school._id },
+    { name: 'Class I', grade: 1, section: 'A', classTeacher: teachers[2]._id, subjects: subjects.slice(0, 5).map(s => s._id), capacity: 35, room: '201', school: school._id },
+    { name: 'Class V', grade: 5, section: 'A', classTeacher: teachers[3]._id, subjects: subjects.map(s => s._id), capacity: 35, room: '301', school: school._id },
   ]);
 
-  // Update teacher classTeacherOf
-  await Teacher.findByIdAndUpdate(teachers[0]._id, { classTeacherOf: classes[0]._id, classes: [classes[0]._id, classes[1]._id] });
+  await Teacher.findByIdAndUpdate(teachers[0]._id, { classTeacherOf: classes[0]._id, classes: [classes[0]._id, classes[2]._id] });
   await Teacher.findByIdAndUpdate(teachers[1]._id, { classTeacherOf: classes[1]._id, classes: [classes[1]._id, classes[3]._id] });
   await Teacher.findByIdAndUpdate(teachers[2]._id, { classTeacherOf: classes[2]._id, classes: [classes[0]._id, classes[2]._id] });
   await Teacher.findByIdAndUpdate(teachers[3]._id, { classTeacherOf: classes[3]._id, classes: [classes[1]._id, classes[3]._id] });
 
   console.log('👨‍🎓 Creating students...');
   const studentData = [
-    { name: 'Aryan Mehta', email: 'student@school.com', admNum: 'STU-2024-001', roll: '01', class: classes[0]._id, gender: 'male', dob: '2008-05-15', parentName: 'Ramesh Mehta', parentPhone: '9800000001' },
-    { name: 'Priya Nair', email: 'priya.nair@school.com', admNum: 'STU-2024-002', roll: '02', class: classes[0]._id, gender: 'female', dob: '2008-07-20', parentName: 'Suresh Nair', parentPhone: '9800000002' },
-    { name: 'Rohan Das', email: 'rohan.das@school.com', admNum: 'STU-2024-003', roll: '03', class: classes[1]._id, gender: 'male', dob: '2008-03-10', parentName: 'Bikash Das', parentPhone: '9800000003' },
-    { name: 'Sneha Joshi', email: 'sneha.joshi@school.com', admNum: 'STU-2024-004', roll: '04', class: classes[2]._id, gender: 'female', dob: '2009-11-25', parentName: 'Vijay Joshi', parentPhone: '9800000004' },
-    { name: 'Vikram Singh', email: 'vikram.singh@school.com', admNum: 'STU-2024-005', roll: '05', class: classes[3]._id, gender: 'male', dob: '2007-08-30', parentName: 'Gurpreet Singh', parentPhone: '9800000005' },
-    { name: 'Ananya Sharma', email: 'ananya.sharma@school.com', admNum: 'STU-2024-006', roll: '06', class: classes[0]._id, gender: 'female', dob: '2008-01-14', parentName: 'Anil Sharma', parentPhone: '9800000006' },
+    { name: 'Rohan Patil', email: 'student@school.com', admNum: 'TFS-2024-001', roll: '01', class: classes[2]._id, gender: 'male', dob: '2018-05-15', parentName: 'Suresh Patil', parentPhone: '9800000001' },
+    { name: 'Priya Chaudhari', email: 'priya.c@school.com', admNum: 'TFS-2024-002', roll: '02', class: classes[2]._id, gender: 'female', dob: '2018-07-20', parentName: 'Ramesh Chaudhari', parentPhone: '9800000002' },
+    { name: 'Aditya Nikam', email: 'aditya.n@school.com', admNum: 'TFS-2024-003', roll: '03', class: classes[3]._id, gender: 'male', dob: '2016-03-10', parentName: 'Prakash Nikam', parentPhone: '9800000003' },
+    { name: 'Sneha Borse', email: 'sneha.b@school.com', admNum: 'TFS-2024-004', roll: '04', class: classes[0]._id, gender: 'female', dob: '2020-11-25', parentName: 'Vijay Borse', parentPhone: '9800000004' },
+    { name: 'Rahul Sonawane', email: 'rahul.s@school.com', admNum: 'TFS-2024-005', roll: '05', class: classes[1]._id, gender: 'male', dob: '2020-08-30', parentName: 'Ganesh Sonawane', parentPhone: '9800000005' },
+    { name: 'Pooja Rathod', email: 'pooja.r@school.com', admNum: 'TFS-2024-006', roll: '06', class: classes[2]._id, gender: 'female', dob: '2018-01-14', parentName: 'Dilip Rathod', parentPhone: '9800000006' },
   ];
 
-  const parentUser = await User.create({ name: 'Ramesh Mehta', email: 'parent@school.com', password: 'Parent@123', role: 'parent', phone: '9800000001', school: school._id });
+  const parentUser = await User.create({ name: 'Suresh Patil', email: 'parent@school.com', password: 'Parent@123', role: 'parent', phone: '9800000001', school: school._id });
 
   const createdStudents = [];
   for (let i = 0; i < studentData.length; i++) {
@@ -108,49 +111,88 @@ const seed = async () => {
 
   console.log('📝 Creating exams...');
   await Exam.insertMany([
-    { name: 'Unit Test I', class: classes[0]._id, subject: subjects[0]._id, date: new Date('2026-03-18'), totalMarks: 50, passingMarks: 18, examType: 'unit', school: school._id, createdBy: admin._id },
-    { name: 'Midterm Examination', class: classes[3]._id, subject: subjects[1]._id, date: new Date('2026-04-02'), totalMarks: 100, passingMarks: 35, examType: 'midterm', school: school._id, createdBy: admin._id },
-    { name: 'Practical Assessment', class: classes[3]._id, subject: subjects[2]._id, date: new Date('2026-03-25'), totalMarks: 30, passingMarks: 10, examType: 'practical', school: school._id, createdBy: admin._id },
-    { name: 'Annual Examination', class: classes[0]._id, subject: subjects[4]._id, date: new Date('2026-05-01'), totalMarks: 100, passingMarks: 35, examType: 'final', school: school._id, createdBy: admin._id },
+    { name: 'Unit Test I', class: classes[2]._id, subject: subjects[0]._id, date: new Date('2026-03-18'), totalMarks: 50, passingMarks: 18, examType: 'unit', school: school._id, createdBy: admin._id },
+    { name: 'Half-Yearly Examination', class: classes[3]._id, subject: subjects[1]._id, date: new Date('2026-04-02'), totalMarks: 100, passingMarks: 35, examType: 'midterm', school: school._id, createdBy: admin._id },
+    { name: 'Practical Assessment', class: classes[3]._id, subject: subjects[1]._id, date: new Date('2026-03-25'), totalMarks: 30, passingMarks: 10, examType: 'practical', school: school._id, createdBy: admin._id },
+    { name: 'Annual Examination', class: classes[2]._id, subject: subjects[2]._id, date: new Date('2026-05-01'), totalMarks: 100, passingMarks: 35, examType: 'final', school: school._id, createdBy: admin._id },
   ]);
 
   console.log('💰 Creating fee payments...');
   await FeePayment.insertMany([
-    { student: createdStudents[0]._id, amount: 12500, method: 'online', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[1]._id, amount: 12500, method: 'cash', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[2]._id, amount: 12500, method: 'bank', status: 'pending', month: 'February 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[3]._id, amount: 10000, method: 'cash', status: 'overdue', month: 'January 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[4]._id, amount: 15000, method: 'cheque', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
+    { student: createdStudents[0]._id, amount: 8500, method: 'online', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
+    { student: createdStudents[1]._id, amount: 8500, method: 'cash', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
+    { student: createdStudents[2]._id, amount: 8500, method: 'bank', status: 'pending', month: 'February 2026', year: 2026, school: school._id, collectedBy: accountant._id },
+    { student: createdStudents[3]._id, amount: 7000, method: 'cash', status: 'overdue', month: 'January 2026', year: 2026, school: school._id, collectedBy: accountant._id },
+    { student: createdStudents[4]._id, amount: 9000, method: 'cheque', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
   ]);
 
   console.log('📚 Creating library books...');
   await Book.insertMany([
-    { title: 'Concepts of Physics Vol. 1', author: 'H.C. Verma', isbn: '978-81-89400-00-1', category: 'Science', totalCopies: 10, availableCopies: 7, school: school._id },
-    { title: 'Mathematics for Class XII', author: 'R.D. Sharma', isbn: '978-93-5116-000-2', category: 'Mathematics', totalCopies: 12, availableCopies: 9, school: school._id },
-    { title: 'English Literature Anthology', author: 'Various Authors', isbn: '978-0-19-000000-3', category: 'Literature', totalCopies: 8, availableCopies: 6, school: school._id },
-    { title: 'Modern History of India', author: 'Bipan Chandra', isbn: '978-81-250-000-4', category: 'History', totalCopies: 6, availableCopies: 4, school: school._id },
-    { title: 'NCERT Biology Class XI', author: 'NCERT', isbn: '978-81-7450-000-5', category: 'Science', totalCopies: 15, availableCopies: 12, school: school._id },
-    { title: 'Computer Science with Python', author: 'Sumita Arora', isbn: '978-81-7650-000-6', category: 'Computer', totalCopies: 8, availableCopies: 5, school: school._id },
+    { title: 'Mathematics for Class V', author: 'NCERT', isbn: '978-81-7450-001-1', category: 'Mathematics', totalCopies: 20, availableCopies: 14, school: school._id },
+    { title: 'Science & Technology Class IV', author: 'Balbharati', isbn: '978-81-7450-002-2', category: 'Science', totalCopies: 20, availableCopies: 16, school: school._id },
+    { title: 'English Reader Class III', author: 'Balbharati', isbn: '978-81-7450-003-3', category: 'Language', totalCopies: 15, availableCopies: 11, school: school._id },
+    { title: 'Marathi Sulabhbharati', author: 'Balbharati', isbn: '978-81-7450-004-4', category: 'Language', totalCopies: 18, availableCopies: 13, school: school._id },
+    { title: 'General Knowledge Workbook', author: 'Various', isbn: '978-81-7450-005-5', category: 'General', totalCopies: 12, availableCopies: 9, school: school._id },
+    { title: 'Moral Science for Kids', author: 'Various', isbn: '978-81-7450-006-6', category: 'General', totalCopies: 10, availableCopies: 7, school: school._id },
   ]);
 
   console.log('🚌 Creating transport routes...');
   await Transport.insertMany([
-    { routeName: 'Route 1 — Sector 45', routeNumber: 'R01', vehicleNumber: 'HR26 AB 1234', vehicleType: 'bus', capacity: 40, driver: { name: 'Prakash Yadav', phone: '9700000001', licenseNumber: 'HR01-20100012345' }, stops: [{ name: 'Sector 45 Gate', time: '7:15 AM', order: 1 }, { name: 'Sector 46 Chowk', time: '7:20 AM', order: 2 }, { name: 'HUDA City Centre', time: '7:30 AM', order: 3 }], departureTime: '7:00 AM', arrivalTime: '8:00 AM', students: [createdStudents[0]._id], school: school._id },
-    { routeName: 'Route 2 — Sector 56', routeNumber: 'R02', vehicleNumber: 'HR26 CD 5678', vehicleType: 'bus', capacity: 35, driver: { name: 'Suresh Patil', phone: '9700000002', licenseNumber: 'HR01-20100054321' }, stops: [{ name: 'Sector 56 Market', time: '7:30 AM', order: 1 }, { name: 'Golf Course Road', time: '7:40 AM', order: 2 }], departureTime: '7:15 AM', arrivalTime: '8:10 AM', students: [], school: school._id },
+    {
+      routeName: 'Route 1 — Bhaler to Nandurbar', routeNumber: 'TFS-R01',
+      vehicleNumber: 'MH-20 AB 1234', vehicleType: 'bus', capacity: 30,
+      driver: { name: 'Prakash Valvi', phone: '9700000001', licenseNumber: 'MH20-20180012345' },
+      stops: [
+        { name: 'Bhaler Village', time: '7:00 AM', order: 1 },
+        { name: 'Shindgavhan Phata', time: '7:10 AM', order: 2 },
+        { name: 'School Gate', time: '7:20 AM', order: 3 }
+      ],
+      departureTime: '6:50 AM', arrivalTime: '7:25 AM',
+      students: [createdStudents[0]._id], school: school._id
+    },
+    {
+      routeName: 'Route 2 — Nandurbar Town', routeNumber: 'TFS-R02',
+      vehicleNumber: 'MH-20 CD 5678', vehicleType: 'van', capacity: 15,
+      driver: { name: 'Suresh Gavit', phone: '9700000002', licenseNumber: 'MH20-20190054321' },
+      stops: [
+        { name: 'Station Road', time: '7:15 AM', order: 1 },
+        { name: 'Market Chowk', time: '7:22 AM', order: 2 }
+      ],
+      departureTime: '7:10 AM', arrivalTime: '7:30 AM',
+      students: [], school: school._id
+    },
   ]);
 
   console.log('🔔 Creating notifications...');
   await Notification.insertMany([
-    { title: 'Annual Sports Day — March 28', message: 'The Annual Sports Day will be held on March 28, 2026. All students are requested to participate enthusiastically. Venue: School Grounds. Students should report by 8:00 AM in their house colours.', type: 'event', priority: 'normal', audience: 'all', sentBy: admin._id, school: school._id },
-    { title: 'Fee Payment Reminder — March Due', message: 'This is a reminder that March 2026 fees are due by March 20, 2026. Late payment will attract a penalty of ₹200 per week. Please pay at the fee counter or via the online portal.', type: 'reminder', priority: 'high', audience: 'parents', sentBy: accountant._id, school: school._id },
-    { title: 'PTM Scheduled — April 5', message: 'Parent-Teacher Meeting is scheduled for April 5, 2026 from 10 AM to 1 PM. Parents are requested to attend and meet all subject teachers. Advance intimation required for specific queries.', type: 'announcement', priority: 'normal', audience: 'parents', sentBy: admin._id, school: school._id },
-    { title: 'Unit Test Schedule Released', message: 'Unit Test I schedule has been released. Tests begin from March 18, 2026. Students are advised to prepare thoroughly and check the detailed schedule on the notice board.', type: 'announcement', priority: 'normal', audience: 'students', sentBy: admin._id, school: school._id },
+    {
+      title: 'Annual Sports Day — March 28',
+      message: 'The Annual Sports Day will be held on March 28, 2026. All students are requested to participate enthusiastically. Students should report by 8:00 AM in their house colours.',
+      type: 'event', priority: 'normal', audience: 'all', sentBy: admin._id, school: school._id
+    },
+    {
+      title: 'Fee Payment Reminder — March Due',
+      message: 'March 2026 fees are due by March 20, 2026. Late payment will attract a penalty. Please pay at the fee counter or via the online portal.',
+      type: 'reminder', priority: 'high', audience: 'parents', sentBy: accountant._id, school: school._id
+    },
+    {
+      title: 'PTM Scheduled — April 5',
+      message: 'Parent-Teacher Meeting is scheduled for April 5, 2026 from 10 AM to 1 PM. Parents are requested to attend and meet all subject teachers.',
+      type: 'announcement', priority: 'normal', audience: 'parents', sentBy: admin._id, school: school._id
+    },
+    {
+      title: 'Admissions Open — LKG, UKG & Class 1',
+      message: 'Admissions are now open for LKG, UKG and Class 1 for the academic year 2026-27. Contact the school office or fill the online form.',
+      type: 'announcement', priority: 'high', audience: 'all', sentBy: admin._id, school: school._id
+    },
   ]);
 
-  console.log('\n✅ Database seeded successfully!\n');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('\n✅ The Future Step School — Database seeded successfully!\n');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🏫 School: The Future Step School, Bhaler, Nandurbar');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('📋 Test Accounts:');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('Super Admin  : superadmin@school.com  / Admin@123');
   console.log('School Admin : admin@school.com       / Admin@123');
   console.log('Teacher      : teacher@school.com     / Teacher@123');
@@ -159,7 +201,7 @@ const seed = async () => {
   console.log('Accountant   : accountant@school.com  / Admin@123');
   console.log('Librarian    : librarian@school.com   / Admin@123');
   console.log('Transport    : transport@school.com   / Admin@123');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   process.exit(0);
 };
