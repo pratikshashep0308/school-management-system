@@ -1,243 +1,353 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState, ActionBtn } from '../components/ui';
 import api from '../utils/api';
+import AdmissionDetailModal from '../components/admissions/AdmissionDetailModal';
+import AdmissionFormModal   from '../components/admissions/AdmissionFormModal';
+import InterviewModal       from '../components/admissions/InterviewModal';
+import StatsCards           from '../components/admissions/StatsCards';
 
-// admissionAPI inline
-const admissionAPI = {
-  getAll: (params) => api.get('/admissions', { params }),
-  create: (data) => api.post('/admissions', data),
-  update: (id, data) => api.put(`/admissions/${id}`, data),
-  updateStatus: (id, status, notes) => api.put(`/admissions/${id}/status`, { status, notes }),
-  delete: (id) => api.delete(`/admissions/${id}`),
+// ── API ──────────────────────────────────────────────────────────
+export const admissionAPI = {
+  getAll:          (params) => api.get('/admissions', { params }),
+  getById:         (id)     => api.get(`/admissions/${id}`),
+  getStats:        ()       => api.get('/admissions/stats'),
+  create:          (data)   => api.post('/admissions', data),
+  update:          (id, d)  => api.put(`/admissions/${id}`, d),
+  updateStatus:    (id, d)  => api.put(`/admissions/${id}/status`, d),
+  updateInterview: (id, d)  => api.put(`/admissions/${id}/interview`, d),
+  updateDocuments: (id, d)  => api.put(`/admissions/${id}/documents`, d),
+  addNote:         (id, d)  => api.put(`/admissions/${id}/note`, d),
+  delete:          (id)     => api.delete(`/admissions/${id}`),
 };
 
-const STATUS_MAP = {
-  pending:      'bg-gold/15 text-gold',
-  under_review: 'bg-blue-50 text-blue-600',
-  approved:     'bg-sage/10 text-sage',
-  rejected:     'bg-accent/10 text-accent',
-  enrolled:     'bg-purple-50 text-purple-600',
+// ── CONSTANTS ────────────────────────────────────────────────────
+export const STATUS_CONFIG = {
+  pending:              { label: 'Pending',            bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500',   border: 'border-amber-200'  },
+  under_review:         { label: 'Under Review',       bg: 'bg-blue-100',    text: 'text-blue-700',    dot: 'bg-blue-500',    border: 'border-blue-200'   },
+  interview_scheduled:  { label: 'Interview',          bg: 'bg-violet-100',  text: 'text-violet-700',  dot: 'bg-violet-500',  border: 'border-violet-200' },
+  approved:             { label: 'Approved',           bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-200'},
+  rejected:             { label: 'Rejected',           bg: 'bg-red-100',     text: 'text-red-700',     dot: 'bg-red-500',     border: 'border-red-200'    },
+  enrolled:             { label: 'Enrolled',           bg: 'bg-teal-100',    text: 'text-teal-700',    dot: 'bg-teal-500',    border: 'border-teal-200'   },
+  waitlisted:           { label: 'Waitlisted',         bg: 'bg-orange-100',  text: 'text-orange-700',  dot: 'bg-orange-500',  border: 'border-orange-200' },
 };
 
-const COLS = '40px 2fr 1fr 1fr 1fr 1fr 100px';
+export const PRIORITY_CONFIG = {
+  normal: { label: 'Normal', color: 'text-slate-500' },
+  high:   { label: 'High',   color: 'text-orange-500' },
+  urgent: { label: 'Urgent', color: 'text-red-600'   },
+};
 
-function AdmissionModal({ isOpen, onClose, onSave, initial }) {
-  const empty = { studentName: '', dateOfBirth: '', gender: '', parentName: '', parentEmail: '', parentPhone: '', address: '', applyingForClass: '', previousSchool: '', bloodGroup: '' };
-  const [form, setForm] = useState(initial || empty);
-  useEffect(() => { if (initial) setForm(initial); else setForm(empty); }, [initial]);
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
+export function StatusBadge({ status }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={initial?._id ? 'Edit Application' : 'New Admission Application'} size="lg"
-      footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" onClick={() => onSave(form)}>{initial?._id ? 'Save Changes' : 'Submit Application'}</button></>}>
-      <div className="grid grid-cols-2 gap-4">
-        <FormGroup label="Student Full Name"><input className="form-input" value={form.studentName} onChange={e => set('studentName', e.target.value)} placeholder="Arjun Sharma" /></FormGroup>
-        <FormGroup label="Date of Birth"><input type="date" className="form-input" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} /></FormGroup>
-        <FormGroup label="Gender">
-          <select className="form-input" value={form.gender} onChange={e => set('gender', e.target.value)}>
-            <option value="">Select</option>
-            <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
-          </select>
-        </FormGroup>
-        <FormGroup label="Blood Group">
-          <select className="form-input" value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}>
-            <option value="">Select</option>
-            {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b}>{b}</option>)}
-          </select>
-        </FormGroup>
-        <FormGroup label="Applying for Class">
-          <select className="form-input" value={form.applyingForClass} onChange={e => set('applyingForClass', e.target.value)}>
-            <option value="">Select grade</option>
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => <option key={g} value={g}>Grade {g}</option>)}
-          </select>
-        </FormGroup>
-        <FormGroup label="Previous School"><input className="form-input" value={form.previousSchool} onChange={e => set('previousSchool', e.target.value)} placeholder="Delhi Public School" /></FormGroup>
-        <FormGroup label="Parent / Guardian Name"><input className="form-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" /></FormGroup>
-        <FormGroup label="Parent Email"><input type="email" className="form-input" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} placeholder="parent@email.com" /></FormGroup>
-        <FormGroup label="Parent Phone"><input className="form-input" value={form.parentPhone} onChange={e => set('parentPhone', e.target.value)} placeholder="9876543210" /></FormGroup>
-        <FormGroup label="Address" className="col-span-2"><textarea className="form-input" rows={2} value={form.address} onChange={e => set('address', e.target.value)} placeholder="123, Sector 15, New Delhi" /></FormGroup>
-      </div>
-    </Modal>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {cfg.label}
+    </span>
   );
 }
 
-function StatusModal({ isOpen, onClose, onSave, application }) {
-  const [status, setStatus] = useState(application?.status || 'pending');
-  const [notes, setNotes] = useState('');
-  useEffect(() => { if (application) setStatus(application.status); }, [application]);
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Update Application Status" size="sm"
-      footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" onClick={() => onSave(status, notes)}>Update Status</button></>}>
-      <div className="space-y-4">
-        <FormGroup label="New Status">
-          <select className="form-input" value={status} onChange={e => setStatus(e.target.value)}>
-            {[['pending','Pending'],['under_review','Under Review'],['approved','Approved'],['rejected','Rejected'],['enrolled','Enrolled']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </FormGroup>
-        <FormGroup label="Notes (optional)">
-          <textarea className="form-input" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add any notes for this status change..." />
-        </FormGroup>
-      </div>
-    </Modal>
-  );
-}
-
+// ── MAIN PAGE ────────────────────────────────────────────────────
 export default function Admissions() {
   const { isAdmin } = useAuth();
+
   const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [modal, setModal] = useState({ open: false, data: null });
-  const [statusModal, setStatusModal] = useState({ open: false, data: null });
+  const [stats, setStats]               = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [total, setTotal]               = useState(0);
 
-  // Fallback to mock data if API not available
-  const MOCK = [
-    { _id: '1', applicationNumber: 'ADM-2026-001', studentName: 'Riya Patel', applyingForClass: 6, parentName: 'Suresh Patel', parentPhone: '9876543210', parentEmail: 'suresh@email.com', status: 'pending', createdAt: new Date(Date.now() - 86400000 * 2) },
-    { _id: '2', applicationNumber: 'ADM-2026-002', studentName: 'Aryan Singh', applyingForClass: 9, parentName: 'Vikram Singh', parentPhone: '9876543211', parentEmail: 'vikram@email.com', status: 'approved', createdAt: new Date(Date.now() - 86400000 * 5) },
-    { _id: '3', applicationNumber: 'ADM-2026-003', studentName: 'Kavya Nair', applyingForClass: 11, parentName: 'Pradeep Nair', parentPhone: '9876543212', parentEmail: 'pradeep@email.com', status: 'under_review', createdAt: new Date(Date.now() - 86400000 * 1) },
-    { _id: '4', applicationNumber: 'ADM-2026-004', studentName: 'Mohan Das', applyingForClass: 3, parentName: 'Rajan Das', parentPhone: '9876543213', parentEmail: 'rajan@email.com', status: 'enrolled', createdAt: new Date(Date.now() - 86400000 * 10) },
-    { _id: '5', applicationNumber: 'ADM-2026-005', studentName: 'Sneha Gupta', applyingForClass: 7, parentName: 'Amit Gupta', parentPhone: '9876543214', parentEmail: 'amit@email.com', status: 'rejected', createdAt: new Date(Date.now() - 86400000 * 3) },
-  ];
+  // Filters
+  const [search, setSearch]             = useState('');
+  const [statusFilter, setStatus]       = useState('');
+  const [classFilter, setClass]         = useState('');
+  const [priorityFilter, setPriority]   = useState('');
+  const [page, setPage]                 = useState(1);
 
-  const load = async () => {
+  // Modals
+  const [detailId, setDetailId]         = useState(null);
+  const [formModal, setFormModal]       = useState({ open: false, data: null });
+  const [interviewModal, setInterview]  = useState({ open: false, data: null });
+
+  const limit = 20;
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await admissionAPI.getAll();
-      const data = res.data.data;
-      setApplications(data.length > 0 ? data : MOCK);
-    } catch {
-      setApplications(MOCK); // use mock if API not ready
-    } finally { setLoading(false); }
-  };
+      const params = { page, limit };
+      if (search)        params.search = search;
+      if (statusFilter)  params.status = statusFilter;
+      if (classFilter)   params.applyingForClass = classFilter;
+      if (priorityFilter) params.priority = priorityFilter;
 
-  useEffect(() => { load(); }, []);
-
-  const filtered = applications.filter(a => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || a.studentName?.toLowerCase().includes(q) || a.applicationNumber?.toLowerCase().includes(q) || a.parentName?.toLowerCase().includes(q);
-    const matchStatus = !statusFilter || a.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  const handleSave = async (form) => {
-    try {
-      if (form._id) { await admissionAPI.update(form._id, form); toast.success('Application updated'); }
-      else { await admissionAPI.create(form); toast.success('Application submitted'); }
-      setModal({ open: false, data: null }); load();
-    } catch { toast.error('Error saving application'); }
-  };
-
-  const handleStatusUpdate = async (status, notes) => {
-    try {
-      await admissionAPI.updateStatus(statusModal.data._id, status, notes);
-      toast.success(`Status updated to ${status}`);
-    } catch {
-      // Update locally if API fails
-      setApplications(prev => prev.map(a => a._id === statusModal.data._id ? { ...a, status } : a));
-      toast.success(`Status updated to ${status}`);
+      const [res, statsRes] = await Promise.all([
+        admissionAPI.getAll(params),
+        admissionAPI.getStats()
+      ]);
+      setApplications(res.data.data);
+      setTotal(res.data.total);
+      setStats(statsRes.data.data);
+    } catch (e) {
+      toast.error('Failed to load admissions');
+    } finally {
+      setLoading(false);
     }
-    setStatusModal({ open: false, data: null });
-    load();
-  };
+  }, [search, statusFilter, classFilter, priorityFilter, page]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Debounce search
+  useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter]);
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete application for ${name}?`)) return;
-    try { await admissionAPI.delete(id); toast.success('Application deleted'); load(); }
-    catch { toast.error('Error deleting application'); }
+    try {
+      await admissionAPI.delete(id);
+      toast.success('Application deleted');
+      load();
+    } catch { toast.error('Delete failed'); }
   };
 
-  const counts = { all: applications.length, pending: 0, under_review: 0, approved: 0, enrolled: 0, rejected: 0 };
-  applications.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
+  const statusCounts = stats?.status || {};
 
   return (
-    <div className="animate-fade-in">
-      {/* Header */}
-      <div className="page-header">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+
+      {/* ── HEADER ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h2 className="font-display text-2xl text-ink">Admissions</h2>
-          <p className="text-sm text-muted mt-0.5">{applications.length} total applications</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Admissions</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {total} applications · {statusCounts.enrolled || 0} enrolled · {((statusCounts.conversionRate) || 0)}% conversion
+          </p>
         </div>
         {isAdmin && (
-          <button className="btn-primary" onClick={() => setModal({ open: true, data: null })}>+ New Application</button>
+          <button
+            onClick={() => setFormModal({ open: true, data: null })}
+            className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-sm transition-colors"
+          >
+            + New Application
+          </button>
         )}
       </div>
 
-      {/* Status summary */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+      {/* ── STATS CARDS ── */}
+      {stats && <StatsCards stats={stats} />}
+
+      {/* ── STATUS FILTER TABS ── */}
+      <div className="flex gap-2 flex-wrap mb-4 mt-5">
         {[
-          { key: '', label: 'All', color: 'border-border' },
-          { key: 'pending', label: 'Pending', color: 'border-gold/40' },
-          { key: 'under_review', label: 'In Review', color: 'border-blue-300' },
-          { key: 'approved', label: 'Approved', color: 'border-sage/40' },
-          { key: 'enrolled', label: 'Enrolled', color: 'border-purple-300' },
-          { key: 'rejected', label: 'Rejected', color: 'border-accent/40' },
+          { key: '', label: 'All', count: statusCounts.total },
+          ...Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({ key, label: cfg.label, count: statusCounts[key] || 0 }))
         ].map(s => (
-          <button key={s.key} onClick={() => setStatusFilter(s.key)}
-            className={`card p-3 text-center transition-all hover:-translate-y-0.5 border-2 ${statusFilter === s.key ? s.color + ' shadow-sm' : 'border-transparent'}`}>
-            <div className="font-display text-2xl text-ink">{counts[s.key || 'all']}</div>
-            <div className="text-[11px] text-muted mt-0.5">{s.label}</div>
+          <button
+            key={s.key}
+            onClick={() => setStatus(s.key)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              statusFilter === s.key
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+            }`}
+          >
+            {s.label} {s.count > 0 && <span className="ml-1 opacity-70">{s.count}</span>}
           </button>
         ))}
       </div>
 
-      {/* Search */}
-      <div className="flex gap-3 mb-5 flex-wrap">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search by student, parent, or application #…" />
+      {/* ── FILTERS ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-48">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Search</label>
+            <input
+              type="text"
+              placeholder="Name, App#, parent, phone..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Class</label>
+            <select value={classFilter} onChange={e => setClass(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+              <option value="">All Classes</option>
+              {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>Grade {i+1}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Priority</label>
+            <select value={priorityFilter} onChange={e => setPriority(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+              <option value="">All Priority</option>
+              <option value="urgent">🔴 Urgent</option>
+              <option value="high">🟠 High</option>
+              <option value="normal">⚪ Normal</option>
+            </select>
+          </div>
+          <button onClick={() => { setSearch(''); setStatus(''); setClass(''); setPriority(''); }}
+            className="px-3 py-2 rounded-lg border border-slate-200 text-slate-500 text-sm hover:bg-slate-100">
+            Reset
+          </button>
+        </div>
       </div>
 
-      {/* Table */}
-      {loading ? <LoadingState /> : (
-        <div className="card overflow-hidden">
-          <div className="bg-warm px-5 py-3 grid gap-4 border-b border-border" style={{ gridTemplateColumns: COLS }}>
-            {['#', 'Applicant', 'Grade', 'Parent', 'Applied On', 'Status', 'Actions'].map(h => (
-              <div key={h} className="table-th">{h}</div>
-            ))}
+      {/* ── TABLE ── */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-10 text-center text-slate-400 animate-pulse">Loading applications...</div>
+        ) : applications.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="text-4xl mb-3">📋</div>
+            <p className="text-slate-500 font-medium">No applications found</p>
+            <p className="text-slate-400 text-sm mt-1">Try adjusting your filters</p>
           </div>
-          {!filtered.length
-            ? <EmptyState icon="📋" title="No applications found" subtitle="Try adjusting your filters" />
-            : filtered.map((app, i) => (
-              <div key={app._id} className="grid gap-4 px-5 py-3.5 border-t border-border items-center hover:bg-warm/40 transition-colors" style={{ gridTemplateColumns: COLS }}>
-                <div className="text-muted text-sm">{i + 1}</div>
-                <div className="flex items-center gap-2.5">
-                  <Avatar name={app.studentName} size="sm" />
-                  <div>
-                    <div className="font-medium text-sm text-ink">{app.studentName}</div>
-                    <div className="text-xs text-muted font-mono">{app.applicationNumber}</div>
-                  </div>
-                </div>
-                <div className="text-sm text-slate">Grade {app.applyingForClass}</div>
-                <div>
-                  <div className="text-sm text-ink">{app.parentName}</div>
-                  <div className="text-xs text-muted">{app.parentPhone}</div>
-                </div>
-                <div className="text-xs text-muted">
-                  {app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                </div>
-                <div>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold capitalize ${STATUS_MAP[app.status] || 'bg-gray-100 text-gray-600'}`}>
-                    {app.status?.replace('_', ' ')}
-                  </span>
-                </div>
-                <div className="flex gap-1.5">
-                  {isAdmin && (
-                    <>
-                      <ActionBtn icon="◈" title="Update Status" onClick={() => setStatusModal({ open: true, data: app })} />
-                      <ActionBtn icon="✎" title="Edit" onClick={() => setModal({ open: true, data: app })} />
-                      <ActionBtn icon="✕" title="Delete" variant="danger" onClick={() => handleDelete(app._id, app.studentName)} />
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          }
-        </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider">
+                  <th className="px-5 py-3 text-left font-semibold">Applicant</th>
+                  <th className="px-4 py-3 text-left font-semibold">Class</th>
+                  <th className="px-4 py-3 text-left font-semibold">Parent / Contact</th>
+                  <th className="px-4 py-3 text-left font-semibold">Interview</th>
+                  <th className="px-4 py-3 text-left font-semibold">Applied</th>
+                  <th className="px-4 py-3 text-left font-semibold">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {applications.map(app => (
+                  <tr key={app._id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {app.studentName?.[0]?.toUpperCase() || '?'}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            {app.studentName}
+                            {app.priority === 'urgent' && <span className="text-red-500 text-xs">🔴</span>}
+                            {app.priority === 'high'   && <span className="text-orange-400 text-xs">🟠</span>}
+                          </div>
+                          <div className="text-xs text-slate-400 font-mono">{app.applicationNumber}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="font-semibold text-slate-700">Grade {app.applyingForClass}</span>
+                      {app.applyingForSection && <span className="text-slate-400"> – {app.applyingForSection}</span>}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="font-medium text-slate-700">{app.parentName}</div>
+                      <div className="text-xs text-slate-400">{app.parentPhone}</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      {app.interview?.scheduled ? (
+                        <div>
+                          <div className="text-xs font-semibold text-violet-600">
+                            {app.interview.completed ? '✅ Done' : '📅 Scheduled'}
+                          </div>
+                          {app.interview.date && (
+                            <div className="text-xs text-slate-400">
+                              {new Date(app.interview.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                              {app.interview.time && ` · ${app.interview.time}`}
+                            </div>
+                          )}
+                          {app.interview.score !== undefined && (
+                            <div className="text-xs text-emerald-600 font-semibold">Score: {app.interview.score}/100</div>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setInterview({ open: true, data: app })}
+                          className="text-xs text-indigo-500 hover:underline"
+                        >
+                          + Schedule
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-xs text-slate-400">
+                      {app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </td>
+                    <td className="px-4 py-4">
+                      <StatusBadge status={app.status} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5 justify-center">
+                        <button
+                          onClick={() => setDetailId(app._id)}
+                          title="View Details"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200"
+                        >
+                          👁 View
+                        </button>
+                        {isAdmin && (
+                          <>
+                            <button
+                              onClick={() => setFormModal({ open: true, data: app })}
+                              title="Edit"
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs hover:bg-slate-100"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              onClick={() => handleDelete(app._id, app.studentName)}
+                              title="Delete"
+                              className="px-2.5 py-1.5 rounded-lg border border-red-100 text-red-400 text-xs hover:bg-red-50"
+                            >
+                              ✕
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {total > limit && (
+          <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between text-sm text-slate-500">
+            <span>Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}</span>
+            <div className="flex gap-2">
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-100">← Prev</button>
+              <button disabled={page >= Math.ceil(total / limit)} onClick={() => setPage(p => p + 1)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-100">Next →</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── MODALS ── */}
+      {detailId && (
+        <AdmissionDetailModal
+          id={detailId}
+          onClose={() => { setDetailId(null); load(); }}
+          onScheduleInterview={(app) => { setDetailId(null); setInterview({ open: true, data: app }); }}
+        />
       )}
 
-      <AdmissionModal isOpen={modal.open} onClose={() => setModal({ open: false, data: null })} onSave={handleSave} initial={modal.data} />
-      <StatusModal isOpen={statusModal.open} onClose={() => setStatusModal({ open: false, data: null })} onSave={handleStatusUpdate} application={statusModal.data} />
+      {formModal.open && (
+        <AdmissionFormModal
+          initial={formModal.data}
+          onClose={() => setFormModal({ open: false, data: null })}
+          onSuccess={() => { setFormModal({ open: false, data: null }); load(); }}
+        />
+      )}
+
+      {interviewModal.open && (
+        <InterviewModal
+          application={interviewModal.data}
+          onClose={() => setInterview({ open: false, data: null })}
+          onSuccess={() => { setInterview({ open: false, data: null }); load(); }}
+        />
+      )}
     </div>
   );
 }
