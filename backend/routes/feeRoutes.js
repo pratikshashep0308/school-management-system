@@ -1,73 +1,39 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { FeeStructure, FeePayment } = require('../models/index');
+const ctrl = require('../controllers/feeController');
 
+// All fee routes require login
 router.use(protect);
 
-// Fee Structures
-router.get('/structures', async (req, res) => {
-  const structures = await FeeStructure.find({ school: req.user.school })
-    .populate('class', 'name grade section');
-  res.json({ success: true, data: structures });
-});
+const adminRoles = ['superAdmin', 'schoolAdmin', 'accountant'];
 
-router.post('/structures', authorize('superAdmin', 'schoolAdmin', 'accountant'), async (req, res) => {
-  const structure = await FeeStructure.create({ ...req.body, school: req.user.school });
-  res.status(201).json({ success: true, data: structure });
-});
+// ── ANALYTICS ──────────────────────────────────────────────────
+// GET  /api/fees/summary            → school-wide overview cards
+// GET  /api/fees/class-summary      → per-class breakdown table
+// GET  /api/fees/students           → all students with fee status (+ filters)
+// GET  /api/fees/student/:studentId → full ledger for one student
 
-router.put('/structures/:id', authorize('superAdmin', 'schoolAdmin', 'accountant'), async (req, res) => {
-  const structure = await FeeStructure.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  res.json({ success: true, data: structure });
-});
+router.get('/summary',        authorize(...adminRoles), ctrl.getOverallSummary);
+router.get('/class-summary',  authorize(...adminRoles), ctrl.getClassSummary);
+router.get('/students',       authorize(...adminRoles), ctrl.getStudentsFees);
+router.get('/student/:studentId', ctrl.getStudentFee);  // student can see own record too
 
-// Fee Payments
-router.get('/payments', async (req, res) => {
-  const filter = { school: req.user.school };
-  if (req.query.studentId) filter.student = req.query.studentId;
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.month) filter.month = req.query.month;
+// ── PAYMENT ────────────────────────────────────────────────────
+// POST /api/fees/pay                → record a payment
+// POST /api/fees/setup-ledger       → bulk-init StudentFee for a class
 
-  const payments = await FeePayment.find(filter)
-    .populate({ path: 'student', populate: { path: 'user', select: 'name profileImage' } })
-    .populate('feeStructure', 'name amount')
-    .sort({ createdAt: -1 });
-  res.json({ success: true, data: payments });
-});
+router.post('/pay',           authorize(...adminRoles), ctrl.recordPayment);
+router.post('/setup-ledger',  authorize(...adminRoles), ctrl.setupClassLedger);
 
-router.post('/payments', authorize('superAdmin', 'schoolAdmin', 'accountant'), async (req, res) => {
-  const payment = await FeePayment.create({
-    ...req.body,
-    school: req.user.school,
-    collectedBy: req.user.id
-  });
-  res.status(201).json({ success: true, data: payment });
-});
+// ── RECEIPT ────────────────────────────────────────────────────
+// GET /api/fees/receipt/:receiptNumber
 
-// Fee summary stats
-router.get('/summary', authorize('superAdmin', 'schoolAdmin', 'accountant'), async (req, res) => {
-  const school = req.user.school;
-  const monthStart = new Date(new Date().setDate(1));
-  monthStart.setHours(0,0,0,0);
+router.get('/receipt/:receiptNumber', ctrl.getReceipt);
 
-  const [collected, pending, overdue] = await Promise.all([
-    FeePayment.aggregate([
-      { $match: { school, status: 'paid' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } }
-    ]),
-    FeePayment.countDocuments({ school, status: 'pending' }),
-    FeePayment.countDocuments({ school, status: 'overdue' })
-  ]);
-
-  res.json({
-    success: true,
-    data: {
-      totalCollected: collected[0]?.total || 0,
-      pendingCount: pending,
-      overdueCount: overdue
-    }
-  });
-});
+// ── FEE STRUCTURES ─────────────────────────────────────────────
+router.get('/structures',           ctrl.getStructures);
+router.post('/structures',          authorize(...adminRoles), ctrl.createStructure);
+router.put('/structures/:id',       authorize(...adminRoles), ctrl.updateStructure);
 
 module.exports = router;

@@ -1,142 +1,161 @@
-import React, { useEffect, useState } from 'react';
-import toast from 'react-hot-toast';
-import { feeAPI, studentAPI } from '../utils/api';
-import { useAuth } from '../context/AuthContext';
-import { Modal, FormGroup, Badge, Avatar, LoadingState, EmptyState, SearchBox } from '../components/ui';
-
-const COLS = '40px 2fr 1fr 1fr 1fr 1fr 70px';
+// frontend/src/pages/Fees.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import feeAPI from '../utils/feeAPI';
+import FeesClassSummary  from '../components/fees/FeesClassSummary';
+import FeesStudentTable  from '../components/fees/FeesStudentTable';
+import PaymentModal      from '../components/fees/PaymentModal';
+import ReceiptModal      from '../components/fees/ReceiptModal';
+import SetupLedgerModal  from '../components/fees/SetupLedgerModal';
+import SummaryCards      from '../components/fees/SummaryCards';
 
 export default function Fees() {
-  const { isAdmin, can } = useAuth();
-  const [payments, setPayments] = useState([]);
-  const [summary, setSummary] = useState({});
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ student: '', amount: '', method: 'cash', month: '', status: 'paid' });
+  const [tab, setTab]               = useState('dashboard'); // 'dashboard' | 'students'
+  const [summary, setSummary]       = useState(null);
+  const [classSummary, setClass]    = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState('');
 
-  const load = async () => {
+  // Modals
+  const [payModal, setPayModal]         = useState(false);
+  const [receiptModal, setReceiptModal] = useState(null);   // receipt number string
+  const [setupModal, setSetupModal]     = useState(false);
+  const [selectedStudent, setSelected] = useState(null);   // for pre-filling payment modal
+
+  const loadDashboard = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const [pRes, sRes] = await Promise.all([feeAPI.getPayments(), studentAPI.getAll()]);
-      setPayments(pRes.data.data);
-      setStudents(sRes.data.data);
-    } catch { toast.error('Failed to load fees'); }
-    finally { setLoading(false); }
+      const [s, c] = await Promise.all([
+        feeAPI.getSummary(),
+        feeAPI.getClassSummary()
+      ]);
+      setSummary(s.data.data);
+      setClass(c.data.data.classes);
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to load fees data');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  const handlePaymentSuccess = (receiptNumber) => {
+    setPayModal(false);
+    setSelected(null);
+    loadDashboard();
+    setReceiptModal(receiptNumber);
   };
-
-  useEffect(() => { load(); }, []);
-
-  const filtered = payments.filter(p => {
-    const q = search.toLowerCase();
-    return !q || p.student?.user?.name?.toLowerCase().includes(q) || p.receiptNumber?.toLowerCase().includes(q);
-  });
-
-  const totalCollected = payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const totalPending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
-  const totalOverdue = payments.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
-
-  const handleRecord = async () => {
-    if (!form.student || !form.amount) { toast.error('Student and amount are required'); return; }
-    try {
-      await feeAPI.recordPayment(form);
-      toast.success('Payment recorded');
-      setModal(false);
-      setForm({ student: '', amount: '', method: 'cash', month: '', status: 'paid' });
-      load();
-    } catch (err) { toast.error(err.response?.data?.message || 'Error recording payment'); }
-  };
-
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-  const months = ['January 2026','February 2026','March 2026','April 2026','May 2026','June 2026','July 2026','August 2026','September 2026','October 2026','November 2026','December 2026'];
 
   return (
-    <div className="animate-fade-in">
-      <div className="page-header">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+
+      {/* ── PAGE HEADER ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h2 className="font-display text-2xl text-ink">Fee Management</h2>
-          <p className="text-sm text-muted mt-0.5">Track and manage all fee payments</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Fees Management</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Track collections, manage payments & generate receipts</p>
         </div>
-        {can(['superAdmin','schoolAdmin','accountant']) && (
-          <button className="btn-primary" onClick={() => setModal(true)}>+ Record Payment</button>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setSetupModal(true)}
+            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-100 transition-colors"
+          >
+            ⚙ Setup Class Ledger
+          </button>
+          <button
+            onClick={() => { setSelected(null); setPayModal(true); }}
+            className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            + Record Payment
+          </button>
+        </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* ── TABS ── */}
+      <div className="flex gap-1 mb-6 bg-white border border-slate-200 rounded-xl p-1 w-fit shadow-sm">
         {[
-          { label: 'Total Collected', value: `₹${totalCollected.toLocaleString('en-IN')}`, color: 'text-sage', border: 'border-sage/30' },
-          { label: 'Pending', value: `₹${totalPending.toLocaleString('en-IN')}`, color: 'text-gold', border: 'border-gold/30' },
-          { label: 'Overdue', value: `₹${totalOverdue.toLocaleString('en-IN')}`, color: 'text-accent', border: 'border-accent/30' },
-        ].map(({ label, value, color, border }) => (
-          <div key={label} className={`card p-5 border-2 ${border}`}>
-            <div className="text-sm text-muted mb-2 font-medium">{label}</div>
-            <div className={`font-display text-3xl ${color}`}>{value}</div>
-          </div>
+          { id: 'dashboard', label: '📊 Dashboard' },
+          { id: 'students',  label: '👨‍🎓 Students' }
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+              tab === t.id
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
 
-      <div className="flex gap-3 mb-5">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search by student name or receipt…" />
-      </div>
-
-      {loading ? <LoadingState /> : (
-        <div className="card overflow-hidden">
-          <div className="bg-warm px-5 py-3 grid gap-4 border-b border-border" style={{ gridTemplateColumns: COLS }}>
-            {['#','Student','Amount','Month','Method','Status','Actions'].map(h => <div key={h} className="table-th">{h}</div>)}
-          </div>
-          {!filtered.length ? <EmptyState icon="₹" title="No payments found" /> : filtered.map((p, i) => (
-            <div key={p._id} className="grid gap-4 px-5 py-3 border-t border-border items-center hover:bg-warm/40 transition-colors" style={{ gridTemplateColumns: COLS }}>
-              <div className="text-muted text-sm">{i + 1}</div>
-              <div className="flex items-center gap-2.5">
-                <Avatar name={p.student?.user?.name} size="sm" />
-                <div>
-                  <div className="font-medium text-sm text-ink">{p.student?.user?.name}</div>
-                  <div className="text-xs text-muted font-mono">{p.receiptNumber}</div>
-                </div>
-              </div>
-              <div className="font-semibold text-sm text-ink">₹{p.amount?.toLocaleString('en-IN')}</div>
-              <div className="text-sm text-slate">{p.month}</div>
-              <div className="text-sm text-slate capitalize">{p.method}</div>
-              <Badge status={p.status} />
-              <div>
-                <button onClick={() => toast.success(`Receipt: ${p.receiptNumber}`)}
-                  className="w-8 h-8 rounded-lg border border-border text-slate hover:border-accent hover:text-accent transition-all flex items-center justify-center text-sm">🖨</button>
-              </div>
-            </div>
-          ))}
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+          {error}
         </div>
       )}
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Record Fee Payment" size="md"
-        footer={<><button className="btn-secondary" onClick={() => setModal(false)}>Cancel</button><button className="btn-primary" onClick={handleRecord}>Record Payment</button></>}>
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Student" className="col-span-2">
-            <select className="form-input" value={form.student} onChange={e => set('student', e.target.value)}>
-              <option value="">Select student</option>
-              {students.map(s => <option key={s._id} value={s._id}>{s.user?.name} ({s.admissionNumber})</option>)}
-            </select>
-          </FormGroup>
-          <FormGroup label="Amount (₹)"><input type="number" className="form-input" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="12500" /></FormGroup>
-          <FormGroup label="Payment Method">
-            <select className="form-input" value={form.method} onChange={e => set('method', e.target.value)}>
-              {['cash','online','cheque','bank','upi'].map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
-            </select>
-          </FormGroup>
-          <FormGroup label="Month">
-            <select className="form-input" value={form.month} onChange={e => set('month', e.target.value)}>
-              <option value="">Select month</option>
-              {months.map(m => <option key={m}>{m}</option>)}
-            </select>
-          </FormGroup>
-          <FormGroup label="Status">
-            <select className="form-input" value={form.status} onChange={e => set('status', e.target.value)}>
-              {['paid','pending','overdue','partial'].map(s => <option key={s}>{s}</option>)}
-            </select>
-          </FormGroup>
-        </div>
-      </Modal>
+      {loading ? (
+        <LoadingSkeleton />
+      ) : (
+        <>
+          {tab === 'dashboard' && (
+            <div className="space-y-6">
+              <SummaryCards summary={summary} />
+              <FeesClassSummary
+                data={classSummary}
+                onPayClick={(student) => { setSelected(student); setPayModal(true); }}
+              />
+            </div>
+          )}
+
+          {tab === 'students' && (
+            <FeesStudentTable
+              onPayClick={(student) => { setSelected(student); setPayModal(true); }}
+              onReceiptClick={(rn) => setReceiptModal(rn)}
+            />
+          )}
+        </>
+      )}
+
+      {/* ── MODALS ── */}
+      {payModal && (
+        <PaymentModal
+          student={selectedStudent}
+          onClose={() => { setPayModal(false); setSelected(null); }}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {receiptModal && (
+        <ReceiptModal
+          receiptNumber={receiptModal}
+          onClose={() => setReceiptModal(null)}
+        />
+      )}
+
+      {setupModal && (
+        <SetupLedgerModal
+          onClose={() => setSetupModal(false)}
+          onSuccess={() => { setSetupModal(false); loadDashboard(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-28 bg-slate-200 rounded-2xl" />
+        ))}
+      </div>
+      <div className="h-64 bg-slate-200 rounded-2xl" />
     </div>
   );
 }
