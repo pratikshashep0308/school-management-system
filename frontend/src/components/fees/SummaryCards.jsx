@@ -6,7 +6,10 @@ const fmt = (n = 0) =>
 
 const pct = (a, b) => (b > 0 ? ((a / b) * 100).toFixed(1) : 0);
 
-export default function SummaryCards({ summary = {} }) {
+export default function SummaryCards({ summary }) {
+  // Guard against null/undefined while data is loading
+  if (!summary) return null;
+
   const {
     totalStudents  = 0,
     totalExpected  = 0,
