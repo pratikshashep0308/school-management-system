@@ -32,14 +32,19 @@ exports.getClassSummary = async (req, res) => {
       }
     },
     {
-      $lookup: {
-        from: 'classes',
-        localField: '_id',
-        foreignField: '_id',
-        as: 'classInfo'
-      }
-    },
-    { $unwind: { path: '$classInfo', preserveNullAndEmpty: true } },
+  $lookup: {
+    from: 'classes',
+    localField: '_id',
+    foreignField: '_id',
+    as: 'classInfo'
+  }
+},
+{
+  $unwind: {
+    path: '$classInfo',
+    preserveNullAndEmptyArrays: true
+  }
+},
     {
       $project: {
         classId:        '$_id',
