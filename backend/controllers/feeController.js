@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
-const { StudentFee, FeeStructure, FeePayment } = require('../models/feeModels');
+// const { StudentFee, FeeStructure, FeePayment } = require('../models/feeModels');
+// NEW - importing from index.js
+const { StudentFee, FeeStructure, FeePayment } = require('../models/index');
 
 // ─────────────────────────────────────────────
 // Helper: generate receipt number
