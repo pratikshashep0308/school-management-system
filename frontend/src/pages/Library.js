@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { libraryAPI, studentAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Modal, FormGroup, LoadingState, EmptyState, SearchBox, Badge } from '../components/ui';
+import { Modal, FormGroup, LoadingState, EmptyState, SearchBox } from '../components/ui';
 
 export default function Library() {
   const { can } = useAuth();

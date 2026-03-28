@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../utils/api';
-import { Avatar, FormGroup } from '../components/ui';
+import {  FormGroup } from '../components/ui';
 
 const ROLE_LABELS = {
   superAdmin: 'Super Administrator', schoolAdmin: 'School Administrator',

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { examAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { Modal, FormGroup, Badge, LoadingState, EmptyState } from '../components/ui';
+import { Modal, FormGroup,  LoadingState, EmptyState } from '../components/ui';
 
 const TYPE_COLORS = { unit: 'bg-gold/15 text-gold', midterm: 'bg-accent/10 text-accent', final: 'bg-purple-50 text-purple-600', practical: 'bg-sage/10 text-sage', assignment: 'bg-blue-50 text-blue-600' };
 

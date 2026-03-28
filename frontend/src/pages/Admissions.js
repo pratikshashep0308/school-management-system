@@ -9,7 +9,7 @@ import StatsCards           from '../components/admissions/StatsCards';
 // Re-export from central utils so any file that already imports
 // these from here continues to work without changes.
 export { admissionAPI, STATUS_CONFIG, PRIORITY_CONFIG, StatusBadge } from '../utils/admissionUtils';
-import { admissionAPI, STATUS_CONFIG, PRIORITY_CONFIG, StatusBadge } from '../utils/admissionUtils';
+import { admissionAPI, STATUS_CONFIG } from '../utils/admissionUtils';
 
 // ── MAIN PAGE ────────────────────────────────────────────────────
 export default function Admissions() {
