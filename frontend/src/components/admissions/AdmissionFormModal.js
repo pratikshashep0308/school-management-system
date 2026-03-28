@@ -1,7 +1,7 @@
 // frontend/src/components/admissions/AdmissionFormModal.js
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { admissionAPI } from '../../pages/Admissions';
+import { admissionAPI } from '../../utils/admissionUtils';
 
 const EMPTY = {
   studentName: '', dateOfBirth: '', gender: '', bloodGroup: '',

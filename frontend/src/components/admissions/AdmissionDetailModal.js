@@ -1,7 +1,7 @@
 // frontend/src/components/admissions/AdmissionDetailModal.js
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../pages/Admissions';
+import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../utils/admissionUtils';
 
 const DOCS = [
   { key: 'birthCertificate',    label: 'Birth Certificate'    },

@@ -1,7 +1,7 @@
 // frontend/src/components/admissions/InterviewModal.js
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { admissionAPI } from '../../pages/Admissions';
+import { admissionAPI } from '../../utils/admissionUtils';
 
 export default function InterviewModal({ application, onClose, onSuccess }) {
   const existing = application?.interview || {};
