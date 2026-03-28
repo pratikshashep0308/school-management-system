@@ -22,6 +22,11 @@ import Transport from './pages/Transport';
 import Notifications from './pages/Notifications';
 import Admissions from './pages/Admissions';
 import Profile from './pages/Profile';
+import TransportDashboard from './pages/transport/TransportDashboard';
+import Vehicles           from './pages/transport/Vehicles';
+import LiveTracking       from './pages/transport/LiveTracking';
+import TransportFees      from './pages/transport/TransportFees';
+
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -62,6 +67,10 @@ function AppRoutes() {
         <Route path="assignments" element={<Assignments />} />
         <Route path="library" element={<Library />} />
         <Route path="transport" element={<Transport />} />
+        <Route path="transport/dashboard" element={<TransportDashboard />} />
+        <Route path="transport/vehicles" element={<Vehicles />} />
+        <Route path="transport/live" element={<LiveTracking />} />
+        <Route path="transport/fees" element={<TransportFees />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="admissions" element={<Admissions />} />
         <Route path="profile" element={<Profile />} />

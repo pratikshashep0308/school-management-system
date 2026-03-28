@@ -1,43 +1,62 @@
+// backend/routes/transportRoutes.js
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { Transport } = require('../models/index');
-const Student = require('../models/Student');
+const ctrl = require('../controllers/transportController');
 
+// All routes require authentication
 router.use(protect);
 
-router.get('/', async (req, res) => {
-  const routes = await Transport.find({ school: req.user.school })
-    .populate({ path: 'students', populate: { path: 'user', select: 'name' } });
-  res.json({ success: true, data: routes });
-});
+const admin = authorize('superAdmin', 'schoolAdmin', 'transportManager');
 
-router.get('/:id', async (req, res) => {
-  const route = await Transport.findById(req.params.id)
-    .populate({ path: 'students', populate: { path: 'user', select: 'name profileImage' } });
-  if (!route) return res.status(404).json({ success: false, message: 'Route not found' });
-  res.json({ success: true, data: route });
-});
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+router.get('/dashboard', ctrl.getDashboard);
 
-router.post('/', authorize('superAdmin', 'schoolAdmin', 'transportManager'), async (req, res) => {
-  const route = await Transport.create({ ...req.body, school: req.user.school });
-  res.status(201).json({ success: true, data: route });
-});
+// ─── DRIVERS ─────────────────────────────────────────────────────────────────
+router.get('/drivers',                    ctrl.getDrivers);
+router.post('/drivers',          admin,   ctrl.createDriver);
+router.put('/drivers/:id',       admin,   ctrl.updateDriver);
+router.delete('/drivers/:id',    admin,   ctrl.deleteDriver);
+router.get('/drivers/expiring-licenses',  ctrl.getExpiringLicenses);
 
-router.put('/:id', authorize('superAdmin', 'schoolAdmin', 'transportManager'), async (req, res) => {
-  const route = await Transport.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  res.json({ success: true, data: route });
-});
+// ─── VEHICLES ─────────────────────────────────────────────────────────────────
+router.get('/vehicles',                      ctrl.getVehicles);
+router.get('/vehicles/expiring-docs',        ctrl.getExpiringDocuments);
+router.get('/vehicles/:id',                  ctrl.getVehicle);
+router.post('/vehicles',           admin,    ctrl.createVehicle);
+router.put('/vehicles/:id',        admin,    ctrl.updateVehicle);
+router.delete('/vehicles/:id',     admin,    ctrl.deleteVehicle);
+router.post('/vehicles/:id/maintenance', admin, ctrl.addMaintenance);
+router.post('/vehicles/:id/fuel',        admin, ctrl.addFuelLog);
+// GPS update endpoint (called by GPS device/simulator — no school auth needed, uses device key)
+router.post('/vehicles/:id/location',    ctrl.updateLocation);
 
-router.delete('/:id', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
-  await Transport.findByIdAndDelete(req.params.id);
-  res.json({ success: true, message: 'Route deleted' });
-});
+// ─── ROUTES ───────────────────────────────────────────────────────────────────
+router.get('/routes',              ctrl.getRoutes);
+router.get('/routes/:id',          ctrl.getRoute);
+router.post('/routes',    admin,   ctrl.createRoute);
+router.put('/routes/:id', admin,   ctrl.updateRoute);
+router.delete('/routes/:id', admin, ctrl.deleteRoute);
 
-router.post('/:id/assign-student', authorize('superAdmin', 'schoolAdmin', 'transportManager'), async (req, res) => {
-  await Transport.findByIdAndUpdate(req.params.id, { $addToSet: { students: req.body.studentId } });
-  await Student.findByIdAndUpdate(req.body.studentId, { transportRoute: req.params.id });
-  res.json({ success: true, message: 'Student assigned to route' });
-});
+// ─── ALLOCATIONS ──────────────────────────────────────────────────────────────
+router.get('/allocations',           ctrl.getAllocations);
+router.post('/allocations', admin,   ctrl.assignStudent);
+router.delete('/allocations/:id', admin, ctrl.removeAllocation);
+
+// ─── TRIPS ────────────────────────────────────────────────────────────────────
+router.get('/trips/today',           ctrl.getTodayTrips);
+router.post('/trips',       admin,   ctrl.startTrip);
+router.put('/trips/:id/stop', admin, ctrl.updateTripStop);
+router.put('/trips/:id/end',  admin, ctrl.endTrip);
+router.post('/trips/:id/alert', admin, ctrl.sendTripAlert);
+
+// ─── BOARDING ─────────────────────────────────────────────────────────────────
+router.post('/boarding',             ctrl.markBoarding);
+router.get('/boarding/:tripId',      ctrl.getTripBoarding);
+
+// ─── FEES ─────────────────────────────────────────────────────────────────────
+router.get('/fees',                           ctrl.getFees);
+router.post('/fees/generate',       admin,    ctrl.generateMonthlyFees);
+router.post('/fees/:id/payment',    admin,    ctrl.recordPayment);
 
 module.exports = router;
