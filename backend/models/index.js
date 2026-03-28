@@ -313,3 +313,36 @@ module.exports.StudentFee  = mongoose.model('StudentFee',  StudentFeeSchema);
 
 
 
+
+// ── VEHICLE ──
+const VehicleSchema = new mongoose.Schema({
+  registrationNo: { type: String, required: true, uppercase: true },
+  type:           { type: String, enum: ['bus','van','minibus','auto'], default: 'bus' },
+  capacity:       { type: Number, default: 40 },
+  driverName:     String,
+  driverPhone:    String,
+  assignedRoute:  { type: mongoose.Schema.Types.ObjectId, ref: 'Transport' },
+  status:         { type: String, enum: ['active','maintenance','inactive'], default: 'active' },
+  school:         { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  createdAt:      { type: Date, default: Date.now },
+});
+VehicleSchema.index({ school: 1, registrationNo: 1 }, { unique: true });
+
+// ── TRANSPORT FEE ──
+const TransportFeeSchema2 = new mongoose.Schema({
+  studentName:  { type: String, required: true },
+  studentId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  routeId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Transport' },
+  routeName:    String,
+  amount:       { type: Number, required: true },
+  month:        { type: Number, required: true },
+  year:         { type: Number, required: true },
+  status:       { type: String, enum: ['pending','paid','partial'], default: 'pending' },
+  dueDate:      Date,
+  paidDate:     Date,
+  school:       { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  createdAt:    { type: Date, default: Date.now },
+});
+
+module.exports.Vehicle      = mongoose.model('Vehicle',      VehicleSchema);
+module.exports.TransportFee2 = mongoose.model('TransportFee2', TransportFeeSchema2);

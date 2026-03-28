@@ -133,12 +133,12 @@ export const libraryAPI = {
 
 // ── TRANSPORT ──
 export const transportAPI = {
-  getAll: () => api.get('/transport'),
-  getById: (id) => api.get(`/transport/${id}`),
-  create: (data) => api.post('/transport', data),
-  update: (id, data) => api.put(`/transport/${id}`, data),
-  delete: (id) => api.delete(`/transport/${id}`),
-  assignStudent: (routeId, studentId) => api.post(`/transport/${routeId}/assign-student`, { studentId }),
+  getAll:        ()         => api.get('/transport'),
+  getById:       (id)       => api.get('/transport/' + id),
+  create:        (data)     => api.post('/transport', data),
+  update:        (id, data) => api.put('/transport/' + id, data),
+  delete:        (id)       => api.delete('/transport/' + id),
+  assignStudent: (routeId, studentId) => api.post('/transport/' + routeId + '/assign-student', { studentId }),
 };
 
 // ── NOTIFICATIONS ──

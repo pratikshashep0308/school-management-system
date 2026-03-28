@@ -21,14 +21,9 @@ const NAV = [
     { to: '/admissions',   icon: '📩', label: 'Admissions',      roles: ['superAdmin','schoolAdmin'] },
     { to: '/fees',         icon: '₹',  label: 'Fee Management',  roles: ['superAdmin','schoolAdmin','accountant','student','parent'] },
     { to: '/library',      icon: '📚', label: 'Library',         roles: 'all' },
-    { to: '/transport',    icon: '🚌', label: 'Transport',       roles: ['superAdmin','schoolAdmin','transportManager','student','parent'] },
-    { to: '/transport/vehicles', icon: '🚐', label: '↳ Vehicles',         roles: ['superAdmin','schoolAdmin','transportManager'] },
-    { to: '/transport/tracking', icon: '🗺️',  label: '↳ Live Tracking',   roles: ['superAdmin','schoolAdmin','transportManager'] },
-    { to: '/transport/fees',     icon: '💰', label: '↳ Transport Fees',   roles: ['superAdmin','schoolAdmin','accountant'] },
+    { to: '/transport',          icon: '🚌', label: 'Transport',          roles: ['superAdmin','schoolAdmin','transportManager','student','parent'] },
     { to: '/notifications',icon: '🔔', label: 'Notifications',   roles: 'all' },
   ]},
-
-  
 ];
 
 export default function Sidebar({ onClose }) {
