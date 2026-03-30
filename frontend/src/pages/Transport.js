@@ -98,13 +98,22 @@ export default function Transport() {
 // ── ROUTES TAB ────────────────────────────────────────────────────────────────
 function RoutesTab({ routes, canManage, reload }) {
   const [modal, setModal] = useState({ open: false, data: null });
+  // Use separate formData state so Save button always reads latest typed values
+  const [formData, setFormData] = useState({});
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = async (form) => {
+  const openAdd  = () => { setFormData({}); setModal({ open: true, data: null }); };
+  const openEdit = (r) => { setFormData({ ...r }); setModal({ open: true, data: r }); };
+
+  const handleSave = async () => {
+    if (!formData.routeName?.trim()) return toast.error('Route name is required');
+    setSaving(true);
     try {
-      if (form._id) { await transportAPI.update(form._id, form); toast.success('Route updated'); }
-      else { await transportAPI.create(form); toast.success('Route added'); }
-      setModal({ open: false, data: null }); reload();
+      if (formData._id) { await transportAPI.update(formData._id, formData); toast.success('Route updated'); }
+      else { await transportAPI.create(formData); toast.success('Route added'); }
+      setModal({ open: false, data: null }); setFormData({}); reload();
     } catch (err) { toast.error(err.response?.data?.message || 'Error saving route'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
@@ -117,7 +126,7 @@ function RoutesTab({ routes, canManage, reload }) {
     <div className="space-y-4">
       {canManage && (
         <div className="flex justify-end">
-          <button className="btn-primary" onClick={() => setModal({ open: true, data: null })}>+ Add Route</button>
+          <button className="btn-primary" onClick={openAdd}>+ Add Route</button>
         </div>
       )}
       {!routes.length ? <EmptyState icon="🗺️" title="No routes configured" desc="Add your first transport route to get started" /> : (
@@ -162,7 +171,7 @@ function RoutesTab({ routes, canManage, reload }) {
                 </div>
                 {canManage && (
                   <div className="flex gap-1.5 flex-shrink-0">
-                    <button onClick={() => setModal({ open: true, data: r })} className="w-8 h-8 rounded-lg border border-border text-slate hover:border-accent hover:text-accent transition-all flex items-center justify-center text-sm">✎</button>
+                    <button onClick={() => openEdit(r)} className="w-8 h-8 rounded-lg border border-border text-slate hover:border-accent hover:text-accent transition-all flex items-center justify-center text-sm">✎</button>
                     <button onClick={() => handleDelete(r._id)} className="w-8 h-8 rounded-lg border border-red-200 text-red-400 hover:border-red-400 hover:text-red-600 transition-all flex items-center justify-center text-sm">✕</button>
                   </div>
                 )}
@@ -171,11 +180,13 @@ function RoutesTab({ routes, canManage, reload }) {
           })}
         </div>
       )}
-      <Modal isOpen={modal.open} onClose={() => setModal({ open: false, data: null })}
-        title={modal.data?._id ? 'Edit Route' : 'Add Transport Route'} size="lg"
-        footer={<><button className="btn-secondary" onClick={() => setModal({ open: false, data: null })}>Cancel</button>
-          <button className="btn-primary" onClick={() => handleSave(modal.data || {})}>Save Route</button></>}>
-        {modal.open && <RouteForm data={modal.data} setData={d => setModal(p => ({ ...p, data: d }))} />}
+      <Modal isOpen={modal.open} onClose={() => { setModal({ open: false, data: null }); setFormData({}); }}
+        title={formData._id ? 'Edit Route' : 'Add Transport Route'} size="lg"
+        footer={<>
+          <button className="btn-secondary" onClick={() => { setModal({ open: false, data: null }); setFormData({}); }}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Route'}</button>
+        </>}>
+        {modal.open && <RouteForm data={formData} setData={setFormData} />}
       </Modal>
     </div>
   );
