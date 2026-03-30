@@ -123,12 +123,14 @@ export const assignmentAPI = {
 
 // ── LIBRARY ──
 export const libraryAPI = {
-  getBooks: (params) => api.get('/library/books', { params }),
-  addBook: (data) => api.post('/library/books', data),
-  updateBook: (id, data) => api.put(`/library/books/${id}`, data),
-  getIssues: (params) => api.get('/library/issues', { params }),
-  issueBook: (data) => api.post('/library/issue', data),
-  returnBook: (issueId) => api.put(`/library/return/${issueId}`),
+  getBooks:   (params) => api.get('/library/books', { params }),
+  addBook:    (data)   => api.post('/library/books', data),
+  updateBook: (id, d)  => api.put('/library/books/' + id, d),
+  deleteBook: (id)     => api.delete('/library/books/' + id),
+  getIssues:  (params) => api.get('/library/issues', { params }),
+  issueBook:  (data)   => api.post('/library/issue', data),
+  returnBook: (id)     => api.put('/library/return/' + id),
+  getStats:   ()       => api.get('/library/stats'),
 };
 
 // ── TRANSPORT ──
