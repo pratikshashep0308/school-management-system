@@ -9,71 +9,58 @@ require('express-async-errors');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
-// Connect to MongoDB
-connectDB();
-
 const app = express();
 app.set('trust proxy', 1);
 
-// Security headers
 app.use(helmet());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
-  message: 'Too many requests from this IP, please try again after 15 minutes'
-});
-app.use('/api/', limiter);
-
-// CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
-
-// Body parser
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
-// Logging in development
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-// ── ROUTES ──
-app.use('/api/auth',          require('./routes/authRoutes'));
-app.use('/api/students',      require('./routes/studentRoutes'));
-app.use('/api/teachers',      require('./routes/teacherRoutes'));
-app.use('/api/classes',       require('./routes/classRoutes'));
-app.use('/api/subjects',      require('./routes/subjectRoutes'));
-app.use('/api/attendance',    require('./routes/attendanceRoutes'));
-app.use('/api/exams',         require('./routes/examRoutes'));
-app.use('/api/fees',          require('./routes/feeRoutes'));
-app.use('/api/timetable',     require('./routes/timetableRoutes'));
-app.use('/api/assignments',   require('./routes/assignmentRoutes'));
-app.use('/api/library',       require('./routes/libraryRoutes'));
-app.use('/api/transport',          require('./routes/transportRoutes'));
-app.use('/api/transport/vehicles', require('./routes/vehicleRoutes'));
-app.use('/api/transport/fees',     require('./routes/transportFeeRoutes'));
-app.use('/api/notifications', require('./routes/notificationRoutes'));
-app.use('/api/admissions',   require('./routes/admissionRoutes'));
-app.use('/api/dashboard',     require('./routes/dashboardRoutes'));
-
-// Health check
+// Health check registered EARLY so Render detects port immediately
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'School Management System API is running', timestamp: new Date() });
 });
 
-// Handle unmatched routes
-app.use('*', (req, res) => {
-  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
+// Load routes safely — one bad file won't crash the whole server
+const routes = [
+  ['/api/auth',               './routes/authRoutes'],
+  ['/api/students',           './routes/studentRoutes'],
+  ['/api/teachers',           './routes/teacherRoutes'],
+  ['/api/classes',            './routes/classRoutes'],
+  ['/api/subjects',           './routes/subjectRoutes'],
+  ['/api/attendance',         './routes/attendanceRoutes'],
+  ['/api/exams',              './routes/examRoutes'],
+  ['/api/fees',               './routes/feeRoutes'],
+  ['/api/timetable',          './routes/timetableRoutes'],
+  ['/api/assignments',        './routes/assignmentRoutes'],
+  ['/api/library',            './routes/libraryRoutes'],
+  ['/api/transport',          './routes/transportRoutes'],
+  ['/api/transport/vehicles', './routes/vehicleRoutes'],
+  ['/api/transport/fees',     './routes/transportFeeRoutes'],
+  ['/api/notifications',      './routes/notificationRoutes'],
+  ['/api/admissions',         './routes/admissionRoutes'],
+  ['/api/dashboard',          './routes/dashboardRoutes'],
+];
+
+routes.forEach(([path, file]) => {
+  try {
+    app.use(path, require(file));
+  } catch (err) {
+    console.error('Failed to load route ' + path + ':', err.message);
+  }
 });
 
-// Global error handler (must be last)
+app.use('*', (req, res) => res.status(404).json({ success: false, message: 'Route ' + req.originalUrl + ' not found' }));
 app.use(errorHandler);
 
+// Listen FIRST — then connect DB
+// This ensures port is open before Render's scan timeout
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('Server running on port ' + PORT);
 });
+
+connectDB().catch(err => console.error('MongoDB connection error:', err.message));
