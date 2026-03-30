@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+require('./School'); // ensure School schema is registered
 // ── CLASS ──
 const ClassSchema = new mongoose.Schema({
   name: { type: String, required: true }, // e.g. "Class X"
@@ -344,5 +345,5 @@ const TransportFeeSchema2 = new mongoose.Schema({
   createdAt:    { type: Date, default: Date.now },
 });
 
-module.exports.Vehicle      = mongoose.model('Vehicle',      VehicleSchema);
-module.exports.TransportFee2 = mongoose.model('TransportFee2', TransportFeeSchema2);
+module.exports.Vehicle       = mongoose.models.Vehicle       || mongoose.model('Vehicle',       VehicleSchema);
+module.exports.TransportFee2 = mongoose.models.TransportFee2 || mongoose.model('TransportFee2', TransportFeeSchema2);
