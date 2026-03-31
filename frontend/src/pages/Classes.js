@@ -5,14 +5,17 @@ import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 
 const CLASS_COLORS = ['#d4522a','#c9a84c','#4a7c59','#7c6af5','#2d9cdb','#f2994a'];
+const FORM_EMPTY = { name: '', grade: '', section: '', room: '', capacity: '', classTeacher: '' };
 
 export default function Classes() {
   const { isAdmin } = useAuth();
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState({ open: false, data: null });
+  const [classes,  setClasses]  = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [modal,    setModal]    = useState({ open: false, data: null });
+  const [form,     setForm]     = useState(FORM_EMPTY);
+  const [saving,   setSaving]   = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -27,13 +30,29 @@ export default function Classes() {
 
   useEffect(() => { load(); }, []);
 
-  const handleSave = async (form) => {
+  const openAdd  = () => { setForm(FORM_EMPTY); setModal({ open: true, data: null }); };
+  const openEdit = (cls) => {
+    setForm({ name: cls.name || '', grade: cls.grade || '', section: cls.section || '',
+      room: cls.room || '', capacity: cls.capacity || '', classTeacher: cls.classTeacher?._id || cls.classTeacher || '',
+      _id: cls._id });
+    setModal({ open: true, data: cls });
+  };
+
+  const handleSave = async () => {
+    if (!form.name || !form.grade || !form.section) {
+      toast.error('Class name, grade and section are required');
+      return;
+    }
+    setSaving(true);
     try {
       if (form._id) { await classAPI.update(form._id, form); toast.success('Class updated'); }
-      else { await classAPI.create(form); toast.success('Class created'); }
-      setModal({ open: false, data: null }); load();
+      else          { await classAPI.create(form);           toast.success('Class created'); }
+      setModal({ open: false, data: null }); setForm(FORM_EMPTY); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Error saving class'); }
+    finally { setSaving(false); }
   };
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   return (
     <div className="animate-fade-in">
@@ -42,7 +61,7 @@ export default function Classes() {
           <h2 className="font-display text-2xl text-ink">Classes</h2>
           <p className="text-sm text-muted mt-0.5">{classes.length} classes across all grades</p>
         </div>
-        {isAdmin && <button className="btn-primary" onClick={() => setModal({ open: true, data: null })}>+ Add Class</button>}
+        {isAdmin && <button className="btn-primary" onClick={openAdd}>+ Add Class</button>}
       </div>
 
       {loading ? <LoadingState /> : !classes.length ? <EmptyState icon="🏛" title="No classes yet" /> : (
@@ -64,7 +83,7 @@ export default function Classes() {
                 </div>
               </div>
               {isAdmin && (
-                <button onClick={() => setModal({ open: true, data: { ...cls, classTeacher: cls.classTeacher?._id } })}
+                <button onClick={() => openEdit(cls)}
                   className="absolute top-4 left-4 w-7 h-7 flex items-center justify-center rounded-lg border border-border text-muted hover:border-accent hover:text-accent transition-all text-xs">✎</button>
               )}
             </div>
@@ -72,32 +91,26 @@ export default function Classes() {
         </div>
       )}
 
-      <Modal isOpen={modal.open} onClose={() => setModal({ open: false, data: null })}
-        title={modal.data?._id ? 'Edit Class' : 'Add Class'} size="md"
-        footer={<><button className="btn-secondary" onClick={() => setModal({ open: false, data: null })}>Cancel</button>
-          <button className="btn-primary" onClick={() => handleSave(modal.data || {})}>Save</button></>}>
-        {modal.open && <ClassForm data={modal.data} setData={d => setModal(p => ({ ...p, data: d }))} teachers={teachers} subjects={subjects} />}
+      <Modal isOpen={modal.open} onClose={() => { setModal({ open: false, data: null }); setForm(FORM_EMPTY); }}
+        title={form._id ? 'Edit Class' : 'Add Class'} size="md"
+        footer={<>
+          <button className="btn-secondary" onClick={() => { setModal({ open: false, data: null }); setForm(FORM_EMPTY); }}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Class'}</button>
+        </>}>
+        <div className="grid grid-cols-2 gap-4">
+          <FormGroup label="Class Name *"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Class X" /></FormGroup>
+          <FormGroup label="Grade *"><input type="number" className="form-input" value={form.grade} onChange={e => set('grade', e.target.value)} placeholder="10" /></FormGroup>
+          <FormGroup label="Section *"><input className="form-input" value={form.section} onChange={e => set('section', e.target.value)} placeholder="A" /></FormGroup>
+          <FormGroup label="Room"><input className="form-input" value={form.room} onChange={e => set('room', e.target.value)} placeholder="101" /></FormGroup>
+          <FormGroup label="Capacity"><input type="number" className="form-input" value={form.capacity} onChange={e => set('capacity', e.target.value)} placeholder="40" /></FormGroup>
+          <FormGroup label="Class Teacher">
+            <select className="form-input" value={form.classTeacher} onChange={e => set('classTeacher', e.target.value)}>
+              <option value="">Select teacher</option>
+              {teachers.map(t => <option key={t._id} value={t._id}>{t.user?.name}</option>)}
+            </select>
+          </FormGroup>
+        </div>
       </Modal>
-    </div>
-  );
-}
-
-function ClassForm({ data, setData, teachers, subjects }) {
-  const set = (k, v) => setData(p => ({ ...p, [k]: v }));
-  const d = data || {};
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <FormGroup label="Class Name"><input className="form-input" value={d.name || ''} onChange={e => set('name', e.target.value)} placeholder="Class X" /></FormGroup>
-      <FormGroup label="Grade"><input type="number" className="form-input" value={d.grade || ''} onChange={e => set('grade', e.target.value)} placeholder="10" /></FormGroup>
-      <FormGroup label="Section"><input className="form-input" value={d.section || ''} onChange={e => set('section', e.target.value)} placeholder="A" /></FormGroup>
-      <FormGroup label="Room"><input className="form-input" value={d.room || ''} onChange={e => set('room', e.target.value)} placeholder="101" /></FormGroup>
-      <FormGroup label="Capacity"><input type="number" className="form-input" value={d.capacity || ''} onChange={e => set('capacity', e.target.value)} placeholder="40" /></FormGroup>
-      <FormGroup label="Class Teacher">
-        <select className="form-input" value={d.classTeacher || ''} onChange={e => set('classTeacher', e.target.value)}>
-          <option value="">Select teacher</option>
-          {teachers.map(t => <option key={t._id} value={t._id}>{t.user?.name}</option>)}
-        </select>
-      </FormGroup>
     </div>
   );
 }
