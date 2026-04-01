@@ -102,12 +102,16 @@ export default function Login() {
         <div className="relative z-10 p-12 flex-1 flex flex-col justify-center">
           {/* Logo */}
           <div className="flex items-center gap-4 mb-12">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg" style={{ background: 'linear-gradient(135deg, #e87722, #f59e0b)', color: 'white', fontFamily: 'Georgia, serif', boxShadow: '0 8px 24px rgba(232,119,34,0.4)' }}>
-              TFS
+            <div style={{ width: 72, height: 72, borderRadius: '50%', padding: 4, background: 'linear-gradient(135deg, #e87722, #f59e0b)', boxShadow: '0 8px 32px rgba(232,119,34,0.5)', flexShrink: 0 }}>
+              <img src="/school-logo.jpeg" alt="School Logo"
+                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                onError={e => { e.target.style.display='none'; }}
+              />
             </div>
             <div>
-              <div className="text-white font-black text-xl leading-tight" style={{ fontFamily: 'Merriweather, Georgia, serif' }}>The Future Step</div>
-              <div className="text-sm font-bold" style={{ color: '#e87722' }}>School Management Portal</div>
+              <div className="text-white font-black text-xl leading-tight" style={{ fontFamily: 'Merriweather, Georgia, serif' }}>The Future Step School</div>
+              <div className="text-sm font-bold" style={{ color: '#f59e0b' }}>K V P S Sanstha Bhaler</div>
+              <div className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>School Management Portal</div>
             </div>
           </div>
 
@@ -160,11 +164,16 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center px-6 py-12" style={{ background: '#f8faff' }}>
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm" style={{ background: 'linear-gradient(135deg, #e87722, #f59e0b)', color: 'white', fontFamily: 'Georgia, serif' }}>TFS</div>
-            <div>
-              <div className="font-black text-base" style={{ color: '#1a3a6b', fontFamily: 'Merriweather, Georgia, serif' }}>The Future Step</div>
-              <div className="text-xs font-bold" style={{ color: '#e87722' }}>School Portal</div>
+          <div className="lg:hidden flex flex-col items-center gap-3 mb-8">
+            <div style={{ width: 80, height: 80, borderRadius: '50%', padding: 4, background: 'linear-gradient(135deg, #e87722, #f59e0b)', boxShadow: '0 6px 20px rgba(232,119,34,0.4)' }}>
+              <img src="/school-logo.jpeg" alt="School Logo"
+                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                onError={e => { e.target.style.display='none'; }}
+              />
+            </div>
+            <div className="text-center">
+              <div className="font-black text-base" style={{ color: '#1a3a6b', fontFamily: 'Merriweather, Georgia, serif' }}>The Future Step School</div>
+              <div className="text-xs font-bold" style={{ color: '#e87722' }}>K V P S Sanstha Bhaler</div>
             </div>
           </div>
 

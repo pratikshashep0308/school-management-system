@@ -283,7 +283,9 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 h-18 py-3 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-2xl font-bold tfs-serif" style={{ color: 'var(--tfs-navy)' }}>TFS</div>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', padding: 3, background: 'linear-gradient(135deg, #e87722, #f59e0b)', boxShadow: '0 4px 12px rgba(232,119,34,0.4)', flexShrink: 0 }}>
+              <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
+            </div>
             <div>
               <div className="text-white font-bold text-base leading-tight">The Future Step</div>
               <div className="text-xs leading-tight" style={{ color: 'var(--tfs-orange)' }}>School</div>
@@ -664,7 +666,9 @@ export default function Landing() {
           <div className="grid md:grid-cols-4 gap-10 mb-10">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center font-bold tfs-serif" style={{ color: 'var(--tfs-navy)' }}>TFS</div>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', padding: 3, background: 'linear-gradient(135deg, #e87722, #f59e0b)', flexShrink: 0 }}>
+                  <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
+                </div>
                 <div>
                   <div className="font-bold text-lg">The Future Step School</div>
                   <div className="text-xs" style={{ color: 'var(--tfs-orange)' }}>Bhaler, Nandurbar</div>

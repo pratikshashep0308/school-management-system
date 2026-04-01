@@ -83,14 +83,21 @@ export default function Sidebar({ onClose }) {
       `}</style>
 
       {/* Brand */}
-      <div className="px-5 py-6 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+      <div className="px-5 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         <div className="flex items-center gap-3">
-          <div className="tfs-logo-ring w-11 h-11 rounded-full flex items-center justify-center font-black text-sm" style={{ background: 'linear-gradient(135deg, #e87722, #f59e0b)', color: '#fff', fontFamily: 'Georgia, serif', letterSpacing: '-0.5px' }}>
-            TFS
+          {/* Real school logo */}
+          <div className="tfs-logo-ring flex-shrink-0" style={{ width: 48, height: 48, borderRadius: '50%', padding: 3, background: 'linear-gradient(135deg, #e87722, #f59e0b)', boxShadow: '0 4px 14px rgba(232,119,34,0.4)' }}>
+            <img
+              src="/school-logo.jpeg"
+              alt="K V P S Sanstha Bhaler"
+              style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+              onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
+            />
+            <div style={{ display: 'none', width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg, #1a3a6b, #0d2347)', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 13, fontFamily: 'Georgia, serif' }}>TFS</div>
           </div>
-          <div>
-            <div className="text-white font-bold text-sm leading-tight">The Future Step</div>
-            <div className="text-xs font-semibold" style={{ color: '#e87722' }}>School</div>
+          <div className="min-w-0">
+            <div className="text-white font-bold text-sm leading-tight truncate">The Future Step</div>
+            <div className="text-xs font-semibold" style={{ color: '#e87722' }}>K V P S Sanstha Bhaler</div>
           </div>
         </div>
         <div className="text-[9px] text-white/20 mt-3 uppercase tracking-widest pl-0.5 font-semibold">School Management System</div>

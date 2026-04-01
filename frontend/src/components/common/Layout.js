@@ -49,7 +49,16 @@ export default function Layout() {
               className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent hover:text-accent' : 'border-border text-slate hover:border-accent hover:text-accent'}`}
               onClick={() => setMobileOpen(true)}
             >☰</button>
-            <h1 className={`font-display text-xl ${isDark ? 'text-white' : 'text-ink'}`}>{title}</h1>
+            {/* Logo in topbar — visible on all screens */}
+            <div className="flex items-center gap-2.5">
+              <div style={{ width: 34, height: 34, borderRadius: '50%', padding: 2, background: 'linear-gradient(135deg, #e87722, #f59e0b)', flexShrink: 0 }}>
+                <img src="/school-logo.jpeg" alt="Logo"
+                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                  onError={e => { e.target.style.display='none'; }}
+                />
+              </div>
+              <h1 className={`font-display text-xl ${isDark ? 'text-white' : 'text-ink'}`}>{title}</h1>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
