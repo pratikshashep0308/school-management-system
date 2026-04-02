@@ -32,7 +32,7 @@ const seed = async () => {
     phone: '+91 9404820296',
     email: 'inquiry@thefuturestepschool.in',
     principalName: 'Dr. Suresh Patil',
-    board: 'SSC / Semi-English',
+    board: 'State Board',
     establishedYear: 2018
   });
 
@@ -55,11 +55,11 @@ const seed = async () => {
   ]);
 
   console.log('🎓 Creating teachers...');
-  const teacherUsers = await User.insertMany([
-    { name: 'Mr. Vijay Chaudhari', email: 'teacher@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543210', school: school._id },
-    { name: 'Mrs. Rekha Nikam', email: 'rekha.nikam@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543211', school: school._id },
-    { name: 'Mr. Santosh Borse', email: 'santosh.borse@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543212', school: school._id },
-    { name: 'Mrs. Priya Sonawane', email: 'priya.sonawane@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543213', school: school._id },
+  const teacherUsers = await Promise.all([
+    User.create({ name: 'Mr. Vijay Chaudhari', email: 'teacher@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543210', school: school._id }),
+    User.create({ name: 'Mrs. Rekha Nikam', email: 'rekha.nikam@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543211', school: school._id }),
+    User.create({ name: 'Mr. Santosh Borse', email: 'santosh.borse@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543212', school: school._id }),
+    User.create({ name: 'Mrs. Priya Sonawane', email: 'priya.sonawane@school.com', password: 'Teacher@123', role: 'teacher', phone: '9876543213', school: school._id }),
   ]);
 
   const teachers = await Teacher.insertMany([
@@ -72,7 +72,7 @@ const seed = async () => {
   console.log('🏛 Creating classes...');
   const classes = await Class.insertMany([
     { name: 'Class LKG', grade: 0, section: 'A', classTeacher: teachers[0]._id, subjects: subjects.slice(0, 3).map(s => s._id), capacity: 30, room: '101', school: school._id },
-    { name: 'Class UKG', grade: 0, section: 'A', classTeacher: teachers[1]._id, subjects: subjects.slice(0, 3).map(s => s._id), capacity: 30, room: '102', school: school._id },
+    { name: 'Class UKG', grade: 0, section: 'B', classTeacher: teachers[1]._id, subjects: subjects.slice(0, 3).map(s => s._id), capacity: 30, room: '102', school: school._id },
     { name: 'Class I', grade: 1, section: 'A', classTeacher: teachers[2]._id, subjects: subjects.slice(0, 5).map(s => s._id), capacity: 35, room: '201', school: school._id },
     { name: 'Class V', grade: 5, section: 'A', classTeacher: teachers[3]._id, subjects: subjects.map(s => s._id), capacity: 35, room: '301', school: school._id },
   ]);
@@ -119,11 +119,11 @@ const seed = async () => {
 
   console.log('💰 Creating fee payments...');
   await FeePayment.insertMany([
-    { student: createdStudents[0]._id, amount: 8500, method: 'online', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[1]._id, amount: 8500, method: 'cash', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[2]._id, amount: 8500, method: 'bank', status: 'pending', month: 'February 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[3]._id, amount: 7000, method: 'cash', status: 'overdue', month: 'January 2026', year: 2026, school: school._id, collectedBy: accountant._id },
-    { student: createdStudents[4]._id, amount: 9000, method: 'cheque', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id },
+    { student: createdStudents[0]._id, amount: 8500, method: 'online', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id, receiptNumber: 'REC-2026-001' },
+    { student: createdStudents[1]._id, amount: 8500, method: 'cash', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id, receiptNumber: 'REC-2026-002' },
+    { student: createdStudents[2]._id, amount: 8500, method: 'bank', status: 'pending', month: 'February 2026', year: 2026, school: school._id, collectedBy: accountant._id, receiptNumber: 'REC-2026-003' },
+    { student: createdStudents[3]._id, amount: 7000, method: 'cash', status: 'overdue', month: 'January 2026', year: 2026, school: school._id, collectedBy: accountant._id, receiptNumber: 'REC-2026-004' },
+    { student: createdStudents[4]._id, amount: 9000, method: 'cheque', status: 'paid', month: 'March 2026', year: 2026, school: school._id, collectedBy: accountant._id, receiptNumber: 'REC-2026-005' },
   ]);
 
   console.log('📚 Creating library books...');
