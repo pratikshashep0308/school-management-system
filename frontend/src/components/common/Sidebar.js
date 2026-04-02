@@ -67,7 +67,7 @@ export default function Sidebar({ isOpen, onClose }) {
         width: 240, height: '100vh', background: '#0d2347', position: 'fixed', left: 0, top: 0,
         display: 'flex', flexDirection: 'column', zIndex: 50,
         fontFamily: "'Nunito', sans-serif",
-        transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transform: isOpen === false ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.25s',
         overflowY: 'auto',
       }}>
