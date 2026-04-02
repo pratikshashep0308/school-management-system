@@ -28,6 +28,7 @@ app.get('/api/health', (req, res) => {
 const routes = [
   ['/api/auth',               './routes/authRoutes'],
   ['/api/students',           './routes/studentRoutes'],
+  ['/api/student-portal',     './routes/studentPortalRoutes'],
   ['/api/teachers',           './routes/teacherRoutes'],
   ['/api/classes',            './routes/classRoutes'],
   ['/api/subjects',           './routes/subjectRoutes'],
