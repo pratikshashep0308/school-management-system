@@ -1,190 +1,415 @@
-// frontend/src/pages/StudentDashboard.js
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  StudentDashboard.js  —  Drop-in replacement                    ║
+// ║  Just replace your existing file. No new installs needed.       ║
+// ║  Uses: React, react-hot-toast (already in your project)         ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { studentPortalAPI } from '../utils/studentPortalAPI';
 import toast from 'react-hot-toast';
 
-/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
+// ─── Design Tokens ────────────────────────────────────────────────────────────
 const C = {
-  navy:    '#0d1b3e',
-  blue:    '#1a3a6b',
-  accent:  '#e87722',
+  blue:    '#2563eb',
   indigo:  '#4f46e5',
   emerald: '#10b981',
   amber:   '#f59e0b',
   rose:    '#f43f5e',
   violet:  '#8b5cf6',
-  cyan:    '#06b6d4',
   slate:   '#64748b',
-  light:   '#f8faff',
+  navy:    '#0f172a',
+  light:   '#f8fafc',
 };
 
+// ─── Sidebar modules config ───────────────────────────────────────────────────
 const MODULES = [
-  { id: 'overview',      icon: '⚡', label: 'Overview',      color: C.indigo },
-  { id: 'attendance',    icon: '📅', label: 'Attendance',    color: C.emerald },
-  { id: 'results',       icon: '🏆', label: 'Results',       color: C.amber },
-  { id: 'fees',          icon: '💳', label: 'Fees',          color: C.blue },
-  { id: 'assignments',   icon: '📝', label: 'Assignments',   color: C.violet },
-  { id: 'timetable',    icon: '🗓', label: 'Timetable',     color: C.rose },
-  { id: 'transport',     icon: '🚌', label: 'Transport',     color: C.accent },
-  { id: 'library',      icon: '📚', label: 'Library',       color: C.cyan },
-  { id: 'notifications', icon: '🔔', label: 'Notifications', color: C.rose },
+  { id: 'overview',      label: 'Overview',       icon: '⊞' },
+  { id: 'attendance',    label: 'Attendance',      icon: '📅' },
+  { id: 'results',       label: 'Results',         icon: '🏆' },
+  { id: 'fees',          label: 'Fees',            icon: '💳' },
+  { id: 'assignments',   label: 'Assignments',     icon: '📝' },
+  { id: 'timetable',     label: 'Timetable',       icon: '🕐' },
+  { id: 'transport',     label: 'Transport',       icon: '🚌' },
+  { id: 'library',       label: 'Library',         icon: '📚' },
+  { id: 'notifications', label: 'Notifications',   icon: '🔔' },
 ];
 
-/* ─── Helpers ────────────────────────────────────────────────────────────────── */
-const badge = (text, bg, color) => (
-  <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99, background: bg, color, letterSpacing: '0.04em' }}>{text}</span>
-);
+// ─── Inline CSS injected once ─────────────────────────────────────────────────
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  .sms-dash * { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+  .sms-dash { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; }
+  .sms-dash.dark { background: #0f172a; }
 
-const statusBadge = (s) => ({
-  present: badge('PRESENT', '#d1fae5', '#065f46'),
-  absent:  badge('ABSENT',  '#fee2e2', '#991b1b'),
-  late:    badge('LATE',    '#fef3c7', '#92400e'),
-}[s] || badge(s?.toUpperCase(), '#f1f5f9', '#475569'));
+  /* Sidebar */
+  .sms-sidebar {
+    width: 220px; flex-shrink: 0; display: flex; flex-direction: column;
+    background: #1e293b; border-right: 1px solid rgba(255,255,255,0.06);
+    transition: width 0.2s;
+  }
+  .sms-sidebar.collapsed { width: 60px; }
+  .sms-sidebar.collapsed .sms-nav-label,
+  .sms-sidebar.collapsed .sms-profile-info,
+  .sms-sidebar.collapsed .sms-att-bar-wrap,
+  .sms-sidebar.collapsed .sms-logo-text { display: none; }
+  .sms-sidebar.collapsed .sms-nav-btn { justify-content: center; padding: 10px 0; }
+  .sms-sidebar.collapsed .sms-notif-badge { display: none; }
 
-/* ─── Stat Card ──────────────────────────────────────────────────────────────── */
-function StatCard({ icon, label, value, sub, color, gradient }) {
-  return (
-    <div style={{
-      background: gradient || '#fff',
-      borderRadius: 20,
-      padding: '22px 24px',
-      boxShadow: gradient ? `0 8px 32px ${color}30` : '0 2px 16px rgba(0,0,0,0.06)',
-      display: 'flex', alignItems: 'center', gap: 16,
-      border: gradient ? 'none' : '1px solid #f1f5f9',
-      transition: 'transform 0.18s, box-shadow 0.18s',
-      cursor: 'default',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = gradient ? `0 16px 40px ${color}40` : '0 8px 24px rgba(0,0,0,0.1)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = gradient ? `0 8px 32px ${color}30` : '0 2px 16px rgba(0,0,0,0.06)'; }}
-    >
-      <div style={{
-        width: 54, height: 54, borderRadius: 16,
-        background: gradient ? 'rgba(255,255,255,0.2)' : color + '15',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 26, flexShrink: 0,
-        boxShadow: gradient ? 'inset 0 1px 2px rgba(255,255,255,0.3)' : 'none',
-      }}>{icon}</div>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: gradient ? 'rgba(255,255,255,0.7)' : '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-        <div style={{ fontSize: 26, fontWeight: 900, color: gradient ? '#fff' : '#0f172a', lineHeight: 1 }}>{value}</div>
-        {sub && <div style={{ fontSize: 12, color: gradient ? 'rgba(255,255,255,0.6)' : '#94a3b8', marginTop: 3 }}>{sub}</div>}
-      </div>
-    </div>
-  );
+  /* Nav buttons */
+  .sms-nav-btn {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 10px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 500; text-align: left;
+    background: transparent; color: rgba(255,255,255,0.5);
+    transition: background 0.15s, color 0.15s;
+    margin-bottom: 2px;
+  }
+  .sms-nav-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
+  .sms-nav-btn.active { background: rgba(37,99,235,0.25); color: #93c5fd; font-weight: 700; border-left: 3px solid #3b82f6; }
+  .sms-nav-icon { font-size: 17px; flex-shrink: 0; width: 22px; text-align: center; }
+  .sms-notif-badge {
+    margin-left: auto; background: #ef4444; color: white;
+    font-size: 10px; font-weight: 800; border-radius: 99px;
+    padding: 2px 6px; line-height: 1;
+  }
+
+  /* Main area */
+  .sms-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .sms-header {
+    flex-shrink: 0; background: white; border-bottom: 1px solid #f1f5f9;
+    padding: 12px 24px; display: flex; align-items: center; gap: 12px;
+  }
+  .dark .sms-header { background: #1e293b; border-color: rgba(255,255,255,0.06); }
+  .sms-content { flex: 1; overflow-y: auto; padding: 24px; }
+  .sms-content::-webkit-scrollbar { width: 4px; }
+  .sms-content::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+
+  /* Cards */
+  .sms-card {
+    background: white; border-radius: 16px;
+    border: 1px solid #f1f5f9; overflow: hidden;
+  }
+  .dark .sms-card { background: #1e293b; border-color: rgba(255,255,255,0.08); }
+  .sms-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid #f8fafc; font-size: 13px;
+    font-weight: 700; color: #374151;
+  }
+  .dark .sms-card-header { border-color: rgba(255,255,255,0.06); color: #cbd5e1; }
+  .sms-card-body { padding: 16px 18px; }
+
+  /* Stat cards */
+  .sms-stat-card {
+    background: white; border-radius: 16px; padding: 16px 18px;
+    border: 1px solid #f1f5f9;
+    transition: transform 0.18s, box-shadow 0.18s;
+    cursor: default;
+  }
+  .sms-stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+  .dark .sms-stat-card { background: #1e293b; border-color: rgba(255,255,255,0.08); }
+
+  /* Progress bar */
+  .sms-bar-bg { height: 6px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+  .dark .sms-bar-bg { background: #334155; }
+  .sms-bar-fill { height: 100%; border-radius: 99px; transition: width 1s ease; }
+
+  /* Badge */
+  .sms-badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; }
+
+  /* Skeleton */
+  @keyframes sms-shimmer { 0% { background-position: -600px 0 } 100% { background-position: 600px 0 } }
+  .sms-skeleton {
+    background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
+    background-size: 1200px 100%; animation: sms-shimmer 1.5s infinite; border-radius: 10px;
+  }
+  .dark .sms-skeleton { background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%); background-size: 1200px 100%; animation: sms-shimmer 1.5s infinite; }
+
+  /* Attendance ring */
+  @keyframes sms-ring { from { stroke-dasharray: 0 226; } }
+  .sms-ring-anim { animation: sms-ring 1.2s ease forwards; }
+
+  /* Dark mode text helpers */
+  .dark .sms-text-primary { color: #f1f5f9; }
+  .dark .sms-text-secondary { color: #94a3b8; }
+  .sms-text-primary { color: #0f172a; }
+  .sms-text-secondary { color: #64748b; }
+
+  /* Table */
+  .sms-table { width: 100%; border-collapse: collapse; }
+  .sms-table th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; background: #f8fafc; }
+  .dark .sms-table th { background: #0f172a; }
+  .sms-table td { padding: 12px 16px; font-size: 13px; border-top: 1px solid #f8fafc; }
+  .dark .sms-table td { border-color: rgba(255,255,255,0.05); color: #cbd5e1; }
+  .sms-table tr:hover td { background: #f8fafc; }
+  .dark .sms-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sms-sidebar { position: fixed; z-index: 100; height: 100vh; left: -220px; transition: left 0.25s; }
+    .sms-sidebar.mobile-open { left: 0; }
+    .sms-mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 99; }
+    .sms-mobile-overlay.show { display: block; }
+    .sms-content { padding: 14px; }
+  }
+`;
+
+// ─── Inject styles once ───────────────────────────────────────────────────────
+if (!document.getElementById('sms-styles')) {
+  const s = document.createElement('style');
+  s.id = 'sms-styles';
+  s.textContent = GLOBAL_CSS;
+  document.head.appendChild(s);
 }
 
-/* ─── Section Header ─────────────────────────────────────────────────────────── */
-function SectionHeader({ icon, title, subtitle }) {
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <span style={{ fontSize: 24 }}>{icon}</span>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: '#0f172a' }}>{title}</h2>
-      </div>
-      {subtitle && <p style={{ margin: 0, fontSize: 14, color: '#94a3b8' }}>{subtitle}</p>}
-    </div>
-  );
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmtINR   = n => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+const fmtDate  = d => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+const fmtShort = d => new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+
+function Badge({ text, bg, color }) {
+  return <span className="sms-badge" style={{ background: bg, color }}>{text}</span>;
 }
 
-/* ─── Loading Spinner ────────────────────────────────────────────────────────── */
-function Loading({ text = 'Loading...' }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 280, flexDirection: 'column', gap: 16 }}>
-      <div style={{ width: 48, height: 48, border: `4px solid #e2e8f0`, borderTopColor: C.indigo, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <div style={{ color: '#94a3b8', fontWeight: 600, fontSize: 14 }}>{text}</div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) }}`}</style>
-    </div>
-  );
+function StatusBadge({ status }) {
+  const map = {
+    present: ['✓ Present', '#dcfce7', '#166534'],
+    absent:  ['✗ Absent',  '#fee2e2', '#991b1b'],
+    late:    ['~ Late',    '#fef9c3', '#854d0e'],
+  };
+  const [text, bg, color] = map[status] || [status, '#f1f5f9', '#475569'];
+  return <Badge text={text} bg={bg} color={color} />;
 }
 
-/* ─── Empty State ────────────────────────────────────────────────────────────── */
-function Empty({ icon, text }) {
+// ─── Skeleton Loader ──────────────────────────────────────────────────────────
+function SkeletonCards() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', color: '#cbd5e1' }}>
-      <div style={{ fontSize: 48, marginBottom: 12 }}>{icon}</div>
-      <div style={{ fontWeight: 700, color: '#94a3b8' }}>{text}</div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   MODULE VIEWS
-══════════════════════════════════════════════════════════════════════════════ */
-
-/* ── Overview ─────────────────────────────────────────────────────────────────── */
-function OverviewTab({ data }) {
-  if (!data) return <Loading />;
-  const { stats, recentAttendance, notifications } = data;
-  const attPct = stats.attendancePercentage;
-  const attColor = attPct >= 75 ? C.emerald : attPct >= 60 ? C.amber : C.rose;
-
-  return (
-    <div>
-      {/* Hero Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16, marginBottom: 28 }}>
-        <StatCard icon="📅" label="Attendance" value={`${attPct}%`} sub={attPct < 75 ? '⚠️ Below minimum' : '✅ Good standing'} color={attColor} gradient={`linear-gradient(135deg, ${attColor}, ${attColor}dd)`} />
-        <StatCard icon="💳" label="Fee Paid" value={`₹${stats.feePaid?.toLocaleString()}`} sub={stats.feePending > 0 ? `₹${stats.feePending?.toLocaleString()} pending` : '✅ All clear'} color={C.blue} gradient={`linear-gradient(135deg, #1a3a6b, #2563eb)`} />
-        <StatCard icon="🏆" label="Exams" value={stats.totalResults} sub="results recorded" color={C.amber} gradient={`linear-gradient(135deg, #d97706, #f59e0b)`} />
-        <StatCard icon="📝" label="Assignments" value={stats.pendingAssignments} sub="due upcoming" color={C.violet} gradient={`linear-gradient(135deg, #7c3aed, #8b5cf6)`} />
-      </div>
-
-      {/* Attendance Bar */}
-      <div style={{ background: '#fff', borderRadius: 20, padding: '24px 28px', marginBottom: 20, border: '1px solid #f1f5f9', boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>Attendance Overview</div>
-          <span style={{ fontWeight: 900, fontSize: 22, color: attColor }}>{attPct}%</span>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 14, marginBottom: 20 }}>
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="sms-stat-card" style={{ height: 100 }}>
+          <div className="sms-skeleton" style={{ height: 12, width: 60, marginBottom: 12 }} />
+          <div className="sms-skeleton" style={{ height: 24, width: 80, marginBottom: 8 }} />
+          <div className="sms-skeleton" style={{ height: 10, width: 100 }} />
         </div>
-        <div style={{ height: 12, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${attPct}%`, background: `linear-gradient(90deg, ${attColor}, ${attColor}bb)`, borderRadius: 99, transition: 'width 1s ease' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>0%</span>
-          <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 700 }}>75% required</span>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>100%</span>
-        </div>
-      </div>
+      ))}
+    </div>
+  );
+}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* Recent Attendance */}
-        <div style={{ background: '#fff', borderRadius: 20, padding: 24, border: '1px solid #f1f5f9', boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginBottom: 16 }}>📅 Recent Attendance</div>
-          {recentAttendance?.length === 0 && <Empty icon="📭" text="No recent records" />}
-          {recentAttendance?.slice(0, 7).map((r, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < 6 ? '1px solid #f8faff' : 'none' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>
-                {new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
-              </span>
-              {statusBadge(r.status)}
+function SkeletonRows({ count = 5 }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {[...Array(count)].map((_, i) => (
+        <div key={i} className="sms-skeleton" style={{ height: 52, opacity: 1 - i * 0.15 }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Attendance SVG Ring ──────────────────────────────────────────────────────
+function AttRing({ pct }) {
+  const r = 38, circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+  const color = pct >= 75 ? C.emerald : pct >= 60 ? C.amber : C.rose;
+  return (
+    <svg width={96} height={96} viewBox="0 0 96 96">
+      <circle cx={48} cy={48} r={r} fill="none" stroke="#f1f5f9" strokeWidth={8} />
+      <circle cx={48} cy={48} r={r} fill="none" stroke={color} strokeWidth={8}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+        transform="rotate(-90 48 48)" className="sms-ring-anim" />
+      <text x={48} y={48} textAnchor="middle" dy="0.35em" fontSize={15} fontWeight={800} fill={color}>{pct}%</text>
+    </svg>
+  );
+}
+
+// ─── OVERVIEW TAB ─────────────────────────────────────────────────────────────
+function OverviewTab({ data, dark, onNavigate }) {
+  if (!data) return <><SkeletonCards /><SkeletonRows /></>;
+  const { stats, recentAttendance, notifications, timetableToday, announcements } = data;
+  const att     = stats?.attendancePercentage ?? 0;
+  const paid    = stats?.feePaid    ?? 0;
+  const pending = stats?.feePending ?? 0;
+  const feePct  = paid + pending > 0 ? Math.round((paid / (paid + pending)) * 100) : 0;
+  const attColor = att >= 75 ? C.emerald : att >= 60 ? C.amber : C.rose;
+
+  const statCards = [
+    { icon: '📅', label: 'Attendance',      value: `${att}%`,                        sub: att >= 75 ? 'Good standing ✓' : '⚠ Below minimum', urgent: att < 75,      iconBg: att >= 75 ? '#dcfce7' : '#fee2e2' },
+    { icon: '💳', label: 'Fees Pending',    value: fmtINR(pending),                   sub: pending > 0 ? 'Due this month' : 'All clear ✓',    urgent: pending > 0,  iconBg: '#fef9c3' },
+    { icon: '📝', label: 'Assignments',     value: stats?.pendingAssignments ?? 0,    sub: 'Pending submission',                               urgent: false,        iconBg: '#ede9fe' },
+    { icon: '🏆', label: 'Results',         value: stats?.totalResults ?? 0,          sub: 'Across all exams',                                 urgent: false,        iconBg: '#dbeafe' },
+    { icon: '🔔', label: 'Notifications',   value: stats?.notificationCount ?? 0,     sub: 'Unread',                                           urgent: false,        iconBg: '#ffe4e6' },
+    { icon: '📖', label: 'Library Books',   value: stats?.libraryBooks ?? 0,          sub: 'Currently issued',                                 urgent: false,        iconBg: '#ccfbf1' },
+  ];
+
+  const priColor = { high: ['#fee2e2','#991b1b','#ef4444'], medium: ['#fef9c3','#854d0e','#f59e0b'], low: ['#dbeafe','#1e40af','#3b82f6'] };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* KPI grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(155px,1fr))', gap: 14 }}>
+        {statCards.map((c, i) => (
+          <div key={i} className="sms-stat-card" style={{ outline: c.urgent ? '2px solid #fca5a5' : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 22, background: c.iconBg, borderRadius: 10, padding: '4px 7px' }}>{c.icon}</span>
+              {c.urgent && <span className="sms-badge" style={{ background: '#fee2e2', color: '#dc2626', fontSize: 10 }}>!</span>}
             </div>
-          ))}
-        </div>
+            <div className="sms-text-primary" style={{ fontSize: 22, fontWeight: 800, lineHeight: 1 }}>{c.value}</div>
+            <div className="sms-text-secondary" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 4 }}>{c.label}</div>
+            <div className="sms-text-secondary" style={{ fontSize: 11, marginTop: 3 }}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
 
-        {/* Notifications */}
-        <div style={{ background: '#fff', borderRadius: 20, padding: 24, border: '1px solid #f1f5f9', boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}>
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', marginBottom: 16 }}>🔔 Notifications</div>
-          {notifications?.length === 0 && <Empty icon="🔕" text="No notifications" />}
-          {notifications?.slice(0, 4).map((n, i) => (
-            <div key={i} style={{ padding: '12px 0', borderBottom: i < notifications.length - 1 ? '1px solid #f8faff' : 'none' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{n.title}</div>
-                {n.priority === 'high' && badge('HIGH', '#fee2e2', '#dc2626')}
+      {/* Attendance + Fee row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Attendance */}
+        <div className="sms-card">
+          <div className="sms-card-header">📅 Attendance Overview</div>
+          <div className="sms-card-body">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+              <AttRing pct={att} />
+              <div>
+                <div className="sms-text-primary" style={{ fontWeight: 800, fontSize: 15 }}>{att >= 75 ? 'On track' : 'Needs attention'}</div>
+                <div className="sms-text-secondary" style={{ fontSize: 12, marginTop: 3 }}>Min. required: 75%</div>
+                {att < 75 && <div style={{ color: C.rose, fontSize: 12, fontWeight: 700, marginTop: 5 }}>⚠ Below threshold</div>}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 1.5 }}>{n.message?.slice(0, 90)}{n.message?.length > 90 ? '…' : ''}</div>
-              <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 6 }}>{new Date(n.createdAt).toLocaleDateString('en-IN')}</div>
             </div>
-          ))}
+            {(recentAttendance ?? []).slice(0, 5).map((r, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < 4 ? '1px solid #f8fafc' : 'none' }}>
+                <span className="sms-text-secondary" style={{ fontSize: 13 }}>{fmtShort(r.date)}</span>
+                <StatusBadge status={r.status} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Fees */}
+        <div className="sms-card">
+          <div className="sms-card-header">💳 Fee Summary</div>
+          <div className="sms-card-body">
+            {[
+              { label: 'Total Paid', value: fmtINR(paid),    bg: '#dcfce7', color: '#166534', dot: C.emerald },
+              { label: 'Pending',    value: fmtINR(pending), bg: '#fef9c3', color: '#854d0e', dot: C.amber   },
+            ].map((row, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 12, background: row.bg, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: row.dot }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: row.color }}>{row.label}</span>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 800, color: row.color }}>{row.value}</span>
+              </div>
+            ))}
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span className="sms-text-secondary" style={{ fontSize: 12 }}>Payment progress</span>
+                <span className="sms-text-secondary" style={{ fontSize: 12 }}>{feePct}%</span>
+              </div>
+              <div className="sms-bar-bg">
+                <div className="sms-bar-fill" style={{ width: `${feePct}%`, background: C.emerald }} />
+              </div>
+            </div>
+            <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 12, background: '#dbeafe' }}>
+              <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 700, marginBottom: 3 }}>Next payment due</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#1e3a8a' }}>April 10, 2026</div>
+              <div style={{ fontSize: 12, color: '#3b82f6', marginTop: 2 }}>{fmtINR(pending)} · Monthly fees</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Notifications */}
+        <div className="sms-card">
+          <div className="sms-card-header">
+            🔔 Notifications
+            <button onClick={() => onNavigate('notifications')} style={{ fontSize: 12, color: C.blue, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>View all →</button>
+          </div>
+          <div className="sms-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(notifications ?? []).slice(0, 3).map((n, i) => {
+              const [bg, tc, dot] = priColor[n.priority] ?? priColor.low;
+              return (
+                <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 12, background: bg, border: `1px solid ${dot}30` }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: dot, flexShrink: 0, marginTop: 4 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: tc, marginBottom: 2 }}>{n.title}</div>
+                    <div style={{ fontSize: 12, color: tc, opacity: 0.8, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.message}</div>
+                    <div style={{ fontSize: 11, color: tc, opacity: 0.6, marginTop: 4 }}>{fmtDate(n.createdAt)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Timetable today */}
+        <div className="sms-card">
+          <div className="sms-card-header">🕐 Today's Timetable</div>
+          <div className="sms-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {!(timetableToday ?? []).length
+              ? <div className="sms-text-secondary" style={{ textAlign: 'center', padding: 24, fontSize: 13 }}>No classes today</div>
+              : (timetableToday ?? []).slice(0, 5).map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 12, background: i === 2 ? '#dbeafe' : '#f8fafc' }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: i === 2 ? C.blue : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: i === 2 ? 'white' : '#64748b', flexShrink: 0 }}>{p.period}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: i === 2 ? '#1e40af' : '#0f172a', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{p.subject?.name ?? p.subject ?? 'Subject'}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{p.teacher?.name ?? p.teacher ?? ''}</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>{p.startTime}</div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* Announcements */}
+        <div className="sms-card">
+          <div className="sms-card-header">⚡ Announcements</div>
+          <div className="sms-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(announcements ?? [
+              { title: 'Mid-Term Exams', date: 'Apr 20–28', desc: 'Exam schedule released. Check the Results section.' },
+              { title: 'PTM', date: 'Apr 10', desc: 'Parent-Teacher meeting for all classes.' },
+            ]).map((a, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 12, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.blue, flexShrink: 0, marginTop: 6 }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e3a8a' }}>{a.title}</div>
+                  {a.date && <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600, marginTop: 1 }}>{a.date}</div>}
+                  <div style={{ fontSize: 12, color: '#1e40af', marginTop: 3 }}>{a.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Upcoming Events */}
+        <div className="sms-card">
+          <div className="sms-card-header">📆 Upcoming Events</div>
+          <div className="sms-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { name: 'Mid-Term Exams',         date: 'Apr 20–28', bg: '#fee2e2', color: '#991b1b' },
+              { name: 'Parent-Teacher Meeting', date: 'Apr 10',    bg: '#ede9fe', color: '#5b21b6' },
+              { name: 'Annual Sports Day',      date: 'Apr 15',    bg: '#fef9c3', color: '#854d0e' },
+              { name: 'School Picnic',          date: 'May 3',     bg: '#ccfbf1', color: '#134e4a' },
+            ].map((ev, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', borderRadius: 12, background: ev.bg }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: ev.color }}>{ev.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: ev.color }}>{ev.date}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── Attendance ───────────────────────────────────────────────────────────────── */
+// ─── ATTENDANCE TAB ───────────────────────────────────────────────────────────
 function AttendanceTab() {
-  const [data, setData] = useState(null);
+  const [data, setData]   = useState(null);
   const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear]   = useState(new Date().getFullYear());
 
   useEffect(() => {
     setData(null);
@@ -193,70 +418,53 @@ function AttendanceTab() {
       .catch(() => toast.error('Failed to load attendance'));
   }, [month, year]);
 
-  if (!data) return <Loading text="Loading attendance..." />;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  if (!data) return <SkeletonRows count={8} />;
   const { summary, records } = data;
-  const pct = summary.percentage;
+  const pct = summary?.percentage ?? 0;
+  const attColor = pct >= 75 ? C.emerald : C.rose;
 
   return (
-    <div>
-      <SectionHeader icon="📅" title="Attendance" subtitle="Your monthly attendance records" />
-
-      {/* Month Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-        {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
-          <button key={i} onClick={() => setMonth(i + 1)} style={{
-            padding: '6px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-            fontWeight: 700, fontSize: 12, transition: 'all 0.15s',
-            background: month === i + 1 ? C.emerald : '#f1f5f9',
-            color: month === i + 1 ? '#fff' : '#64748b',
-          }}>{m}</button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Month selector */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {months.map((m, i) => (
+          <button key={i} onClick={() => setMonth(i + 1)} style={{ padding: '5px 12px', borderRadius: 99, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12, background: month === i + 1 ? C.blue : '#f1f5f9', color: month === i + 1 ? 'white' : '#64748b', transition: 'all 0.15s' }}>{m}</button>
         ))}
-        <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: '6px 12px', borderRadius: 10, border: '2px solid #e2e8f0', fontWeight: 700, fontSize: 12 }}>
-          {[2024, 2025, 2026].map(y => <option key={y}>{y}</option>)}
+        <select value={year} onChange={e => setYear(+e.target.value)} style={{ padding: '5px 10px', borderRadius: 99, border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 700 }}>
+          {[2024,2025,2026].map(y => <option key={y}>{y}</option>)}
         </select>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+      {/* Summary row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
-          { label: 'Total Days', value: summary.total, gradient: `linear-gradient(135deg, #334155, #475569)` },
-          { label: 'Present', value: summary.present, gradient: `linear-gradient(135deg, #059669, #10b981)` },
-          { label: 'Absent', value: summary.absent, gradient: `linear-gradient(135deg, #dc2626, #ef4444)` },
-          { label: 'Percentage', value: `${pct}%`, gradient: `linear-gradient(135deg, ${pct >= 75 ? '#059669' : '#dc2626'}, ${pct >= 75 ? '#10b981' : '#ef4444'})` },
-        ].map(c => (
-          <div key={c.label} style={{ background: c.gradient, borderRadius: 16, padding: '20px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#fff' }}>{c.value}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{c.label}</div>
+          { label: 'Total', value: summary?.total ?? 0,   bg: '#f1f5f9', color: '#334155' },
+          { label: 'Present', value: summary?.present ?? 0, bg: '#dcfce7', color: '#166534' },
+          { label: 'Absent',  value: summary?.absent ?? 0,  bg: '#fee2e2', color: '#991b1b' },
+          { label: `${pct}%`, value: 'Attendance', bg: pct >= 75 ? '#dcfce7' : '#fee2e2', color: pct >= 75 ? '#166534' : '#991b1b' },
+        ].map((c, i) => (
+          <div key={i} style={{ background: c.bg, borderRadius: 14, padding: '16px 18px', textAlign: 'center' }}>
+            <div style={{ fontSize: 26, fontWeight: 900, color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: c.color, opacity: 0.75, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Records */}
-      <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', border: '1px solid #f1f5f9', boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #f8faff', background: '#fafbff' }}>
-          <div style={{ fontWeight: 800, color: '#0f172a' }}>Daily Records</div>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f8faff' }}>
-              {['Date', 'Day', 'Status', 'Remarks'].map(h => (
-                <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+      {/* Records table */}
+      <div className="sms-card">
+        <div className="sms-card-header">Daily Records</div>
+        <table className="sms-table">
+          <thead><tr>{['Date','Day','Status','Remarks'].map(h => <th key={h}>{h}</th>)}</tr></thead>
           <tbody>
-            {records.length === 0 && (
-              <tr><td colSpan={4}><Empty icon="📭" text="No records for this period" /></td></tr>
-            )}
-            {records.map((r, i) => (
-              <tr key={i} style={{ borderTop: '1px solid #f8faff', transition: 'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f8faff'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <td style={{ padding: '13px 20px', fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{new Date(r.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                <td style={{ padding: '13px 20px', fontSize: 13, color: '#64748b' }}>{new Date(r.date).toLocaleDateString('en-IN', { weekday: 'long' })}</td>
-                <td style={{ padding: '13px 20px' }}>{statusBadge(r.status)}</td>
-                <td style={{ padding: '13px 20px', fontSize: 13, color: '#94a3b8' }}>{r.remarks || '—'}</td>
+            {!records?.length && <tr><td colSpan={4} style={{ textAlign: 'center', color: '#94a3b8', padding: 32 }}>No records for this period</td></tr>}
+            {records?.map((r, i) => (
+              <tr key={i}>
+                <td style={{ fontWeight: 700 }}>{fmtDate(r.date)}</td>
+                <td>{new Date(r.date).toLocaleDateString('en-IN',{weekday:'long'})}</td>
+                <td><StatusBadge status={r.status} /></td>
+                <td style={{ color: '#94a3b8' }}>{r.remarks || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -266,78 +474,51 @@ function AttendanceTab() {
   );
 }
 
-/* ── Results ─────────────────────────────────────────────────────────────────── */
+// ─── RESULTS TAB ──────────────────────────────────────────────────────────────
 function ResultsTab() {
   const [data, setData] = useState(null);
   useEffect(() => {
-    studentPortalAPI.getResults().then(r => setData(r.data.data)).catch(() => toast.error('Failed to load results'));
+    studentPortalAPI.getResults()
+      .then(r => setData(r.data.data))
+      .catch(() => toast.error('Failed to load results'));
   }, []);
 
-  if (!data) return <Loading text="Loading results..." />;
+  if (!data) return <SkeletonRows count={6} />;
   const { summary, results } = data;
-
-  const gradeGradient = g => ({
-    'A+': 'linear-gradient(135deg, #059669, #10b981)',
-    'A':  'linear-gradient(135deg, #059669, #10b981)',
-    'B+': 'linear-gradient(135deg, #2563eb, #3b82f6)',
-    'B':  'linear-gradient(135deg, #2563eb, #3b82f6)',
-    'C':  'linear-gradient(135deg, #d97706, #f59e0b)',
-    'D':  'linear-gradient(135deg, #ea580c, #f97316)',
-    'F':  'linear-gradient(135deg, #dc2626, #ef4444)',
-  }[g] || 'linear-gradient(135deg, #64748b, #94a3b8)');
+  const gradeColor = g => ({ 'A+':C.emerald,'A':C.emerald,'B+':C.blue,'B':C.blue,'C':C.amber,'D':C.amber,'F':C.rose }[g] ?? C.slate);
 
   return (
-    <div>
-      <SectionHeader icon="🏆" title="Exam Results" subtitle="Your academic performance records" />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
-          { label: 'Total Exams', value: summary.total, gradient: 'linear-gradient(135deg, #334155, #475569)' },
-          { label: 'Passed', value: summary.passed, gradient: 'linear-gradient(135deg, #059669, #10b981)' },
-          { label: 'Failed', value: summary.failed, gradient: 'linear-gradient(135deg, #dc2626, #ef4444)' },
-          { label: 'Average', value: `${summary.average}%`, gradient: summary.average >= 60 ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #dc2626, #ef4444)' },
-        ].map(c => (
-          <div key={c.label} style={{ background: c.gradient, borderRadius: 16, padding: '20px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#fff' }}>{c.value}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{c.label}</div>
+          { label:'Total', value: summary?.total ?? 0,   bg:'#f1f5f9', color:'#334155' },
+          { label:'Passed', value: summary?.passed ?? 0, bg:'#dcfce7', color:'#166534' },
+          { label:'Failed', value: summary?.failed ?? 0, bg:'#fee2e2', color:'#991b1b' },
+          { label:'Average', value:`${summary?.average ?? 0}%`, bg:(summary?.average ?? 0)>=60?'#dcfce7':'#fee2e2', color:(summary?.average ?? 0)>=60?'#166534':'#991b1b' },
+        ].map((c,i)=>(
+          <div key={i} style={{ background:c.bg, borderRadius:14, padding:'16px 18px', textAlign:'center' }}>
+            <div style={{ fontSize:26, fontWeight:900, color:c.color }}>{c.value}</div>
+            <div style={{ fontSize:11, fontWeight:700, color:c.color, opacity:0.75, marginTop:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>{c.label}</div>
           </div>
         ))}
       </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {results?.length === 0 && (
-          <div style={{ background: '#fff', borderRadius: 20, padding: 40, textAlign: 'center' }}>
-            <Empty icon="📊" text="No results yet" />
-          </div>
-        )}
-        {results?.map((r, i) => {
-          const pct = r.percentage;
-          const passColor = pct >= 35 ? C.emerald : C.rose;
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {(results??[]).map((r,i)=>{
+          const pct = r.percentage ?? 0;
+          const col = pct>=35?C.emerald:C.rose;
           return (
-            <div key={i} style={{
-              background: '#fff', borderRadius: 18, padding: '20px 24px',
-              border: '1px solid #f1f5f9', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-              display: 'flex', alignItems: 'center', gap: 20, transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)'; }}
-            >
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: gradeGradient(r.grade), display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: '#fff', fontSize: 18, flexShrink: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                {r.grade}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 15 }}>{r.exam?.name}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
-                  {r.exam?.subject?.name} &nbsp;•&nbsp; {r.exam?.examType?.toUpperCase()} &nbsp;•&nbsp; {r.exam?.date ? new Date(r.exam.date).toLocaleDateString('en-IN') : ''}
-                </div>
-                {/* Progress Bar */}
-                <div style={{ height: 6, background: '#f1f5f9', borderRadius: 99, marginTop: 10, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: passColor, borderRadius: 99 }} />
+            <div key={i} className="sms-card" style={{ display:'flex', alignItems:'center', gap:16, padding:'16px 20px' }}>
+              <div style={{ width:48, height:48, borderRadius:'50%', background:gradeColor(r.grade), display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:900, fontSize:16, flexShrink:0 }}>{r.grade}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div className="sms-text-primary" style={{ fontWeight:700, fontSize:14 }}>{r.exam?.name}</div>
+                <div className="sms-text-secondary" style={{ fontSize:12, marginTop:2 }}>{r.exam?.subject?.name} · {r.exam?.examType?.toUpperCase()}</div>
+                <div className="sms-bar-bg" style={{ marginTop:8 }}>
+                  <div className="sms-bar-fill" style={{ width:`${pct}%`, background:col }} />
                 </div>
               </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontWeight: 900, fontSize: 20, color: '#0f172a' }}>{r.marksObtained}<span style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>/{r.exam?.totalMarks}</span></div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: passColor }}>{pct}%</div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div className="sms-text-primary" style={{ fontWeight:900, fontSize:18 }}>{r.marksObtained}<span className="sms-text-secondary" style={{ fontSize:12 }}>/{r.exam?.totalMarks}</span></div>
+                <div style={{ fontSize:13, fontWeight:800, color:col }}>{pct}%</div>
               </div>
             </div>
           );
@@ -347,60 +528,55 @@ function ResultsTab() {
   );
 }
 
-/* ── Fees ─────────────────────────────────────────────────────────────────────── */
+// ─── FEES TAB ─────────────────────────────────────────────────────────────────
 function FeesTab() {
   const [data, setData] = useState(null);
   useEffect(() => {
-    studentPortalAPI.getFees().then(r => setData(r.data.data)).catch(() => toast.error('Failed to load fees'));
+    studentPortalAPI.getFees()
+      .then(r => setData(r.data.data))
+      .catch(() => toast.error('Failed to load fees'));
   }, []);
 
-  if (!data) return <Loading text="Loading fees..." />;
+  if (!data) return <SkeletonRows />;
   const { summary, payments } = data;
 
-  const statusStyle = s => ({
-    paid:    { bg: '#d1fae5', color: '#065f46' },
-    pending: { bg: '#fef3c7', color: '#92400e' },
-    overdue: { bg: '#fee2e2', color: '#991b1b' },
-    partial: { bg: '#e0f2fe', color: '#0369a1' },
-  }[s] || { bg: '#f1f5f9', color: '#475569' });
+  const statusMap = {
+    paid:    ['#dcfce7','#166534'],
+    pending: ['#fef9c3','#854d0e'],
+    overdue: ['#fee2e2','#991b1b'],
+    partial: ['#dbeafe','#1e40af'],
+  };
 
   return (
-    <div>
-      <SectionHeader icon="💳" title="Fee Management" subtitle="Your payment history and dues" />
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
-        <StatCard icon="✅" label="Total Paid" value={`₹${summary.paid?.toLocaleString()}`} color={C.emerald} gradient="linear-gradient(135deg, #059669, #10b981)" />
-        <StatCard icon="⏳" label="Pending" value={`₹${summary.pending?.toLocaleString()}`} color={C.amber} gradient="linear-gradient(135deg, #d97706, #f59e0b)" />
-        <StatCard icon="⚠️" label="Overdue" value={`₹${summary.overdue?.toLocaleString()}`} color={C.rose} gradient="linear-gradient(135deg, #dc2626, #ef4444)" />
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14 }}>
+        {[
+          { label:'Paid',    value:fmtINR(summary?.paid),    bg:'#dcfce7', color:'#166534' },
+          { label:'Pending', value:fmtINR(summary?.pending), bg:'#fef9c3', color:'#854d0e' },
+          { label:'Overdue', value:fmtINR(summary?.overdue), bg:'#fee2e2', color:'#991b1b' },
+        ].map((c,i)=>(
+          <div key={i} style={{ background:c.bg, borderRadius:14, padding:'16px 20px' }}>
+            <div style={{ fontSize:24, fontWeight:900, color:c.color }}>{c.value}</div>
+            <div style={{ fontSize:11, fontWeight:700, color:c.color, opacity:0.75, marginTop:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>{c.label}</div>
+          </div>
+        ))}
       </div>
-
-      <div style={{ background: '#fff', borderRadius: 20, overflow: 'hidden', border: '1px solid #f1f5f9', boxShadow: '0 2px 16px rgba(0,0,0,0.05)' }}>
-        <div style={{ padding: '18px 24px', background: '#fafbff', borderBottom: '1px solid #f1f5f9' }}>
-          <div style={{ fontWeight: 800, color: '#0f172a' }}>Payment History</div>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f8faff' }}>
-              {['Receipt No', 'Month', 'Amount', 'Method', 'Date', 'Status'].map(h => (
-                <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+      <div className="sms-card">
+        <div className="sms-card-header">Payment History</div>
+        <table className="sms-table">
+          <thead><tr>{['Receipt','Month','Amount','Method','Date','Status'].map(h=><th key={h}>{h}</th>)}</tr></thead>
           <tbody>
-            {payments?.length === 0 && <tr><td colSpan={6}><Empty icon="💸" text="No payment records" /></td></tr>}
-            {payments?.map((p, i) => {
-              const s = statusStyle(p.status);
+            {!(payments??[]).length && <tr><td colSpan={6} style={{ textAlign:'center', color:'#94a3b8', padding:32 }}>No payment records</td></tr>}
+            {(payments??[]).map((p,i)=>{
+              const [bg,color] = statusMap[p.status] ?? ['#f1f5f9','#475569'];
               return (
-                <tr key={i} style={{ borderTop: '1px solid #f8faff', transition: 'background 0.1s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f8faff'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <td style={{ padding: '13px 20px', fontSize: 12, fontFamily: 'monospace', color: '#94a3b8' }}>{p.receiptNumber || '—'}</td>
-                  <td style={{ padding: '13px 20px', fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{p.month}</td>
-                  <td style={{ padding: '13px 20px', fontWeight: 900, color: '#0f172a' }}>₹{p.amount?.toLocaleString()}</td>
-                  <td style={{ padding: '13px 20px', fontSize: 13, color: '#64748b', textTransform: 'capitalize' }}>{p.method}</td>
-                  <td style={{ padding: '13px 20px', fontSize: 13, color: '#64748b' }}>{p.paidOn ? new Date(p.paidOn).toLocaleDateString('en-IN') : '—'}</td>
-                  <td style={{ padding: '13px 20px' }}>{badge(p.status?.toUpperCase(), s.bg, s.color)}</td>
+                <tr key={i}>
+                  <td style={{ fontFamily:'monospace', fontSize:12, color:'#94a3b8' }}>{p.receiptNumber||'—'}</td>
+                  <td style={{ fontWeight:700 }}>{p.month}</td>
+                  <td style={{ fontWeight:800 }}>{fmtINR(p.amount)}</td>
+                  <td style={{ textTransform:'capitalize', color:'#64748b' }}>{p.method}</td>
+                  <td>{p.paidOn ? fmtDate(p.paidOn) : '—'}</td>
+                  <td><Badge text={p.status?.toUpperCase()} bg={bg} color={color} /></td>
                 </tr>
               );
             })}
@@ -411,223 +587,190 @@ function FeesTab() {
   );
 }
 
-/* ── Assignments ──────────────────────────────────────────────────────────────── */
+// ─── ASSIGNMENTS TAB ──────────────────────────────────────────────────────────
 function AssignmentsTab() {
   const [data, setData] = useState(null);
   useEffect(() => {
-    studentPortalAPI.getAssignments().then(r => setData(r.data.data)).catch(() => toast.error('Failed to load assignments'));
+    studentPortalAPI.getAssignments()
+      .then(r => setData(r.data.data))
+      .catch(() => toast.error('Failed to load assignments'));
   }, []);
 
-  if (!data) return <Loading text="Loading assignments..." />;
+  if (!data) return <SkeletonRows />;
   const now = new Date();
 
   return (
-    <div>
-      <SectionHeader icon="📝" title="Assignments" subtitle="Track your pending and submitted work" />
-      {data.length === 0 && (
-        <div style={{ background: '#fff', borderRadius: 20, padding: 48, textAlign: 'center' }}>
-          <Empty icon="✅" text="No assignments! Enjoy your free time." />
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {data.map((a, i) => {
-          const due = new Date(a.dueDate);
-          const overdue = due < now && !a.submitted;
-          const daysLeft = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-          const accentColor = a.submitted ? C.emerald : overdue ? C.rose : C.indigo;
-
-          return (
-            <div key={i} style={{
-              background: '#fff', borderRadius: 18, padding: '20px 24px',
-              border: '1px solid #f1f5f9', borderLeft: `5px solid ${accentColor}`,
-              boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateX(4px)'; e.currentTarget.style.boxShadow = `0 6px 20px ${accentColor}20`; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)'; }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{a.title}</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-                    📖 {a.subject?.name} &nbsp;•&nbsp; 📅 Due: {due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    {a.totalMarks && <>&nbsp;•&nbsp; 🏅 {a.totalMarks} marks</>}
-                  </div>
-                  {a.description && <div style={{ fontSize: 13, color: '#64748b', marginTop: 10, lineHeight: 1.6 }}>{a.description}</div>}
-                </div>
-                <div style={{ flexShrink: 0 }}>
-                  {a.submitted
-                    ? badge('✅ Submitted', '#d1fae5', '#065f46')
-                    : overdue
-                    ? badge('❌ Overdue', '#fee2e2', '#991b1b')
-                    : badge(`⏳ ${daysLeft}d left`, '#ede9fe', '#5b21b6')
-                  }
-                </div>
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      {!data.length && <div className="sms-card"><div style={{ textAlign:'center', padding:48, color:'#94a3b8', fontSize:14 }}>✅ No assignments! Enjoy your free time.</div></div>}
+      {data.map((a,i) => {
+        const due = new Date(a.dueDate);
+        const overdue = due < now && !a.submitted;
+        const daysLeft = Math.ceil((due - now)/(1000*60*60*24));
+        const accentColor = a.submitted ? C.emerald : overdue ? C.rose : C.indigo;
+        return (
+          <div key={i} className="sms-card" style={{ borderLeft:`4px solid ${accentColor}`, padding:'16px 20px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+              <div>
+                <div className="sms-text-primary" style={{ fontWeight:700, fontSize:14 }}>{a.title}</div>
+                <div className="sms-text-secondary" style={{ fontSize:12, marginTop:4 }}>📖 {a.subject?.name} · Due {due.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}{a.totalMarks?` · ${a.totalMarks} marks`:''}</div>
+                {a.description && <div className="sms-text-secondary" style={{ fontSize:13, marginTop:8, lineHeight:1.5 }}>{a.description}</div>}
+              </div>
+              <div style={{ flexShrink:0 }}>
+                {a.submitted
+                  ? <Badge text="✅ Submitted" bg="#dcfce7" color="#166534" />
+                  : overdue
+                  ? <Badge text="❌ Overdue" bg="#fee2e2" color="#991b1b" />
+                  : <Badge text={`⏳ ${daysLeft}d left`} bg="#ede9fe" color="#5b21b6" />
+                }
               </div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ── Timetable ────────────────────────────────────────────────────────────────── */
+// ─── TIMETABLE TAB ────────────────────────────────────────────────────────────
 function TimetableTab() {
   const [data, setData] = useState(null);
   useEffect(() => {
-    studentPortalAPI.getTimetable().then(r => setData(r.data.data)).catch(() => setData([]));
+    studentPortalAPI.getTimetable()
+      .then(r => setData(r.data.data))
+      .catch(() => setData([]));
   }, []);
 
-  if (!data) return <Loading text="Loading timetable..." />;
-
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const dayColors = ['#4f46e5', '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#0369a1'];
+  if (!data) return <SkeletonRows />;
+  const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const dayColors = [C.indigo,'#0d9488',C.amber,C.rose,C.violet,C.blue];
 
   return (
-    <div>
-      <SectionHeader icon="🗓" title="Timetable" subtitle="Your weekly class schedule" />
-      {data.length === 0 ? (
-        <div style={{ background: '#fff', borderRadius: 20, padding: 48 }}><Empty icon="🗓" text="No timetable set yet" /></div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {days.map((day, di) => {
-            const periods = data.filter(d => d.day === day);
-            if (periods.length === 0) return null;
-            return (
-              <div key={day} style={{ background: '#fff', borderRadius: 18, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
-                <div style={{ padding: '14px 20px', background: `linear-gradient(135deg, ${dayColors[di]}, ${dayColors[di]}cc)`, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ fontWeight: 900, color: '#fff', fontSize: 15 }}>{day}</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{periods.length} periods</div>
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {!data.length && <div className="sms-card"><div style={{ textAlign:'center', padding:48, color:'#94a3b8' }}>No timetable set yet</div></div>}
+      {days.map((day,di) => {
+        const periods = data.filter(d => d.day === day);
+        if (!periods.length) return null;
+        return (
+          <div key={day} className="sms-card">
+            <div style={{ padding:'12px 18px', background:`linear-gradient(135deg,${dayColors[di]},${dayColors[di]}cc)`, display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontWeight:900, color:'white', fontSize:14 }}>{day}</span>
+              <span style={{ fontSize:12, color:'rgba(255,255,255,0.7)' }}>{periods.length} periods</span>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:10, padding:14 }}>
+              {periods.sort((a,b)=>a.period-b.period).map((p,i)=>(
+                <div key={i} style={{ background:`${dayColors[di]}12`, borderRadius:12, padding:'10px 14px', border:`1px solid ${dayColors[di]}30` }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:dayColors[di] }}>Period {p.period} · {p.startTime}–{p.endTime}</div>
+                  <div className="sms-text-primary" style={{ fontWeight:800, marginTop:2 }}>{p.subject?.name}</div>
+                  <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>{p.teacher?.name}</div>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: 16 }}>
-                  {periods.sort((a, b) => a.period - b.period).map((p, i) => (
-                    <div key={i} style={{ background: `${dayColors[di]}10`, borderRadius: 12, padding: '10px 16px', border: `1px solid ${dayColors[di]}30` }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: dayColors[di] }}>Period {p.period} • {p.startTime}–{p.endTime}</div>
-                      <div style={{ fontWeight: 800, color: '#0f172a', marginTop: 2 }}>{p.subject?.name}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{p.teacher?.name}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ── Transport ────────────────────────────────────────────────────────────────── */
+// ─── TRANSPORT TAB ────────────────────────────────────────────────────────────
 function TransportTab({ studentData }) {
   const transport = studentData?.student?.transport;
+  if (!transport) return (
+    <div className="sms-card"><div style={{ textAlign:'center', padding:48, color:'#94a3b8' }}>🚌 No transport assigned</div></div>
+  );
   return (
-    <div>
-      <SectionHeader icon="🚌" title="Transport" subtitle="Your bus route and stop information" />
-      {!transport ? (
-        <div style={{ background: '#fff', borderRadius: 20, padding: 48 }}><Empty icon="🚌" text="No transport assigned to your account" /></div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          <div style={{ background: 'linear-gradient(135deg, #e87722, #f97316)', borderRadius: 20, padding: 28, color: '#fff' }}>
-            <div style={{ fontSize: 14, opacity: 0.8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Your Route</div>
-            <div style={{ fontSize: 28, fontWeight: 900 }}>{transport.route?.name || 'Route N/A'}</div>
-            <div style={{ fontSize: 14, opacity: 0.7, marginTop: 6 }}>{transport.route?.description}</div>
-          </div>
-          <div style={{ background: 'linear-gradient(135deg, #0d2347, #1a3a6b)', borderRadius: 20, padding: 28, color: '#fff' }}>
-            <div style={{ fontSize: 14, opacity: 0.8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Bus Stop</div>
-            <div style={{ fontSize: 28, fontWeight: 900 }}>{transport.stopName || 'Stop N/A'}</div>
-            <div style={{ fontSize: 14, opacity: 0.7, marginTop: 6 }}>Pickup: {transport.pickupTime || '—'} &nbsp;•&nbsp; Drop: {transport.dropTime || '—'}</div>
-          </div>
-          {transport.vehicle && (
-            <div style={{ background: '#fff', borderRadius: 20, padding: 24, border: '1px solid #f1f5f9', gridColumn: '1 / -1' }}>
-              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 16, color: '#0f172a' }}>🚐 Vehicle Details</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {[
-                  { label: 'Vehicle No', value: transport.vehicle.vehicleNumber },
-                  { label: 'Driver', value: transport.vehicle.driverName },
-                  { label: 'Contact', value: transport.vehicle.driverContact },
-                ].map(f => (
-                  <div key={f.label} style={{ background: '#f8faff', borderRadius: 12, padding: '14px 18px' }}>
-                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>{f.label}</div>
-                    <div style={{ fontWeight: 800, color: '#0f172a', marginTop: 4 }}>{f.value || '—'}</div>
-                  </div>
-                ))}
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+      {[
+        { label:'Your Route', value:transport.route?.name||'N/A', sub:transport.route?.description, bg:`linear-gradient(135deg,#e87722,#f97316)` },
+        { label:'Bus Stop',   value:transport.stopName||'N/A',   sub:`Pickup ${transport.pickupTime||'—'} · Drop ${transport.dropTime||'—'}`, bg:`linear-gradient(135deg,#1e293b,#334155)` },
+      ].map((c,i)=>(
+        <div key={i} style={{ background:c.bg, borderRadius:16, padding:24, color:'white' }}>
+          <div style={{ fontSize:12, opacity:0.75, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:6 }}>{c.label}</div>
+          <div style={{ fontSize:24, fontWeight:900 }}>{c.value}</div>
+          <div style={{ fontSize:13, opacity:0.7, marginTop:5 }}>{c.sub}</div>
+        </div>
+      ))}
+      {transport.vehicle && (
+        <div className="sms-card" style={{ gridColumn:'1/-1' }}>
+          <div className="sms-card-header">🚐 Vehicle Details</div>
+          <div className="sms-card-body" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            {[
+              { label:'Vehicle No', value:transport.vehicle.vehicleNumber },
+              { label:'Driver',     value:transport.vehicle.driverName },
+              { label:'Contact',    value:transport.vehicle.driverContact },
+            ].map((f,i)=>(
+              <div key={i} style={{ background:'#f8fafc', borderRadius:12, padding:'12px 16px' }}>
+                <div style={{ fontSize:11, color:'#94a3b8', fontWeight:700, textTransform:'uppercase' }}>{f.label}</div>
+                <div className="sms-text-primary" style={{ fontWeight:700, marginTop:4 }}>{f.value||'—'}</div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/* ── Library ─────────────────────────────────────────────────────────────────── */
+// ─── LIBRARY TAB ─────────────────────────────────────────────────────────────
 function LibraryTab() {
   return (
-    <div>
-      <SectionHeader icon="📚" title="Library" subtitle="Books issued and library records" />
-      <div style={{ background: 'linear-gradient(135deg, #0d9488, #06b6d4)', borderRadius: 20, padding: 32, color: '#fff', textAlign: 'center' }}>
-        <div style={{ fontSize: 56, marginBottom: 12 }}>📖</div>
-        <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>Library Portal</div>
-        <div style={{ opacity: 0.8, fontSize: 14 }}>Visit the school library or contact the librarian to see your issued books and reading history.</div>
-      </div>
+    <div className="sms-card" style={{ padding:40, textAlign:'center', background:'linear-gradient(135deg,#0d9488,#0891b2)', color:'white' }}>
+      <div style={{ fontSize:52, marginBottom:12 }}>📖</div>
+      <div style={{ fontSize:20, fontWeight:900, marginBottom:8 }}>Library Portal</div>
+      <div style={{ opacity:0.8, fontSize:14, maxWidth:360, margin:'0 auto' }}>Visit the school library or contact the librarian to see your issued books and reading history.</div>
     </div>
   );
 }
 
-/* ── Notifications ────────────────────────────────────────────────────────────── */
+// ─── NOTIFICATIONS TAB ────────────────────────────────────────────────────────
 function NotificationsTab() {
   const [data, setData] = useState(null);
   useEffect(() => {
-    studentPortalAPI.getNotifications().then(r => setData(r.data.data)).catch(() => setData([]));
+    studentPortalAPI.getNotifications()
+      .then(r => setData(r.data.data))
+      .catch(() => setData([]));
   }, []);
 
-  if (!data) return <Loading text="Loading notifications..." />;
-
-  const priorityStyle = p => ({
-    high:   { bg: '#fee2e2', color: '#991b1b', dot: C.rose },
-    medium: { bg: '#fef3c7', color: '#92400e', dot: C.amber },
-    low:    { bg: '#f0fdf4', color: '#166534', dot: C.emerald },
-  }[p] || { bg: '#f8faff', color: '#475569', dot: '#94a3b8' });
+  if (!data) return <SkeletonRows />;
+  const priColor = { high:['#fee2e2','#991b1b','#ef4444'], medium:['#fef9c3','#854d0e','#f59e0b'], low:['#dcfce7','#166534','#22c55e'] };
 
   return (
-    <div>
-      <SectionHeader icon="🔔" title="Notifications" subtitle={`${data.length} school announcements`} />
-      {data.length === 0 && <div style={{ background: '#fff', borderRadius: 20, padding: 48 }}><Empty icon="🔕" text="No notifications" /></div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {data.map((n, i) => {
-          const ps = priorityStyle(n.priority);
-          return (
-            <div key={i} style={{
-              background: '#fff', borderRadius: 18, padding: '20px 24px',
-              border: '1px solid #f1f5f9', boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-              display: 'flex', gap: 16, alignItems: 'flex-start',
-            }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: ps.dot, flexShrink: 0, marginTop: 5 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>{n.title}</div>
-                  {badge(n.priority?.toUpperCase(), ps.bg, ps.color)}
-                </div>
-                <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>{n.message}</div>
-                <div style={{ fontSize: 11, color: '#cbd5e1', marginTop: 8 }}>{new Date(n.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      {!data.length && <div className="sms-card"><div style={{ textAlign:'center', padding:48, color:'#94a3b8' }}>🔕 No notifications</div></div>}
+      {data.map((n,i) => {
+        const [bg,tc,dot] = priColor[n.priority] ?? priColor.low;
+        return (
+          <div key={i} className="sms-card" style={{ display:'flex', gap:14, padding:'16px 20px' }}>
+            <div style={{ width:10, height:10, borderRadius:'50%', background:dot, flexShrink:0, marginTop:4 }} />
+            <div style={{ flex:1 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginBottom:6 }}>
+                <div className="sms-text-primary" style={{ fontWeight:700, fontSize:14 }}>{n.title}</div>
+                <Badge text={n.priority?.toUpperCase()} bg={bg} color={tc} />
               </div>
+              <div className="sms-text-secondary" style={{ fontSize:13, lineHeight:1.6 }}>{n.message}</div>
+              <div style={{ fontSize:11, color:'#cbd5e1', marginTop:8 }}>{fmtDate(n.createdAt)}</div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════════════════════════════════════════════════ */
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function StudentDashboard() {
-  const { user } = useAuth();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, logout } = useAuth();
+  const [data,         setData]         = useState(null);
+  const [loading,      setLoading]      = useState(true);
   const [activeModule, setActiveModule] = useState('overview');
+  const [dark,         setDark]         = useState(() => localStorage.getItem('sms-theme') === 'dark');
+  const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [collapsed,    setCollapsed]    = useState(false);
+  const [notifOpen,    setNotifOpen]    = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('sms-theme', dark ? 'dark' : 'light');
+  }, [dark]);
 
   useEffect(() => {
     studentPortalAPI.getDashboard()
@@ -636,129 +779,181 @@ export default function StudentDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  const navigate = (id) => { setActiveModule(id); setSidebarOpen(false); setNotifOpen(false); };
+
   if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh', flexDirection: 'column', gap: 20, fontFamily: "'Nunito', sans-serif" }}>
-      <div style={{ fontSize: 52 }}>🎓</div>
-      <div style={{ fontWeight: 800, color: C.blue, fontSize: 18 }}>Loading your dashboard…</div>
-      <div style={{ width: 48, height: 48, border: `4px solid #e2e8f0`, borderTopColor: C.blue, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg) }}`}</style>
+    <div className={`sms-dash ${dark ? 'dark' : ''}`} style={{ justifyContent:'center', alignItems:'center', flexDirection:'column', gap:20 }}>
+      <div style={{ fontSize:52 }}>🎓</div>
+      <div style={{ fontWeight:800, color:C.blue, fontSize:18 }}>Loading your dashboard…</div>
+      <div style={{ width:180, height:4, background:'#e2e8f0', borderRadius:99, overflow:'hidden' }}>
+        <div style={{ height:'100%', width:'60%', background:C.blue, borderRadius:99, animation:'none' }} />
+      </div>
     </div>
   );
 
-  const student = data?.student;
-  const isParent = user.role === 'parent';
+  const student   = data?.student;
+  const stats     = data?.stats;
+  const attPct    = stats?.attendancePercentage ?? 0;
+  const notifCount= stats?.notificationCount ?? 0;
+  const activeLabel = MODULES.find(m => m.id === activeModule)?.label ?? 'Overview';
 
-  const renderModule = () => {
+  const renderTab = () => {
     switch (activeModule) {
-      case 'overview':      return <OverviewTab data={data} />;
-      case 'attendance':    return <AttendanceTab />;
-      case 'results':       return <ResultsTab />;
-      case 'fees':          return <FeesTab />;
-      case 'assignments':   return <AssignmentsTab />;
-      case 'timetable':    return <TimetableTab />;
-      case 'transport':     return <TransportTab studentData={data} />;
-      case 'library':      return <LibraryTab />;
-      case 'notifications': return <NotificationsTab />;
-      default:              return <OverviewTab data={data} />;
+      case 'overview':       return <OverviewTab data={data} dark={dark} onNavigate={navigate} />;
+      case 'attendance':     return <AttendanceTab />;
+      case 'results':        return <ResultsTab />;
+      case 'fees':           return <FeesTab />;
+      case 'assignments':    return <AssignmentsTab />;
+      case 'timetable':      return <TimetableTab />;
+      case 'transport':      return <TransportTab studentData={data} />;
+      case 'library':        return <LibraryTab />;
+      case 'notifications':  return <NotificationsTab />;
+      default:               return <OverviewTab data={data} dark={dark} onNavigate={navigate} />;
     }
   };
 
+  /* ── Sidebar ── */
+  const SidebarContent = () => (
+    <>
+      {/* Logo */}
+      <div style={{ padding:'16px 14px 14px', borderBottom:'1px solid rgba(255,255,255,0.07)', display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ width:34, height:34, borderRadius:10, background:C.blue, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>⚡</div>
+        <div className="sms-logo-text">
+          <div style={{ fontWeight:800, color:'white', fontSize:13 }}>Future Step</div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>School Portal</div>
+        </div>
+      </div>
+
+      {/* Profile */}
+      <div style={{ padding:'14px', borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ width:34, height:34, borderRadius:10, background:'linear-gradient(135deg,#3b82f6,#6366f1)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:800, fontSize:14, flexShrink:0 }}>
+            {(student?.user?.name ?? user?.name ?? 'S')[0]}
+          </div>
+          <div className="sms-profile-info" style={{ minWidth:0 }}>
+            <div style={{ fontWeight:700, color:'white', fontSize:13, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>{student?.user?.name ?? user?.name}</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,0.45)', overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>{student?.class?.name} · Roll {student?.rollNumber}</div>
+          </div>
+        </div>
+        <div className="sms-att-bar-wrap" style={{ marginTop:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+            <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:600 }}>Attendance</span>
+            <span style={{ fontSize:11, fontWeight:800, color: attPct >= 75 ? C.emerald : C.rose }}>{attPct}%</span>
+          </div>
+          <div style={{ height:4, background:'rgba(255,255,255,0.1)', borderRadius:99 }}>
+            <div style={{ height:'100%', width:`${attPct}%`, background: attPct >= 75 ? C.emerald : C.rose, borderRadius:99, transition:'width 1s' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav style={{ flex:1, padding:'10px 8px', overflowY:'auto' }}>
+        <div style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.25)', letterSpacing:'0.15em', textTransform:'uppercase', padding:'6px 10px 4px', display: collapsed ? 'none' : 'block' }}>MODULES</div>
+        {MODULES.map(({ id, label, icon }) => {
+          const active = activeModule === id;
+          const badge  = id === 'notifications' && notifCount > 0;
+          return (
+            <button key={id} onClick={() => navigate(id)} className={`sms-nav-btn ${active ? 'active' : ''}`}>
+              <span className="sms-nav-icon">{icon}</span>
+              <span className="sms-nav-label">{label}</span>
+              {badge && <span className="sms-notif-badge">{notifCount}</span>}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Logout */}
+      <div style={{ padding:'10px 8px', borderTop:'1px solid rgba(255,255,255,0.07)' }}>
+        <button onClick={logout} className="sms-nav-btn" style={{ color:'rgba(255,255,255,0.4)' }}>
+          <span className="sms-nav-icon">↩</span>
+          <span className="sms-nav-label">Logout</span>
+        </button>
+      </div>
+    </>
+  );
+
   return (
-    <div style={{ display: 'flex', gap: 0, minHeight: 'calc(100vh - 64px)', fontFamily: "'Nunito', sans-serif", margin: '-24px -24px', background: C.light }}>
+    <div className={`sms-dash ${dark ? 'dark' : ''}`} style={{ margin:'-24px -24px', fontFamily:"'Inter',sans-serif" }}>
 
-      {/* ── Left Module Navigation ── */}
-      <div style={{
-        width: 220, flexShrink: 0,
-        background: C.navy,
-        display: 'flex', flexDirection: 'column',
-        padding: '0 0 20px 0',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
-      }}>
+      {/* Desktop sidebar */}
+      <div className={`sms-sidebar ${collapsed ? 'collapsed' : ''}`} style={{ display:'flex', flexDirection:'column' }}>
+        <SidebarContent />
+      </div>
 
-        {/* Student Profile Card */}
-        <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: '50%', margin: '0 auto 12px',
-            background: isParent ? 'linear-gradient(135deg, #7c3aed, #9333ea)' : 'linear-gradient(135deg, #1a3a6b, #2563eb)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 26, boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            border: '3px solid rgba(255,255,255,0.15)',
-          }}>
-            {isParent ? '👨‍👩‍👧' : '🎓'}
+      {/* Mobile overlay + sidebar */}
+      <div className={`sms-mobile-overlay ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
+      <div className="sms-sidebar" style={{ display:'flex', flexDirection:'column', left: sidebarOpen ? 0 : undefined }}>
+        <SidebarContent />
+      </div>
+
+      {/* Main content */}
+      <div className="sms-main">
+        {/* Header */}
+        <div className="sms-header">
+          {/* Mobile hamburger */}
+          <button onClick={() => setSidebarOpen(o => !o)} style={{ display:'none', background:'none', border:'none', cursor:'pointer', fontSize:20, padding:4 }} className="sms-hamburger">☰</button>
+          {/* Collapse toggle (desktop) */}
+          <button onClick={() => setCollapsed(c => !c)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'#94a3b8', padding:4 }}>{collapsed ? '▶' : '◀'}</button>
+
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:2 }}>Student Portal</div>
+            <h1 style={{ margin:0, fontSize:20, fontWeight:800, color: dark ? '#f1f5f9' : C.navy }}>{activeLabel}</h1>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 900, color: '#fff', fontSize: 14, lineHeight: 1.3 }}>{student?.user?.name || user.name}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>{student?.class?.name}</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>Roll: {student?.rollNumber} • {student?.admissionNumber}</div>
-          </div>
-          {isParent && (
-            <div style={{ marginTop: 10, background: 'rgba(124,58,237,0.2)', borderRadius: 8, padding: '6px 10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>PARENT VIEW</div>
-              <div style={{ fontSize: 11, color: '#c4b5fd', fontWeight: 800 }}>{user.name}</div>
-            </div>
-          )}
-        </div>
 
-        {/* Module Nav */}
-        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textTransform: 'uppercase', padding: '8px 10px 6px' }}>MODULES</div>
-          {MODULES.map(mod => {
-            const isActive = activeModule === mod.id;
-            return (
-              <button key={mod.id} onClick={() => setActiveModule(mod.id)} style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                padding: '10px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                fontFamily: "'Nunito', sans-serif",
-                marginBottom: 2, textAlign: 'left', transition: 'all 0.15s',
-                background: isActive ? `${mod.color}25` : 'transparent',
-                color: isActive ? mod.color : 'rgba(255,255,255,0.55)',
-                fontWeight: isActive ? 800 : 600, fontSize: 13,
-                borderLeft: isActive ? `3px solid ${mod.color}` : '3px solid transparent',
-              }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; } }}
-              >
-                <span style={{ fontSize: 18, width: 26, textAlign: 'center', flexShrink: 0 }}>{mod.icon}</span>
-                {mod.label}
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+            <span style={{ fontSize:12, color:'#94a3b8', fontWeight:500 }}>
+              {new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}
+            </span>
+
+            {/* Notification bell */}
+            <div style={{ position:'relative' }}>
+              <button onClick={() => setNotifOpen(o => !o)} style={{ position:'relative', background:'#f8fafc', border:'none', borderRadius:10, padding:'7px 9px', cursor:'pointer', fontSize:16 }}>
+                🔔
+                {notifCount > 0 && <span style={{ position:'absolute', top:4, right:4, width:8, height:8, borderRadius:'50%', background:'#ef4444' }} />}
               </button>
-            );
-          })}
-        </nav>
 
-        {/* Attendance Quick Stat */}
-        {data?.stats && (
-          <div style={{ margin: '0 10px', padding: '14px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 700 }}>ATTENDANCE</span>
-              <span style={{ fontSize: 14, fontWeight: 900, color: data.stats.attendancePercentage >= 75 ? C.emerald : C.rose }}>{data.stats.attendancePercentage}%</span>
+              {notifOpen && (
+                <div style={{ position:'absolute', right:0, top:44, width:300, background: dark ? '#1e293b' : 'white', borderRadius:16, boxShadow:'0 20px 60px rgba(0,0,0,0.15)', border:'1px solid #f1f5f9', padding:16, zIndex:999 }}>
+                  <div style={{ fontWeight:700, fontSize:13, marginBottom:12, color: dark ? '#f1f5f9' : '#0f172a' }}>Notifications</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    {(data?.notifications ?? []).slice(0,3).map((n,i) => (
+                      <div key={i} style={{ display:'flex', gap:8, padding:'8px 10px', borderRadius:10, background:'#f8fafc', fontSize:12 }}>
+                        <div style={{ width:7, height:7, borderRadius:'50%', background: n.priority==='high'?C.rose:n.priority==='medium'?C.amber:C.blue, flexShrink:0, marginTop:3 }} />
+                        <div><div style={{ fontWeight:700, color: dark?'#f1f5f9':'#0f172a', marginBottom:2 }}>{n.title}</div><div style={{ color:'#64748b' }}>{n.message?.slice(0,70)}…</div></div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => navigate('notifications')} style={{ marginTop:10, width:'100%', textAlign:'center', fontSize:12, color:C.blue, fontWeight:600, background:'none', border:'none', cursor:'pointer' }}>View all →</button>
+                </div>
+              )}
             </div>
-            <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 99 }}>
-              <div style={{ height: '100%', width: `${data.stats.attendancePercentage}%`, background: data.stats.attendancePercentage >= 75 ? C.emerald : C.rose, borderRadius: 99, transition: 'width 1s' }} />
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* ── Main Content ── */}
-      <div style={{ flex: 1, padding: '28px 32px', overflowY: 'auto' }}>
+            {/* Dark mode */}
+            <button onClick={() => setDark(d => !d)} style={{ background:'#f8fafc', border:'none', borderRadius:10, padding:'7px 9px', cursor:'pointer', fontSize:16 }}>
+              {dark ? '☀️' : '🌙'}
+            </button>
 
-        {/* Page Title */}
-        <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 4 }}>
-              {isParent ? 'Parent Portal' : 'Student Portal'}
+            {/* Avatar */}
+            <div style={{ width:34, height:34, borderRadius:10, background:'linear-gradient(135deg,#3b82f6,#6366f1)', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:800, fontSize:14, flexShrink:0 }}>
+              {(student?.user?.name ?? user?.name ?? 'S')[0]}
             </div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#0f172a' }}>
-              {MODULES.find(m => m.id === activeModule)?.icon} {MODULES.find(m => m.id === activeModule)?.label}
-            </h1>
-          </div>
-          <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>
-            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>
 
-        {renderModule()}
+        {/* Scrollable content */}
+        <div className="sms-content">
+          {renderTab()}
+        </div>
       </div>
+
+      {/* Mobile CSS patch */}
+      <style>{`
+        @media (max-width: 768px) {
+          .sms-hamburger { display: block !important; }
+          .sms-sidebar:not(.mobile-open) { left: -220px !important; }
+          ${sidebarOpen ? '.sms-sidebar { left: 0 !important; }' : ''}
+        }
+      `}</style>
     </div>
   );
 }
