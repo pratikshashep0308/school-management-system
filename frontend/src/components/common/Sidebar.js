@@ -28,6 +28,13 @@ const MENU_ITEMS = [
   { path: '/profile',       icon: '👤', label: 'My Profile',    roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
 ];
 
+// Section labels to group menu items visually
+const SECTION_LABELS = {
+  '/dashboard':  null,
+  '/students':   'Administration',
+  '/profile':    null,
+};
+
 export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
