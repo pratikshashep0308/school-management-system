@@ -3,7 +3,7 @@
 // Never trust req.params for identity — always use req.user from JWT
 
 const Student    = require('../models/Student');
-const { Attendance, Result, Exam, FeePayment, Timetable,
+const { Attendance, Result, Exam, FeePayment, StudentFee, Timetable,
         Assignment, Notification, Class } = require('../models/index');
 
 // ── HELPER: resolve studentDoc from token ────────────────────────────────────
@@ -105,18 +105,57 @@ exports.getFees = async (req, res) => {
   const student = await resolveStudent(req);
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-  const payments = await FeePayment.find({ student: student._id })
-    .sort({ paidOn: -1 })
-    .populate('collectedBy', 'name');
+  // Read from StudentFee (the live ledger updated by admin payments)
+  const record = await StudentFee.findOne({ student: student._id })
+    .populate('class', 'name grade section')
+    .populate('paymentHistory.collectedBy', 'name');
 
-  const paid    = payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const pending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
-  const overdue = payments.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
+  if (!record) {
+    return res.json({
+      success: true,
+      data: {
+        summary: { paid: 0, pending: 0, overdue: 0, total: 0 },
+        payments: [],
+      },
+    });
+  }
+
+  // Shape payment history entries to match what the dashboard expects
+  const payments = record.paymentHistory.map(p => ({
+    _id:           p._id,
+    amount:        p.amount,
+    paidOn:        p.paidOn,
+    method:        p.method,
+    transactionId: p.transactionId,
+    receiptNumber: p.receiptNumber,
+    month:         p.month,
+    year:          p.year,
+    remarks:       p.remarks,
+    collectedBy:   p.collectedBy,
+    status:        'paid',  // every entry in paymentHistory is a completed payment
+    // Expose ledger-level totals on each entry so the dashboard can read them
+    totalAmount:   record.totalFees,
+    paidAmount:    record.paidAmount,
+    dueAmount:     record.pendingAmount,
+    paymentStatus: record.paymentStatus,
+  }));
 
   res.json({
     success: true,
     data: {
-      summary: { paid, pending, overdue, total: paid + pending + overdue },
+      summary: {
+        paid:    record.paidAmount,
+        pending: record.pendingAmount,
+        overdue: 0,
+        total:   record.totalFees,
+      },
+      // Also expose the ledger record directly so dashboard components can read it
+      ledger: {
+        totalFees:     record.totalFees,
+        paidAmount:    record.paidAmount,
+        pendingAmount: record.pendingAmount,
+        paymentStatus: record.paymentStatus,
+      },
       payments,
     },
   });
@@ -185,12 +224,14 @@ exports.getDashboard = async (req, res) => {
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
   // Fetch all data in parallel for performance
-  const [attendance, results, fees, assignments, notifications] = await Promise.all([
+  const [attendance, results, feeRecord, assignments, notifications] = await Promise.all([
     Attendance.find({ student: student._id }).sort({ date: -1 }).limit(30),
     Result.find({ student: student._id })
       .populate({ path: 'exam', select: 'name examType totalMarks', populate: { path: 'subject', select: 'name' } })
       .sort({ createdAt: -1 }).limit(10),
-    FeePayment.find({ student: student._id }).sort({ paidOn: -1 }).limit(10),
+    // ← Use StudentFee (live ledger) instead of FeePayment (legacy, not always updated)
+    StudentFee.findOne({ student: student._id })
+      .populate('class', 'name grade section'),
     Assignment.find({ class: student.class, isPublished: true }).sort({ dueDate: 1 }).limit(5)
       .populate('subject', 'name'),
     Notification.find({
@@ -202,8 +243,28 @@ exports.getDashboard = async (req, res) => {
   // Compute quick stats
   const attTotal   = attendance.length;
   const attPresent = attendance.filter(a => a.status === 'present').length;
-  const feePaid    = fees.filter(f => f.status === 'paid').reduce((s, f) => s + f.amount, 0);
-  const feePending = fees.filter(f => ['pending','overdue'].includes(f.status)).reduce((s, f) => s + f.amount, 0);
+
+  // Build a fees array that the dashboard UI (ParentDashboard / StudentDashboard) can consume.
+  // The UI reads: fees.filter(f => f.status !== 'paid') for pendingFees,
+  // and fees.filter(f => f.status === 'paid').reduce(...) for paid amount.
+  let fees = [];
+  if (feeRecord) {
+    // One synthesised entry representing the whole ledger so the stat cards work correctly
+    fees = [{
+      _id:           feeRecord._id,
+      status:        feeRecord.paymentStatus === 'paid' ? 'paid'
+                   : feeRecord.paymentStatus === 'partial' ? 'partial'
+                   : 'pending',
+      totalAmount:   feeRecord.totalFees,
+      paidAmount:    feeRecord.paidAmount,
+      dueAmount:     feeRecord.pendingAmount,
+      amount:        feeRecord.paidAmount,   // compat with old field
+      paymentStatus: feeRecord.paymentStatus,
+    }];
+  }
+
+  const feePaid    = feeRecord ? feeRecord.paidAmount    : 0;
+  const feePending = feeRecord ? feeRecord.pendingAmount : 0;
 
   res.json({
     success: true,
@@ -219,6 +280,7 @@ exports.getDashboard = async (req, res) => {
       recentAttendance:   attendance.slice(0, 7),
       recentResults:      results,
       recentFees:         fees,
+      fees:               fees,   // alias — frontend reads data?.fees
       upcomingAssignments: assignments,
       notifications,
     },
