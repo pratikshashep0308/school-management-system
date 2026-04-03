@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
+import { usePortalTab } from '../components/common/Layout';
 
 // ─── Attendance Ring ────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -60,7 +61,7 @@ const DAY_COLORS = {
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab,     setTab]     = useState('overview');
+  const { activeTab: tab, setTab } = usePortalTab();
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
@@ -153,18 +154,16 @@ export default function StudentDashboard() {
           changeType={pendingFees.length > 0 ? 'down' : 'up'} color="purple" />
       </div>
 
-      {/* ── Tab Bar ── */}
-      <div className="flex gap-1 p-1 rounded-2xl border border-border dark:border-gray-700 bg-warm dark:bg-gray-800 overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ' +
-              (tab === t.id
-                ? 'bg-white dark:bg-gray-700 shadow text-accent'
-                : 'text-muted hover:text-ink dark:hover:text-white')}>
-            {t.icon} {t.label}
+      {/* ── Active Section Indicator ── */}
+      {tab !== 'overview' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 2 }}>
+          <button onClick={() => setTab('overview')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#94a3b8', fontWeight: 600, padding: 0 }}>
+            Overview
           </button>
-        ))}
-      </div>
+          <span style={{ color: '#94a3b8', fontSize: 12 }}>›</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#e87722', textTransform: 'capitalize' }}>{tab}</span>
+        </div>
+      )}
 
       {/* ════════════════════ OVERVIEW ════════════════════ */}
       {tab === 'overview' && (

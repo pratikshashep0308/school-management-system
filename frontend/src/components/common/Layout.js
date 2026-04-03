@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -12,95 +12,105 @@ const PAGE_TITLES = {
   '/admissions': 'Admissions', '/profile': 'My Profile',
 };
 
+// Context to share portal tab state between Layout, Sidebar and Dashboard pages
+export const PortalTabContext = createContext({ activeTab: 'overview', setTab: () => {} });
+export const usePortalTab = () => useContext(PortalTabContext);
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [portalTab, setPortalTab] = useState('overview');
 
   const title = PAGE_TITLES[location.pathname] || 'The Future Step School';
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
-    <div className={`flex min-h-screen ${isDark ? 'bg-gray-900' : 'bg-warm'}`}>
-      {/* Sidebar — desktop */}
-      <aside className="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-64">
-        <Sidebar />
-      </aside>
+    <PortalTabContext.Provider value={{ activeTab: portalTab, setTab: setPortalTab }}>
+      <div className={`flex min-h-screen ${isDark ? 'bg-gray-900' : 'bg-warm'}`}>
+        {/* Sidebar — desktop */}
+        <aside className="hidden lg:flex lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-64">
+          <Sidebar
+            activePortalTab={portalTab}
+            onPortalTabChange={setPortalTab}
+          />
+        </aside>
 
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="fixed inset-0 bg-ink/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="relative w-64 animate-slide-in">
-            <Sidebar onClose={() => setMobileOpen(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Main content */}
-      <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
-        {/* Topbar */}
-        <header className={`sticky top-0 z-40 h-16 flex items-center justify-between px-6 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-border'}`}>
-          <div className="flex items-center gap-4">
-            <button
-              className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent hover:text-accent' : 'border-border text-slate hover:border-accent hover:text-accent'}`}
-              onClick={() => setMobileOpen(true)}
-            >☰</button>
-            {/* Logo in topbar — visible on all screens */}
-            <div className="flex items-center gap-2.5">
-              <div style={{ width: 34, height: 34, borderRadius: '50%', padding: 2, background: 'linear-gradient(135deg, #e87722, #f59e0b)', flexShrink: 0 }}>
-                <img src="/school-logo.jpeg" alt="Logo"
-                  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-                  onError={e => { e.target.style.display='none'; }}
-                />
-              </div>
-              <h1 className={`font-display text-xl ${isDark ? 'text-white' : 'text-ink'}`}>{title}</h1>
+        {/* Mobile overlay */}
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 flex lg:hidden">
+            <div className="fixed inset-0 bg-ink/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+            <div className="relative w-64 animate-slide-in">
+              <Sidebar
+                onClose={() => setMobileOpen(false)}
+                activePortalTab={portalTab}
+                onPortalTabChange={(tab) => { setPortalTab(tab); setMobileOpen(false); }}
+              />
             </div>
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all text-lg ${isDark ? 'border-gray-600 text-yellow-400 hover:border-yellow-400' : 'border-border text-slate hover:border-accent'}`}
-              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            >
-              {isDark ? '☀️' : '🌙'}
-            </button>
-
-            {/* Notifications */}
-            <button
-              onClick={() => navigate('/notifications')}
-              className={`relative w-10 h-10 flex items-center justify-center rounded-xl border transition-all text-lg ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent' : 'border-border hover:border-accent'}`}
-            >
-              🔔
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
-            </button>
-
-            <div className={`text-sm hidden sm:block ${isDark ? 'text-gray-400' : 'text-muted'}`}>{dateStr}</div>
-            <div className={`h-8 w-px hidden sm:block ${isDark ? 'bg-gray-700' : 'bg-border'}`} />
-
-            {/* Profile button */}
-            <button
-              onClick={() => navigate('/profile')}
-              className={`flex items-center gap-2 rounded-xl px-3 py-1.5 transition-all ${isDark ? 'hover:bg-gray-700' : 'hover:bg-warm'}`}
-            >
-              <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold">
-                {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
+        {/* Main content */}
+        <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
+          {/* Topbar */}
+          <header className={`sticky top-0 z-40 h-16 flex items-center justify-between px-6 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-border'}`}>
+            <div className="flex items-center gap-4">
+              <button
+                className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent hover:text-accent' : 'border-border text-slate hover:border-accent hover:text-accent'}`}
+                onClick={() => setMobileOpen(true)}
+              >☰</button>
+              <div className="flex items-center gap-2.5">
+                <div style={{ width: 34, height: 34, borderRadius: '50%', padding: 2, background: 'linear-gradient(135deg, #e87722, #f59e0b)', flexShrink: 0 }}>
+                  <img src="/school-logo.jpeg" alt="Logo"
+                    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                    onError={e => { e.target.style.display='none'; }}
+                  />
+                </div>
+                <h1 className={`font-display text-xl ${isDark ? 'text-white' : 'text-ink'}`}>{title}</h1>
               </div>
-              <div className={`text-sm font-medium hidden sm:block truncate max-w-28 ${isDark ? 'text-white' : 'text-ink'}`}>{user?.name?.split(' ')[0]}</div>
-            </button>
-          </div>
-        </header>
+            </div>
 
-        {/* Page content */}
-        <main className="flex-1 p-6 lg:p-8 animate-fade-in">
-          <Outlet />
-        </main>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTheme}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all text-lg ${isDark ? 'border-gray-600 text-yellow-400 hover:border-yellow-400' : 'border-border text-slate hover:border-accent'}`}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDark ? '☀️' : '🌙'}
+              </button>
+
+              <button
+                onClick={() => navigate('/notifications')}
+                className={`relative w-10 h-10 flex items-center justify-center rounded-xl border transition-all text-lg ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent' : 'border-border hover:border-accent'}`}
+              >
+                🔔
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
+              </button>
+
+              <div className={`text-sm hidden sm:block ${isDark ? 'text-gray-400' : 'text-muted'}`}>{dateStr}</div>
+              <div className={`h-8 w-px hidden sm:block ${isDark ? 'bg-gray-700' : 'bg-border'}`} />
+
+              <button
+                onClick={() => navigate('/profile')}
+                className={`flex items-center gap-2 rounded-xl px-3 py-1.5 transition-all ${isDark ? 'hover:bg-gray-700' : 'hover:bg-warm'}`}
+              >
+                <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold">
+                  {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
+                </div>
+                <div className={`text-sm font-medium hidden sm:block truncate max-w-28 ${isDark ? 'text-white' : 'text-ink'}`}>{user?.name?.split(' ')[0]}</div>
+              </button>
+            </div>
+          </header>
+
+          {/* Page content */}
+          <main className="flex-1 p-6 lg:p-8 animate-fade-in">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </PortalTabContext.Provider>
   );
 }
