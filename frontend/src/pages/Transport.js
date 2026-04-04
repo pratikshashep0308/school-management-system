@@ -3,7 +3,9 @@
 // All in ONE page with tabs. Does NOT break existing routes feature.
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { transportAPI as _legacyTransportAPI } from '../utils/api';
+import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
+import { Modal, FormGroup, LoadingState, EmptyState, StatCard } from '../components/ui';
 
 // Use correct /transport/routes endpoints (not the legacy /transport stub)
 const routeAPI = {
@@ -12,9 +14,6 @@ const routeAPI = {
   update:  (id, d)    => api.put('/transport/routes/' + id, d),
   delete:  (id)       => api.delete('/transport/routes/' + id),
 };
-import { useAuth } from '../context/AuthContext';
-import { Modal, FormGroup, LoadingState, EmptyState, StatCard } from '../components/ui';
-import api from '../utils/api';
 
 const vehicleAPI = {
   getAll: () => api.get('/transport/vehicles'),
