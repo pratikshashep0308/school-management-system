@@ -45,7 +45,7 @@ exports.createStudent = async (req, res) => {
     dateOfBirth, gender, bloodGroup, address, parentName, parentPhone, parentEmail,
     medicalInfo, hobbies, category, religion } = req.body;
 
-  // Create user account
+  // Create student user account
   const user = await User.create({
     name, email, phone,
     password: password || 'Student@123',
@@ -55,17 +55,49 @@ exports.createStudent = async (req, res) => {
 
   const admNo = admissionNumber || await genAdmissionNo(req.user.school);
 
+  // Auto-create parent User account if parentEmail is provided
+  let parentUserId = null;
+  if (parentEmail) {
+    // Check if a parent user already exists with this email
+    let parentUser = await User.findOne({ email: parentEmail });
+    if (!parentUser) {
+      // Create new parent account — default password is Parent@123
+      parentUser = await User.create({
+        name:     parentName || `Parent of ${name}`,
+        email:    parentEmail,
+        phone:    parentPhone || '',
+        password: 'Parent@123',
+        role:     'parent',
+        school:   req.user.school,
+      });
+    }
+    parentUserId = parentUser._id;
+  }
+
   const student = await Student.create({
     user:    user._id,
     admissionNumber: admNo,
     rollNumber, class: classId,
     dateOfBirth, gender, bloodGroup,
     address, parentName, parentPhone, parentEmail,
+    parent: parentUserId,   // ← Link parent ObjectId so portal login works
     medicalInfo, hobbies, category, religion,
     school: req.user.school,
   });
 
   if (classId) await Class.findByIdAndUpdate(classId, { $addToSet: { students: student._id } });
+
+  await student.populate('user', 'name email phone');
+  res.status(201).json({
+    success: true,
+    data: student,
+    parentCredentials: parentUserId ? {
+      email:    parentEmail,
+      password: 'Parent@123',
+      note:     'Share these credentials with the parent. Ask them to change the password after first login.'
+    } : null
+  });
+};
 
   await student.populate('user', 'name email phone');
   res.status(201).json({ success: true, data: student });
@@ -126,5 +158,49 @@ exports.getStudentStats = async (req, res) => {
       attendance: { total: totalDays, present: presentDays, absent: totalDays - presentDays, percentage: attPct },
       library:    { booksIssued: libraryIssues.length, current: libraryIssues.filter(i => i.status !== 'returned').length },
     },
+  });
+};
+// ── LINK/CREATE PARENT for existing student ───────────────────────────────────
+// POST /api/students/:id/link-parent
+// Body: { parentName, parentEmail, parentPhone }
+// Creates a parent User account if one doesn't exist, links it to the student
+exports.linkParent = async (req, res) => {
+  const { parentName, parentEmail, parentPhone } = req.body;
+  if (!parentEmail) return res.status(400).json({ success: false, message: 'parentEmail is required' });
+
+  const student = await Student.findOne({ _id: req.params.id, school: req.user.school });
+  if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+  // Find or create the parent User
+  let parentUser = await User.findOne({ email: parentEmail });
+  let isNew = false;
+  if (!parentUser) {
+    parentUser = await User.create({
+      name:     parentName || student.parentName || `Parent of ${(await User.findById(student.user))?.name}`,
+      email:    parentEmail,
+      phone:    parentPhone || student.parentPhone || '',
+      password: 'Parent@123',
+      role:     'parent',
+      school:   req.user.school,
+    });
+    isNew = true;
+  }
+
+  // Link parent to student
+  await Student.findByIdAndUpdate(student._id, {
+    parent:      parentUser._id,
+    parentName:  parentName  || student.parentName,
+    parentEmail: parentEmail,
+    parentPhone: parentPhone || student.parentPhone,
+  });
+
+  res.json({
+    success: true,
+    message: isNew ? 'Parent account created and linked' : 'Existing parent account linked',
+    parentCredentials: isNew ? {
+      email:    parentEmail,
+      password: 'Parent@123',
+      note:     'Share these with the parent. Ask them to change password after first login.'
+    } : { email: parentEmail, note: 'Existing account — use their existing password.' }
   });
 };

@@ -3,7 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const {
   getStudents, getStudent, createStudent, updateStudent, deleteStudent,
-  getMyProfile, getStudentStats,
+  getMyProfile, getStudentStats, linkParent,
 } = require('../controllers/studentController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -16,6 +16,7 @@ router.get('/my-profile', getMyProfile);
 router.get('/',     authorize('superAdmin','schoolAdmin','teacher','accountant'), getStudents);
 router.get('/:id',  getStudent);
 router.get('/:id/stats', getStudentStats);
+router.post('/:id/link-parent', authorize('superAdmin', 'schoolAdmin'), linkParent);
 router.post('/',    authorize('superAdmin','schoolAdmin'), createStudent);
 router.put('/:id',  authorize('superAdmin','schoolAdmin'), updateStudent);
 router.delete('/:id', authorize('superAdmin','schoolAdmin'), deleteStudent);

@@ -3,7 +3,15 @@
 // All in ONE page with tabs. Does NOT break existing routes feature.
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { transportAPI } from '../utils/api';
+import { transportAPI as _legacyTransportAPI } from '../utils/api';
+
+// Use correct /transport/routes endpoints (not the legacy /transport stub)
+const routeAPI = {
+  getAll:  ()         => api.get('/transport/routes'),
+  create:  (d)        => api.post('/transport/routes', d),
+  update:  (id, d)    => api.put('/transport/routes/' + id, d),
+  delete:  (id)       => api.delete('/transport/routes/' + id),
+};
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState, StatCard } from '../components/ui';
 import api from '../utils/api';
@@ -40,7 +48,7 @@ export default function Transport() {
     setLoading(true);
     try {
       const [r, v, f] = await Promise.allSettled([
-        transportAPI.getAll(),
+        routeAPI.getAll(),
         vehicleAPI.getAll(),
         transFeeAPI.getAll(),
       ]);
@@ -109,8 +117,8 @@ function RoutesTab({ routes, canManage, reload }) {
     if (!formData.routeName?.trim()) return toast.error('Route name is required');
     setSaving(true);
     try {
-      if (formData._id) { await transportAPI.update(formData._id, formData); toast.success('Route updated'); }
-      else { await transportAPI.create(formData); toast.success('Route added'); }
+      if (formData._id) { await routeAPI.update(formData._id, formData); toast.success('Route updated'); }
+      else { await routeAPI.create(formData); toast.success('Route added'); }
       setModal({ open: false, data: null }); setFormData({}); reload();
     } catch (err) { toast.error(err.response?.data?.message || 'Error saving route'); }
     finally { setSaving(false); }
@@ -118,7 +126,7 @@ function RoutesTab({ routes, canManage, reload }) {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this route?')) return;
-    try { await transportAPI.delete(id); toast.success('Route deleted'); reload(); }
+    try { await routeAPI.delete(id); toast.success('Route deleted'); reload(); }
     catch { toast.error('Failed to delete'); }
   };
 

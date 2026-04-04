@@ -18,9 +18,24 @@ async function resolveStudent(req) {
       .populate('class', 'name grade section');
   }
   if (req.user.role === 'parent') {
-    return await Student.findOne({ parent: req.user._id })
+    // Primary: match by parent ObjectId (set when student is created with parentEmail)
+    let child = await Student.findOne({ parent: req.user._id })
       .populate('user', 'name email phone profileImage')
       .populate('class', 'name grade section');
+
+    // Fallback for legacy students: match by parentEmail string field
+    if (!child) {
+      child = await Student.findOne({ parentEmail: req.user.email, school: req.user.school })
+        .populate('user', 'name email phone profileImage')
+        .populate('class', 'name grade section');
+
+      // If found via email fallback, backfill the parent ObjectId so future lookups are fast
+      if (child) {
+        await Student.findByIdAndUpdate(child._id, { parent: req.user._id });
+        child.parent = req.user._id;
+      }
+    }
+    return child;
   }
   return null;
 }
@@ -216,11 +231,30 @@ exports.getNotifications = async (req, res) => {
 // ── GET /api/student/dashboard ───────────────────────────────────────────────
 // Single API that returns everything for the dashboard in one call
 exports.getDashboard = async (req, res) => {
-  const student = await Student.findOne(
-    req.user.role === 'student' ? { user: req.user._id } : { parent: req.user._id }
-  )
-    .populate('user',  'name email phone profileImage')
-    .populate('class', 'name grade section');
+  // Resolve student — try ObjectId first, then email fallback for legacy records
+  let student;
+  if (req.user.role === 'student') {
+    student = await Student.findOne({ user: req.user._id })
+      .populate('user',  'name email phone profileImage')
+      .populate('class', 'name grade section');
+  } else {
+    // parent — primary lookup by ObjectId
+    student = await Student.findOne({ parent: req.user._id })
+      .populate('user',  'name email phone profileImage')
+      .populate('class', 'name grade section');
+
+    // Fallback: match by parentEmail for students created before the fix
+    if (!student) {
+      student = await Student.findOne({ parentEmail: req.user.email, school: req.user.school })
+        .populate('user',  'name email phone profileImage')
+        .populate('class', 'name grade section');
+
+      // Backfill parent ObjectId so this only runs once
+      if (student) {
+        await Student.findByIdAndUpdate(student._id, { parent: req.user._id });
+      }
+    }
+  }
 
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 

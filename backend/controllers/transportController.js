@@ -181,10 +181,17 @@ exports.getRoute = async (req, res) => {
 };
 
 exports.createRoute = async (req, res) => {
-  const existing = await TransportRoute.findOne({ code: req.body.code, school: req.user.school });
-  if (existing) return res.status(400).json({ success: false, message: 'Route code already exists' });
-  const route = await TransportRoute.create({ ...req.body, school: req.user.school });
-  res.status(201).json({ success: true, data: route });
+  try {
+    // Only check code uniqueness if a code was provided
+    if (req.body.code) {
+      const existing = await TransportRoute.findOne({ code: req.body.code, school: req.user.school });
+      if (existing) return res.status(400).json({ success: false, message: 'Route code already exists' });
+    }
+    const route = await TransportRoute.create({ ...req.body, school: req.user.school });
+    res.status(201).json({ success: true, data: route });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
 };
 
 exports.updateRoute = async (req, res) => {
