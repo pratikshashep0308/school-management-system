@@ -259,7 +259,7 @@ exports.getDashboard = async (req, res) => {
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
   // Fetch all data in parallel for performance
-  const [attendance, results, feeRecord, assignments, notifications] = await Promise.all([
+  const [attendance, results, feeRecord, assignments, notifications, allocation] = await Promise.all([
     Attendance.find({ student: student._id }).sort({ date: -1 }).limit(30),
     Result.find({ student: student._id })
       .populate({ path: 'exam', select: 'name examType totalMarks', populate: { path: 'subject', select: 'name' } })
@@ -275,6 +275,29 @@ exports.getDashboard = async (req, res) => {
       school: student.school,
       audience: { $in: [req.user.role === 'parent' ? 'parents' : 'students', 'all'] }
     }).sort({ createdAt: -1 }).limit(5),
+    // ← Fetch student's transport allocation
+    (async () => {
+      try {
+        const { TransportAllocation } = require('../models/transportModels');
+        const alloc = await TransportAllocation.findOne({ student: student._id, isActive: true })
+          .populate('route').populate('vehicle');
+        if (!alloc) return null;
+        const route = alloc.route;
+        return {
+          routeName:     route?.routeName,
+          routeNumber:   route?.routeNumber,
+          vehicleNumber: alloc.vehicle?.registrationNo || route?.vehicleNumber,
+          driverName:    route?.driver?.name,
+          driverPhone:   route?.driver?.phone,
+          stopName:      alloc.stopName,
+          feePerMonth:   alloc.feePerMonth,
+          stops:         route?.stops || [],
+          departureTime: route?.departureTime,
+          arrivalTime:   route?.arrivalTime,
+          vehicleType:   route?.vehicleType,
+        };
+      } catch { return null; }
+    })(),
   ]);
 
   // Compute quick stats
@@ -333,6 +356,7 @@ exports.getDashboard = async (req, res) => {
       assignments:         assignmentsWithStatus,   // frontend reads data?.assignments
       upcomingAssignments: assignmentsWithStatus,   // alias
       notifications,
+      transport:           allocation,              // student's own route info
     },
   });
 };
