@@ -110,7 +110,7 @@ export default function StudentDashboard() {
   const attPct    = attTotal > 0 ? Math.round((attendance.present / attTotal) * 100) : 0;
   const upcoming  = exams.filter(e => e.date && new Date(e.date) >= new Date());
   const pendingFees = fees.filter(f => f.status !== 'paid');
-  const dueAssignments = assignments.filter(a => a.dueDate && new Date(a.dueDate) >= new Date());
+  const dueAssignments = assignments.filter(a => a.dueDate && new Date(a.dueDate) >= new Date() && !a.submitted);
 
   // Build timetable lookup
   const ttMap = {};
@@ -258,7 +258,9 @@ export default function StudentDashboard() {
                       <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">📋</div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-ink dark:text-white truncate">{a.title}</div>
-                        <div className="text-xs text-muted">{a.subject?.name}</div>
+                        <div className="text-xs text-muted">
+                          {a.subject?.name}{a.teacher?.user?.name ? ` · ${a.teacher.user.name}` : ''}
+                        </div>
                       </div>
                       <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' +
                         (diff <= 1 ? 'bg-red-100 text-red-600' : diff <= 3 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700')}>
@@ -514,10 +516,16 @@ export default function StudentDashboard() {
                 const due    = a.dueDate ? new Date(a.dueDate) : null;
                 const isOver = due && due < new Date();
                 const diff   = due ? Math.ceil((due - new Date()) / 86400000) : null;
+                const teacherName = a.teacher?.user?.name;
                 return (
-                  <div key={a._id} className="card px-6 py-5 flex items-start gap-5 hover:border-accent/30 transition-colors">
+                  <div key={a._id} className={'card px-6 py-5 flex items-start gap-5 transition-colors ' +
+                    (a.submitted ? 'border-green-200 dark:border-green-800/40' :
+                     isOver ? 'border-red-200 dark:border-red-800/40' : 'hover:border-accent/30')}>
                     <div className={'w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ' +
-                      (isOver ? 'bg-gray-100 dark:bg-gray-700' : 'bg-accent/10')}>📋</div>
+                      (a.submitted ? 'bg-green-100 dark:bg-green-900/30' :
+                       isOver ? 'bg-red-100 dark:bg-red-900/20' : 'bg-accent/10')}>
+                      {a.submitted ? '✅' : isOver ? '⚠️' : '📋'}
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-semibold text-ink dark:text-white">{a.title}</span>
@@ -526,17 +534,36 @@ export default function StudentDashboard() {
                             {a.subject.name}
                           </span>
                         )}
+                        {a.submitted && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700">
+                            ✓ Submitted
+                          </span>
+                        )}
+                        {isOver && !a.submitted && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                            Overdue
+                          </span>
+                        )}
                       </div>
                       {a.description && <p className="text-sm text-muted line-clamp-2">{a.description}</p>}
-                      <div className="flex gap-4 mt-1 text-xs text-muted">
-                        {due && <span>📅 Due: {due.toLocaleDateString('en-IN')}</span>}
+                      <div className="flex flex-wrap gap-4 mt-1.5 text-xs text-muted">
+                        {due && <span>📅 Due: <strong className={isOver && !a.submitted ? 'text-red-500' : 'text-ink dark:text-white'}>{due.toLocaleDateString('en-IN')}</strong></span>}
                         {a.totalMarks && <span>⭐ {a.totalMarks} marks</span>}
+                        {teacherName && <span>👨‍🏫 {teacherName}</span>}
+                        {a.mySubmission?.marksObtained != null && (
+                          <span className="font-bold text-green-600">🏆 Marks: {a.mySubmission.marksObtained}/{a.totalMarks}</span>
+                        )}
                       </div>
                     </div>
-                    {!isOver && diff !== null && (
+                    {!a.submitted && !isOver && diff !== null && (
                       <span className={'text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 ' +
                         (diff <= 1 ? 'bg-red-100 text-red-600' : diff <= 3 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700')}>
                         {diff <= 0 ? 'Due today!' : `${diff}d left`}
+                      </span>
+                    )}
+                    {a.submitted && a.mySubmission?.status === 'graded' && (
+                      <span className="text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 bg-green-100 text-green-700">
+                        Graded
                       </span>
                     )}
                   </div>

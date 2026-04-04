@@ -179,9 +179,10 @@ exports.getAssignments = async (req, res) => {
   const student = await resolveStudent(req);
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-  const assignments = await Assignment.find({ class: student.class, isPublished: true })
-    .populate('subject',   'name code')
-    .populate('createdBy', 'name')
+  // Note: no isPublished field in schema — fetch all assignments for the student's class
+  const assignments = await Assignment.find({ class: student.class })
+    .populate('subject', 'name code')
+    .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } })
     .sort({ dueDate: 1 });
 
   // Mark which ones the student has submitted
@@ -232,8 +233,10 @@ exports.getDashboard = async (req, res) => {
     // ← Use StudentFee (live ledger) instead of FeePayment (legacy, not always updated)
     StudentFee.findOne({ student: student._id })
       .populate('class', 'name grade section'),
-    Assignment.find({ class: student.class, isPublished: true }).sort({ dueDate: 1 }).limit(5)
-      .populate('subject', 'name'),
+    // Note: no isPublished field in schema — fetch all assignments for the student's class
+    Assignment.find({ class: student.class, school: student.school }).sort({ dueDate: 1 })
+      .populate('subject', 'name code')
+      .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } }),
     Notification.find({
       school: student.school,
       audience: { $in: [req.user.role === 'parent' ? 'parents' : 'students', 'all'] }
@@ -266,6 +269,18 @@ exports.getDashboard = async (req, res) => {
   const feePaid    = feeRecord ? feeRecord.paidAmount    : 0;
   const feePending = feeRecord ? feeRecord.pendingAmount : 0;
 
+  // Mark each assignment with whether THIS student has submitted it
+  const assignmentsWithStatus = assignments.map(a => {
+    const submission = a.submissions?.find(
+      s => s.student?.toString() === student._id.toString()
+    );
+    return {
+      ...a.toObject(),
+      mySubmission: submission || null,
+      submitted:    !!submission,
+    };
+  });
+
   res.json({
     success: true,
     data: {
@@ -275,13 +290,14 @@ exports.getDashboard = async (req, res) => {
         feePaid,
         feePending,
         totalResults: results.length,
-        pendingAssignments: assignments.filter(a => new Date(a.dueDate) >= new Date()).length,
+        pendingAssignments: assignmentsWithStatus.filter(a => a.dueDate && new Date(a.dueDate) >= new Date() && !a.submitted).length,
       },
-      recentAttendance:   attendance.slice(0, 7),
-      recentResults:      results,
-      recentFees:         fees,
-      fees:               fees,   // alias — frontend reads data?.fees
-      upcomingAssignments: assignments,
+      recentAttendance:    attendance.slice(0, 7),
+      recentResults:       results,
+      recentFees:          fees,
+      fees,
+      assignments:         assignmentsWithStatus,   // frontend reads data?.assignments
+      upcomingAssignments: assignmentsWithStatus,   // alias
       notifications,
     },
   });
