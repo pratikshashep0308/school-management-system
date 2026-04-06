@@ -1,62 +1,87 @@
 // backend/routes/transportRoutes.js
+// All transport management routes with role-based access control
+
 const express = require('express');
 const router  = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, attachStudent } = require('../middleware/auth');
 const ctrl = require('../controllers/transportController');
 
-// All routes require authentication
+// ── All routes require authentication ────────────────────────────────────────
 router.use(protect);
 
-const admin = authorize('superAdmin', 'schoolAdmin', 'transportManager');
+// ── Role helpers ──────────────────────────────────────────────────────────────
+const admin     = authorize('superAdmin', 'schoolAdmin', 'transportManager');
+const adminOnly = authorize('superAdmin', 'schoolAdmin');
 
-// ─── DASHBOARD ────────────────────────────────────────────────────────────────
-router.get('/dashboard', ctrl.getDashboard);
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARD (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/dashboard', admin, ctrl.getTransportDashboard);
 
-// ─── DRIVERS ─────────────────────────────────────────────────────────────────
-router.get('/drivers',                    ctrl.getDrivers);
-router.post('/drivers',          admin,   ctrl.createDriver);
-router.put('/drivers/:id',       admin,   ctrl.updateDriver);
-router.delete('/drivers/:id',    admin,   ctrl.deleteDriver);
-router.get('/drivers/expiring-licenses',  ctrl.getExpiringLicenses);
+// ─────────────────────────────────────────────────────────────────────────────
+// BUSES
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/buses',                    admin, ctrl.getBuses);
+router.get('/buses/:id',                admin, ctrl.getBus);
+router.post('/buses',                   admin, ctrl.createBus);
+router.put('/buses/:id',                admin, ctrl.updateBus);
+router.delete('/buses/:id',             admin, ctrl.deleteBus);
 
-// ─── VEHICLES ─────────────────────────────────────────────────────────────────
-router.get('/vehicles',                      ctrl.getVehicles);
-router.get('/vehicles/expiring-docs',        ctrl.getExpiringDocuments);
-router.get('/vehicles/:id',                  ctrl.getVehicle);
-router.post('/vehicles',           admin,    ctrl.createVehicle);
-router.put('/vehicles/:id',        admin,    ctrl.updateVehicle);
-router.delete('/vehicles/:id',     admin,    ctrl.deleteVehicle);
-router.post('/vehicles/:id/maintenance', admin, ctrl.addMaintenance);
-router.post('/vehicles/:id/fuel',        admin, ctrl.addFuelLog);
-// GPS update endpoint (called by GPS device/simulator — no school auth needed, uses device key)
-router.post('/vehicles/:id/location',    ctrl.updateLocation);
+// GPS update — no school auth (called by GPS device or simulator)
+// In production, protect this with a device API key instead
+router.post('/buses/:id/location',             ctrl.updateBusLocation);
 
-// ─── ROUTES ───────────────────────────────────────────────────────────────────
-router.get('/routes',              ctrl.getRoutes);
-router.get('/routes/:id',          ctrl.getRoute);
-router.post('/routes',    admin,   ctrl.createRoute);
-router.put('/routes/:id', admin,   ctrl.updateRoute);
-router.delete('/routes/:id', admin, ctrl.deleteRoute);
+// GPS history (admin, for route replay)
+router.get('/buses/:busId/gps-history', admin, ctrl.getGpsHistory);
 
-// ─── ALLOCATIONS ──────────────────────────────────────────────────────────────
-router.get('/allocations',           ctrl.getAllocations);
-router.post('/allocations', admin,   ctrl.assignStudent);
-router.delete('/allocations/:id', admin, ctrl.removeAllocation);
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/routes',              admin,  ctrl.getRoutes);
+router.get('/routes/:id',          admin,  ctrl.getRoute);
+router.post('/routes',             admin,  ctrl.createRoute);
+router.put('/routes/:id',          admin,  ctrl.updateRoute);
+router.delete('/routes/:id',       admin,  ctrl.deleteRoute);
 
-// ─── TRIPS ────────────────────────────────────────────────────────────────────
-router.get('/trips/today',           ctrl.getTodayTrips);
-router.post('/trips',       admin,   ctrl.startTrip);
-router.put('/trips/:id/stop', admin, ctrl.updateTripStop);
-router.put('/trips/:id/end',  admin, ctrl.endTrip);
-router.post('/trips/:id/alert', admin, ctrl.sendTripAlert);
+// ─────────────────────────────────────────────────────────────────────────────
+// STOPS
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/stops',               admin,  ctrl.getStops);
+router.post('/stops',              admin,  ctrl.createStop);
+router.put('/stops/:id',           admin,  ctrl.updateStop);
+router.delete('/stops/:id',        admin,  ctrl.deleteStop);
 
-// ─── BOARDING ─────────────────────────────────────────────────────────────────
-router.post('/boarding',             ctrl.markBoarding);
-router.get('/boarding/:tripId',      ctrl.getTripBoarding);
+// ─────────────────────────────────────────────────────────────────────────────
+// STUDENT ASSIGNMENTS
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/assignments',         admin,  ctrl.getAssignments);
+router.post('/assignments',        admin,  ctrl.assignStudent);
+router.delete('/assignments/:id',  admin,  ctrl.removeAssignment);
 
-// ─── FEES ─────────────────────────────────────────────────────────────────────
-router.get('/fees',                           ctrl.getFees);
-router.post('/fees/generate',       admin,    ctrl.generateMonthlyFees);
-router.post('/fees/:id/payment',    admin,    ctrl.recordPayment);
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSPORT FEES
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/fees',                       ctrl.getFees);           // students/parents see own fees
+router.get('/fees/summary',         admin, ctrl.getFeeSummary);
+router.post('/fees/generate',       admin, ctrl.generateMonthlyFees);
+router.post('/fees/:id/payment',    admin, ctrl.recordPayment);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRIPS (real-time journey management)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/trips/today',          admin, ctrl.getTodayTrips);
+router.post('/trips',               admin, ctrl.startTrip);
+router.put('/trips/:id/stop',       admin, ctrl.updateTripStop);
+router.put('/trips/:id/end',        admin, ctrl.endTrip);
+router.post('/trips/:id/alert',     admin, ctrl.sendTripAlert);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STUDENT / PARENT PORTAL — filtered, read-only
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/my-transport',
+  authorize('student', 'parent', 'superAdmin', 'schoolAdmin', 'transportManager'),
+  attachStudent,
+  ctrl.getMyTransport
+);
 
 module.exports = router;

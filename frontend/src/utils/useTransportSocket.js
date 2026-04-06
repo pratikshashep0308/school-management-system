@@ -1,71 +1,100 @@
 // frontend/src/utils/useTransportSocket.js
-// Custom React hook — wraps all transport Socket.io events
-import { useEffect, useRef, useCallback } from 'react';
-import { io } from 'socket.io-client';  // npm install socket.io-client
+// Custom hook that connects to Socket.IO for real-time GPS + trip alerts
+// Usage: const { startSim, stopSim, isConnected } = useTransportSocket({ schoolId, onLocationUpdate, onTripAlert })
 
-const SOCKET_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { io } from 'socket.io-client';
 
-// Singleton socket — shared across all hook instances
-let _socket = null;
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
-function getSocket() {
-  if (!_socket) {
-    _socket = io(SOCKET_URL, {
-      autoConnect: true,
-      reconnection: true,
-      reconnectionDelay: 1000,
-      transports: ['websocket', 'polling'],
-    });
-  }
-  return _socket;
-}
-
-export function useTransportSocket({ schoolId, onLocationUpdate, onBoardingUpdate, onTripAlert, onDriverStatus }) {
-  const socket = useRef(getSocket());
+export function useTransportSocket({
+  schoolId,
+  parentId,
+  onLocationUpdate,
+  onTripAlert,
+  onStopReached,
+  onDriverOnline,
+  onDriverOffline,
+  role = 'admin', // 'admin' | 'parent' | 'student'
+} = {}) {
+  const socketRef    = useRef(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const s = socket.current;
+    if (!schoolId) return;
 
-    // Join school room to receive school-specific broadcasts
-    if (schoolId) s.emit('join:school', schoolId);
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionDelay: 2000,
+    });
 
-    // ── Event listeners ────────────────────────────────────────────────────
-    if (onLocationUpdate) s.on('vehicle:location',   onLocationUpdate);
-    if (onBoardingUpdate) s.on('boarding:update',    onBoardingUpdate);
-    if (onTripAlert)      s.on('trip:alert',         onTripAlert);
-    if (onDriverStatus) {
-      s.on('driver:online',  (d) => onDriverStatus({ ...d, online: true  }));
-      s.on('driver:offline', (d) => onDriverStatus({ ...d, online: false }));
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setConnected(true);
+
+      // Join appropriate rooms by role
+      if (role === 'parent' && parentId) {
+        socket.emit('join:parent', { parentId, schoolId });
+      } else if (role === 'student') {
+        socket.emit('join:student', { schoolId });
+      } else {
+        socket.emit('join:school', { schoolId });
+      }
+    });
+
+    socket.on('disconnect', () => setConnected(false));
+
+    // Vehicle GPS location update
+    if (onLocationUpdate) {
+      socket.on('vehicle:location', onLocationUpdate);
     }
 
-    s.on('connect',    () => console.log('🔌 Transport socket connected'));
-    s.on('disconnect', () => console.log('❌ Transport socket disconnected'));
+    // Trip alerts (delay, breakdown, emergency)
+    if (onTripAlert) {
+      socket.on('trip:alert', onTripAlert);
+    }
+
+    // Stop reached notification
+    if (onStopReached) {
+      socket.on('trip:stopReached', onStopReached);
+    }
+
+    // Driver online/offline
+    if (onDriverOnline)  socket.on('driver:online',  onDriverOnline);
+    if (onDriverOffline) socket.on('driver:offline', onDriverOffline);
 
     return () => {
-      if (onLocationUpdate) s.off('vehicle:location',   onLocationUpdate);
-      if (onBoardingUpdate) s.off('boarding:update',    onBoardingUpdate);
-      if (onTripAlert)      s.off('trip:alert',         onTripAlert);
-      s.off('driver:online');
-      s.off('driver:offline');
+      socket.disconnect();
+      setConnected(false);
     };
+  }, [schoolId, parentId, role]);
+
+  // ── GPS Simulator controls ─────────────────────────────────────────────────
+  const startSimulation = useCallback((busId, routeId) => {
+    socketRef.current?.emit('sim:start', { busId, schoolId, routeId });
   }, [schoolId]);
 
-  // ── Emitter helpers ────────────────────────────────────────────────────────
-  const startSimulation = useCallback((vehicleId, routeId) => {
-    socket.current.emit('sim:start', { vehicleId, schoolId, routeId });
-  }, [schoolId]);
-
-  const stopSimulation = useCallback((vehicleId) => {
-    socket.current.emit('sim:stop', { vehicleId });
+  const stopSimulation = useCallback((busId) => {
+    socketRef.current?.emit('sim:stop', { busId });
   }, []);
 
-  const requestAllLocations = useCallback(() => {
-    socket.current.emit('vehicles:requestAll', { schoolId });
+  // ── Request all current bus positions ──────────────────────────────────────
+  const requestAllVehicles = useCallback(() => {
+    socketRef.current?.emit('vehicles:requestAll', { schoolId });
   }, [schoolId]);
 
-  const sendDriverAlert = useCallback((tripId, type, message) => {
-    socket.current.emit('trip:driverAlert', { tripId, schoolId, type, message });
+  // ── Emit raw GPS update (for driver app simulation) ────────────────────────
+  const emitLocation = useCallback((busId, lat, lng, speed, heading) => {
+    socketRef.current?.emit('gps:update', { busId, lat, lng, speed, heading, schoolId });
   }, [schoolId]);
 
-  return { startSimulation, stopSimulation, requestAllLocations, sendDriverAlert, socket: socket.current };
+  return {
+    isConnected: connected,
+    startSimulation,
+    stopSimulation,
+    requestAllVehicles,
+    emitLocation,
+    socket: socketRef.current,
+  };
 }

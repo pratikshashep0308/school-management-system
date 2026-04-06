@@ -1,118 +1,226 @@
 // backend/utils/seedTransport.js
-// Run: node utils/seedTransport.js
+// Run: node backend/utils/seedTransport.js
+// Seeds example buses, routes, stops, assignments, and fees
+// Requires a school to exist in DB (set SCHOOL_ID in env or first arg)
+
 require('dotenv').config();
 const mongoose = require('mongoose');
-const { Driver, Vehicle, TransportRoute, TransportAllocation } = require('../models/transportModels');
-const { default: Student } = require('../models/Student') || {};
 
-async function seed() {
-  await mongoose.connect(process.env.MONGO_URI);
-  console.log('✅ Connected to MongoDB');
+const {
+  Bus, Stop, BusRoute,
+  TransportAssignment, TransportFee,
+} = require('../models/transportModels');
 
-  // You need a valid school ID from your DB
-  // Get it from: db.schools.findOne()
-  const SCHOOL_ID = process.env.SEED_SCHOOL_ID || '000000000000000000000001';
+const Student = require('../models/Student');
 
-  // ── 1. Drivers ──────────────────────────────────────────────────────────────
-  await Driver.deleteMany({ school: SCHOOL_ID });
-  const drivers = await Driver.insertMany([
-    {
-      school: SCHOOL_ID, name: 'Ramesh Kumar', phone: '9876543210',
-      role: 'driver', status: 'active',
-      license: { number: 'MH12-2019-0012345', type: 'HMV', expiry: new Date('2026-06-30') },
-      address: { city: 'Pune', state: 'Maharashtra', pincode: '411001' },
-    },
-    {
-      school: SCHOOL_ID, name: 'Suresh Patil', phone: '9876543211',
-      role: 'driver', status: 'active',
-      license: { number: 'MH12-2020-0054321', type: 'HMV', expiry: new Date('2025-12-31') },
-      address: { city: 'Pune', state: 'Maharashtra', pincode: '411014' },
-    },
-    {
-      school: SCHOOL_ID, name: 'Mahesh Shinde', phone: '9876543212',
-      role: 'helper', status: 'active',
-      license: { number: 'MH12-2021-0099999', type: 'LMV', expiry: new Date('2027-03-15') },
-      address: { city: 'Pune', state: 'Maharashtra', pincode: '411007' },
-    },
-  ]);
-  console.log(`✅ Created ${drivers.length} drivers`);
+const SCHOOL_ID = process.argv[2] || process.env.SEED_SCHOOL_ID;
 
-  // ── 2. Vehicles ─────────────────────────────────────────────────────────────
-  await Vehicle.deleteMany({ school: SCHOOL_ID });
-  const vehicles = await Vehicle.insertMany([
-    {
-      school: SCHOOL_ID, registrationNo: 'MH12AB1234', type: 'bus',
-      make: 'TATA', model: 'Starbus Ultra', year: 2021, capacity: 45,
-      gpsDeviceId: 'GPS001', driver: drivers[0]._id,
-      currentLocation: { lat: 18.5204, lng: 73.8567, speed: 0, heading: 0 },
-      status: 'active',
-      insurance: { provider: 'HDFC Ergo', policyNo: 'POL2024001', expiry: new Date('2025-03-31') },
-      fitness:   { certificateNo: 'FIT2024001', expiry: new Date('2025-09-30') },
-      puc:       { certificateNo: 'PUC2024001', expiry: new Date('2024-12-31') },
-    },
-    {
-      school: SCHOOL_ID, registrationNo: 'MH12CD5678', type: 'bus',
-      make: 'Ashok Leyland', model: 'Lynx', year: 2020, capacity: 40,
-      gpsDeviceId: 'GPS002', driver: drivers[1]._id,
-      currentLocation: { lat: 18.5304, lng: 73.8467, speed: 0, heading: 90 },
-      status: 'active',
-      insurance: { provider: 'New India', policyNo: 'POL2024002', expiry: new Date('2025-07-15') },
-      fitness:   { certificateNo: 'FIT2024002', expiry: new Date('2025-12-31') },
-    },
-    {
-      school: SCHOOL_ID, registrationNo: 'MH12EF9012', type: 'van',
-      make: 'Force', model: 'Traveller', year: 2022, capacity: 12,
-      currentLocation: { lat: 18.5104, lng: 73.8667, speed: 0, heading: 180 },
-      status: 'maintenance',
-    },
-  ]);
-  console.log(`✅ Created ${vehicles.length} vehicles`);
-
-  // ── 3. Routes ────────────────────────────────────────────────────────────────
-  await TransportRoute.deleteMany({ school: SCHOOL_ID });
-  const routes = await TransportRoute.insertMany([
-    {
-      school: SCHOOL_ID, name: 'Route A – Kothrud', code: 'RT-A',
-      vehicle: vehicles[0]._id, driver: drivers[0]._id,
-      morningStart: '06:45', afternoonStart: '13:30',
-      feePerMonth: 1200, isActive: true, color: '#3B82F6',
-      stops: [
-        { name: 'Chandni Chowk',  sequence: 1, lat: 18.5076, lng: 73.8140, pickupTime: '06:45', dropTime: '14:15' },
-        { name: 'Paud Road',      sequence: 2, lat: 18.5098, lng: 73.8220, pickupTime: '06:52', dropTime: '14:08' },
-        { name: 'Karve Nagar',    sequence: 3, lat: 18.5150, lng: 73.8300, pickupTime: '07:00', dropTime: '14:00' },
-        { name: 'Dahanukar Colony', sequence: 4, lat: 18.5200, lng: 73.8380, pickupTime: '07:08', dropTime: '13:52' },
-        { name: 'School Gate',    sequence: 5, lat: 18.5204, lng: 73.8567, pickupTime: '07:20', dropTime: '13:30' },
-      ],
-    },
-    {
-      school: SCHOOL_ID, name: 'Route B – Aundh', code: 'RT-B',
-      vehicle: vehicles[1]._id, driver: drivers[1]._id,
-      morningStart: '06:30', afternoonStart: '13:30',
-      feePerMonth: 1500, isActive: true, color: '#10B981',
-      stops: [
-        { name: 'Aundh Depot',      sequence: 1, lat: 18.5587, lng: 73.8087, pickupTime: '06:30', dropTime: '14:30' },
-        { name: 'Baner Road',       sequence: 2, lat: 18.5530, lng: 73.8200, pickupTime: '06:40', dropTime: '14:20' },
-        { name: 'Sus Road',         sequence: 3, lat: 18.5450, lng: 73.8350, pickupTime: '06:50', dropTime: '14:10' },
-        { name: 'Pashan Lake',      sequence: 4, lat: 18.5380, lng: 73.8300, pickupTime: '06:58', dropTime: '14:02' },
-        { name: 'School Gate',      sequence: 5, lat: 18.5204, lng: 73.8567, pickupTime: '07:20', dropTime: '13:30' },
-      ],
-    },
-  ]);
-
-  // Update vehicles with routes
-  await Vehicle.findByIdAndUpdate(vehicles[0]._id, { assignedRoute: routes[0]._id });
-  await Vehicle.findByIdAndUpdate(vehicles[1]._id, { assignedRoute: routes[1]._id });
-  await Driver.findByIdAndUpdate(drivers[0]._id, { assignedVehicle: vehicles[0]._id });
-  await Driver.findByIdAndUpdate(drivers[1]._id, { assignedVehicle: vehicles[1]._id });
-
-  console.log(`✅ Created ${routes.length} routes`);
-  console.log('\n🎉 Transport seed complete!');
-  console.log('\nTest credentials:');
-  console.log('  School ID:', SCHOOL_ID);
-  console.log('  Vehicles:', vehicles.map(v => v.registrationNo).join(', '));
-  console.log('  Routes:', routes.map(r => r.code).join(', '));
-
-  await mongoose.disconnect();
+if (!SCHOOL_ID) {
+  console.error('Usage: node seedTransport.js <SCHOOL_OBJECT_ID>');
+  process.exit(1);
 }
 
-seed().catch(err => { console.error(err); process.exit(1); });
+const ROUTE_DATA = [
+  {
+    name:        'Route A — Hinjewadi',
+    code:        'RT-A',
+    color:       '#E87722',
+    morningDepartureTime: '07:00',
+    eveningDepartureTime: '14:00',
+    bus: {
+      busNumber: 'BUS-01',
+      registrationNo: 'MH12AB1234',
+      type: 'bus',
+      capacity: 45,
+      color: '#E87722',
+      driver: { name: 'Rajesh Patil', phone: '9876543210', license: 'MH1234567' },
+      helper: { name: 'Suresh Kumar', phone: '9876543211' },
+      currentLocation: { lat: 18.5896, lng: 73.7388, speed: 0, heading: 0 },
+    },
+    stops: [
+      { name: 'Hinjewadi Phase 1',   sequence: 1, morningArrivalTime: '07:05', eveningArrivalTime: '14:10', location: { lat: 18.5921, lng: 73.7357 }, landmark: 'Near Infosys Gate 1' },
+      { name: 'Hinjewadi Phase 2',   sequence: 2, morningArrivalTime: '07:12', eveningArrivalTime: '14:17', location: { lat: 18.5896, lng: 73.7388 } },
+      { name: 'Wakad Bridge',        sequence: 3, morningArrivalTime: '07:20', eveningArrivalTime: '14:25', location: { lat: 18.5988, lng: 73.7619 }, landmark: 'Near Wakad McDonald\'s' },
+      { name: 'Baner Road',          sequence: 4, morningArrivalTime: '07:28', eveningArrivalTime: '14:33', location: { lat: 18.5601, lng: 73.7884 } },
+      { name: 'Aundh',               sequence: 5, morningArrivalTime: '07:35', eveningArrivalTime: '14:40', location: { lat: 18.5579, lng: 73.8072 }, landmark: 'Near D-Mart Aundh' },
+      { name: 'School Gate',         sequence: 6, morningArrivalTime: '07:45', eveningArrivalTime: '13:30', location: { lat: 18.5204, lng: 73.8567 } },
+    ],
+  },
+  {
+    name:        'Route B — Kothrud',
+    code:        'RT-B',
+    color:       '#4A7C59',
+    morningDepartureTime: '07:10',
+    eveningDepartureTime: '14:00',
+    bus: {
+      busNumber: 'BUS-02',
+      registrationNo: 'MH12CD5678',
+      type: 'bus',
+      capacity: 40,
+      color: '#4A7C59',
+      driver: { name: 'Anil Sharma', phone: '9812345678', license: 'MH7654321' },
+      helper: { name: 'Priya Devi', phone: '9812345679' },
+      currentLocation: { lat: 18.5074, lng: 73.8077, speed: 0, heading: 0 },
+    },
+    stops: [
+      { name: 'Kothrud Depot',       sequence: 1, morningArrivalTime: '07:15', eveningArrivalTime: '14:05', location: { lat: 18.5074, lng: 73.8077 }, landmark: 'Near Kothrud Bus Depot' },
+      { name: 'Karve Nagar',         sequence: 2, morningArrivalTime: '07:22', eveningArrivalTime: '14:12', location: { lat: 18.5050, lng: 73.8145 } },
+      { name: 'Erandwane',           sequence: 3, morningArrivalTime: '07:30', eveningArrivalTime: '14:20', location: { lat: 18.5113, lng: 73.8289 }, landmark: 'Near Abhimanshree Society' },
+      { name: 'Deccan Gymkhana',     sequence: 4, morningArrivalTime: '07:37', eveningArrivalTime: '14:27', location: { lat: 18.5162, lng: 73.8402 }, landmark: 'Near Cafe Goodluck' },
+      { name: 'School Gate',         sequence: 5, morningArrivalTime: '07:45', eveningArrivalTime: '13:30', location: { lat: 18.5204, lng: 73.8567 } },
+    ],
+  },
+  {
+    name:        'Route C — Hadapsar',
+    code:        'RT-C',
+    color:       '#7C6AF5',
+    morningDepartureTime: '06:55',
+    eveningDepartureTime: '14:00',
+    bus: {
+      busNumber: 'VAN-01',
+      registrationNo: 'MH12EF9012',
+      type: 'van',
+      capacity: 14,
+      color: '#7C6AF5',
+      driver: { name: 'Mahesh Jadhav', phone: '9823456789', license: 'MH1122334' },
+      currentLocation: { lat: 18.5077, lng: 73.9304, speed: 0, heading: 0 },
+    },
+    stops: [
+      { name: 'Hadapsar Gadital',    sequence: 1, morningArrivalTime: '07:00', eveningArrivalTime: '14:10', location: { lat: 18.5022, lng: 73.9401 } },
+      { name: 'Magarpatta City',     sequence: 2, morningArrivalTime: '07:10', eveningArrivalTime: '14:20', location: { lat: 18.5146, lng: 73.9302 }, landmark: 'Near Magarpatta Entrance' },
+      { name: 'Wanowrie',            sequence: 3, morningArrivalTime: '07:20', eveningArrivalTime: '14:30', location: { lat: 18.5011, lng: 73.9003 } },
+      { name: 'Salisbury Park',      sequence: 4, morningArrivalTime: '07:28', eveningArrivalTime: '14:38', location: { lat: 18.5069, lng: 73.8807 } },
+      { name: 'School Gate',         sequence: 5, morningArrivalTime: '07:40', eveningArrivalTime: '13:30', location: { lat: 18.5204, lng: 73.8567 } },
+    ],
+  },
+];
+
+async function seed() {
+  await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/school_mgmt');
+  console.log('✅ MongoDB connected');
+
+  // Clear existing transport data for this school
+  await Promise.all([
+    Bus.deleteMany({ school: SCHOOL_ID }),
+    BusRoute.deleteMany({ school: SCHOOL_ID }),
+    Stop.deleteMany({ school: SCHOOL_ID }),
+    TransportAssignment.deleteMany({ school: SCHOOL_ID }),
+    TransportFee.deleteMany({ school: SCHOOL_ID }),
+  ]);
+  console.log('🗑️  Cleared existing transport data');
+
+  for (const routeData of ROUTE_DATA) {
+    const { bus: busData, stops: stopData, ...routeMeta } = routeData;
+
+    // Create bus
+    const bus = await Bus.create({ ...busData, school: SCHOOL_ID });
+    console.log(`🚌 Created bus: ${bus.busNumber}`);
+
+    // Create route
+    const route = await BusRoute.create({
+      ...routeMeta,
+      school: SCHOOL_ID,
+      assignedBus: bus._id,
+    });
+
+    // Create stops
+    const stopDocs = await Stop.insertMany(
+      stopData.map((s) => ({
+        ...s,
+        school: SCHOOL_ID,
+        route:  route._id,
+      }))
+    );
+
+    // Embed stop summaries in route
+    route.stops = stopDocs.map((s) => ({
+      stop:        s._id,
+      name:        s.name,
+      sequence:    s.sequence,
+      morningTime: s.morningArrivalTime,
+      eveningTime: s.eveningArrivalTime,
+      lat:         s.location?.lat,
+      lng:         s.location?.lng,
+    }));
+    await route.save();
+
+    // Link bus → route
+    bus.assignedRoute = route._id;
+    await bus.save();
+
+    console.log(`🛣️  Created route: ${route.name} with ${stopDocs.length} stops`);
+  }
+
+  // Assign some students if any exist
+  const students = await Student.find({ school: SCHOOL_ID }).limit(15);
+  const routes   = await BusRoute.find({ school: SCHOOL_ID });
+  const buses    = await Bus.find({ school: SCHOOL_ID });
+
+  if (students.length > 0 && routes.length > 0) {
+    for (let i = 0; i < students.length; i++) {
+      const route  = routes[i % routes.length];
+      const bus    = buses.find((b) => b.assignedRoute?.toString() === route._id.toString());
+      if (!bus || route.stops.length < 2) continue;
+
+      const pickupIdx = i % (route.stops.length - 1);
+      const pickupStop = route.stops[pickupIdx];
+      const dropStop   = route.stops[route.stops.length - 1]; // School gate
+
+      await TransportAssignment.create({
+        school:  SCHOOL_ID,
+        student: students[i]._id,
+        route:   route._id,
+        bus:     bus._id,
+        pickupStop: {
+          stopId:   pickupStop.stop,
+          name:     pickupStop.name,
+          time:     pickupStop.morningTime,
+          sequence: pickupStop.sequence,
+          lat:      pickupStop.lat,
+          lng:      pickupStop.lng,
+        },
+        dropStop: {
+          stopId:   dropStop.stop,
+          name:     dropStop.name,
+          time:     dropStop.morningTime,
+          sequence: dropStop.sequence,
+          lat:      dropStop.lat,
+          lng:      dropStop.lng,
+        },
+        monthlyFee: 1200 + Math.floor(Math.random() * 300),
+        passType:   'both',
+      });
+    }
+    console.log(`👦 Assigned ${students.length} students to routes`);
+
+    // Generate current month's fees
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear  = new Date().getFullYear();
+    const assignments  = await TransportAssignment.find({ school: SCHOOL_ID, isActive: true });
+
+    for (const assignment of assignments) {
+      await TransportFee.create({
+        school:     SCHOOL_ID,
+        student:    assignment.student,
+        assignment: assignment._id,
+        month:      currentMonth,
+        year:       currentYear,
+        amount:     assignment.monthlyFee,
+        lateFee:    0,
+        totalDue:   assignment.monthlyFee,
+        status:     Math.random() > 0.5 ? 'paid' : 'pending',
+        paidAmount: Math.random() > 0.5 ? assignment.monthlyFee : 0,
+        dueDate:    new Date(currentYear, currentMonth - 1, 10),
+      });
+    }
+    console.log(`💰 Generated fee records for ${assignments.length} students`);
+  }
+
+  console.log('\n✅ Transport seed complete!');
+  process.exit(0);
+}
+
+seed().catch((err) => {
+  console.error('❌ Seed failed:', err);
+  process.exit(1);
+});

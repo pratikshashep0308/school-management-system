@@ -101,7 +101,7 @@ exports.createStudent = async (req, res) => {
 
   await student.populate('user', 'name email phone');
   res.status(201).json({ success: true, data: student });
-};
+
 
 // ── UPDATE student ────────────────────────────────────────────────────────────
 exports.updateStudent = async (req, res) => {

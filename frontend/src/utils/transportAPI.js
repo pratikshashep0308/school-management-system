@@ -1,34 +1,25 @@
 // frontend/src/utils/transportAPI.js
-// All transport API calls — import this in any component
+// All transport API helpers — import these in transport components
+
 import api from './api';
 
-// ─── DASHBOARD ───────────────────────────────────────────────────────────────
-export const dashboardAPI = {
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+export const transportDashboardAPI = {
   get: () => api.get('/transport/dashboard'),
 };
 
-// ─── DRIVERS ─────────────────────────────────────────────────────────────────
-export const driverAPI = {
-  getAll:    ()         => api.get('/transport/drivers'),
-  create:    (data)     => api.post('/transport/drivers', data),
-  update:    (id, data) => api.put(`/transport/drivers/${id}`, data),
-  delete:    (id)       => api.delete(`/transport/drivers/${id}`),
-  expiring:  ()         => api.get('/transport/drivers/expiring-licenses'),
+// ─── Buses ────────────────────────────────────────────────────────────────────
+export const busAPI = {
+  getAll:       ()         => api.get('/transport/buses'),
+  getOne:       (id)       => api.get(`/transport/buses/${id}`),
+  create:       (data)     => api.post('/transport/buses', data),
+  update:       (id, data) => api.put(`/transport/buses/${id}`, data),
+  delete:       (id)       => api.delete(`/transport/buses/${id}`),
+  updateLocation: (id, loc) => api.post(`/transport/buses/${id}/location`, loc),
+  gpsHistory:   (id)       => api.get(`/transport/buses/${id}/gps-history`),
 };
 
-// ─── VEHICLES ────────────────────────────────────────────────────────────────
-export const vehicleAPI = {
-  getAll:         ()         => api.get('/transport/vehicles'),
-  getOne:         (id)       => api.get(`/transport/vehicles/${id}`),
-  create:         (data)     => api.post('/transport/vehicles', data),
-  update:         (id, data) => api.put(`/transport/vehicles/${id}`, data),
-  delete:         (id)       => api.delete(`/transport/vehicles/${id}`),
-  addMaintenance: (id, data) => api.post(`/transport/vehicles/${id}/maintenance`, data),
-  addFuel:        (id, data) => api.post(`/transport/vehicles/${id}/fuel`, data),
-  expiringDocs:   ()         => api.get('/transport/vehicles/expiring-docs'),
-};
-
-// ─── ROUTES ──────────────────────────────────────────────────────────────────
+// ─── Routes ───────────────────────────────────────────────────────────────────
 export const routeAPI = {
   getAll:  ()         => api.get('/transport/routes'),
   getOne:  (id)       => api.get(`/transport/routes/${id}`),
@@ -37,14 +28,22 @@ export const routeAPI = {
   delete:  (id)       => api.delete(`/transport/routes/${id}`),
 };
 
-// ─── ALLOCATIONS ─────────────────────────────────────────────────────────────
-export const allocationAPI = {
-  getAll:  (params) => api.get('/transport/allocations', { params }),
-  assign:  (data)   => api.post('/transport/allocations', data),
-  remove:  (id)     => api.delete(`/transport/allocations/${id}`),
+// ─── Stops ────────────────────────────────────────────────────────────────────
+export const stopAPI = {
+  getByRoute: (routeId) => api.get(`/transport/stops?route=${routeId}`),
+  create:     (data)    => api.post('/transport/stops', data),
+  update:     (id, data)=> api.put(`/transport/stops/${id}`, data),
+  delete:     (id)      => api.delete(`/transport/stops/${id}`),
 };
 
-// ─── TRIPS ───────────────────────────────────────────────────────────────────
+// ─── Assignments ──────────────────────────────────────────────────────────────
+export const assignmentAPI = {
+  getAll:  (params) => api.get('/transport/assignments', { params }),
+  assign:  (data)   => api.post('/transport/assignments', data),
+  remove:  (id)     => api.delete(`/transport/assignments/${id}`),
+};
+
+// ─── Trips ────────────────────────────────────────────────────────────────────
 export const tripAPI = {
   today:       ()         => api.get('/transport/trips/today'),
   start:       (data)     => api.post('/transport/trips', data),
@@ -53,15 +52,15 @@ export const tripAPI = {
   sendAlert:   (id, data) => api.post(`/transport/trips/${id}/alert`, data),
 };
 
-// ─── BOARDING ────────────────────────────────────────────────────────────────
-export const boardingAPI = {
-  mark:     (data)   => api.post('/transport/boarding', data),
-  getByTrip:(tripId) => api.get(`/transport/boarding/${tripId}`),
-};
-
-// ─── FEES ────────────────────────────────────────────────────────────────────
+// ─── Fees ─────────────────────────────────────────────────────────────────────
 export const transportFeeAPI = {
   getAll:    (params)   => api.get('/transport/fees', { params }),
+  summary:   (params)   => api.get('/transport/fees/summary', { params }),
   generate:  (data)     => api.post('/transport/fees/generate', data),
   pay:       (id, data) => api.post(`/transport/fees/${id}/payment`, data),
+};
+
+// ─── Student/Parent portal ────────────────────────────────────────────────────
+export const myTransportAPI = {
+  get: () => api.get('/transport/my-transport'),
 };
