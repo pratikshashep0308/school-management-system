@@ -275,28 +275,60 @@ exports.getDashboard = async (req, res) => {
       school: student.school,
       audience: { $in: [req.user.role === 'parent' ? 'parents' : 'students', 'all'] }
     }).sort({ createdAt: -1 }).limit(5),
-    // ← Fetch student's transport allocation
+    // ← Fetch student's transport assignment (new TransportAssignment model)
     (async () => {
       try {
-        const { TransportAllocation } = require('../models/transportModels');
-        const alloc = await TransportAllocation.findOne({ student: student._id, isActive: true })
-          .populate('route').populate('vehicle');
-        if (!alloc) return null;
-        const route = alloc.route;
+        const { TransportAssignment } = require('../models/transportModels');
+        const assignment = await TransportAssignment.findOne({
+          student:  student._id,
+          isActive: true,
+        })
+          .populate({
+            path:     'route',
+            select:   'name code color stops morningDepartureTime eveningDepartureTime',
+          })
+          .populate({
+            path:   'bus',
+            select: 'busNumber registrationNo type capacity driver helper currentLocation status color',
+          });
+
+        if (!assignment) return null;
+
         return {
-          routeName:     route?.routeName,
-          routeNumber:   route?.routeNumber,
-          vehicleNumber: alloc.vehicle?.registrationNo || route?.vehicleNumber,
-          driverName:    route?.driver?.name,
-          driverPhone:   route?.driver?.phone,
-          stopName:      alloc.stopName,
-          feePerMonth:   alloc.feePerMonth,
-          stops:         route?.stops || [],
-          departureTime: route?.departureTime,
-          arrivalTime:   route?.arrivalTime,
-          vehicleType:   route?.vehicleType,
+          // Flat fields the student dashboard cards expect
+          routeName:     assignment.route?.name,
+          routeCode:     assignment.route?.code,
+          busNumber:     assignment.bus?.busNumber,
+          vehicleNumber: assignment.bus?.registrationNo,
+          vehicleType:   assignment.bus?.type,
+          driverName:    assignment.bus?.driver?.name,
+          driverPhone:   assignment.bus?.driver?.phone,
+          helperName:    assignment.bus?.helper?.name,
+          helperPhone:   assignment.bus?.helper?.phone,
+          pickupStop:    assignment.pickupStop,   // { name, time, lat, lng }
+          dropStop:      assignment.dropStop,     // { name, time, lat, lng }
+          stopName:      assignment.pickupStop?.name,   // legacy compat
+          feePerMonth:   assignment.monthlyFee,
+          passType:      assignment.passType,
+          stops:         assignment.route?.stops || [],
+          departureTime: assignment.route?.morningDepartureTime,
+          arrivalTime:   assignment.route?.eveningDepartureTime,
+          currentLocation: assignment.bus?.currentLocation,
+          routeColor:    assignment.route?.color,
+          // Full objects for StudentTransportView
+          route:         assignment.route,
+          bus:           assignment.bus,
+          assignment: {
+            _id:        assignment._id,
+            pickupStop: assignment.pickupStop,
+            dropStop:   assignment.dropStop,
+            passType:   assignment.passType,
+          },
         };
-      } catch { return null; }
+      } catch (err) {
+        console.error('Transport fetch error:', err.message);
+        return null;
+      }
     })(),
   ]);
 
