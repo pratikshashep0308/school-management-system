@@ -284,40 +284,43 @@ exports.getDashboard = async (req, res) => {
           isActive: true,
         })
           .populate({
-            path:     'route',
+            path:     'routeId',
             select:   'name code color stops morningDepartureTime eveningDepartureTime',
           })
           .populate({
-            path:   'bus',
+            path:   'busId',
             select: 'busNumber registrationNo type capacity driver helper currentLocation status color',
           });
 
         if (!assignment) return null;
 
+        const route = assignment.routeId;
+        const bus   = assignment.busId;
+
         return {
           // Flat fields the student dashboard cards expect
-          routeName:     assignment.route?.name,
-          routeCode:     assignment.route?.code,
-          busNumber:     assignment.bus?.busNumber,
-          vehicleNumber: assignment.bus?.registrationNo,
-          vehicleType:   assignment.bus?.type,
-          driverName:    assignment.bus?.driver?.name,
-          driverPhone:   assignment.bus?.driver?.phone,
-          helperName:    assignment.bus?.helper?.name,
-          helperPhone:   assignment.bus?.helper?.phone,
+          routeName:     route?.name,
+          routeCode:     route?.code,
+          busNumber:     bus?.busNumber,
+          vehicleNumber: bus?.registrationNo,
+          vehicleType:   bus?.type,
+          driverName:    bus?.driver?.name,
+          driverPhone:   bus?.driver?.phone,
+          helperName:    bus?.helper?.name,
+          helperPhone:   bus?.helper?.phone,
           pickupStop:    assignment.pickupStop,   // { name, time, lat, lng }
           dropStop:      assignment.dropStop,     // { name, time, lat, lng }
           stopName:      assignment.pickupStop?.name,   // legacy compat
           feePerMonth:   assignment.monthlyFee,
           passType:      assignment.passType,
-          stops:         assignment.route?.stops || [],
-          departureTime: assignment.route?.morningDepartureTime,
-          arrivalTime:   assignment.route?.eveningDepartureTime,
-          currentLocation: assignment.bus?.currentLocation,
-          routeColor:    assignment.route?.color,
+          stops:         route?.stops || [],
+          departureTime: route?.morningDepartureTime,
+          arrivalTime:   route?.eveningDepartureTime,
+          currentLocation: bus?.currentLocation,
+          routeColor:    route?.color,
           // Full objects for StudentTransportView
-          route:         assignment.route,
-          bus:           assignment.bus,
+          route,
+          bus,
           assignment: {
             _id:        assignment._id,
             pickupStop: assignment.pickupStop,
