@@ -1,6 +1,4 @@
 // frontend/src/components/common/Sidebar.js
-// Enhanced Sidebar — shows portal sub-navigation for student/parent roles
-
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -22,6 +20,9 @@ const MENU_ITEMS = [
   { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },
   { path: '/notifications', icon: '🔔', label: 'Notifications', roles: ADMIN_ROLES },
   { path: '/admissions',    icon: '📄', label: 'Admissions',    roles: ADMIN_ROLES },
+  // ── Report Module ──────────────────────────────────────────────────────────
+  { path: '/reports',       icon: '📊', label: 'Reports',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager'] },
+  // ── Profile (always last) ──────────────────────────────────────────────────
   { path: '/profile',       icon: '👤', label: 'My Profile',    roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
 ];
 
@@ -134,7 +135,6 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         <div style={{
           padding: '14px 18px',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
-          margin: '0',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
@@ -172,7 +172,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         <nav style={{ flex: 1, padding: '10px 10px 6px', overflowY: 'auto' }}>
           {isPortalUser ? (
             <>
-              {/* Profile link */}
+              {/* Profile link for portal users */}
               <NavLink
                 to="/profile"
                 onClick={onClose}
@@ -237,25 +237,27 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
               ))}
             </>
           ) : (
-            visibleItems.map(item => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={onClose}
-                style={({ isActive }) => ({
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '9px 12px', borderRadius: 10, marginBottom: 2,
-                  textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
-                  transition: 'all 0.15s',
-                  background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.5)',
-                  borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
-                })}
-              >
-                <span style={{ fontSize: 14 }}>{item.icon}</span>
-                {item.label}
-              </NavLink>
-            ))
+            <>
+              {visibleItems.map(item => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={onClose}
+                  style={({ isActive }) => ({
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 12px', borderRadius: 10, marginBottom: 2,
+                    textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
+                    transition: 'all 0.15s',
+                    background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
+                    color: isActive ? '#e87722' : 'rgba(255,255,255,0.5)',
+                    borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
+                  })}
+                >
+                  <span style={{ fontSize: 14 }}>{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </>
           )}
         </nav>
 

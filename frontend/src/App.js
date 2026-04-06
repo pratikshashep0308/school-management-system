@@ -1,42 +1,51 @@
 // frontend/src/App.js
-// Replace your existing App.js with this — adds role-based routing
-
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
-// Pages
-import Login           from './pages/Login';
-import Landing         from './pages/Landing';
-import AdminDashboard  from './pages/AdminDashboard';
+// Pages — Auth & Landing
+import Login            from './pages/Login';
+import Landing          from './pages/Landing';
+
+// Pages — Role Dashboards
+import AdminDashboard   from './pages/AdminDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import ParentDashboard  from './pages/ParentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 
-// Admin pages (existing)
-import Students    from './pages/Students';
-import Teachers    from './pages/Teachers';
-import Classes     from './pages/Classes';
-import Attendance  from './pages/Attendance';
-import Exams       from './pages/Exams';
-import Fees        from './pages/Fees';
-import Library     from './pages/Library';
-import Transport   from './pages/Transport';
-import Timetable   from './pages/Timetable';
-import Assignments from './pages/Assignments';
+// Pages — Admin modules
+import Students     from './pages/Students';
+import Teachers     from './pages/Teachers';
+import Classes      from './pages/Classes';
+import Attendance   from './pages/Attendance';
+import Exams        from './pages/Exams';
+import Fees         from './pages/Fees';
+import Library      from './pages/Library';
+import Transport    from './pages/Transport';
+import Timetable    from './pages/Timetable';
+import Assignments  from './pages/Assignments';
 import Notifications from './pages/Notifications';
-import Profile     from './pages/Profile';
-import Admissions  from './pages/Admissions';
+import Profile      from './pages/Profile';
+import Admissions   from './pages/Admissions';
+
+// Pages — Report Module
+import ReportsDashboard from './pages/Reports/ReportsDashboard';
+import CreateReport     from './pages/Reports/CreateReport';
+import ReportViewer     from './pages/Reports/ReportViewer';
 
 import Layout from './components/common/Layout';
 
 // ── ProtectedRoute: redirect to login if not authenticated ────────────────────
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: 24 }}>⏳</div>;
-  if (!user)   return <Navigate to="/login" replace />;
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: 24 }}>
+      ⏳
+    </div>
+  );
+  if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -47,16 +56,16 @@ function RoleRoute({ children, roles }) {
   return children;
 }
 
-// ── Smart Dashboard: redirect to role-appropriate dashboard ──────────────────
+// ── Smart Dashboard: render role-appropriate dashboard ───────────────────────
 function SmartDashboard() {
   const { user } = useAuth();
-  if (user?.role === 'student')  return <StudentDashboard />;
-  if (user?.role === 'parent')   return <ParentDashboard />;
-  if (user?.role === 'teacher')  return <TeacherDashboard />;
-  return <AdminDashboard />;  // superAdmin, schoolAdmin, accountant, etc.
+  if (user?.role === 'student') return <StudentDashboard />;
+  if (user?.role === 'parent')  return <ParentDashboard />;
+  if (user?.role === 'teacher') return <TeacherDashboard />;
+  return <AdminDashboard />;
 }
 
-// ── Admin-only guard ──────────────────────────────────────────────────────────
+// ── AdminRoute: staff roles only ──────────────────────────────────────────────
 const ADMIN_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'librarian', 'transportManager'];
 
 function AdminRoute({ children }) {
@@ -65,46 +74,61 @@ function AdminRoute({ children }) {
   return children;
 }
 
+// ── ReportRoute: roles that can access reports ────────────────────────────────
+const REPORT_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'librarian', 'transportManager'];
+
+function ReportRoute({ children }) {
+  const { user } = useAuth();
+  if (!REPORT_ROLES.includes(user?.role)) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-      <AuthProvider>
-        <Toaster position="top-right" />
-        <Routes>
-          {/* Public */}
-          <Route path="/"      element={<Landing />} />
-          <Route path="/login" element={<Login />}   />
+        <AuthProvider>
+          <Toaster position="top-right" />
+          <Routes>
+            {/* Public */}
+            <Route path="/"      element={<Landing />} />
+            <Route path="/login" element={<Login />}   />
 
-          {/* Protected — all roles */}
-          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            {/* Protected — all authenticated roles */}
+            <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 
-            {/* Smart dashboard — renders based on role */}
-            <Route path="dashboard" element={<SmartDashboard />} />
+              {/* Smart dashboard — renders based on role */}
+              <Route path="dashboard" element={<SmartDashboard />} />
 
-            {/* Profile — all roles */}
-            <Route path="profile" element={<Profile />} />
+              {/* Profile — all roles */}
+              <Route path="profile" element={<Profile />} />
 
-            {/* ── ADMIN-ONLY routes ── */}
-            <Route path="students"    element={<AdminRoute><Students /></AdminRoute>} />
-            <Route path="teachers"    element={<AdminRoute><Teachers /></AdminRoute>} />
-            <Route path="classes"     element={<AdminRoute><Classes /></AdminRoute>} />
-            <Route path="attendance"  element={<AdminRoute><Attendance /></AdminRoute>} />
-            <Route path="exams"       element={<AdminRoute><Exams /></AdminRoute>} />
-            <Route path="fees"        element={<AdminRoute><Fees /></AdminRoute>} />
-            <Route path="library"     element={<AdminRoute><Library /></AdminRoute>} />
-            <Route path="transport"   element={<AdminRoute><Transport /></AdminRoute>} />
-            <Route path="timetable"   element={<AdminRoute><Timetable /></AdminRoute>} />
-            <Route path="assignments" element={<AdminRoute><Assignments /></AdminRoute>} />
-            <Route path="notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
-            <Route path="admissions"  element={<AdminRoute><Admissions /></AdminRoute>} />
+              {/* ── Admin module routes ── */}
+              <Route path="students"      element={<AdminRoute><Students /></AdminRoute>} />
+              <Route path="teachers"      element={<AdminRoute><Teachers /></AdminRoute>} />
+              <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
+              <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
+              <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />
+              <Route path="fees"          element={<AdminRoute><Fees /></AdminRoute>} />
+              <Route path="library"       element={<AdminRoute><Library /></AdminRoute>} />
+              <Route path="transport"     element={<AdminRoute><Transport /></AdminRoute>} />
+              <Route path="timetable"     element={<AdminRoute><Timetable /></AdminRoute>} />
+              <Route path="assignments"   element={<AdminRoute><Assignments /></AdminRoute>} />
+              <Route path="notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
+              <Route path="admissions"    element={<AdminRoute><Admissions /></AdminRoute>} />
 
-          </Route>
+              {/* ── Report Module routes ── */}
+              <Route path="reports"          element={<ReportRoute><ReportsDashboard /></ReportRoute>} />
+              <Route path="reports/create"   element={<ReportRoute><CreateReport /></ReportRoute>} />
+              <Route path="reports/run"      element={<ReportRoute><ReportViewer /></ReportRoute>} />
+              <Route path="reports/edit/:id" element={<ReportRoute><CreateReport /></ReportRoute>} />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AuthProvider>
+            </Route>
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
