@@ -397,7 +397,7 @@ exports.assignStudent = async (req, res) => {
     });
   }
 
-  // Deactivate any existing assignment
+  // Deactivate any existing assignment for this student
   await TransportAssignment.updateMany(
     { student: studentId, school: req.user.school, isActive: true },
     { isActive: false }
@@ -413,7 +413,7 @@ exports.assignStudent = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid stop ID(s)' });
   }
 
-  const assignment = await TransportAssignment.create({
+  const assignmentData = {
     school:       req.user.school,
     student:      studentId,
     routeId,
@@ -432,9 +432,20 @@ exports.assignStudent = async (req, res) => {
       sequence: dStop.sequence,
       lat: dStop.location?.lat, lng: dStop.location?.lng,
     },
-    monthlyFee: monthlyFee || 0,
-    passType:   passType   || 'both',
-  });
+    monthlyFee:   monthlyFee || 0,
+    passType:     passType   || 'both',
+    isActive:     true,
+    assignedDate: new Date(),
+  };
+
+  // Use findOneAndUpdate + upsert so a stale unique DB index can never cause
+  // a duplicate-key error — overwrites any existing record for the same student
+  // instead of inserting a second document.
+  const assignment = await TransportAssignment.findOneAndUpdate(
+    { student: studentId, school: req.user.school },
+    { $set: assignmentData },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
   await assignment.populate([
     { path: 'student',      select: 'name rollNumber class' },
