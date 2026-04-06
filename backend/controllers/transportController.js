@@ -371,7 +371,7 @@ exports.getAssignments = async (req, res) => {
   if (req.query.student) filter.student  = req.query.student;
 
   const assignments = await TransportAssignment.find(filter)
-    .populate('student', 'name rollNumber class profileImage')
+    .populate({ path: 'student', select: 'rollNumber class user', populate: { path: 'user', select: 'name email profileImage' } })
     .populate('routeId', 'name code color')
     .populate('busId',   'busNumber registrationNo driver')
     .populate('pickupStopId', 'name morningArrivalTime')
@@ -507,7 +507,6 @@ async function _sendTransportDetail(req, res, studentDoc) {
   // ✅ FIX: query by student ID, use routeId/busId refs
   const assignment = await TransportAssignment.findOne({
     student: studentDoc._id,
-    school:  req.user.school,
     isActive: true,
   })
     .populate('routeId', 'name code color stops morningDepartureTime eveningDepartureTime')
