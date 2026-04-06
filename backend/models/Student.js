@@ -1,4 +1,4 @@
-// backend/models/Student.js — Enhanced Student Model
+// backend/models/Student.js
 const mongoose = require('mongoose');
 
 const StudentSchema = new mongoose.Schema({
@@ -28,14 +28,22 @@ const StudentSchema = new mongoose.Schema({
     country: { type: String, default: 'India' },
   },
 
-  // Guardian
-  parent:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  parentName:   String,
-  parentPhone:  String,
-  parentEmail:  String,
-  guardianName: String,
-  guardianPhone:String,
+  // ─── Parent / Guardian ────────────────────────────────────────────────────
+  // parentId is the CANONICAL link to the parent's User document (role='parent').
+  // All parent-auth middleware uses: Student.findOne({ parentId: req.user._id })
+  parentId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+
+  // String fields for display / search (always kept in sync with parentId's User doc)
+  parentName:       String,
+  parentPhone:      String,
+  parentEmail:      String,   // mirrors User.email of the parent User doc
+  guardianName:     String,
+  guardianPhone:    String,
   guardianRelation: String,
+
+  // Legacy alias — kept for backward compat with existing portal code
+  // @deprecated  use parentId
+  parent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
   // Academic
   admissionDate:  { type: Date, default: Date.now },
@@ -43,7 +51,7 @@ const StudentSchema = new mongoose.Schema({
   previousClass:  String,
 
   // Health
-  medicalInfo:   String,  // allergies, conditions
+  medicalInfo:   String,
   emergencyContact: {
     name:     String,
     phone:    String,
@@ -61,18 +69,22 @@ const StudentSchema = new mongoose.Schema({
   // System
   transportRoute: { type: mongoose.Schema.Types.ObjectId, ref: 'Transport' },
   libraryCard:    String,
-  qrCode:         String,  // stored QR code data URL or ID
+  qrCode:         String,
   isActive:       { type: Boolean, default: true },
   school:         { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt:      { type: Date, default: Date.now },
 });
 
-// Auto-generate QR code string before saving
+// Auto-generate QR code string; keep legacy `parent` field in sync with parentId
 StudentSchema.pre('save', function(next) {
   if (!this.qrCode) {
     this.qrCode = 'STU-QR-' + this._id.toString();
   }
+  if (this.parentId) this.parent = this.parentId;
   next();
 });
+
+StudentSchema.index({ parentId: 1, school: 1 });
+StudentSchema.index({ parentEmail: 1, school: 1 });
 
 module.exports = mongoose.models.Student || mongoose.model('Student', StudentSchema);

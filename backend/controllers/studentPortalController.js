@@ -19,7 +19,7 @@ async function resolveStudent(req) {
   }
   if (req.user.role === 'parent') {
     // Primary: match by parent ObjectId (set when student is created with parentEmail)
-    let child = await Student.findOne({ parent: req.user._id })
+    let child = await Student.findOne({ parentId: req.user._id })
       .populate('user', 'name email phone profileImage')
       .populate('class', 'name grade section');
 
@@ -31,7 +31,7 @@ async function resolveStudent(req) {
 
       // If found via email fallback, backfill the parent ObjectId so future lookups are fast
       if (child) {
-        await Student.findByIdAndUpdate(child._id, { parent: req.user._id });
+        await Student.findByIdAndUpdate(child._id, { parentId: req.user._id, parent: req.user._id });
         child.parent = req.user._id;
       }
     }
@@ -43,7 +43,7 @@ async function resolveStudent(req) {
 // ── GET /api/student/profile ─────────────────────────────────────────────────
 exports.getProfile = async (req, res) => {
   const student = await Student.findOne(
-    req.user.role === 'student' ? { user: req.user._id } : { parent: req.user._id }
+    req.user.role === 'student' ? { user: req.user._id } : { parentId: req.user._id }
   )
     .populate('user',           'name email phone profileImage')
     .populate('class',          'name grade section')
@@ -239,7 +239,7 @@ exports.getDashboard = async (req, res) => {
       .populate('class', 'name grade section');
   } else {
     // parent — primary lookup by ObjectId
-    student = await Student.findOne({ parent: req.user._id })
+    student = await Student.findOne({ parentId: req.user._id })
       .populate('user',  'name email phone profileImage')
       .populate('class', 'name grade section');
 
@@ -251,7 +251,7 @@ exports.getDashboard = async (req, res) => {
 
       // Backfill parent ObjectId so this only runs once
       if (student) {
-        await Student.findByIdAndUpdate(student._id, { parent: req.user._id });
+        await Student.findByIdAndUpdate(student._id, { parentId: req.user._id, parent: req.user._id });
       }
     }
   }
