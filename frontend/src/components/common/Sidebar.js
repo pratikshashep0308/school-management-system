@@ -20,13 +20,10 @@ const MENU_ITEMS = [
   { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },
   { path: '/notifications', icon: '🔔', label: 'Notifications', roles: ADMIN_ROLES },
   { path: '/admissions',    icon: '📄', label: 'Admissions',    roles: ADMIN_ROLES },
-  // ── Report Module ──────────────────────────────────────────────────────────
   { path: '/reports',       icon: '📊', label: 'Reports',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager'] },
-  // ── Profile (always last) ──────────────────────────────────────────────────
   { path: '/profile',       icon: '👤', label: 'My Profile',    roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
 ];
 
-// Portal nav sections for student/parent
 const PORTAL_SECTIONS = [
   {
     group: 'ACADEMICS',
@@ -58,14 +55,29 @@ const ROLE_META = {
   parent:           { label: 'Parent',            emoji: '👨‍👩‍👧', color: '#7c3aed' },
 };
 
+// ── Sidebar rainbow name — compact version ────────────────────────────────────
+function SidebarSchoolName() {
+  return (
+    <div style={{ lineHeight: 1.15 }}>
+      <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontWeight: 900, fontSize: 13.5, display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+        <span style={{ color: '#EF5350' }}>The&nbsp;</span>
+        <span style={{ color: '#66BB6A' }}>Future&nbsp;</span>
+        <span style={{ color: '#AB47BC' }}>Step&nbsp;</span>
+        <span style={{ color: '#FFA726' }}>School</span>
+      </div>
+      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.28)', marginTop: 2, letterSpacing: '0.04em', fontWeight: 600 }}>
+        Management Portal
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabChange }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const meta = ROLE_META[user?.role] || { label: user?.role, emoji: '👤', color: '#64748b' };
   const isPortalUser = user?.role === 'student' || user?.role === 'parent';
-
   const visibleItems = MENU_ITEMS.filter(item => item.roles.includes(user?.role));
-
   const handleLogout = () => { logout(); navigate('/login'); };
 
   const portalSections = user?.role === 'parent'
@@ -77,8 +89,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
   return (
     <>
       {isOpen && (
-        <div
-          onClick={onClose}
+        <div onClick={onClose}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }}
           className="lg:hidden"
         />
@@ -87,10 +98,9 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
       <aside style={{
         width: 240,
         height: '100vh',
-        background: 'linear-gradient(180deg, #080f1f 0%, #0b1830 50%, #0d1e38 100%)',
+        background: 'linear-gradient(180deg, #07101f 0%, #0a1628 60%, #0c1c34 100%)',
         position: 'fixed',
-        left: 0,
-        top: 0,
+        left: 0, top: 0,
         display: 'flex',
         flexDirection: 'column',
         zIndex: 50,
@@ -98,69 +108,72 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         transform: isOpen === false ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         overflowY: 'auto',
-        boxShadow: '4px 0 30px rgba(0,0,0,0.4)',
+        boxShadow: '4px 0 40px rgba(0,0,0,0.5)',
       }}>
 
-        {/* School Logo */}
+        {/* ── School Logo + Name ── */}
         <div style={{
-          padding: '20px 18px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          padding: '18px 16px 14px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.02)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Real school logo with indigo ring */}
             <div style={{
-              width: 40, height: 40, borderRadius: 12,
-              background: 'linear-gradient(135deg, #e87722 0%, #c95e0e 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 20, flexShrink: 0,
-              boxShadow: '0 4px 16px rgba(232,119,34,0.4)',
-            }}>🏫</div>
-            <div>
-              <div style={{
-                fontSize: 13.5, fontWeight: 900, color: '#fff',
-                letterSpacing: '-0.4px', lineHeight: 1.2,
-              }}>
-                Future Step School
-              </div>
-              <div style={{
-                fontSize: 10, color: 'rgba(255,255,255,0.3)',
-                marginTop: 2, letterSpacing: '0.3px',
-              }}>
-                Management Portal
-              </div>
+              width: 44, height: 44, borderRadius: '50%',
+              padding: 2.5,
+              background: 'linear-gradient(135deg, #5C6BC0, #3949AB, #283593)',
+              flexShrink: 0,
+              boxShadow: '0 4px 18px rgba(57,73,171,0.5)',
+            }}>
+              <img
+                src="/school-logo.jpeg"
+                alt="The Future Step School"
+                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                onError={e => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.style.display = 'flex';
+                  e.target.parentElement.style.alignItems = 'center';
+                  e.target.parentElement.style.justifyContent = 'center';
+                  e.target.parentElement.style.fontSize = '20px';
+                  e.target.parentElement.innerHTML = '💎';
+                }}
+              />
             </div>
+            <SidebarSchoolName />
           </div>
         </div>
 
-        {/* User Profile Badge */}
+        {/* ── User Profile Badge ── */}
         <div style={{
-          padding: '14px 18px',
+          padding: '12px 14px',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 12px', borderRadius: 12,
+            padding: '9px 11px', borderRadius: 11,
             background: `${meta.color}12`,
             border: `1px solid ${meta.color}25`,
           }}>
             <div style={{
-              width: 38, height: 38, borderRadius: '50%',
+              width: 36, height: 36, borderRadius: '50%',
               background: `${meta.color}20`,
               border: `2px solid ${meta.color}50`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 17, flexShrink: 0,
+              fontSize: 16, flexShrink: 0,
             }}>
               {meta.emoji}
             </div>
             <div style={{ overflow: 'hidden', flex: 1 }}>
               <div style={{
-                fontSize: 13, fontWeight: 800, color: '#fff',
+                fontSize: 12.5, fontWeight: 800, color: '#fff',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {user?.name}
               </div>
               <div style={{
-                fontSize: 10, fontWeight: 800, color: meta.color,
-                textTransform: 'uppercase', letterSpacing: '0.6px',
+                fontSize: 9.5, fontWeight: 800, color: meta.color,
+                textTransform: 'uppercase', letterSpacing: '0.7px', marginTop: 1,
               }}>
                 {meta.label}
               </div>
@@ -168,21 +181,20 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav style={{ flex: 1, padding: '10px 10px 6px', overflowY: 'auto' }}>
+        {/* ── Navigation ── */}
+        <nav style={{ flex: 1, padding: '8px 8px 4px', overflowY: 'auto' }}>
           {isPortalUser ? (
             <>
-              {/* Profile link for portal users */}
               <NavLink
                 to="/profile"
                 onClick={onClose}
                 style={({ isActive }) => ({
                   display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '9px 12px', borderRadius: 10, marginBottom: 8,
+                  padding: '8px 11px', borderRadius: 9, marginBottom: 6,
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
                   transition: 'all 0.15s',
                   background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.5)',
+                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.45)',
                   borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
                 })}
               >
@@ -190,13 +202,12 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                 My Profile
               </NavLink>
 
-              {/* Portal sections */}
               {portalSections.map(section => (
-                <div key={section.group} style={{ marginBottom: 6 }}>
+                <div key={section.group} style={{ marginBottom: 4 }}>
                   <div style={{
-                    fontSize: 9, fontWeight: 900, color: 'rgba(255,255,255,0.22)',
-                    letterSpacing: '1.4px', textTransform: 'uppercase',
-                    padding: '6px 14px 4px',
+                    fontSize: 8.5, fontWeight: 900, color: 'rgba(255,255,255,0.2)',
+                    letterSpacing: '1.5px', textTransform: 'uppercase',
+                    padding: '5px 14px 3px',
                   }}>
                     {section.group}
                   </div>
@@ -211,12 +222,12 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                           navigate('/dashboard');
                         }}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                          padding: '9px 12px', borderRadius: 10, marginBottom: 2,
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          width: '100%', padding: '8px 11px', borderRadius: 9, marginBottom: 1,
                           border: 'none', cursor: 'pointer', textAlign: 'left',
                           fontSize: 12.5, fontWeight: 700, transition: 'all 0.15s',
                           background: isActive ? `${meta.color}18` : 'transparent',
-                          color: isActive ? meta.color : 'rgba(255,255,255,0.5)',
+                          color: isActive ? meta.color : 'rgba(255,255,255,0.45)',
                           borderLeft: isActive ? `3px solid ${meta.color}` : '3px solid transparent',
                         }}
                       >
@@ -224,7 +235,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                         <span style={{ flex: 1 }}>{item.label}</span>
                         {isActive && (
                           <span style={{
-                            width: 6, height: 6, borderRadius: '50%',
+                            width: 5, height: 5, borderRadius: '50%',
                             background: meta.color,
                             boxShadow: `0 0 8px ${meta.color}`,
                             flexShrink: 0,
@@ -237,50 +248,42 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
               ))}
             </>
           ) : (
-            <>
-              {visibleItems.map(item => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose}
-                  style={({ isActive }) => ({
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 12px', borderRadius: 10, marginBottom: 2,
-                    textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
-                    transition: 'all 0.15s',
-                    background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                    color: isActive ? '#e87722' : 'rgba(255,255,255,0.5)',
-                    borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
-                  })}
-                >
-                  <span style={{ fontSize: 14 }}>{item.icon}</span>
-                  {item.label}
-                </NavLink>
-              ))}
-            </>
+            visibleItems.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={onClose}
+                style={({ isActive }) => ({
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 11px', borderRadius: 9, marginBottom: 1,
+                  textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
+                  transition: 'all 0.15s',
+                  background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
+                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.45)',
+                  borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
+                })}
+              >
+                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))
           )}
         </nav>
 
-        {/* Logout */}
-        <div style={{ padding: '10px 10px 14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        {/* ── Logout ── */}
+        <div style={{ padding: '8px 8px 14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button
             onClick={handleLogout}
             style={{
-              width: '100%', padding: '9px 12px', borderRadius: 10,
+              width: '100%', padding: '9px 11px', borderRadius: 9,
               border: '1px solid rgba(239,68,68,0.15)', cursor: 'pointer',
               background: 'rgba(239,68,68,0.07)', color: '#f87171',
               fontSize: 12.5, fontWeight: 700,
               display: 'flex', alignItems: 'center', gap: 10,
               transition: 'all 0.15s',
             }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
-              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(239,68,68,0.07)';
-              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.15)';
-            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.07)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.15)'; }}
           >
             <span>🚪</span> Logout
           </button>
