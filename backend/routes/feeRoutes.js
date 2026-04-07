@@ -3,6 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const ctrl = require('../controllers/feeController');
+// analytics is added as ctrl.getAnalytics
 
 router.use(protect);
 
@@ -13,6 +14,7 @@ const STAFF = ['superAdmin', 'schoolAdmin', 'accountant', 'teacher'];
 
 // Dashboard
 router.get('/dashboard',      authorize(...ADMIN), ctrl.getDashboard);
+router.get('/analytics',      authorize(...ADMIN), ctrl.getAnalytics);   // ← NEW: school-wide analytics
 
 // Summary & analytics (existing — kept)
 router.get('/summary',        authorize(...ADMIN), ctrl.getOverallSummary);

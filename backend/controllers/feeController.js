@@ -515,3 +515,215 @@ exports.downloadReceipt = async (req, res) => {
     remarks:        payment.remarks,
   });
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /fees/analytics
+// Comprehensive school-wide fee analytics:
+//   totalFees, collected, pending, overdue, today, monthly trend,
+//   yearly comparison, fee-type breakdown, class leaderboard
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getAnalytics = async (req, res) => {
+  const school = new mongoose.Types.ObjectId(req.user.school);
+  const now    = new Date();
+
+  // ── Date boundaries ────────────────────────────────────────────────────────
+  const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+  const todayEnd   = new Date(now); todayEnd.setHours(23,59,59,999);
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const yearStart  = new Date(now.getFullYear(), 0, 1);
+  const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+  const prevYearEnd   = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+
+  // ── Run all aggregations in parallel ──────────────────────────────────────
+  const [
+    overallStats,
+    todayPayments,
+    monthlyPayments,
+    monthlyTrend,
+    yearlyComparison,
+    classSummary,
+    feeTypeSummary,
+    paymentMethodBreakdown,
+  ] = await Promise.all([
+
+    // 1. School-wide totals from StudentFee ledger
+    StudentFee.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id:            null,
+        totalStudents:  { $sum: 1 },
+        totalFees:      { $sum: '$totalFees' },
+        totalCollected: { $sum: '$paidAmount' },
+        totalPending:   { $sum: '$pendingAmount' },
+        paidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
+        partialCount:   { $sum: { $cond: [{ $eq: ['$paymentStatus','partial'] }, 1, 0] } },
+        notPaidCount:   { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
+      }},
+    ]),
+
+    // 2. Today's collection
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: todayStart, $lte: todayEnd } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+
+    // 3. This month's collection
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: monthStart, $lte: monthEnd } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+
+    // 4. Monthly trend — last 12 months (Jan–Dec of current year)
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: yearStart } } },
+      { $group: {
+        _id:   { month: { $month: '$createdAt' }, year: { $year: '$createdAt' } },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+      }},
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]),
+
+    // 5. Yearly comparison — this year vs last year
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: prevYearStart } } },
+      { $group: {
+        _id:   { year: { $year: '$createdAt' } },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+      }},
+      { $sort: { '_id.year': 1 } },
+    ]),
+
+    // 6. Class-wise breakdown (top and bottom performers)
+    StudentFee.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id:            '$class',
+        totalFees:      { $sum: '$totalFees' },
+        totalCollected: { $sum: '$paidAmount' },
+        totalPending:   { $sum: '$pendingAmount' },
+        studentCount:   { $sum: 1 },
+        paidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
+        notPaidCount:   { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
+      }},
+      { $lookup: { from: 'classes', localField: '_id', foreignField: '_id', as: '_class' } },
+      { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
+      { $addFields: {
+        className:      { $concat: [{ $ifNull: ['$_class.name',''] }, ' ', { $ifNull: ['$_class.section',''] }] },
+        grade:          '$_class.grade',
+        collectionRate: {
+          $cond: [
+            { $gt: ['$totalFees', 0] },
+            { $round: [{ $multiply: [{ $divide: ['$totalCollected','$totalFees'] }, 100] }, 1] },
+            0,
+          ],
+        },
+      }},
+      { $sort: { collectionRate: -1 } },
+    ]),
+
+    // 7. Fee-type breakdown (FeeAssignment grouped by feeType)
+    // Try FeeAssignment first; fall back gracefully if model doesn't exist yet
+    (async () => {
+      try {
+        const FeeAssignment = require('../models/FeeAssignment');
+        const FeeType       = require('../models/FeeType');
+        return await FeeAssignment.aggregate([
+          { $match: { school } },
+          { $group: {
+            _id:          '$feeType',
+            totalAmount:  { $sum: '$finalAmount' },
+            paidAmount:   { $sum: '$paidAmount' },
+            pendingAmount:{ $sum: '$pendingAmount' },
+            count:        { $sum: 1 },
+          }},
+          { $lookup: { from: 'feetypes', localField: '_id', foreignField: '_id', as: '_type' } },
+          { $unwind: { path: '$_type', preserveNullAndEmptyArrays: true } },
+          { $addFields: { typeName: { $ifNull: ['$_type.name','General'] }, category: '$_type.category' } },
+          { $sort: { totalAmount: -1 } },
+        ]);
+      } catch { return []; }
+    })(),
+
+    // 8. Payment method breakdown
+    FeePayment.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id:   '$method',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+      }},
+      { $sort: { total: -1 } },
+    ]),
+  ]);
+
+  // ── Overdue count (from FeeAssignment if available) ────────────────────────
+  let overdueCount = 0;
+  try {
+    const FeeAssignment = require('../models/FeeAssignment');
+    overdueCount = await FeeAssignment.countDocuments({ school, status: 'overdue' });
+  } catch { overdueCount = 0; }
+
+  // ── Build monthly trend array (fill missing months with 0) ─────────────────
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const trendMap = {};
+  monthlyTrend.forEach(m => { trendMap[m._id.month] = m; });
+  const monthlyTrendFull = MONTH_NAMES.map((name, i) => {
+    const m = trendMap[i + 1];
+    return { month: name, monthNum: i + 1, total: m?.total || 0, count: m?.count || 0 };
+  });
+
+  // ── Yearly comparison ──────────────────────────────────────────────────────
+  const thisYearData = yearlyComparison.find(y => y._id.year === now.getFullYear());
+  const lastYearData = yearlyComparison.find(y => y._id.year === now.getFullYear() - 1);
+  const yearGrowth   = lastYearData?.total > 0
+    ? Math.round(((thisYearData?.total || 0) - lastYearData.total) / lastYearData.total * 100)
+    : null;
+
+  // ── Class leaderboard: top 5 and bottom 5 ─────────────────────────────────
+  const topClasses    = classSummary.slice(0, 5);
+  const bottomClasses = [...classSummary].sort((a, b) => a.collectionRate - b.collectionRate).slice(0, 5);
+
+  // ── Overall stats ──────────────────────────────────────────────────────────
+  const overall = overallStats[0] || {};
+
+  res.json({
+    success: true,
+    data: {
+      // Core totals
+      totalFees:         overall.totalFees      || 0,
+      totalCollected:    overall.totalCollected  || 0,
+      totalPending:      overall.totalPending    || 0,
+      totalOverdue:      overdueCount,
+      totalStudents:     overall.totalStudents   || 0,
+      paidCount:         overall.paidCount       || 0,
+      partialCount:      overall.partialCount    || 0,
+      notPaidCount:      overall.notPaidCount    || 0,
+      collectionRate:    overall.totalFees > 0
+        ? Math.round((overall.totalCollected / overall.totalFees) * 100) : 0,
+
+      // Time-based
+      todayCollection:   todayPayments[0]?.total   || 0,
+      todayCount:        todayPayments[0]?.count    || 0,
+      monthlyCollection: monthlyPayments[0]?.total  || 0,
+      monthlyCount:      monthlyPayments[0]?.count  || 0,
+
+      // Yearly
+      thisYearTotal:     thisYearData?.total || 0,
+      lastYearTotal:     lastYearData?.total || 0,
+      yearGrowthPct:     yearGrowth,
+
+      // Charts
+      monthlyTrend:       monthlyTrendFull,
+      classSummary,
+      topClasses,
+      bottomClasses,
+      feeTypeSummary,
+      paymentMethodBreakdown,
+    },
+  });
+};

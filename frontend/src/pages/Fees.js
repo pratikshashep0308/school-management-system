@@ -6,17 +6,19 @@ import FeeTypes       from './Fees/FeeTypes';
 import AssignFees     from './Fees/AssignFees';
 import StudentFees    from './Fees/StudentFees';
 import PaymentHistory from './Fees/PaymentHistory';
+import FeesAnalytics  from './Fees/FeesAnalytics';
 
 export default function Fees() {
   const { user } = useAuth();
   const isAdmin = ['superAdmin','schoolAdmin','accountant'].includes(user?.role);
 
   const tabs = [
-    { key: 'dashboard', label: '📊 Dashboard',   show: true },
-    { key: 'types',     label: '🏷 Fee Types',    show: isAdmin },
-    { key: 'assign',    label: '📋 Assign Fees',  show: isAdmin },
-    { key: 'students',  label: '👥 Students',     show: isAdmin },
-    { key: 'history',   label: '📜 History',      show: true },
+    { key: 'dashboard',  label: '📊 Dashboard',   show: true },
+    { key: 'analytics',  label: '📈 Analytics',   show: isAdmin },
+    { key: 'types',      label: '🏷 Fee Types',    show: isAdmin },
+    { key: 'assign',     label: '📋 Assign Fees',  show: isAdmin },
+    { key: 'students',   label: '👥 Students',     show: isAdmin },
+    { key: 'history',    label: '📜 History',      show: true },
   ].filter(t => t.show);
 
   const [tab, setTab] = useState('dashboard');
@@ -41,6 +43,7 @@ export default function Fees() {
       {tab === 'assign'    && <AssignFees />}
       {tab === 'students'  && <StudentFees />}
       {tab === 'history'   && <PaymentHistory />}
+      {tab === 'analytics' && <FeesAnalytics />}
     </div>
   );
 }
