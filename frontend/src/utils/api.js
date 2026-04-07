@@ -4,7 +4,7 @@ import axios from 'axios';
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30000, // 30s — reports can be slow on large datasets
+  timeout: 30000,
 });
 
 // ── Request interceptor: attach token ─────────────────────────────────────────
@@ -24,12 +24,9 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const url    = error.config?.url || '';
 
-    // Token genuinely expired or invalid → force re-login
     if (status === 401) {
       const msg = error.response?.data?.message || '';
       const isExpired = msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('invalid');
-
-      // Only auto-logout on /auth/me or token-expired errors (not permission denials)
       if (url.includes('/auth/me') || isExpired) {
         localStorage.removeItem('token');
         delete api.defaults.headers.common['Authorization'];
@@ -121,9 +118,57 @@ export const feeAPI = {
 
 // ── TIMETABLE ─────────────────────────────────────────────────────────────────
 export const timetableAPI = {
-  get:    (classId) => api.get('/timetable', { params: { classId } }),
-  save:   (data)    => api.post('/timetable', data),
-  delete: (id)      => api.delete(`/timetable/${id}`),
+  // Get all timetables (filter by classId, version, isActive)
+  getAll:      (params)    => api.get('/timetable', { params }),
+
+  // Get single timetable by ID
+  getById:     (id)        => api.get(`/timetable/${id}`),
+
+  // Get the active timetable for a class
+  getClass:    (classId)   => api.get(`/timetable/class/${classId}`),
+
+  // Get a teacher's personal weekly schedule
+  getTeacher:  (teacherId) => api.get(`/timetable/teacher/${teacherId}`),
+
+  // Get a student's class timetable
+  getStudent:  (studentId) => api.get(`/timetable/student/${studentId}`),
+
+  // Get all saved versions for a class
+  getVersions: (classId)   => api.get(`/timetable/versions/${classId}`),
+
+  // Create a new timetable
+  create:      (data)      => api.post('/timetable', data),
+
+  // Update an existing timetable
+  update:      (id, data)  => api.put(`/timetable/${id}`, data),
+
+  // Delete a timetable
+  delete:      (id)        => api.delete(`/timetable/${id}`),
+
+  // Switch active version
+  activate:    (id)        => api.put(`/timetable/${id}/activate`),
+
+  // Assign substitute teacher to a period
+  assignSubstitute: (id, data) => api.post(`/timetable/${id}/substitute`, data),
+
+  // Remove substitute from a period
+  removeSubstitute: (id, data) => api.delete(`/timetable/${id}/substitute`, { data }),
+
+  // Auto-generate a full timetable
+  autoGenerate: (data)     => api.post('/timetable/auto-generate', data),
+
+  // Validate a draft schedule for conflicts (without saving)
+  validate:    (data)      => api.post('/timetable/validate', data),
+
+  // Export as PDF — returns blob
+  export:      (id, format = 'pdf') => api.get(`/timetable/export/${id}`, {
+    params: { format },
+    responseType: 'blob',
+  }),
+
+  // Legacy aliases for backward compat
+  get:  (classId) => api.get('/timetable', { params: { classId } }),
+  save: (data)    => api.post('/timetable', data),
 };
 
 // ── ASSIGNMENTS ───────────────────────────────────────────────────────────────
@@ -186,24 +231,18 @@ export const admissionAPI = {
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────
 export const reportAPI = {
-  // Meta & config
   getMeta:       ()     => api.get('/reports/meta'),
   getDashboard:  ()     => api.get('/reports/dashboard'),
   getPredefined: ()     => api.get('/reports/predefined'),
   getTemplates:  ()     => api.get('/reports/templates'),
-
-  // CRUD
   getAll:        ()     => api.get('/reports'),
   getById:       (id)   => api.get(`/reports/${id}`),
   create:        (data) => api.post('/reports', data),
   update:        (id, data) => api.put(`/reports/${id}`, data),
   delete:        (id)   => api.delete(`/reports/${id}`),
-
-  // Execution
   run:           (payload) => api.post('/reports/run', payload),
   smartSearch:   (query)   => api.post('/reports/smart-search', { query }),
 
-  // Export — triggers browser file download
   export: async ({ format, reportId, module, fields, filters, groupBy, sortBy, reportName }) => {
     const res = await api.post(
       '/reports/export',
