@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+require('./Timetable'); // registers Timetable model from standalone file
 
 require('./School'); // ensure School schema is registered
 // ── CLASS ──
@@ -174,21 +175,7 @@ StudentFeeSchema.pre('save', function(next) {
 
 
 
-// ── TIMETABLE ──
-const TimetableSchema = new mongoose.Schema({
-  class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
-  day: { type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], required: true },
-  periods: [{
-    periodNumber: Number,
-    subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
-    teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
-    startTime: String,  // "09:00"
-    endTime: String,    // "09:45"
-    room: String
-  }],
-  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
-  createdAt: { type: Date, default: Date.now }
-});
+
 
 // ── ASSIGNMENT ──
 const AssignmentSchema = new mongoose.Schema({
@@ -291,7 +278,6 @@ module.exports.Exam = mongoose.model('Exam', ExamSchema);
 module.exports.Result = mongoose.model('Result', ResultSchema);
 module.exports.FeeStructure = mongoose.model('FeeStructure', FeeStructureSchema);
 module.exports.FeePayment = mongoose.model('FeePayment', FeePaymentSchema);
-module.exports.Timetable = mongoose.model('Timetable', TimetableSchema);
 module.exports.Assignment = mongoose.model('Assignment', AssignmentSchema);
 module.exports.Book = mongoose.model('Book', BookSchema);
 module.exports.BookIssue = mongoose.model('BookIssue', BookIssueSchema);

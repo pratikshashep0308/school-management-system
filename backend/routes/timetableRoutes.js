@@ -1,34 +1,54 @@
-// timetableRoutes.js
+// backend/routes/timetableRoutes.js
 const express = require('express');
+const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { Timetable } = require('../models/index');
 
-const router = express.Router();
+const {
+  getTimetables,
+  getTimetable,
+  getClassTimetable,
+  getTeacherTimetable,
+  getStudentTimetable,
+  getVersions,
+  createTimetable,
+  updateTimetable,
+  deleteTimetable,
+  activateVersion,
+  assignSubstitute,
+  removeSubstitute,
+  autoGenerateTimetable,
+  validateTimetable,
+  exportTimetable,
+} = require('../controllers/timetableController');
+
+// All routes require login
 router.use(protect);
 
-router.get('/', async (req, res) => {
-  const { classId } = req.query;
-  const filter = { school: req.user.school };
-  if (classId) filter.class = classId;
-  const timetables = await Timetable.find(filter)
-    .populate('periods.subject', 'name code')
-    .populate({ path: 'periods.teacher', populate: { path: 'user', select: 'name' } })
-    .sort({ day: 1 });
-  res.json({ success: true, data: timetables });
-});
+const ADMIN      = ['superAdmin', 'schoolAdmin'];
+const STAFF      = ['superAdmin', 'schoolAdmin', 'teacher'];
+const ALL_STAFF  = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'librarian', 'transportManager'];
 
-router.post('/', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
-  const tt = await Timetable.findOneAndUpdate(
-    { class: req.body.class, day: req.body.day, school: req.user.school },
-    { ...req.body, school: req.user.school },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-  res.status(201).json({ success: true, data: tt });
-});
+// ── Read (all roles) ──────────────────────────────────────────────────────────
+router.get('/',                        getTimetables);
+router.get('/class/:classId',          getClassTimetable);
+router.get('/teacher/:teacherId',      getTeacherTimetable);
+router.get('/student/:studentId',      getStudentTimetable);
+router.get('/versions/:classId',       getVersions);
+router.get('/export/:id',              exportTimetable);
+router.get('/:id',                     getTimetable);
 
-router.delete('/:id', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
-  await Timetable.findByIdAndDelete(req.params.id);
-  res.json({ success: true, message: 'Timetable entry deleted' });
-});
+// ── Write (admin only) ────────────────────────────────────────────────────────
+router.post('/',                       authorize(...ADMIN), createTimetable);
+router.put('/:id',                     authorize(...ADMIN), updateTimetable);
+router.delete('/:id',                  authorize(...ADMIN), deleteTimetable);
+router.put('/:id/activate',            authorize(...ADMIN), activateVersion);
+
+// ── Substitute management (admin) ─────────────────────────────────────────────
+router.post('/:id/substitute',         authorize(...ADMIN), assignSubstitute);
+router.delete('/:id/substitute',       authorize(...ADMIN), removeSubstitute);
+
+// ── Auto-generation & validation ──────────────────────────────────────────────
+router.post('/auto-generate',          authorize(...ADMIN), autoGenerateTimetable);
+router.post('/validate',               authorize(...ADMIN), validateTimetable);
 
 module.exports = router;
