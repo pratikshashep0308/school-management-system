@@ -124,7 +124,8 @@ export default function ParentDashboard() {
   const attendance  = data?.attendance   || { present: 0, absent: 0, total: 0, records: [] };
   const exams       = data?.exams        || [];
   const fees        = data?.fees         || [];
-  const timetable   = data?.timetable    || [];
+  const timetableDoc = data?.timetable || null;
+  const timetable    = timetableDoc?.schedule || [];
   const assignments = data?.assignments  || [];
   const transport   = data?.transport    || null;
   const notifications = data?.notifications || [];
@@ -135,11 +136,13 @@ export default function ParentDashboard() {
   const pendingFees = fees.filter(f => f.status !== 'paid');
   const dueAssignments = assignments.filter(a => a.dueDate && new Date(a.dueDate) >= new Date() && !a.submitted);
 
-  // Timetable lookup
+  // Timetable lookup from new schedule structure
   const ttMap = {};
   DAYS.forEach(d => { ttMap[d] = {}; });
-  timetable.forEach(tt => {
-    tt.periods?.forEach(p => { if (ttMap[tt.day]) ttMap[tt.day][p.periodNumber] = p; });
+  timetable.forEach(ds => {
+    (ds.periods || []).forEach(p => {
+      if (ttMap[ds.day]) ttMap[ds.day][p.periodNumber] = p;
+    });
   });
 
   const childName = student.user?.name || selected?.user?.name || 'Child';

@@ -3,8 +3,9 @@
 // Never trust req.params for identity — always use req.user from JWT
 
 const Student    = require('../models/Student');
-const { Attendance, Result, Exam, FeePayment, StudentFee, Timetable,
+const { Attendance, Result, Exam, FeePayment, StudentFee,
         Assignment, Notification, Class } = require('../models/index');
+const Timetable = require('../models/Timetable'); // ← new advanced model
 
 // ── HELPER: resolve studentDoc from token ────────────────────────────────────
 // Returns the student document for whoever is logged in (student or parent)
@@ -181,10 +182,22 @@ exports.getTimetable = async (req, res) => {
   const student = await resolveStudent(req);
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-  const timetable = await Timetable.find({ class: student.class })
-    .populate('subject', 'name code')
-    .populate('teacher', 'name')
-    .sort({ day: 1, startTime: 1 });
+  if (!student.class) {
+    return res.status(404).json({ success: false, message: 'Student has no class assigned' });
+  }
+
+  // Query the new advanced Timetable model — find the active timetable for this class
+  const timetable = await Timetable.findOne({
+    class:    student.class,
+    isActive: true,
+  })
+    .populate('schedule.periods.subject', 'name code')
+    .populate({ path: 'schedule.periods.teacher', populate: { path: 'user', select: 'name' } })
+    .populate('class', 'name grade section');
+
+  if (!timetable) {
+    return res.json({ success: true, data: null, message: 'No timetable configured for this class' });
+  }
 
   res.json({ success: true, data: timetable });
 };
@@ -339,6 +352,23 @@ exports.getDashboard = async (req, res) => {
   const attTotal   = attendance.length;
   const attPresent = attendance.filter(a => a.status === 'present').length;
 
+  // Fetch active timetable for the student's class
+  let timetableData = null;
+  if (student.class) {
+    try {
+      timetableData = await Timetable.findOne({
+        class:    student.class,
+        isActive: true,
+      })
+        .populate('schedule.periods.subject', 'name code')
+        .populate({ path: 'schedule.periods.teacher', populate: { path: 'user', select: 'name' } })
+        .populate('class', 'name grade section')
+        .lean();
+    } catch (err) {
+      console.error('Timetable fetch error:', err.message);
+    }
+  }
+
   // Build a fees array that the dashboard UI (ParentDashboard / StudentDashboard) can consume.
   // The UI reads: fees.filter(f => f.status !== 'paid') for pendingFees,
   // and fees.filter(f => f.status === 'paid').reduce(...) for paid amount.
@@ -392,6 +422,7 @@ exports.getDashboard = async (req, res) => {
       upcomingAssignments: assignmentsWithStatus,   // alias
       notifications,
       transport:           allocation,              // student's own route info
+      timetable:           timetableData,           // class weekly timetable
     },
   });
 };
