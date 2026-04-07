@@ -1,265 +1,185 @@
 // backend/services/timetableService.js
-// Core business logic: conflict detection + auto-generation algorithm
-
 const mongoose = require('mongoose');
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
-
-// Convert "HH:MM" to total minutes since midnight
 function toMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
+  if (!timeStr) return 540;
+  const clean = String(timeStr).trim();
+  const ampm = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (ampm) {
+    let h = parseInt(ampm[1]);
+    const m = parseInt(ampm[2]);
+    if (ampm[3].toUpperCase() === 'AM' && h === 12) h = 0;
+    if (ampm[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+    return h * 60 + m;
+  }
+  const parts = clean.split(':');
+  if (parts.length >= 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  return 540;
 }
 
-// Convert minutes back to "HH:MM"
 function toTimeStr(minutes) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
 
-// Check if two time ranges overlap
-function timesOverlap(start1, end1, start2, end2) {
-  const s1 = toMinutes(start1), e1 = toMinutes(end1);
-  const s2 = toMinutes(start2), e2 = toMinutes(end2);
-  return s1 < e2 && s2 < e1;
+function timesOverlap(s1, e1, s2, e2) {
+  return toMinutes(s1) < toMinutes(e2) && toMinutes(s2) < toMinutes(e1);
 }
 
 // ─── CONFLICT DETECTION ───────────────────────────────────────────────────────
-// Called before every save/update. Returns array of conflict descriptions.
-
-/**
- * detectConflicts
- * @param {Object} incomingTT  - the timetable being saved/updated
- * @param {String} schoolId    - school scope
- * @param {String|null} excludeId - id to exclude (own doc when updating)
- * @returns {Array<string>} - list of conflict messages (empty = no conflicts)
- */
 exports.detectConflicts = async function(incomingTT, schoolId, excludeId = null) {
   const Timetable = require('../models/Timetable');
   const conflicts = [];
 
-  // All other active timetables in this school (excluding the one being saved)
-  const query = { school: schoolId, isActive: true };
-  if (excludeId) query._id = { $ne: new mongoose.Types.ObjectId(excludeId) };
-  // Also exclude same class (same class will be updated, not duplicated)
-  if (incomingTT.class) query.class = { $ne: new mongoose.Types.ObjectId(incomingTT.class) };
+  const query = { school: new mongoose.Types.ObjectId(schoolId), isActive: true };
+  if (excludeId) {
+    try { query._id = { $ne: new mongoose.Types.ObjectId(excludeId) }; } catch(e) {}
+  }
+  if (incomingTT.class) {
+    try { query.class = { $ne: new mongoose.Types.ObjectId(incomingTT.class) }; } catch(e) {}
+  }
 
-  const otherTimetables = await Timetable.find(query)
-    .populate('class', 'name grade section')
-    .lean();
+  const others = await Timetable.find(query).populate('class','name section').lean();
 
-  // Build a lookup of every teacher slot across all other classes:
-  // { teacherId: { day: [{ startTime, endTime, className }] } }
+  // Build teacher → day → slots map from other timetables
   const teacherSlots = {};
-
-  otherTimetables.forEach(tt => {
-    const className = tt.class ? `${tt.class.name} ${tt.class.section || ''}`.trim() : 'Unknown';
-    (tt.schedule || []).forEach(daySchedule => {
-      (daySchedule.periods || []).forEach(period => {
-        if (!period.teacher || period.type === 'break' || period.type === 'lunch' || period.type === 'free') return;
-        const tid = period.teacher.toString();
+  others.forEach(tt => {
+    const cname = tt.class ? `${tt.class.name} ${tt.class.section||''}`.trim() : 'Other';
+    (tt.schedule||[]).forEach(ds => {
+      (ds.periods||[]).forEach(p => {
+        if (!p.teacher) return;
+        if (['break','lunch','free','assembly'].includes(p.type)) return;
+        const tid = p.teacher.toString();
         if (!teacherSlots[tid]) teacherSlots[tid] = {};
-        if (!teacherSlots[tid][daySchedule.day]) teacherSlots[tid][daySchedule.day] = [];
-        teacherSlots[tid][daySchedule.day].push({
-          startTime: period.startTime,
-          endTime:   period.endTime,
-          className,
-          periodNumber: period.periodNumber,
-        });
+        if (!teacherSlots[tid][ds.day]) teacherSlots[tid][ds.day] = [];
+        teacherSlots[tid][ds.day].push({ start: p.startTime, end: p.endTime, cname });
       });
     });
   });
 
-  // Now validate each period in the incoming timetable
-  (incomingTT.schedule || []).forEach(daySchedule => {
-    const day = daySchedule.day;
-    const seenPeriods = new Set();
-
-    (daySchedule.periods || []).forEach(period => {
-      // ── 1. Duplicate period numbers within same day/class ─────────────────
-      if (seenPeriods.has(period.periodNumber)) {
-        conflicts.push(`Duplicate period ${period.periodNumber} on ${day}`);
-      }
-      seenPeriods.add(period.periodNumber);
-
-      if (period.type === 'break' || period.type === 'lunch' || period.type === 'free') return;
-      if (!period.teacher) return;
-
-      const tid = period.teacher.toString();
-
-      // ── 2. Teacher clash with another class ───────────────────────────────
-      const slots = teacherSlots[tid]?.[day] || [];
-      slots.forEach(existing => {
-        if (timesOverlap(period.startTime, period.endTime, existing.startTime, existing.endTime)) {
-          conflicts.push(
-            `Teacher clash on ${day} period ${period.periodNumber} (${period.startTime}–${period.endTime}): ` +
-            `teacher already assigned to ${existing.className} at ${existing.startTime}–${existing.endTime}`
-          );
-        }
-      });
-
-      // ── 3. Teacher assigned twice in same timetable on same day ───────────
-      const sameDay = (daySchedule.periods || []).filter(
-        p => p !== period &&
-          p.teacher?.toString() === tid &&
-          p.type !== 'break' && p.type !== 'lunch' && p.type !== 'free'
-      );
-      sameDay.forEach(other => {
-        if (timesOverlap(period.startTime, period.endTime, other.startTime, other.endTime)) {
-          conflicts.push(
-            `Teacher assigned twice within this timetable on ${day}: periods ${period.periodNumber} and ${other.periodNumber} overlap`
-          );
+  // Validate incoming
+  (incomingTT.schedule||[]).forEach(ds => {
+    const seen = new Set();
+    (ds.periods||[]).forEach(p => {
+      if (seen.has(p.periodNumber)) conflicts.push(`Duplicate period ${p.periodNumber} on ${ds.day}`);
+      seen.add(p.periodNumber);
+      if (!p.teacher) return;
+      if (['break','lunch','free','assembly'].includes(p.type)) return;
+      const tid = p.teacher.toString();
+      (teacherSlots[tid]?.[ds.day]||[]).forEach(s => {
+        if (timesOverlap(p.startTime, p.endTime, s.start, s.end)) {
+          conflicts.push(`Teacher clash on ${ds.day} P${p.periodNumber}: already in ${s.cname} at ${s.start}–${s.end}`);
         }
       });
     });
   });
 
-  return [...new Set(conflicts)]; // deduplicate
+  return [...new Set(conflicts)];
 };
 
 // ─── AUTO-GENERATION ──────────────────────────────────────────────────────────
-
-/**
- * autoGenerate
- * Creates a complete weekly timetable for a class given config.
- *
- * @param {Object} config
- *   - classId: ObjectId
- *   - schoolId: ObjectId
- *   - subjects: [{ subjectId, teacherId, periodsPerWeek, color }]
- *   - workingDays: ['Monday',...] (default Mon–Sat)
- *   - periodsPerDay: 8
- *   - startTime: '09:00'
- *   - periodDuration: 45 (minutes)
- *   - breakAfterPeriod: 4   (insert break slot here)
- *   - lunchAfterPeriod: 5
- *   - breakDuration: 15
- *   - lunchDuration: 30
- *
- * @returns {Array<DaySchedule>} - the schedule array to store on the Timetable doc
- */
 exports.autoGenerate = async function(config) {
   const {
-    subjects       = [],
-    workingDays    = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
-    periodsPerDay  = 8,
-    startTime      = '09:00',
-    periodDuration = 45,
+    subjects        = [],
+    workingDays     = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    periodsPerDay   = 8,
+    startTime       = '09:00',
+    periodDuration  = 45,
     breakAfterPeriod = 4,
     lunchAfterPeriod = 5,
-    breakDuration  = 15,
-    lunchDuration  = 30,
-    schoolId,
+    breakDuration   = 15,
+    lunchDuration   = 30,
   } = config;
 
-  // Build a pool of subject-period slots to distribute
-  // Each entry: { subjectId, teacherId, color }
+  const pdMin   = parseInt(periodDuration)   || 45;
+  const bdMin   = parseInt(breakDuration)    || 15;
+  const ldMin   = parseInt(lunchDuration)    || 30;
+  const bAfter  = parseInt(breakAfterPeriod) || 0;
+  const lAfter  = parseInt(lunchAfterPeriod) || 0;
+  const pPerDay = parseInt(periodsPerDay)    || 8;
+  const startMin = toMinutes(startTime);
+
+  // ── Build time-slot blueprint for one day ─────────────────────────────────
+  // We walk through teaching periods 1..pPerDay and insert break/lunch
+  // at the right teaching-count boundaries
+  const daySlots = []; // { periodNumber, type, startMin, endMin }
+  let cursor = startMin;
+  let teachingCount = 0;
+  let slotNumber = 1;
+  let breakInserted = false;
+  let lunchInserted = false;
+
+  while (slotNumber <= pPerDay) {
+    // Insert break after bAfter teaching periods
+    if (bAfter > 0 && !breakInserted && teachingCount === bAfter) {
+      daySlots.push({ periodNumber: slotNumber, type: 'break', startMin: cursor, endMin: cursor + bdMin });
+      cursor += bdMin;
+      slotNumber++;
+      breakInserted = true;
+      continue;
+    }
+
+    // Insert lunch after lAfter teaching periods
+    if (lAfter > 0 && !lunchInserted && teachingCount === lAfter) {
+      daySlots.push({ periodNumber: slotNumber, type: 'lunch', startMin: cursor, endMin: cursor + ldMin });
+      cursor += ldMin;
+      slotNumber++;
+      lunchInserted = true;
+      continue;
+    }
+
+    // Normal teaching period
+    daySlots.push({ periodNumber: slotNumber, type: 'lecture', startMin: cursor, endMin: cursor + pdMin });
+    cursor += pdMin;
+    teachingCount++;
+    slotNumber++;
+  }
+
+  // ── Build subject pool ────────────────────────────────────────────────────
+  const teachingSlots = daySlots.filter(s => s.type === 'lecture');
+  const totalSlots    = workingDays.length * teachingSlots.length;
+
   let pool = [];
   subjects.forEach(s => {
-    const times = Math.max(1, parseInt(s.periodsPerWeek) || 1);
-    for (let i = 0; i < times; i++) {
+    const count = Math.max(1, parseInt(s.periodsPerWeek) || 1);
+    for (let i = 0; i < count; i++) {
       pool.push({ subject: s.subjectId, teacher: s.teacherId, color: s.color || '' });
     }
   });
 
-  // Shuffle pool for variety
+  // Shuffle
   pool = pool.sort(() => Math.random() - 0.5);
 
-  // Calculate time slots for each period number accounting for breaks
-  function getSlotTime(periodNumber) {
-    let minutes = toMinutes(startTime);
-
-    for (let p = 1; p < periodNumber; p++) {
-      minutes += periodDuration;
-      if (p === breakAfterPeriod) minutes += parseInt(breakDuration) || 15;
-      if (p === lunchAfterPeriod) minutes += parseInt(lunchDuration) || 30;
-    }
-
-    return {
-      startTime: toTimeStr(minutes),
-      endTime:   toTimeStr(minutes + periodDuration),
-    };
-  }
-
-  // Number of actual teaching periods (exclude break + lunch slots)
-  const teachingSlots = periodsPerDay - (breakAfterPeriod ? 1 : 0) - (lunchAfterPeriod ? 1 : 0);
-  const totalSlots    = workingDays.length * teachingSlots;
-
-  // Fill up pool to totalSlots with null (free periods) if not enough subjects
+  // Pad with free slots
   while (pool.length < totalSlots) pool.push(null);
   pool = pool.slice(0, totalSlots).sort(() => Math.random() - 0.5);
 
+  // ── Build full schedule ───────────────────────────────────────────────────
   const schedule = [];
   let poolIdx = 0;
 
   workingDays.forEach(day => {
     const periods = [];
-    let realPeriod = 0; // teaching period counter (excludes break/lunch)
 
-    for (let periodNumber = 1; periodNumber <= periodsPerDay; periodNumber++) {
-      const times = getSlotTime(periodNumber);
-
-      // Break slot
-      if (periodNumber === breakAfterPeriod + 1 && breakAfterPeriod) {
-        // Actually we insert break as a period type
-        // Recompute: break is inserted AFTER breakAfterPeriod teaching periods
+    daySlots.forEach(slot => {
+      if (slot.type === 'break') {
+        periods.push({ periodNumber: slot.periodNumber, type: 'break', startTime: toTimeStr(slot.startMin), endTime: toTimeStr(slot.endMin), room: '' });
+        return;
+      }
+      if (slot.type === 'lunch') {
+        periods.push({ periodNumber: slot.periodNumber, type: 'lunch', startTime: toTimeStr(slot.startMin), endTime: toTimeStr(slot.endMin), room: '' });
+        return;
       }
 
-      // Check if this period number is a break or lunch
-      // We mark certain period numbers as special
-      const isBreak = breakAfterPeriod && periodNumber === breakAfterPeriod + 1;
-      const isLunch = lunchAfterPeriod && periodNumber === lunchAfterPeriod + 1 + (breakAfterPeriod ? 1 : 0);
-
-      if (isBreak) {
-        const bStart = toTimeStr(toMinutes(times.startTime) - parseInt(breakDuration));
-        periods.push({
-          periodNumber,
-          type: 'break',
-          startTime: bStart,
-          endTime: times.startTime,
-          room: '',
-        });
-        continue;
-      }
-
-      if (isLunch) {
-        const lStart = toTimeStr(toMinutes(times.startTime) - parseInt(lunchDuration));
-        periods.push({
-          periodNumber,
-          type: 'lunch',
-          startTime: lStart,
-          endTime: times.startTime,
-          room: '',
-        });
-        continue;
-      }
-
-      realPeriod++;
-      const slot = pool[poolIdx++] || null;
-
-      if (slot) {
-        periods.push({
-          periodNumber,
-          subject:    slot.subject,
-          teacher:    slot.teacher,
-          startTime:  times.startTime,
-          endTime:    times.endTime,
-          type:       'lecture',
-          color:      slot.color,
-          room:       '',
-        });
+      const item = pool[poolIdx++] || null;
+      if (item) {
+        periods.push({ periodNumber: slot.periodNumber, subject: item.subject, teacher: item.teacher, startTime: toTimeStr(slot.startMin), endTime: toTimeStr(slot.endMin), type: 'lecture', color: item.color, room: '' });
       } else {
-        periods.push({
-          periodNumber,
-          type:      'free',
-          startTime: times.startTime,
-          endTime:   times.endTime,
-          room:      '',
-        });
+        periods.push({ periodNumber: slot.periodNumber, type: 'free', startTime: toTimeStr(slot.startMin), endTime: toTimeStr(slot.endMin), room: '' });
       }
-    }
+    });
 
     schedule.push({ day, periods });
   });
@@ -267,58 +187,34 @@ exports.autoGenerate = async function(config) {
   return schedule;
 };
 
-// ─── TEACHER TIMETABLE VIEW ───────────────────────────────────────────────────
-// Extract all slots for a specific teacher across all class timetables
-
+// ─── TEACHER VIEW ─────────────────────────────────────────────────────────────
 exports.buildTeacherView = async function(teacherId, schoolId) {
   const Timetable = require('../models/Timetable');
+  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
   const timetables = await Timetable.find({ school: schoolId, isActive: true })
-    .populate('class', 'name grade section')
-    .populate('schedule.periods.subject', 'name code')
+    .populate('class','name grade section')
+    .populate('schedule.periods.subject','name code')
     .lean();
 
-  const view = {}; // { day: [{ period, subject, class, startTime, endTime, room, isSubstitute }] }
-
-  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const view = {};
   DAYS.forEach(d => { view[d] = []; });
 
   timetables.forEach(tt => {
-    const className = tt.class ? `${tt.class.name} ${tt.class.section || ''}`.trim() : '';
-    (tt.schedule || []).forEach(daySchedule => {
-      (daySchedule.periods || []).forEach(period => {
-        if (period.type === 'break' || period.type === 'lunch' || period.type === 'free') return;
-
-        // Main teacher
-        const isMainTeacher = period.teacher?.toString() === teacherId.toString();
-        // Or active substitute
-        const isSubstitute  = period.substitute?.teacher?.toString() === teacherId.toString();
-
-        if (isMainTeacher || isSubstitute) {
-          view[daySchedule.day].push({
-            periodNumber: period.periodNumber,
-            subject:      period.subject,
-            class:        tt.class,
-            className,
-            startTime:    period.startTime,
-            endTime:      period.endTime,
-            room:         period.room,
-            type:         period.type,
-            isSubstitute,
-            color:        period.color,
-            timetableId:  tt._id,
-            periodId:     period._id,
-          });
+    const className = tt.class ? `${tt.class.name} ${tt.class.section||''}`.trim() : '';
+    (tt.schedule||[]).forEach(ds => {
+      (ds.periods||[]).forEach(p => {
+        if (['break','lunch','free'].includes(p.type)) return;
+        const isMain = p.teacher?.toString() === teacherId.toString();
+        const isSub  = p.substitute?.teacher?.toString() === teacherId.toString();
+        if (isMain || isSub) {
+          view[ds.day].push({ periodNumber: p.periodNumber, subject: p.subject, class: tt.class, className, startTime: p.startTime, endTime: p.endTime, room: p.room, type: p.type, isSubstitute: isSub, color: p.color, timetableId: tt._id, periodId: p._id });
         }
       });
     });
   });
 
-  // Sort each day by period number
-  DAYS.forEach(d => {
-    view[d].sort((a, b) => a.periodNumber - b.periodNumber);
-  });
-
+  DAYS.forEach(d => { view[d].sort((a,b) => a.periodNumber - b.periodNumber); });
   return view;
 };
 

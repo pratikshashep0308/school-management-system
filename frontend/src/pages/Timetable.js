@@ -309,11 +309,30 @@ function AutoGenModal({ isOpen, onClose, subjects, teachers, classId, onGenerate
   };
 
   const handleGenerate = async () => {
+    // Validate: class must be selected
+    if (!classId) {
+      toast.error('Please select a class first before generating');
+      return;
+    }
+
+    // Validate: at least one subject has a teacher assigned
+    const validSubjects = subjectConfig.filter(s => s.subjectId && s.teacherId);
+    if (!validSubjects.length) {
+      toast.error('Please assign a teacher to at least one subject');
+      return;
+    }
+
+    // Warn if some subjects have no teacher
+    const missingTeacher = subjectConfig.filter(s => s.subjectId && !s.teacherId);
+    if (missingTeacher.length) {
+      toast(`${missingTeacher.length} subject(s) skipped — no teacher assigned`, { icon: '⚠️' });
+    }
+
     setGenerating(true);
     try {
       const r = await timetableAPI.autoGenerate({
         classId,
-        subjects: subjectConfig.filter(s => s.subjectId && s.teacherId),
+        subjects: validSubjects,
         ...config,
       });
       if (r.data.hasConflicts) {
@@ -324,7 +343,9 @@ function AutoGenModal({ isOpen, onClose, subjects, teachers, classId, onGenerate
       onGenerated(r.data.data);
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Auto-generation failed');
+      const msg = err.response?.data?.message || 'Auto-generation failed';
+      toast.error(msg);
+      console.error('Auto-generate error:', err.response?.data);
     } finally {
       setGenerating(false);
     }

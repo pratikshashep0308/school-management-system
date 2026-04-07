@@ -335,19 +335,48 @@ exports.removeSubstitute = async (req, res) => {
 exports.autoGenerateTimetable = async (req, res) => {
   const {
     classId, subjects, workingDays, periodsPerDay,
-    startTime, periodDuration, breakAfterPeriod,
+    periodDuration, breakAfterPeriod,
     lunchAfterPeriod, breakDuration, lunchDuration,
     version, label, academicYear,
   } = req.body;
 
-  if (!classId) return res.status(400).json({ success: false, message: 'classId required' });
-  if (!subjects || !subjects.length) return res.status(400).json({ success: false, message: 'subjects required' });
+  // Normalize startTime — browsers may send "09:00 AM" or "09:00"
+  // Convert any AM/PM format to 24-hour HH:MM
+  function normalizeTime(t) {
+    if (!t) return '09:00';
+    t = String(t).trim();
+    const ampm = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampm) {
+      let h = parseInt(ampm[1]);
+      const m = ampm[2];
+      const period = ampm[3].toUpperCase();
+      if (period === 'AM' && h === 12) h = 0;
+      if (period === 'PM' && h !== 12) h += 12;
+      return `${String(h).padStart(2,'0')}:${m}`;
+    }
+    // Already HH:MM
+    if (/^\d{2}:\d{2}$/.test(t)) return t;
+    return '09:00';
+  }
+  const startTime = normalizeTime(req.body.startTime);
+
+  if (!classId) return res.status(400).json({ success: false, message: 'classId is required' });
+  if (!subjects || !subjects.length) return res.status(400).json({ success: false, message: 'subjects array is required' });
+
+  // Validate at least one subject has both subjectId and teacherId
+  const validSubjects = subjects.filter(s => s.subjectId && s.teacherId);
+  if (!validSubjects.length) {
+    return res.status(400).json({
+      success: false,
+      message: 'Each subject must have a teacher assigned. Please select a teacher for each subject.',
+    });
+  }
 
   const schedule = await autoGenerate({
-    classId, schoolId: req.user.school, subjects,
+    classId, schoolId: req.user.school, subjects: validSubjects,
     workingDays:      workingDays      || ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
     periodsPerDay:    periodsPerDay    || 8,
-    startTime:        startTime        || '09:00',
+    startTime,
     periodDuration:   periodDuration   || 45,
     breakAfterPeriod: breakAfterPeriod ?? 4,
     lunchAfterPeriod: lunchAfterPeriod ?? 5,
