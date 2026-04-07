@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
-require('./Timetable'); // registers Timetable model from standalone file
 
-require('./School'); // ensure School schema is registered
+require('./School');    // ensure School schema is registered
+require('./Timetable'); // ← NEW: standalone Timetable model (replaces old TimetableSchema)
+
 // ── CLASS ──
 const ClassSchema = new mongoose.Schema({
   name: { type: String, required: true }, // e.g. "Class X"
@@ -96,7 +97,7 @@ const FeeStructureSchema = new mongoose.Schema({
   class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
   amount: { type: Number, required: true },
   frequency: { type: String, enum: ['monthly', 'quarterly', 'annually', 'one-time'], default: 'monthly' },
-  dueDay: { type: Number, default: 10 }, // Day of month fee is due
+  dueDay: { type: Number, default: 10 },
   lateFee: { type: Number, default: 200 },
   description: String,
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
@@ -113,7 +114,7 @@ const FeePaymentSchema = new mongoose.Schema({
   transactionId: String,
   receiptNumber: { type: String, unique: true },
   status: { type: String, enum: ['paid', 'pending', 'overdue', 'partial'], default: 'paid' },
-  month: String,   // e.g. "March 2026"
+  month: String,
   year: Number,
   remarks: String,
   collectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -121,28 +122,23 @@ const FeePaymentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-
 // ── STUDENT FEE LEDGER ──
-// One document per student — tracks total, paid, pending, and full payment history
 const StudentFeeSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, unique: true },
   class:   { type: mongoose.Schema.Types.ObjectId, ref: 'Class',   required: true },
   school:  { type: mongoose.Schema.Types.ObjectId, ref: 'School',  required: true },
   section: { type: String },
 
-  // Aggregated amounts (auto-updated on every payment)
   totalFees:     { type: Number, default: 0 },
   paidAmount:    { type: Number, default: 0 },
   pendingAmount: { type: Number, default: 0 },
 
-  // Status derived from amounts
   paymentStatus: {
     type: String,
     enum: ['not_paid', 'partial', 'paid'],
     default: 'not_paid'
   },
 
-  // Full payment history
   paymentHistory: [{
     amount:        { type: Number, required: true },
     paidOn:        { type: Date, default: Date.now },
@@ -160,7 +156,6 @@ const StudentFeeSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Recalculate derived fields before every save
 StudentFeeSchema.pre('save', function(next) {
   this.paidAmount    = this.paymentHistory.reduce((sum, p) => sum + p.amount, 0);
   this.pendingAmount = Math.max(0, this.totalFees - this.paidAmount);
@@ -172,10 +167,6 @@ StudentFeeSchema.pre('save', function(next) {
   this.updatedAt = new Date();
   next();
 });
-
-
-
-
 
 // ── ASSIGNMENT ──
 const AssignmentSchema = new mongoose.Schema({
@@ -209,7 +200,7 @@ const BookSchema = new mongoose.Schema({
   publishYear: Number,
   totalCopies: { type: Number, default: 1 },
   availableCopies: { type: Number, default: 1 },
-  location: String, // Shelf/rack info
+  location: String,
   coverImage: String,
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt: { type: Date, default: Date.now }
@@ -219,7 +210,7 @@ const BookSchema = new mongoose.Schema({
 const BookIssueSchema = new mongoose.Schema({
   book: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // For teachers/staff
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   issuedDate: { type: Date, default: Date.now },
   dueDate: { type: Date, required: true },
   returnedDate: Date,
@@ -271,35 +262,22 @@ const NotificationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports.Class = mongoose.model('Class', ClassSchema);
-module.exports.Subject = mongoose.model('Subject', SubjectSchema);
-module.exports.Attendance = mongoose.model('Attendance', AttendanceSchema);
-module.exports.Exam = mongoose.model('Exam', ExamSchema);
-module.exports.Result = mongoose.model('Result', ResultSchema);
+// ── EXPORTS ───────────────────────────────────────────────────────────────────
+module.exports.Class        = mongoose.model('Class',        ClassSchema);
+module.exports.Subject      = mongoose.model('Subject',      SubjectSchema);
+module.exports.Attendance   = mongoose.model('Attendance',   AttendanceSchema);
+module.exports.Exam         = mongoose.model('Exam',         ExamSchema);
+module.exports.Result       = mongoose.model('Result',       ResultSchema);
 module.exports.FeeStructure = mongoose.model('FeeStructure', FeeStructureSchema);
-module.exports.FeePayment = mongoose.model('FeePayment', FeePaymentSchema);
-module.exports.Assignment = mongoose.model('Assignment', AssignmentSchema);
-module.exports.Book = mongoose.model('Book', BookSchema);
-module.exports.BookIssue = mongoose.model('BookIssue', BookIssueSchema);
-module.exports.Transport = mongoose.model('Transport', TransportSchema);
+module.exports.FeePayment   = mongoose.model('FeePayment',   FeePaymentSchema);
+module.exports.StudentFee   = mongoose.model('StudentFee',   StudentFeeSchema);
+// NOTE: Timetable is no longer exported from here — import directly:
+//   const Timetable = require('./Timetable');
+module.exports.Assignment   = mongoose.model('Assignment',   AssignmentSchema);
+module.exports.Book         = mongoose.model('Book',         BookSchema);
+module.exports.BookIssue    = mongoose.model('BookIssue',    BookIssueSchema);
+module.exports.Transport    = mongoose.model('Transport',    TransportSchema);
 module.exports.Notification = mongoose.model('Notification', NotificationSchema);
-module.exports.StudentFee  = mongoose.model('StudentFee',  StudentFeeSchema);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ── VEHICLE ──
 const VehicleSchema = new mongoose.Schema({
