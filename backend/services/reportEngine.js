@@ -457,8 +457,9 @@ exports.buildPipeline = function(config) {
     case 'attendance': return attendancePipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'exams':      return examsPipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'transport':  return transportPipeline(filters, fields, groupBy, sortBy, schoolId);
-    case 'library':    return libraryPipeline(filters, fields, groupBy, sortBy, schoolId);
-    default:           throw new Error(`Unknown module: ${module}`);
+    case 'library':        return libraryPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'fee_assignments': return feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId);
+    default:               throw new Error(`Unknown module: ${module}`);
   }
 };
 

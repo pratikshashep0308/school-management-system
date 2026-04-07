@@ -1,39 +1,56 @@
+// backend/routes/feeRoutes.js
 const express = require('express');
 const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const ctrl = require('../controllers/feeController');
 
-// All fee routes require login
 router.use(protect);
 
-const adminRoles = ['superAdmin', 'schoolAdmin', 'accountant'];
+const ADMIN = ['superAdmin', 'schoolAdmin', 'accountant'];
+const STAFF = ['superAdmin', 'schoolAdmin', 'accountant', 'teacher'];
 
-// ── ANALYTICS ──────────────────────────────────────────────────
-// GET  /api/fees/summary            → school-wide overview cards
-// GET  /api/fees/class-summary      → per-class breakdown table
-// GET  /api/fees/students           → all students with fee status (+ filters)
-// GET  /api/fees/student/:studentId → full ledger for one student
+// ─── Named routes FIRST (before /:id params) ─────────────────────────────────
 
-router.get('/summary',        authorize(...adminRoles), ctrl.getOverallSummary);
-router.get('/class-summary',  authorize(...adminRoles), ctrl.getClassSummary);
-router.get('/students',       authorize(...adminRoles), ctrl.getStudentsFees);
-router.get('/student/:studentId', ctrl.getStudentFee);  // student can see own record too
+// Dashboard
+router.get('/dashboard',      authorize(...ADMIN), ctrl.getDashboard);
 
-// ── PAYMENT ────────────────────────────────────────────────────
-// POST /api/fees/pay                → record a payment
-// POST /api/fees/setup-ledger       → bulk-init StudentFee for a class
+// Summary & analytics (existing — kept)
+router.get('/summary',        authorize(...ADMIN), ctrl.getOverallSummary);
+router.get('/class-summary',  authorize(...ADMIN), ctrl.getClassSummary);
+router.get('/students',       authorize(...ADMIN), ctrl.getStudentsFees);
 
-router.post('/pay',           authorize(...adminRoles), ctrl.recordPayment);
-router.post('/setup-ledger',  authorize(...adminRoles), ctrl.setupClassLedger);
+// Export
+router.get('/export',         authorize(...ADMIN), ctrl.exportFees);
 
-// ── RECEIPT ────────────────────────────────────────────────────
-// GET /api/fees/receipt/:receiptNumber
+// Fee Types (new)
+router.get('/types',          ctrl.getFeeTypes);
+router.post('/types',         authorize(...ADMIN), ctrl.createFeeType);
+router.put('/types/:id',      authorize(...ADMIN), ctrl.updateFeeType);
+router.delete('/types/:id',   authorize(...ADMIN), ctrl.deleteFeeType);
 
-router.get('/receipt/:receiptNumber', ctrl.getReceipt);
+// Fee Assignments (new)
+router.get('/assignments',             authorize(...ADMIN), ctrl.getAssignments);
+router.post('/assignments',            authorize(...ADMIN), ctrl.createAssignment);
+router.put('/assignments/:id',         authorize(...ADMIN), ctrl.updateAssignment);
+router.delete('/assignments/:id',      authorize(...ADMIN), ctrl.deleteAssignment);
+router.post('/assignments/:id/pay',    authorize(...ADMIN), ctrl.payAssignment);
 
-// ── FEE STRUCTURES ─────────────────────────────────────────────
-router.get('/structures',           ctrl.getStructures);
-router.post('/structures',          authorize(...adminRoles), ctrl.createStructure);
-router.put('/structures/:id',       authorize(...adminRoles), ctrl.updateStructure);
+// Fee Structures (existing)
+router.get('/structures',       ctrl.getStructures);
+router.post('/structures',      authorize(...ADMIN), ctrl.createStructure);
+router.put('/structures/:id',   authorize(...ADMIN), ctrl.updateStructure);
+
+// Ledger setup (existing)
+router.post('/setup-ledger',    authorize(...ADMIN), ctrl.setupClassLedger);
+
+// Payment (existing)
+router.post('/pay',             authorize(...ADMIN), ctrl.recordPayment);
+
+// Receipt — JSON + PDF download (existing + new)
+router.get('/receipt/:receiptNumber/pdf', ctrl.downloadReceipt);
+router.get('/receipt/:receiptNumber',     ctrl.getReceipt);
+
+// Student ledger — student can see own (existing)
+router.get('/student/:studentId', ctrl.getStudentFee);
 
 module.exports = router;
