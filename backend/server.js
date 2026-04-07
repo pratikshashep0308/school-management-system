@@ -3,8 +3,8 @@ const cors       = require('cors');
 const helmet     = require('helmet');
 const morgan     = require('morgan');
 const rateLimit  = require('express-rate-limit');
-const http       = require('http');                  // ← NEW: needed for Socket.IO
-const { Server } = require('socket.io');             // ← NEW: Socket.IO server
+const http       = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 require('express-async-errors');
 
@@ -67,7 +67,7 @@ app.get('/api/health', (req, res) => {
     status:    'OK',
     message:   'School Management System API is running',
     timestamp: new Date(),
-    socketIO:  'enabled',             // ← confirms Socket.IO is active
+    socketIO:  'enabled',
   });
 });
 
@@ -87,12 +87,11 @@ const routes = [
   ['/api/timetable',      './routes/timetableRoutes'],
   ['/api/assignments',    './routes/assignmentRoutes'],
   ['/api/library',        './routes/libraryRoutes'],
-  // ── Transport routes (new unified router — handles buses, routes, stops,
-  //    assignments, trips, fees, GPS, and student/parent portal in one file)
-  ['/api/transport',      './routes/transportRoutes'],   // ← replaces old 3-file split
+  ['/api/transport',      './routes/transportRoutes'],
   ['/api/notifications',  './routes/notificationRoutes'],
   ['/api/admissions',     './routes/admissionRoutes'],
   ['/api/dashboard',      './routes/dashboardRoutes'],
+  ['/api/reports',        './routes/reportRoutes'],        // ← Report Module
 ];
 
 routes.forEach(([path, file]) => {
@@ -127,10 +126,10 @@ const httpServer = http.createServer(app);
 // 🛰️  Socket.IO — real-time GPS tracking for transport management
 // ─────────────────────────────────────────────────────────────────────────────
 const io = new Server(httpServer, {
-  cors: corsOptions,                  // same CORS rules as Express
+  cors: corsOptions,
   transports: ['websocket', 'polling'],
-  pingTimeout:  60000,               // 60 s before declaring client gone
-  pingInterval: 25000,               // heartbeat every 25 s
+  pingTimeout:  60000,
+  pingInterval: 25000,
 });
 
 // Make `io` available inside any Express controller via req.app.get('io')
@@ -152,6 +151,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('🚀 Server running on port', PORT);
   console.log('🛰️  Socket.IO ready for real-time GPS');
+  console.log('📊 Report module active at /api/reports');
   console.log('📡 Health check: http://localhost:' + PORT + '/api/health');
   console.log('');
 });
