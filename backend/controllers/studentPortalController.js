@@ -3,9 +3,8 @@
 // Never trust req.params for identity — always use req.user from JWT
 
 const Student    = require('../models/Student');
-const { Attendance, Result, Exam, FeePayment, StudentFee,
+const { Attendance, Result, Exam, FeePayment, StudentFee, Timetable,
         Assignment, Notification, Class } = require('../models/index');
-const Timetable = require('../models/Timetable'); // ← new advanced model
 
 // ── HELPER: resolve studentDoc from token ────────────────────────────────────
 // Returns the student document for whoever is logged in (student or parent)
@@ -182,22 +181,10 @@ exports.getTimetable = async (req, res) => {
   const student = await resolveStudent(req);
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-  if (!student.class) {
-    return res.status(404).json({ success: false, message: 'Student has no class assigned' });
-  }
-
-  // Query the new advanced Timetable model — find the active timetable for this class
-  const timetable = await Timetable.findOne({
-    class:    student.class,
-    isActive: true,
-  })
-    .populate('schedule.periods.subject', 'name code')
-    .populate({ path: 'schedule.periods.teacher', populate: { path: 'user', select: 'name' } })
-    .populate('class', 'name grade section');
-
-  if (!timetable) {
-    return res.json({ success: true, data: null, message: 'No timetable configured for this class' });
-  }
+  const timetable = await Timetable.find({ class: student.class })
+    .populate('subject', 'name code')
+    .populate('teacher', 'name')
+    .sort({ day: 1, startTime: 1 });
 
   res.json({ success: true, data: timetable });
 };
@@ -273,7 +260,16 @@ exports.getDashboard = async (req, res) => {
 
   // Fetch all data in parallel for performance
   const [attendance, results, feeRecord, assignments, notifications, allocation] = await Promise.all([
-    Attendance.find({ student: student._id }).sort({ date: -1 }).limit(30),
+    (async () => {
+      const recs = await Attendance.find({ student: student._id }).sort({ date: -1 }).limit(60);
+      const present = recs.filter(r => r.status === 'present').length;
+      const absent  = recs.filter(r => r.status === 'absent').length;
+      const late    = recs.filter(r => r.status === 'late').length;
+      const excused = recs.filter(r => r.status === 'excused').length;
+      const total   = recs.length;
+      const percentage = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+      return { present, absent, late, excused, total, percentage, records: recs.slice(0, 30) };
+    })(),
     Result.find({ student: student._id })
       .populate({ path: 'exam', select: 'name examType totalMarks', populate: { path: 'subject', select: 'name' } })
       .sort({ createdAt: -1 }).limit(10),
@@ -349,25 +345,8 @@ exports.getDashboard = async (req, res) => {
   ]);
 
   // Compute quick stats
-  const attTotal   = attendance.length;
-  const attPresent = attendance.filter(a => a.status === 'present').length;
-
-  // Fetch active timetable for the student's class
-  let timetableData = null;
-  if (student.class) {
-    try {
-      timetableData = await Timetable.findOne({
-        class:    student.class,
-        isActive: true,
-      })
-        .populate('schedule.periods.subject', 'name code')
-        .populate({ path: 'schedule.periods.teacher', populate: { path: 'user', select: 'name' } })
-        .populate('class', 'name grade section')
-        .lean();
-    } catch (err) {
-      console.error('Timetable fetch error:', err.message);
-    }
-  }
+  const attTotal   = attendance.total || 0;
+  const attPresent = attendance.present || 0;
 
   // Build a fees array that the dashboard UI (ParentDashboard / StudentDashboard) can consume.
   // The UI reads: fees.filter(f => f.status !== 'paid') for pendingFees,
@@ -414,7 +393,7 @@ exports.getDashboard = async (req, res) => {
         totalResults: results.length,
         pendingAssignments: assignmentsWithStatus.filter(a => a.dueDate && new Date(a.dueDate) >= new Date() && !a.submitted).length,
       },
-      recentAttendance:    attendance.slice(0, 7),
+      attendance:          attendance,          // { present, absent, late, total, percentage, records }
       recentResults:       results,
       recentFees:          fees,
       fees,
@@ -422,7 +401,6 @@ exports.getDashboard = async (req, res) => {
       upcomingAssignments: assignmentsWithStatus,   // alias
       notifications,
       transport:           allocation,              // student's own route info
-      timetable:           timetableData,           // class weekly timetable
     },
   });
 };
