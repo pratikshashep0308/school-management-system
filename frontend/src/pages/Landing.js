@@ -287,8 +287,13 @@ export default function Landing() {
               <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
             </div>
             <div>
-              <div className="text-white font-bold text-base leading-tight">The Future Step</div>
-              <div className="text-xs leading-tight" style={{ color: 'var(--tfs-orange)' }}>School</div>
+              <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontWeight: 900, fontSize: 13.5, lineHeight: 1.15, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                <span style={{ color: '#EF5350' }}>The</span>
+                <span style={{ color: '#66BB6A' }}>Future</span>
+                <span style={{ color: '#CE93D8' }}>Step</span>
+                <span style={{ color: '#FFB74D' }}>School</span>
+              </div>
+              <div className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.4)', marginTop: 1, letterSpacing: '0.04em' }}>K V P S Sanstha Bhaler</div>
             </div>
           </div>
 
@@ -354,9 +359,11 @@ export default function Landing() {
               <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
               Admissions Open 2025–26
             </div>
-            <h1 className="tfs-serif text-4xl md:text-6xl text-white leading-tight mb-5 font-bold">
-              The Future Step<br />
-              <span style={{ color: '#ffd166' }}>School</span>
+            <h1 className="tfs-serif text-4xl md:text-6xl leading-tight mb-5 font-bold">
+              <span style={{ color: '#EF5350' }}>The </span>
+              <span style={{ color: '#66BB6A' }}>Future </span>
+              <span style={{ color: '#CE93D8' }}>Step</span><br />
+              <span style={{ color: '#FFB74D' }}>School</span>
             </h1>
             <p className="text-white/75 text-lg leading-relaxed max-w-xl mb-8">
               Nurturing young minds with quality education, digital classrooms, and a safe environment. Shaping the responsible citizens of tomorrow.
@@ -454,7 +461,12 @@ export default function Landing() {
               <div className="rounded-3xl overflow-hidden aspect-[4/3] flex items-center justify-center relative dot-pattern" style={{ background: 'var(--tfs-navy)' }}>
                 <div className="relative z-10 text-center text-white p-8">
                   <div className="text-8xl mb-4 tfs-float">🏫</div>
-                  <div className="tfs-serif text-2xl font-bold">The Future Step School</div>
+                  <div className="tfs-serif text-2xl font-bold" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    <span style={{ color: '#E53935' }}>The</span>
+                    <span style={{ color: '#388E3C' }}>Future</span>
+                    <span style={{ color: '#7B1FA2' }}>Step</span>
+                    <span style={{ color: '#F57C00' }}>School</span>
+                  </div>
                   <div className="text-white/60 mt-2 text-sm">Smt. K.P. Patil School Compound<br />Shindgavhan Road, Bhaler</div>
                   <div className="mt-5 flex flex-wrap gap-2 justify-center">
                     {['Digital Classrooms', 'CCTV Monitored', 'Safe Transport'].map(tag => (
@@ -670,7 +682,12 @@ export default function Landing() {
                   <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
                 </div>
                 <div>
-                  <div className="font-bold text-lg">The Future Step School</div>
+                  <div className="font-bold text-lg" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <span style={{ color: '#EF9A9A' }}>The</span>
+                    <span style={{ color: '#A5D6A7' }}>Future</span>
+                    <span style={{ color: '#CE93D8' }}>Step</span>
+                    <span style={{ color: '#FFCC80' }}>School</span>
+                  </div>
                   <div className="text-xs" style={{ color: 'var(--tfs-orange)' }}>Bhaler, Nandurbar</div>
                 </div>
               </div>
@@ -701,7 +718,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-white/30 text-sm">© 2025 The Future Step School. All rights reserved.</div>
+            <div className="text-white/30 text-sm">© 2025 <span style={{ color: "#EF9A9A" }}>The</span> <span style={{ color: "#A5D6A7" }}>Future</span> <span style={{ color: "#CE93D8" }}>Step</span> <span style={{ color: "#FFCC80" }}>School</span>. All rights reserved.</div>
             <div className="flex gap-5 text-white/30 text-xs">
               <a href="https://thefuturestepschool.in/about.html" className="hover:text-white">About Us</a>
               <a href="https://thefuturestepschool.in/contact.html" className="hover:text-white">Contact</a>
