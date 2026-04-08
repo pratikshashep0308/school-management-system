@@ -214,12 +214,12 @@ export default function ParentDashboard() {
 
           {/* ── Stat Cards ── */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-            <StatCard icon="📅" value={`${attPct}%`}          label="Attendance"
+            <StatCard icon="📅" value={`${attPct}%`}          label="Attendance"  route="/dashboard"
               change={`${attendance.present}/${attTotal} days`}
               changeType={attPct >= 75 ? 'up' : 'down'} color="sage" />
-            <StatCard icon="📝" value={upcoming.length}        label="Upcoming Exams"
+            <StatCard icon="📝" value={upcoming.length}        label="Upcoming Exams"  route="/dashboard"
               change="Scheduled" changeType="up" color="gold" />
-            <StatCard icon="📋" value={dueAssignments.length}  label="Due Assignments"
+            <StatCard icon="📋" value={dueAssignments.length}  label="Due Assignments"  route="/dashboard"
               change={dueAssignments.length > 0 ? 'Need attention' : 'All clear'}
               changeType={dueAssignments.length > 0 ? 'down' : 'up'} color="accent" />
             <StatCard icon="💰" value={pendingFees.length === 0 ? '✅' : pendingFees.length}

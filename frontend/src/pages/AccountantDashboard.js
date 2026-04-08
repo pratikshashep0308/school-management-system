@@ -68,12 +68,12 @@ export default function AccountantDashboard() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         {[
-          { icon: '✅', label: 'Total Collected', value: `₹${(totalCollected / 100000).toFixed(1)}L`, sub: `${payments.filter(p => p.status === 'paid').length} payments`, color: '#4a7c59', bar: 'bg-sage' },
-          { icon: '⏳', label: 'Pending', value: `₹${(totalPending / 100000).toFixed(1)}L`, sub: `${payments.filter(p => p.status === 'pending').length} dues`, color: '#c9a84c', bar: 'bg-gold' },
-          { icon: '🔴', label: 'Overdue', value: `₹${(totalOverdue / 100000).toFixed(1)}L`, sub: `${payments.filter(p => p.status === 'overdue').length} accounts`, color: '#d4522a', bar: 'bg-accent' },
-          { icon: '📊', label: 'Collection Rate', value: `${collectionRate}%`, sub: 'Of total dues', color: '#7c6af5', bar: 'bg-purple-500' },
+          { icon: '✅', label: 'Total Collected', value: `₹${(totalCollected / 100000).toFixed(1)}L`, sub: `${payments.filter(p => p.status === 'paid').length} payments`, color: '#4a7c59', bar: 'bg-sage', route: '/fees' },
+          { icon: '⏳', label: 'Pending', value: `₹${(totalPending / 100000).toFixed(1)}L`, sub: `${payments.filter(p => p.status === 'pending').length} dues`, color: '#c9a84c', bar: 'bg-gold', route: '/fees' },
+          { icon: '🔴', label: 'Overdue', value: `₹${(totalOverdue / 100000).toFixed(1)}L`, sub: `${payments.filter(p => p.status === 'overdue').length} accounts`, color: '#d4522a', bar: 'bg-accent', route: '/fees' },
+          { icon: '📊', label: 'Collection Rate', value: `${collectionRate}%`, sub: 'Of total dues', color: '#7c6af5', bar: 'bg-purple-500', route: '/fees' },
         ].map(s => (
-          <div key={s.label} className="card p-5 relative overflow-hidden hover:-translate-y-0.5 transition-transform">
+          <div key={s.label} onClick={() => s.route && (window.location.href = s.route)} className="card p-5 relative overflow-hidden hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer active:scale-95 select-none">
             <div className={`absolute top-0 left-0 right-0 h-0.5 ${s.bar}`} />
             <div className="text-2xl mb-3">{s.icon}</div>
             <div className="font-display text-3xl leading-none mb-0.5" style={{ color: s.color }}>{s.value}</div>

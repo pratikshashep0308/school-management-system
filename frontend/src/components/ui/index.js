@@ -30,24 +30,68 @@ export function FormGroup({ label, children, className = '' }) {
 }
 
 // ── STAT CARD ──
-export function StatCard({ icon, value, label, change, changeType = 'up', color = 'accent' }) {
+export function StatCard({ icon, value, label, change, changeType = 'up', color = 'accent', route, onClick }) {
+  const handleClick = () => {
+    if (onClick) { onClick(); return; }
+    if (route) window.location.href = route;
+  };
+  const isClickable = !!(route || onClick);
   const colors = {
     accent: { bar: 'bg-accent', iconBg: 'bg-accent/10' },
     gold:   { bar: 'bg-gold',   iconBg: 'bg-gold/10' },
     sage:   { bar: 'bg-sage',   iconBg: 'bg-sage/10' },
     purple: { bar: 'bg-purple-500', iconBg: 'bg-purple-100' },
     blue:   { bar: 'bg-blue-500',   iconBg: 'bg-blue-100' },
+    red:    { bar: 'bg-red-500',    iconBg: 'bg-red-100' },
   };
   const c = colors[color] || colors.accent;
   return (
-    <div className="card p-6 relative overflow-hidden hover:-translate-y-0.5 transition-transform">
+    <div
+      onClick={isClickable ? handleClick : undefined}
+      className={`card p-6 relative overflow-hidden transition-all ${isClickable ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg active:scale-95 select-none' : 'hover:-translate-y-0.5'}`}
+    >
       <div className={`absolute top-0 left-0 right-0 h-0.5 ${c.bar}`} />
       <div className={`w-11 h-11 rounded-xl ${c.iconBg} flex items-center justify-center text-xl mb-4`}>{icon}</div>
-      <div className="font-display text-4xl text-ink leading-none mb-1">{value}</div>
+      <div className="font-display text-4xl text-ink dark:text-white leading-none mb-1">{value}</div>
       <div className="text-sm text-muted">{label}</div>
       {change && (
         <div className={`mt-3 text-xs font-medium flex items-center gap-1 ${changeType === 'up' ? 'text-sage' : 'text-accent'}`}>
           {changeType === 'up' ? '↑' : '↓'} {change}
+        </div>
+      )}
+      {isClickable && (
+        <div className="absolute bottom-3 right-3 text-xs font-bold opacity-20 text-ink">→</div>
+      )}
+    </div>
+  );
+}
+
+// ── CLICKABLE CARD — standalone reusable stat card that navigates on click ────
+export function ClickableCard({ title, value, icon, route, color = '#3B82F6', sub, trend, trendUp }) {
+  return (
+    <div
+      onClick={() => route && (window.location.href = route)}
+      style={{
+        background: '#fff', borderRadius: 14, padding: '20px 22px',
+        border: '1.5px solid #E5E7EB', borderLeft: `4px solid ${color}`,
+        cursor: 'pointer', transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
+        position: 'relative', overflow: 'hidden', userSelect: 'none',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = `0 12px 32px ${color}25`; e.currentTarget.style.borderColor = color; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.borderLeftColor = color; }}
+      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+      onMouseUp={e => { e.currentTarget.style.transform = 'translateY(-4px)'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{icon}</div>
+        <span style={{ fontSize: 11, color, fontWeight: 800, opacity: 0.5 }}>View →</span>
+      </div>
+      <div style={{ fontSize: 32, fontWeight: 900, color: '#111827', lineHeight: 1, marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>{title}</div>
+      {sub && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{sub}</div>}
+      {trend !== undefined && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: trendUp ? '#16A34A' : '#DC2626', marginTop: 6 }}>
+          {trendUp ? '↑' : '↓'} {trend}
         </div>
       )}
     </div>

@@ -59,10 +59,10 @@ export default function AdminDashboard() {
       {loading ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <StatCard icon="👤" value={stats?.totalStudents?.toLocaleString() || '1,284'} label="Total Students" change="12 new this month" changeType="up" color="accent" />
-            <StatCard icon="🎓" value={stats?.totalTeachers || '86'} label="Teachers" change="3 new this term" changeType="up" color="gold" />
-            <StatCard icon="✓" value={`${stats?.attendanceRate || 94}%`} label="Avg Attendance" change="1.4% vs last week" changeType="up" color="sage" />
-            <StatCard icon="₹" value="₹8.4L" label="Fees Collected" change="₹1.2L pending" changeType="down" color="purple" />
+            <StatCard icon="👤" value={stats?.totalStudents?.toLocaleString() || '1,284'} label="Total Students" change="12 new this month" changeType="up" color="accent" route="/students" />
+            <StatCard icon="🎓" value={stats?.totalTeachers || '86'} label="Teachers" change="3 new this term" changeType="up" color="gold" route="/teachers" />
+            <StatCard icon="✓" value={`${stats?.attendanceRate || 94}%`} label="Avg Attendance" change="1.4% vs last week" changeType="up" color="sage" route="/attendance" />
+            <StatCard icon="₹" value="₹8.4L" label="Fees Collected" change="₹1.2L pending" changeType="down" color="purple" route="/fees" />
           </div>
 
           <div className="grid xl:grid-cols-5 gap-5 mb-5">
