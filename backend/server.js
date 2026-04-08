@@ -84,6 +84,7 @@ const routes = [
   ['/api/attendance',     './routes/attendanceRoutes'],
   ['/api/exams',          './routes/examRoutes'],
   ['/api/fees',           './routes/feeRoutes'],
+  ['/api/expenses',       './routes/expenseRoutes'],
   ['/api/timetable',      './routes/timetableRoutes'],
   ['/api/assignments',    './routes/assignmentRoutes'],
   ['/api/library',        './routes/libraryRoutes'],

@@ -29,6 +29,7 @@ import Assignments  from './pages/Assignments';
 import Notifications from './pages/Notifications';
 import Profile      from './pages/Profile';
 import Admissions   from './pages/Admissions';
+import Expenses     from './pages/Expenses';
 
 // Pages — Report Module
 import ReportsDashboard from './pages/Reports/ReportsDashboard';
@@ -116,6 +117,7 @@ export default function App() {
               <Route path="assignments"   element={<AdminRoute><Assignments /></AdminRoute>} />
               <Route path="notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
               <Route path="admissions"    element={<AdminRoute><Admissions /></AdminRoute>} />
+              <Route path="expenses"     element={<AdminRoute><Expenses /></AdminRoute>} />
 
               {/* ── Report Module routes ── */}
               <Route path="reports"          element={<ReportRoute><ReportsDashboard /></ReportRoute>} />

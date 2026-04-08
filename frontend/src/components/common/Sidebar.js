@@ -15,6 +15,7 @@ const MENU_ITEMS = [
   { path: '/exams',         icon: '📝', label: 'Exams',         roles: STAFF_ROLES },
   { path: '/assignments',   icon: '📋', label: 'Assignments',   roles: ['superAdmin','schoolAdmin','teacher'] },
   { path: '/fees',          icon: '💳', label: 'Fees',          roles: ['superAdmin','schoolAdmin','accountant'] },
+  { path: '/expenses',      icon: '💸', label: 'Expenses',      roles: ['superAdmin','schoolAdmin','accountant'] },
   { path: '/library',       icon: '📚', label: 'Library',       roles: ['superAdmin','schoolAdmin','librarian'] },
   { path: '/transport',     icon: '🚌', label: 'Transport',     roles: ['superAdmin','schoolAdmin','transportManager'] },
   { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },

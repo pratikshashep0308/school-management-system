@@ -116,33 +116,6 @@ export const feeAPI = {
   getSummary:      ()       => api.get('/fees/summary'),
 };
 
-
-// ── EXPENSES ─────────────────────────────────────────────────────────────────
-export const expenseAPI = {
-  // Categories
-  getCategories:   ()              => api.get('/expenses/categories'),
-  createCategory:  (data)          => api.post('/expenses/categories', data),
-  updateCategory:  (id, data)      => api.put(`/expenses/categories/${id}`, data),
-  deleteCategory:  (id)            => api.delete(`/expenses/categories/${id}`),
- 
-  // Expenses CRUD
-  getAll:   (params)               => api.get('/expenses', { params }),
-  getById:  (id)                   => api.get(`/expenses/${id}`),
-  add:      (formData)             => api.post('/expenses', formData, { headers:{ 'Content-Type':'multipart/form-data' } }),
-  update:   (id, formData)         => api.put(`/expenses/${id}`, formData, { headers:{ 'Content-Type':'multipart/form-data' } }),
-  delete:   (id)                   => api.delete(`/expenses/${id}`),
- 
-  // Analytics
-  getDashboard: ()                 => api.get('/expenses/dashboard'),
-  getReport:    (month, year)      => api.get('/expenses/report', { params:{ month, year } }),
-  getFinance:   (params)           => api.get('/expenses/finance', { params }),
-  getRecurring: ()                 => api.get('/expenses/recurring'),
- 
-  // Export (returns blob)
-  export: (params)                 => api.get('/expenses/export', { params, responseType:'blob' }),
-};
- 
-
 // ── TIMETABLE ─────────────────────────────────────────────────────────────────
 export const timetableAPI = {
   // Get all timetables (filter by classId, version, isActive)
@@ -291,6 +264,31 @@ export const reportAPI = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
+};
+
+// ── EXPENSES ─────────────────────────────────────────────────────────────────
+export const expenseAPI = {
+  // Categories
+  getCategories:   ()              => api.get('/expenses/categories'),
+  createCategory:  (data)          => api.post('/expenses/categories', data),
+  updateCategory:  (id, data)      => api.put(`/expenses/categories/${id}`, data),
+  deleteCategory:  (id)            => api.delete(`/expenses/categories/${id}`),
+
+  // Expenses CRUD
+  getAll:   (params)               => api.get('/expenses', { params }),
+  getById:  (id)                   => api.get(`/expenses/${id}`),
+  add:      (formData)             => api.post('/expenses', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update:   (id, formData)         => api.put(`/expenses/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  delete:   (id)                   => api.delete(`/expenses/${id}`),
+
+  // Analytics
+  getDashboard: ()                 => api.get('/expenses/dashboard'),
+  getReport:    (month, year)      => api.get('/expenses/report', { params: { month, year } }),
+  getFinance:   (params)           => api.get('/expenses/finance', { params }),
+  getRecurring: ()                 => api.get('/expenses/recurring'),
+
+  // Export (returns blob)
+  export: (params)                 => api.get('/expenses/export', { params, responseType: 'blob' }),
 };
 
 export default api;
