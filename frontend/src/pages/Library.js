@@ -133,18 +133,24 @@ export default function Library() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
-          { label: 'Total Titles',   value: books.length,  icon: '📚', color: 'text-blue-600 bg-blue-50' },
-          { label: 'Total Copies',   value: totalBooks,    icon: '📖', color: 'text-indigo-600 bg-indigo-50' },
-          { label: 'Available',      value: available,     icon: '✅', color: 'text-green-600 bg-green-50' },
-          { label: 'Issued',         value: issuedCount,   icon: '📤', color: 'text-amber-600 bg-amber-50' },
-          { label: 'Overdue',        value: overdueCount,  icon: '⏰', color: 'text-red-600 bg-red-50' },
+          { label: 'Total Titles',   value: books.length,  icon: '📚', color: 'text-blue-600 bg-blue-50',     tab: 'books'   },
+          { label: 'Total Copies',   value: totalBooks,    icon: '📖', color: 'text-indigo-600 bg-indigo-50', tab: 'books'   },
+          { label: 'Available',      value: available,     icon: '✅', color: 'text-green-600 bg-green-50',   tab: 'books'   },
+          { label: 'Issued',         value: issuedCount,   icon: '📤', color: 'text-amber-600 bg-amber-50',   tab: 'issued'  },
+          { label: 'Overdue',        value: overdueCount,  icon: '⏰', color: 'text-red-600 bg-red-50',       tab: 'overdue' },
         ].map(s => (
-          <div key={s.label} className={'card p-4 flex items-center gap-3'}>
+          <div
+            key={s.label}
+            onClick={() => setTab(s.tab)}
+            style={{ cursor: 'pointer', transition: 'all 0.18s', userSelect: 'none' }}
+            className={'card p-4 flex items-center gap-3 hover:-translate-y-1 hover:shadow-lg active:scale-95'}
+          >
             <div className={'w-10 h-10 rounded-xl flex items-center justify-center text-xl ' + s.color}>{s.icon}</div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div className="text-2xl font-display text-ink dark:text-white">{s.value}</div>
               <div className="text-xs text-muted">{s.label}</div>
             </div>
+            <span style={{ fontSize: 10, opacity: 0.3, fontWeight: 800 }}>→</span>
           </div>
         ))}
       </div>
