@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
+import StudentFeePortal from './Fees/StudentFeePortal';
+import StudentFeePortal from './Fees/StudentFeePortal';
 
 // ─── Attendance Ring ────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -144,12 +146,12 @@ export default function StudentDashboard() {
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon="📅" value={`${attPct}%`}          label="Attendance"          route="/dashboard"
+        <StatCard icon="📅" value={`${attPct}%`}          label="Attendance"
           change={`${attendance.present}/${attTotal} days`}
           changeType={attPct >= 75 ? 'up' : 'down'} color="sage" />
-        <StatCard icon="📝" value={upcoming.length}        label="Upcoming Exams"      route="/dashboard"
+        <StatCard icon="📝" value={upcoming.length}        label="Upcoming Exams"
           change="Scheduled" changeType="up" color="gold" />
-        <StatCard icon="📋" value={dueAssignments.length}  label="Due Assignments"     route="/dashboard"
+        <StatCard icon="📋" value={dueAssignments.length}  label="Due Assignments"
           change={dueAssignments.length > 0 ? 'Need attention' : 'All clear'}
           changeType={dueAssignments.length > 0 ? 'down' : 'up'} color="accent" />
         <StatCard icon="💰" value={pendingFees.length === 0 ? '✅' : pendingFees.length}
@@ -580,78 +582,9 @@ export default function StudentDashboard() {
 
       {/* ════════════════════ FEES ════════════════════ */}
       {tab === 'fees' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="card p-5 text-center">
-              <div className="font-display text-2xl text-sage">
-                ₹{fees.filter(f=>f.status==='paid').reduce((s,f)=>s+(f.paidAmount||f.totalAmount||0),0).toLocaleString('en-IN')}
-              </div>
-              <div className="text-xs text-muted mt-1">✅ Paid</div>
-            </div>
-            <div className="card p-5 text-center">
-              <div className="font-display text-2xl text-amber-500">
-                ₹{pendingFees.reduce((s,f)=>s+(f.dueAmount||f.totalAmount||0),0).toLocaleString('en-IN')}
-              </div>
-              <div className="text-xs text-muted mt-1">⏳ Pending</div>
-            </div>
-            <div className="card p-5 text-center">
-              <div className="font-display text-2xl text-ink dark:text-white">{fees.length}</div>
-              <div className="text-xs text-muted mt-1">📋 Total Records</div>
-            </div>
-          </div>
-
-          {pendingFees.length > 0 && (
-            <div className="card p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 flex items-center gap-3">
-              <span className="text-2xl flex-shrink-0">⚠️</span>
-              <div>
-                <p className="font-semibold text-amber-700 dark:text-amber-300 text-sm">
-                  {pendingFees.length} Payment{pendingFees.length > 1 ? 's' : ''} Pending
-                </p>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-                  Please visit the school office to clear dues and avoid penalties.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="card overflow-hidden">
-            <CardHeader title="Fee Records" subtitle={`Academic year ${new Date().getFullYear()}`} />
-            {!fees.length ? <EmptyState icon="💰" title="No fee records" /> : (
-              <div className="divide-y divide-border dark:divide-gray-700">
-                {fees.map((f, i) => (
-                  <div key={f._id || i} className="px-6 py-4 flex items-center gap-4 hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors">
-                    <div className={'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ' +
-                      (f.status === 'paid' ? 'bg-green-100 dark:bg-green-900/30' :
-                       f.status === 'partial' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30')}>
-                      {f.status === 'paid' ? '✅' : f.status === 'partial' ? '🔵' : '⏳'}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm text-ink dark:text-white">
-                        {f.month ? `${f.month} ${f.year || ''}` : f.feeType || 'Fee Record'}
-                      </p>
-                      <p className="text-xs text-muted">
-                        {f.status === 'paid'
-                          ? `Paid: ${f.paymentDate ? new Date(f.paymentDate).toLocaleDateString('en-IN') : '—'}`
-                          : f.dueDate ? `Due: ${new Date(f.dueDate).toLocaleDateString('en-IN')}` : '—'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-sm text-ink dark:text-white">
-                        ₹{(f.totalAmount || f.amount || 0).toLocaleString('en-IN')}
-                      </div>
-                      <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' +
-                        (f.status === 'paid' ? 'bg-green-100 text-green-700' :
-                         f.status === 'partial' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')}>
-                        {f.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <StudentFeePortal />
       )}
+
 
       {/* ════════════════════ TRANSPORT ════════════════════ */}
       {tab === 'transport' && (

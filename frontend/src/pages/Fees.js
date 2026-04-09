@@ -7,6 +7,7 @@ import AssignFees     from './Fees/AssignFees';
 import StudentFees    from './Fees/StudentFees';
 import PaymentHistory from './Fees/PaymentHistory';
 import FeesAnalytics  from './Fees/FeesAnalytics';
+import FeeStructure  from './Fees/FeeStructure';
 
 export default function Fees() {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function Fees() {
     { key: 'assign',     label: '📋 Assign Fees',  show: isAdmin },
     { key: 'students',   label: '👥 Students',     show: isAdmin },
     { key: 'history',    label: '📜 History',      show: true },
+    { key: 'structure',  label: '🏷 Fee Structure',  show: true },
   ].filter(t => t.show);
 
   const [tab, setTab] = useState('dashboard');
@@ -44,6 +46,7 @@ export default function Fees() {
       {tab === 'students'  && <StudentFees />}
       {tab === 'history'   && <PaymentHistory />}
       {tab === 'analytics' && <FeesAnalytics />}
+      {tab === 'structure'  && <FeeStructure />}
     </div>
   );
 }
