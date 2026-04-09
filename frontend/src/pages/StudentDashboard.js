@@ -1,6 +1,7 @@
 // frontend/src/pages/StudentDashboard.js
 // Student Portal — admin-dashboard style, shows only the student's own data
 import React, { useEffect, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api, { timetableAPI, classAPI } from '../utils/api';
@@ -204,73 +205,42 @@ export default function StudentDashboard() {
   const attPct    = attTotal > 0 ? Math.round((attendance.present / attTotal) * 100) : 0;
   const upcoming  = exams.filter(e => e.date && new Date(e.date) >= new Date());
 
-  // ── PDF export for exam timetable ──────────────────────────────────────────
+
   const exportExamPDF = async (rows, title, subtitle) => {
     try {
       if (!window.jspdf || !window.jspdf.jsPDF.prototype.autoTable) {
-        await new Promise((res,rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-          s.onload=res; s.onerror=rej; document.head.appendChild(s);
-        });
-        await new Promise((res,rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
-          s.onload=res; s.onerror=rej; document.head.appendChild(s);
-        });
+        await new Promise((res,rej) => { const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+        await new Promise((res,rej) => { const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
       }
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
-      doc.setFontSize(15); doc.setFont(undefined,'bold');
-      doc.text(title, 14, 16);
+      doc.setFontSize(15); doc.setFont(undefined,'bold'); doc.text(title,14,16);
       doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(100);
-      doc.text(subtitle, 14, 23);
-      doc.text('Generated: ' + new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}), 14, 28);
+      doc.text(subtitle+' · The Future Step School',14,23);
+      doc.text('Generated: '+new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),14,28);
       doc.setTextColor(0);
       doc.autoTable({
-        startY: 33,
-        head: [['Date','Day','Subject','Exam Name','Type','Time','Total Marks','Pass Marks','Status']],
-        body: rows.map(e => {
-          const d = new Date(e.date);
-          const diff = Math.ceil((d - new Date()) / 86400000);
-          const past = d < new Date() && d.toDateString() !== new Date().toDateString();
-          const status = past ? 'Done' : diff===0 ? 'Today' : diff<=3 ? 'In '+diff+'d (Urgent)' : 'In '+diff+'d';
-          return [
-            d.getDate()+' '+d.toLocaleString('default',{month:'short'})+' '+d.getFullYear(),
-            d.toLocaleString('default',{weekday:'short'}),
-            e.subject?.name||'—',
-            e.name,
-            e.examType,
-            e.startTime?(e.startTime+(e.endTime?' – '+e.endTime:'')):'—',
-            e.totalMarks,
-            e.passingMarks,
-            status,
-          ];
+        startY:33,
+        head:[['Date','Day','Subject','Exam Name','Type','Time','Total','Pass','Status']],
+        body:rows.map(e=>{
+          const d=new Date(e.date); const diff=Math.ceil((d-new Date())/86400000);
+          const past=d<new Date()&&d.toDateString()!==new Date().toDateString();
+          const status=past?'Done':diff===0?'Today':diff<=3?'In '+diff+'d (Urgent)':'In '+diff+'d';
+          return [d.getDate()+' '+d.toLocaleString('default',{month:'short'})+' '+d.getFullYear(),d.toLocaleString('default',{weekday:'short'}),e.subject?.name||'—',e.name,e.examType,e.startTime?(e.startTime+(e.endTime?' – '+e.endTime:'')):'—',e.totalMarks,e.passingMarks,status];
         }),
-        styles:{ fontSize:9, cellPadding:3 },
-        headStyles:{ fillColor:[11,31,74], textColor:255, fontStyle:'bold' },
-        alternateRowStyles:{ fillColor:[248,250,252] },
-        didParseCell:(data)=>{
-          if(data.section==='body'&&data.column.index===8){
-            const v=data.cell.text[0]||'';
-            if(v==='Done') data.cell.styles.textColor=[107,114,128];
-            else if(v==='Today') data.cell.styles.textColor=[146,64,14];
-            else if(v.includes('Urgent')) data.cell.styles.textColor=[220,38,38];
-            else data.cell.styles.textColor=[22,163,74];
-          }
-        },
+        styles:{fontSize:9,cellPadding:3},
+        headStyles:{fillColor:[11,31,74],textColor:255,fontStyle:'bold'},
+        alternateRowStyles:{fillColor:[248,250,252]},
+        didParseCell:(data)=>{ if(data.section==='body'&&data.column.index===8){ const v=data.cell.text[0]||''; if(v==='Done') data.cell.styles.textColor=[107,114,128]; else if(v==='Today') data.cell.styles.textColor=[146,64,14]; else if(v.includes('Urgent')) data.cell.styles.textColor=[220,38,38]; else data.cell.styles.textColor=[22,163,74]; } },
       });
-      const pages = doc.internal.getNumberOfPages();
-      for(let i=1;i<=pages;i++){
-        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-        doc.text('Page '+i+' of '+pages+' · The Future Step School', 14, doc.internal.pageSize.height-8);
-      }
+      const pages=doc.internal.getNumberOfPages();
+      for(let i=1;i<=pages;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150); doc.text('Page '+i+' of '+pages+' · The Future Step School',14,doc.internal.pageSize.height-8); }
       doc.save('exam-timetable-'+new Date().toISOString().split('T')[0]+'.pdf');
       toast.success('PDF downloaded!');
-    } catch(err) { console.error(err); toast.error('PDF export failed'); }
+    } catch(err){ console.error(err); toast.error('PDF export failed'); }
   };
 
-  const pendingFees = fees.filter(f => f.status !== 'paid');
+    const pendingFees = fees.filter(f => f.status !== 'paid');
   const dueAssignments = assignments.filter(a => a.dueDate && new Date(a.dueDate) >= new Date() && !a.submitted);
 
   // Build timetable lookup from schedule array

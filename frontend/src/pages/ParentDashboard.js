@@ -1,6 +1,7 @@
 // frontend/src/pages/ParentDashboard.js
 // Parent Portal — admin-dashboard style, monitor child's data
 import React, { useEffect, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api, { timetableAPI, classAPI } from '../utils/api';
