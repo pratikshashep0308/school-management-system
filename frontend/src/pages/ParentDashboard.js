@@ -3,10 +3,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import StudentFeePortal from './Fees/StudentFeePortal';
 import api from '../utils/api';
+import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
+import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 
 // ─── Ring chart ─────────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -405,58 +406,9 @@ export default function ParentDashboard() {
 
           {/* ════════════════════ ATTENDANCE ════════════════════ */}
           {tab === 'attendance' && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="card p-5 text-center">
-                  <div className="font-display text-4xl text-sage mb-1">{attendance.present}</div>
-                  <div className="text-xs text-muted">✅ Present</div>
-                </div>
-                <div className="card p-5 text-center">
-                  <div className="font-display text-4xl text-accent mb-1">{attendance.absent}</div>
-                  <div className="text-xs text-muted">❌ Absent</div>
-                </div>
-                <div className="card p-5 flex flex-col items-center gap-1">
-                  <Ring pct={attPct} size={64} stroke={6} />
-                  <div className="text-xs text-muted">Percentage</div>
-                </div>
-              </div>
-
-              {attPct < 75 && (
-                <div className="card p-4 bg-red-50 dark:bg-red-900/20 border border-red-200">
-                  <p className="font-semibold text-red-700 dark:text-red-300">⚠️ Attendance Warning</p>
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                    {childName}'s attendance is {attPct}%. Minimum 75% is required. Please ensure regular attendance.
-                  </p>
-                </div>
-              )}
-
-              {attendance.records?.length > 0 && (
-                <div className="card p-6">
-                  <h3 className="font-semibold text-ink dark:text-white mb-4">Monthly Calendar</h3>
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {['S','M','T','W','T','F','S'].map((d,i) => (
-                      <div key={i} className="text-center text-[10px] text-muted font-bold py-1">{d}</div>
-                    ))}
-                    {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_,i) => (
-                      <div key={'e'+i} />
-                    ))}
-                    {attendance.records.map((r, i) => (
-                      <div key={i} className={'w-8 h-8 rounded-lg mx-auto flex items-center justify-center text-[11px] font-bold ' +
-                        (r.status === 'present' ? 'bg-green-100 dark:bg-green-900/40 text-green-700' :
-                         r.status === 'absent'  ? 'bg-red-100 dark:bg-red-900/40 text-red-600' :
-                                                  'bg-gray-100 dark:bg-gray-700 text-muted')}>
-                        {r.day || i+1}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-5 mt-4">
-                    <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-green-200 inline-block" /> Present</span>
-                    <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-red-200 inline-block" /> Absent</span>
-                  </div>
-                </div>
-              )}
-            </div>
+            <StudentAttendanceSection dashboardAttendance={attendance} />
           )}
+
 
           {/* ════════════════════ TIMETABLE ════════════════════ */}
           {tab === 'timetable' && (
@@ -649,9 +601,78 @@ export default function ParentDashboard() {
 
           {/* ════════════════════ FEES ════════════════════ */}
           {tab === 'fees' && (
-            <StudentFeePortal studentId={selected?._id || student?._id} studentData={student} attendance={attendance} />
-          )}
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="card p-5 text-center">
+                  <div className="font-display text-2xl text-sage">
+                    ₹{fees.filter(f=>f.status==='paid').reduce((s,f)=>s+(f.paidAmount||f.totalAmount||0),0).toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-xs text-muted mt-1">✅ Paid</div>
+                </div>
+                <div className="card p-5 text-center">
+                  <div className="font-display text-2xl text-amber-500">
+                    ₹{pendingFees.reduce((s,f)=>s+(f.dueAmount||f.totalAmount||0),0).toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-xs text-muted mt-1">⏳ Pending</div>
+                </div>
+                <div className="card p-5 text-center">
+                  <div className="font-display text-2xl text-ink dark:text-white">{fees.length}</div>
+                  <div className="text-xs text-muted mt-1">📋 Records</div>
+                </div>
+              </div>
 
+              {pendingFees.length > 0 && (
+                <div className="card p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 flex items-center gap-3">
+                  <span className="text-2xl flex-shrink-0">⚠️</span>
+                  <div>
+                    <p className="font-semibold text-amber-700 dark:text-amber-300 text-sm">
+                      {pendingFees.length} Fee Payment{pendingFees.length > 1 ? 's' : ''} Pending
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                      Please visit the school office or contact administration to clear dues.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="card overflow-hidden">
+                <CardHeader title="Fee Records" subtitle={`${childName} — Academic ${new Date().getFullYear()}`} />
+                {!fees.length ? <EmptyState icon="💰" title="No fee records" /> : (
+                  <div className="divide-y divide-border dark:divide-gray-700">
+                    {fees.map((f, i) => (
+                      <div key={f._id || i} className="px-6 py-4 flex items-center gap-4 hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors">
+                        <div className={'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ' +
+                          (f.status === 'paid' ? 'bg-green-100 dark:bg-green-900/30' :
+                           f.status === 'partial' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30')}>
+                          {f.status === 'paid' ? '✅' : f.status === 'partial' ? '🔵' : '⏳'}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm text-ink dark:text-white">
+                            {f.month ? `${f.month} ${f.year || ''}` : f.feeType || 'Fee Record'}
+                          </p>
+                          <p className="text-xs text-muted">
+                            {f.status === 'paid'
+                              ? `Paid: ${f.paymentDate ? new Date(f.paymentDate).toLocaleDateString('en-IN') : '—'}`
+                              : f.dueDate ? `Due: ${new Date(f.dueDate).toLocaleDateString('en-IN')}` : '—'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-sm text-ink dark:text-white">
+                            ₹{(f.totalAmount || f.amount || 0).toLocaleString('en-IN')}
+                          </div>
+                          <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' +
+                            (f.status === 'paid' ? 'bg-green-100 text-green-700' :
+                             f.status === 'partial' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')}>
+                            {f.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ════════════════════ TRANSPORT ════════════════════ */}
           {tab === 'transport' && (
