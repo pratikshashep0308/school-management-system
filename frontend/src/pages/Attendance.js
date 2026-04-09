@@ -331,8 +331,9 @@ function MonthlyReport({ classes }) {
     if (!selectedClass) return;
     setLoading(true);
     try {
-      const r = await attendanceAPI.getMonthlyReport(selectedClass, month, year);
-      setData(r.data);
+      // Use analytics endpoint — returns summary + breakdown + dailyTrend together
+      const r = await attendanceAPI.getClassAnalytics(selectedClass, month, year);
+      setData(r.data.data || r.data);
     } catch { toast.error('Failed to load monthly report'); }
     finally { setLoading(false); }
   };
@@ -376,14 +377,14 @@ function MonthlyReport({ classes }) {
       ) : (
         <div>
           {/* Monthly summary */}
-          {data.meta && (
+          {data.summary && (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:20 }}>
               {[
-                { icon:'📅', label:'Working Days',    val:data.meta.workingDays||0,                          color:'#1D4ED8', bg:'#EFF6FF', border:'#3B82F6' },
-                { icon:'✅', label:'Avg Present',      val:`${data.meta.avgPresentPct||0}%`,                  color:'#16A34A', bg:'#F0FDF4', border:'#22C55E' },
-                { icon:'❌', label:'Avg Absent',       val:`${data.meta.avgAbsentPct||0}%`,                   color:'#DC2626', bg:'#FEF2F2', border:'#EF4444' },
-                { icon:'👥', label:'Total Students',   val:data.meta.totalStudents||0,                        color:'#7C3AED', bg:'#F5F3FF', border:'#8B5CF6' },
-                { icon:'⚠️', label:'Low Attendance',  val:data.meta.lowAttendanceCount||0,                    color:'#D97706', bg:'#FFFBEB', border:'#F59E0B' },
+                { icon:'📅', label:'Working Days',    val:data.summary.workingDays||0,                                            color:'#1D4ED8', bg:'#EFF6FF', border:'#3B82F6' },
+                { icon:'✅', label:'Avg Attendance',   val:`${data.summary.classAvgPercentage||0}%`,                               color:'#16A34A', bg:'#F0FDF4', border:'#22C55E' },
+                { icon:'👥', label:'Total Students',   val:data.summary.totalStudents||0,                                          color:'#7C3AED', bg:'#F5F3FF', border:'#8B5CF6' },
+                { icon:'⚠️', label:'Low Attendance',  val:(data.lowStudents||[]).length,                                           color:'#D97706', bg:'#FFFBEB', border:'#F59E0B' },
+                { icon:'🏆', label:'Top Performers',   val:(data.topStudents||[]).filter(s=>s.percentage>=90).length,              color:'#16A34A', bg:'#F0FDF4', border:'#22C55E' },
               ].map(c=>(
                 <div key={c.label} style={{ background:c.bg, border:`1.5px solid ${c.border}`, borderRadius:12, padding:'14px 16px' }}>
                   <div style={{ fontSize:20, marginBottom:6 }}>{c.icon}</div>
@@ -416,8 +417,10 @@ function MonthlyReport({ classes }) {
                 <div key={`e${i}`}/>
               ))}
               {days.map(d => {
-                const dayData = data.data?.find?.(x => x.day === d) || data.breakdown?.find?.(x => x.day === d);
-                const pctVal  = dayData?.presentPct ?? dayData?.percentage ?? null;
+                // dailyTrend has date strings like '2026-04-09'
+              const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+              const dayData = (data.dailyTrend||[]).find(x => x.date === dateStr);
+                const pctVal  = dayData?.percentage ?? null;
                 const col     = dayColor(pctVal);
                 const isToday = d === now.getDate() && month === now.getMonth()+1 && year === now.getFullYear();
                 return (
@@ -453,11 +456,11 @@ function MonthlyReport({ classes }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.breakdown || data.data || []).filter(r => r.studentName || r.student).map((r, i) => {
-                      const pct  = r.presentPct ?? r.percentage ?? (r.totalDays > 0 ? Math.round((r.present/r.totalDays)*100) : 0);
+                    {(data.breakdown || []).map((r, i) => {
+                      const pct  = r.percentage ?? 0;
                       const rc   = pct >= 75 ? '#16A34A' : pct >= 50 ? '#D97706' : '#DC2626';
-                      const name = r.studentName || r.student?.user?.name || '—';
-                      const roll = r.rollNumber  || r.student?.rollNumber  || '—';
+                      const name = r.student?.name || '—';
+                      const roll = r.student?.rollNumber || '—';
                       return (
                         <tr key={i} style={{ borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
                           <td style={{ padding:'10px 14px', color:'#6B7280', fontWeight:600 }}>{roll}</td>
@@ -499,6 +502,191 @@ function MonthlyReport({ classes }) {
   );
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 4 — STUDENT DATE-WISE HISTORY (admin: search any student, see all records)
+// ══════════════════════════════════════════════════════════════════════════════
+function StudentHistory({ classes }) {
+  const [selectedClass, setSelectedClass] = useState('');
+  const [students,      setStudents]      = useState([]);
+  const [selectedStu,   setSelectedStu]   = useState('');
+  const [dateFrom,      setDateFrom]      = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [dateTo,        setDateTo]        = useState(TODAY);
+  const [records,       setRecords]       = useState([]);
+  const [loading,       setLoading]       = useState(false);
+  const [summary,       setSummary]       = useState(null);
+
+  useEffect(() => {
+    if (classes.length && !selectedClass) setSelectedClass(classes[0]._id);
+  }, [classes]);
+
+  useEffect(() => {
+    if (!selectedClass) return;
+    studentAPI.getAll({ class: selectedClass })
+      .then(r => { setStudents(r.data.data || []); setSelectedStu(''); setRecords([]); setSummary(null); })
+      .catch(() => {});
+  }, [selectedClass]);
+
+  const load = async () => {
+    if (!selectedStu) return toast.error('Select a student');
+    setLoading(true);
+    try {
+      const r = await attendanceAPI.getByStudent(selectedStu, { dateFrom, dateTo });
+      const recs = r.data.data || r.data.records || [];
+      setRecords(recs);
+      // Compute summary
+      const present = recs.filter(r => r.status === 'present').length;
+      const absent  = recs.filter(r => r.status === 'absent').length;
+      const late    = recs.filter(r => r.status === 'late').length;
+      const excused = recs.filter(r => r.status === 'excused').length;
+      const total   = recs.length;
+      const pct     = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+      setSummary({ present, absent, late, excused, total, pct });
+    } catch { toast.error('Failed to load history'); }
+    finally { setLoading(false); }
+  };
+
+  const SEL = { padding:'8px 12px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, background:'#fff', outline:'none' };
+  const selectedStudent = students.find(s => s._id === selectedStu);
+
+  return (
+    <div>
+      {/* Filters */}
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end', marginBottom:18 }}>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase' }}>Class</div>
+          <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} style={SEL}>
+            {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase' }}>Student</div>
+          <select value={selectedStu} onChange={e=>setSelectedStu(e.target.value)} style={{ ...SEL, minWidth:180 }}>
+            <option value="">— Select Student —</option>
+            {students.map(s=><option key={s._id} value={s._id}>{s.user?.name} (Roll {s.rollNumber||'—'})</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase' }}>From</div>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} max={TODAY} style={SEL} />
+        </div>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase' }}>To</div>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} max={TODAY} style={SEL} />
+        </div>
+        <button onClick={load} disabled={loading || !selectedStu}
+          style={{ padding:'9px 20px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor: !selectedStu?'not-allowed':'pointer', opacity: !selectedStu?0.5:1 }}>
+          {loading ? '⏳' : '🔍'} Search
+        </button>
+      </div>
+
+      {loading ? <LoadingState /> : !summary ? (
+        <EmptyState icon="👤" title="Search a student" subtitle="Select a class, student and date range then click Search" />
+      ) : (
+        <div>
+          {/* Student info + summary */}
+          <div style={{ background:'linear-gradient(135deg,#0B1F4A,#162D6A)', borderRadius:16, padding:'20px 24px', marginBottom:18 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:16 }}>
+              <div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:6 }}>
+                  {selectedStudent?.user?.name} · {new Date(dateFrom).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} – {new Date(dateTo).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
+                </div>
+                <div style={{ fontSize:32, fontWeight:900, color:'#fff' }}>
+                  {summary.pct}% <span style={{ fontSize:14, color:'rgba(255,255,255,0.5)', fontWeight:400 }}>attendance</span>
+                </div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.4)', marginTop:4 }}>
+                  {selectedStudent?.class?.name} {selectedStudent?.class?.section||''} · Roll {selectedStudent?.rollNumber||'—'}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+                {[
+                  { label:'Present', val:summary.present, color:'#34D399' },
+                  { label:'Absent',  val:summary.absent,  color:'#FCA5A5' },
+                  { label:'Late',    val:summary.late,    color:'#FCD34D' },
+                  { label:'Excused', val:summary.excused, color:'#C4B5FD' },
+                  { label:'Total',   val:summary.total,   color:'rgba(255,255,255,0.6)' },
+                ].map(s=>(
+                  <div key={s.label} style={{ textAlign:'center' }}>
+                    <div style={{ fontSize:22, fontWeight:900, color:'#fff' }}>{s.val}</div>
+                    <div style={{ fontSize:9, color:s.color, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ height:6, background:'rgba(255,255,255,0.1)', borderRadius:4, marginTop:14, overflow:'hidden' }}>
+              <div style={{ height:'100%', width:`${Math.min(100,summary.pct)}%`, borderRadius:4,
+                background: summary.pct>=75?'#34D399':'#FCD34D', transition:'width 0.8s' }}/>
+            </div>
+          </div>
+
+          {/* Warning */}
+          {summary.pct < 75 && summary.total > 0 && (
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:12, padding:'12px 16px', marginBottom:16, display:'flex', gap:10, alignItems:'center' }}>
+              <span style={{ fontSize:20 }}>⚠️</span>
+              <div style={{ fontSize:13, color:'#991B1B', fontWeight:600 }}>
+                {selectedStudent?.user?.name}'s attendance is {summary.pct}% — below the required 75%
+              </div>
+            </div>
+          )}
+
+          {/* Date-wise records table */}
+          {records.length === 0 ? (
+            <EmptyState icon="📅" title="No records found" subtitle="No attendance records for this date range" />
+          ) : (
+            <div className="card" style={{ padding:0, overflow:'hidden' }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:14, display:'flex', justifyContent:'space-between' }}>
+                <span>Date-wise Attendance ({records.length} records)</span>
+                <span style={{ fontSize:12, color:'#9CA3AF' }}>{new Date(dateFrom).toLocaleDateString('en-IN')} to {new Date(dateTo).toLocaleDateString('en-IN')}</span>
+              </div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                  <thead>
+                    <tr style={{ background:'#0B1F4A' }}>
+                      {['#','Date','Day','Status','Remarks','Marked By','Time'].map(h=>(
+                        <th key={h} style={{ padding:'9px 14px', textAlign:'left', color:'#E2E8F0', fontSize:11, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...records].sort((a,b)=>new Date(b.date)-new Date(a.date)).map((r,i)=>{
+                      const cfg = STATUS_CONFIG[r.status]||STATUS_CONFIG.unmarked;
+                      const dt  = new Date(r.date);
+                      return (
+                        <tr key={r._id||i} style={{ borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
+                          <td style={{ padding:'9px 14px', color:'#9CA3AF', fontSize:11 }}>{records.length-i}</td>
+                          <td style={{ padding:'9px 14px', fontWeight:700, whiteSpace:'nowrap' }}>
+                            {dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
+                          </td>
+                          <td style={{ padding:'9px 14px', color:'#6B7280' }}>
+                            {dt.toLocaleDateString('en-IN',{weekday:'long'})}
+                          </td>
+                          <td style={{ padding:'9px 14px' }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:cfg.color, background:cfg.bg, border:`1px solid ${cfg.border}50`, padding:'3px 10px', borderRadius:20 }}>
+                              {cfg.label||r.status}
+                            </span>
+                          </td>
+                          <td style={{ padding:'9px 14px', color:'#9CA3AF', fontSize:12 }}>{r.remarks||'—'}</td>
+                          <td style={{ padding:'9px 14px', color:'#6B7280', fontSize:12 }}>{r.markedBy?.name||'—'}</td>
+                          <td style={{ padding:'9px 14px', color:'#6B7280', fontSize:12 }}>
+                            {r.createdAt ? new Date(r.createdAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN — tab controller
 // ══════════════════════════════════════════════════════════════════════════════
@@ -517,6 +705,7 @@ export default function Attendance() {
     { key:'mark',    label:'✏️ Mark Attendance',  show: canEdit },
     { key:'daily',   label:'📋 Class Daily View',  show: true },
     { key:'monthly', label:'📊 Monthly Report',    show: true },
+    { key:'history', label:'👤 Student History',   show: canEdit },
   ].filter(t => t.show);
 
   // If teacher only, default to mark
@@ -548,6 +737,7 @@ export default function Attendance() {
       {tab === 'mark'    && <MarkAttendance  classes={classes} />}
       {tab === 'daily'   && <ClassDailyView  classes={classes} />}
       {tab === 'monthly' && <MonthlyReport   classes={classes} />}
+      {tab === 'history' && <StudentHistory  classes={classes} />}
     </div>
   );
 }

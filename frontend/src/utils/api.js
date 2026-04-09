@@ -90,10 +90,12 @@ export const subjectAPI = {
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
 export const attendanceAPI = {
-  mark:             (data)              => api.post('/attendance', data),
-  getByClass:       (classId, date)     => api.get('/attendance/class', { params: { classId, date } }),
-  getByStudent:     (studentId, params) => api.get(`/attendance/student/${studentId}`, { params }),
-  getMonthlyReport: (classId, month, year) => api.get('/attendance/monthly-report', { params: { classId, month, year } }),
+  mark:              (data)                    => api.post('/attendance', data),
+  getByClass:        (classId, date)           => api.get('/attendance/class', { params: { classId, date } }),
+  getByStudent:      (studentId, params)       => api.get(`/attendance/student/${studentId}`, { params }),
+  getMonthlyReport:  (classId, month, year)    => api.get('/attendance/monthly-report', { params: { classId, month, year } }),
+  getClassAnalytics: (classId, month, year)    => api.get('/attendance/analytics', { params: { classId, month, year } }),
+  getOverview:       ()                        => api.get('/attendance/overview'),
 };
 
 // ── EXAMS ─────────────────────────────────────────────────────────────────────
