@@ -1,6 +1,7 @@
 // frontend/src/pages/Students.js
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
