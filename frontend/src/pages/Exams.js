@@ -397,6 +397,12 @@ function ExamTimetable({ exams, classes, subjects, canEdit, onEdit, onDelete }) 
         </select>
         <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
           <span style={{ fontSize:12, color:'#9CA3AF' }}>{rows.length} exams</span>
+          {canEdit && (
+            <button onClick={onAdd}
+              style={{ padding:'7px 16px', borderRadius:8, fontSize:12, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
+              + Add Exam
+            </button>
+          )}
           <button onClick={()=>exportPDF(rows)} disabled={exporting||!rows.length}
             style={{
               padding:'7px 16px', borderRadius:8, fontSize:12, fontWeight:700,
@@ -598,9 +604,7 @@ export default function Exams() {
             {exams.length} total · {upcoming.length} upcoming
           </p>
         </div>
-        {canEdit && (
-          <button onClick={openAdd} className="btn-primary">+ Create Exam</button>
-        )}
+
       </div>
 
       {/* Tab bar */}
