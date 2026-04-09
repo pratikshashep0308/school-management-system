@@ -93,16 +93,18 @@ export default function TeacherDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         {[
-          { icon: '🏛', label: 'My Classes', route: '/classes',     value: classes.length || '—',       sub: 'Assigned classes',      color: '#d4522a' },
-          { icon: '👤', label: 'Total Students', route: '/students', value: totalStudents || '—',         sub: 'Across all classes',    color: '#c9a84c' },
-          { icon: '📝', label: 'Upcoming Exams', route: '/exams', value: exams.length,                 sub: 'Scheduled',             color: '#4a7c59' },
-          { icon: '📋', label: 'Needs Grading', route: '/assignments',  value: pendingGrading.length,        sub: 'Submissions pending',   color: pendingGrading.length > 0 ? '#d4522a' : '#4a7c59' },
+          { icon: '🏛', label: 'My Classes',     value: classes.length || '—',       sub: 'Assigned classes',      color: '#d4522a', to: '/classes' },
+          { icon: '👤', label: 'Total Students', value: totalStudents || '—',         sub: 'Across all classes',    color: '#c9a84c', to: '/students' },
+          { icon: '📝', label: 'Upcoming Exams', value: exams.length,                 sub: 'Scheduled',             color: '#4a7c59', to: '/exams' },
+          { icon: '📋', label: 'Needs Grading',  value: pendingGrading.length,        sub: 'Submissions pending',   color: pendingGrading.length > 0 ? '#d4522a' : '#4a7c59', to: '/assignments' },
         ].map(s => (
-          <div key={s.label} onClick={() => s.route && (window.location.href = s.route)} className="card p-5 hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer active:scale-95 select-none">
+          <div key={s.label} onClick={() => navigate(s.to)}
+            className="card p-5 hover:-translate-y-1 transition-all cursor-pointer hover:shadow-md">
             <div className="text-2xl mb-3">{s.icon}</div>
             <div className="font-display text-3xl leading-none mb-0.5" style={{ color: s.color }}>{s.value}</div>
             <div className="text-xs text-muted mt-1">{s.label}</div>
             <div className="text-[11px] text-muted/70">{s.sub}</div>
+            <div style={{ fontSize:10, color:s.color, marginTop:5, fontWeight:700, opacity:0.7 }}>View →</div>
           </div>
         ))}
       </div>

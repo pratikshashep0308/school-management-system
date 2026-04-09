@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api, { timetableAPI, classAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 
@@ -57,6 +57,98 @@ const DAY_COLORS = {
   Monday:'#d4522a', Tuesday:'#c9a84c', Wednesday:'#4a7c59',
   Thursday:'#7c6af5', Friday:'#2d9cdb', Saturday:'#f2994a',
 };
+
+
+// ─── StudentTimetableView — shows only student's own class timetable ──────────
+function StudentTimetableView({ classId, className }) {
+  const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const TIMES = ['9:00–9:45','9:45–10:30','10:30–11:15','11:15–12:00','12:00–12:45','12:45–1:30','1:30–2:15','2:15–3:00'];
+  const DAY_COLORS = { Monday:'#D4522A',Tuesday:'#C9A84C',Wednesday:'#4A7C59',Thursday:'#7C6AF5',Friday:'#2D9CDB',Saturday:'#F2994A' };
+  const SUB_COLORS = ['#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444','#06B6D4','#F59E0B','#EC4899','#6366F1','#14B8A6'];
+
+  const [ttData,   setTtData]   = useState([]);
+  const [colorMap, setColorMap] = useState({});
+  const [loading,  setLoading]  = useState(false);
+
+  useEffect(() => {
+    if (!classId) return;
+    setLoading(true);
+    timetableAPI.getClass(classId).then(r => {
+      const schedule = r.data.data?.schedule || [];
+      setTtData(schedule);
+      const subs = {};
+      schedule.forEach(ds => ds.periods?.forEach(p => { if(p.subject?._id) subs[p.subject._id] = p.subject; }));
+      const cm = {};
+      Object.keys(subs).forEach((id,i) => { cm[id] = SUB_COLORS[i % SUB_COLORS.length]; });
+      setColorMap(cm);
+    }).catch(()=>setTtData([])).finally(()=>setLoading(false));
+  }, [classId]);
+
+  const ttMap = {};
+  ttData.forEach(ds => { ttMap[ds.day] = {}; ds.periods?.forEach(p => { ttMap[ds.day][p.period] = p; }); });
+
+  if (loading) return <div style={{ textAlign:'center', padding:32, color:'#9CA3AF' }}>Loading timetable…</div>;
+
+  if (!ttData.length) return (
+    <EmptyState icon="🗓" title="No timetable set" subtitle={`Timetable for ${className} hasn't been configured yet`} />
+  );
+
+  return (
+    <div style={{ background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 16px rgba(0,0,0,0.06)', border:'1px solid #E5E7EB' }}>
+      <div style={{ background:'#0B1F4A', padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontWeight:700, fontSize:15, color:'#fff' }}>🗓 {className} — Weekly Timetable</div>
+        <span style={{ fontSize:11, color:'rgba(255,255,255,0.45)' }}>Your Class</span>
+      </div>
+      <div style={{ overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:700 }}>
+          <thead>
+            <tr style={{ background:'#F8FAFC', borderBottom:'2px solid #E5E7EB' }}>
+              <th style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', width:100, position:'sticky', left:0, background:'#F8FAFC', zIndex:2 }}>Day</th>
+              {[1,2,3,4,5,6,7,8].map((p,i) => (
+                <th key={p} style={{ padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', minWidth:110 }}>
+                  <div>P{p}</div>
+                  <div style={{ fontSize:9, fontWeight:400, color:'#9CA3AF', marginTop:2 }}>{TIMES[i]}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {DAYS.map((day,di) => (
+              <tr key={day} style={{ borderBottom:'1px solid #F3F4F6', background:di%2?'#FAFAFA':'#fff' }}>
+                <td style={{ padding:'12px 16px', position:'sticky', left:0, background:di%2?'#FAFAFA':'#fff', zIndex:1, borderRight:'2px solid #E5E7EB' }}>
+                  <div style={{ fontWeight:800, fontSize:12, color:DAY_COLORS[day]||'#374151', textTransform:'uppercase' }}>{day.slice(0,3)}</div>
+                  <div style={{ fontSize:10, color:'#9CA3AF' }}>{day}</div>
+                </td>
+                {[1,2,3,4,5,6,7,8].map(p => {
+                  const period = ttMap[day]?.[p];
+                  const subColor = period?.subject?._id ? (colorMap[period.subject._id]||'#6B7280') : null;
+                  return (
+                    <td key={p} style={{ padding:'8px 10px', textAlign:'center', borderLeft:'1px solid #F3F4F6' }}>
+                      {period?.subject ? (
+                        <div style={{ background:`${subColor}15`, border:`1px solid ${subColor}40`, borderRadius:8, padding:'6px 8px' }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:subColor, lineHeight:1.2 }}>{period.subject.name}</div>
+                          {period.teacher?.user?.name && (
+                            <div style={{ fontSize:10, color:'#9CA3AF', marginTop:3 }}>{period.teacher.user.name.split(' ')[0]}</div>
+                          )}
+                        </div>
+                      ) : period?.type && period.type !== 'regular' ? (
+                        <div style={{ background:'#F3F4F6', borderRadius:8, padding:'4px 6px', fontSize:10, color:'#9CA3AF', fontWeight:600 }}>
+                          {period.type==='break'?'☕ Break':period.type==='lunch'?'🍽 Lunch':'Free'}
+                        </div>
+                      ) : (
+                        <span style={{ color:'#E5E7EB', fontSize:16 }}>—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -392,49 +484,59 @@ export default function StudentDashboard() {
           {!timetable.length ? (
             <EmptyState icon="🗓" title="No timetable set" subtitle="Admin hasn't configured the timetable for your class yet" />
           ) : (
-            <div className="card overflow-x-auto">
-              <CardHeader title="Weekly Timetable" subtitle={`${student.class?.name || ''} ${student.class?.section || ''}`} />
-              <table className="w-full text-sm min-w-[700px]">
-                <thead>
-                  <tr className="bg-warm dark:bg-gray-800/50">
-                    <th className="text-left px-4 py-3 text-xs font-bold text-muted uppercase tracking-wide w-28">Day</th>
-                    {[1,2,3,4,5,6,7,8].map((p, i) => (
-                      <th key={p} className="text-left px-3 py-3 text-xs font-bold text-muted uppercase tracking-wide">
-                        <div>P{p}</div>
-                        <div className="text-[9px] normal-case font-normal">{TIMES[i]}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {DAYS.map(day => (
-                    <tr key={day} className="border-t border-border dark:border-gray-700 hover:bg-warm/40 dark:hover:bg-gray-800/40 transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-xs" style={{ color: DAY_COLORS[day] }}>{day.slice(0,3).toUpperCase()}</div>
-                        <div className="text-[10px] text-muted">{day}</div>
-                      </td>
-                      {[1,2,3,4,5,6,7,8].map(p => {
-                        const period = ttMap[day]?.[p];
-                        return (
-                          <td key={p} className="px-3 py-2">
-                            {period ? (
-                              <div className="min-w-[80px]">
-                                <div className="text-xs font-semibold text-ink dark:text-white">{period.subject?.name || '—'}</div>
-                                <div className="text-[10px] text-muted truncate">{period.teacher?.user?.name || ''}</div>
-                              </div>
-                            ) : <span className="text-[10px] text-muted/30">—</span>}
-                          </td>
-                        );
-                      })}
+            <div className="card overflow-x-auto" style={{ padding:0 }}>
+              <div style={{ background:'#0B1F4A', padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:700, fontSize:15, color:'#fff' }}>🗓 Weekly Timetable</div>
+                <div style={{ fontSize:12, color:'rgba(255,255,255,0.45)' }}>{student.class?.name} {student.class?.section||''}</div>
+              </div>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:4, minWidth:900, padding:8 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign:'left', padding:'8px 12px', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', width:100 }}>Day</th>
+                      {TIMES.map((t,i) => (
+                        <th key={i} style={{ textAlign:'center', padding:'8px 6px', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase' }}>
+                          <div>P{i+1}</div>
+                          <div style={{ fontSize:9, fontWeight:400, color:'#9CA3AF' }}>{t}</div>
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {DAYS.map(day => (
+                      <tr key={day}>
+                        <td style={{ padding:'4px 12px', verticalAlign:'middle' }}>
+                          <div style={{ fontWeight:800, fontSize:12, color:DAY_COLORS[day] }}>{day.slice(0,3).toUpperCase()}</div>
+                          <div style={{ fontSize:10, color:'#9CA3AF' }}>{day}</div>
+                        </td>
+                        {[1,2,3,4,5,6,7,8].map(p => {
+                          const period = ttMap[day]?.[p];
+                          const colors = ['#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444','#06B6D4','#F59E0B','#EC4899'];
+                          const subIdx = period?.subject?.name ? Math.abs(period.subject.name.charCodeAt(0)) % colors.length : 0;
+                          const subColor = colors[subIdx];
+                          return (
+                            <td key={p} style={{ verticalAlign:'top', minWidth:110, padding:2 }}>
+                              {period ? (
+                                <div style={{ minHeight:68, borderRadius:8, padding:'8px 10px', background:`${subColor}12`, borderLeft:`3px solid ${subColor}`, border:`1px solid ${subColor}25` }}>
+                                  <div style={{ fontWeight:700, fontSize:12, color:'#111827' }}>{period.subject?.name||'—'}</div>
+                                  <div style={{ fontSize:10, color:'#6B7280', marginTop:3 }}>{period.teacher?.user?.name?.split(' ').slice(-1)[0]||''}</div>
+                                  {period.room && <div style={{ fontSize:9, color:'#9CA3AF', marginTop:2 }}>🚪 {period.room}</div>}
+                                </div>
+                              ) : (
+                                <div style={{ minHeight:68, borderRadius:8, background:'#F9FAFB', border:'1px dashed #E5E7EB', display:'flex', alignItems:'center', justifyContent:'center', color:'#E5E7EB', fontSize:14 }}>—</div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
       )}
-
       {/* ════════════════════ EXAMS ════════════════════ */}
       {tab === 'exams' && (
         <div className="space-y-4">
@@ -454,50 +556,54 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Upcoming exams timetable */}
-          {upcoming.length > 0 && (
+          {/* Upcoming exam timetable — only this student's class */}
+          {upcoming.length > 0 ? (
             <div className="card overflow-hidden" style={{ padding:0 }}>
-              <div style={{ background:'#0B1F4A', padding:'12px 18px', fontWeight:700, fontSize:14, color:'#fff', display:'flex', justifyContent:'space-between' }}>
-                <span>📅 Upcoming Exam Timetable</span>
-                <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{upcoming.length} exams</span>
+              <div style={{ background:'linear-gradient(135deg,#0B1F4A,#162D6A)', padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14, color:'#fff' }}>📅 Upcoming Exam Timetable</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.45)', marginTop:2 }}>
+                    {student.class?.name} {student.class?.section||''} — Your class only
+                  </div>
+                </div>
+                <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)', background:'rgba(255,255,255,0.1)', padding:'3px 10px', borderRadius:20 }}>{upcoming.length} exams</span>
               </div>
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                   <thead>
-                    <tr style={{ background:'#F8FAFC', borderBottom:'1px solid #E5E7EB' }}>
-                      {['Date','Day','Exam','Subject','Time','Marks'].map(h=>(
-                        <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase' }}>{h}</th>
+                    <tr style={{ background:'#F8FAFC', borderBottom:'2px solid #E5E7EB' }}>
+                      {['Date','Day','Exam Name','Subject','Type','Time','Total Marks','Pass Marks'].map(h=>(
+                        <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {[...upcoming].sort((a,b)=>new Date(a.date)-new Date(b.date)).map((exam,i) => {
-                      const d = new Date(exam.date);
+                      const d    = new Date(exam.date);
                       const diff = Math.ceil((d - new Date()) / 86400000);
-                      const typeColors = { unit:'#F59E0B', midterm:'#EF4444', final:'#8B5CF6', practical:'#10B981', assignment:'#3B82F6' };
+                      const isToday = d.toDateString() === new Date().toDateString();
+                      const typeColors = { unit:{bg:'#FEF3C7',color:'#92400E',border:'#F59E0B'}, midterm:{bg:'#FEE2E2',color:'#991B1B',border:'#EF4444'}, final:{bg:'#EDE9FE',color:'#5B21B6',border:'#8B5CF6'}, practical:{bg:'#D1FAE5',color:'#065F46',border:'#10B981'}, assignment:{bg:'#DBEAFE',color:'#1E40AF',border:'#3B82F6'} };
+                      const tc = typeColors[exam.examType]||typeColors.unit;
                       return (
-                        <tr key={exam._id} style={{ borderBottom:'1px solid #F3F4F6', background: i%2?'#FAFAFA':'#fff' }}>
+                        <tr key={exam._id} style={{ borderBottom:'1px solid #F3F4F6', background: isToday?'#FFFBEB':i%2?'#FAFAFA':'#fff' }}>
                           <td style={{ padding:'10px 14px', fontWeight:700 }}>
-                            <div>{d.getDate()} {d.toLocaleString('default',{month:'short'})}</div>
+                            <div style={{ fontSize:15, color:'#111827' }}>{d.getDate()} {d.toLocaleString('default',{month:'short'})}</div>
                             <div style={{ fontSize:10, color:'#9CA3AF' }}>{d.getFullYear()}</div>
                           </td>
-                          <td style={{ padding:'10px 14px', color:'#6B7280' }}>
-                            {d.toLocaleString('default',{weekday:'short'})}
-                          </td>
+                          <td style={{ padding:'10px 14px', color:'#6B7280' }}>{d.toLocaleString('default',{weekday:'long'})}</td>
                           <td style={{ padding:'10px 14px' }}>
-                            <div style={{ fontWeight:700 }}>{exam.name}</div>
-                            <span style={{ fontSize:10, fontWeight:700, color:typeColors[exam.examType]||'#6B7280', background:typeColors[exam.examType]+'15'||'#F3F4F6', padding:'1px 6px', borderRadius:10 }}>
-                              {exam.examType}
-                            </span>
+                            <div style={{ fontWeight:700, color:'#111827' }}>{exam.name}</div>
+                            {exam.instructions && <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>{exam.instructions}</div>}
                           </td>
                           <td style={{ padding:'10px 14px', color:'#374151' }}>{exam.subject?.name||'—'}</td>
-                          <td style={{ padding:'10px 14px', color:'#6B7280', fontSize:12 }}>
+                          <td style={{ padding:'10px 14px' }}>
+                            <span style={{ fontSize:11, fontWeight:700, color:tc.color, background:tc.bg, border:`1px solid ${tc.border}50`, padding:'3px 9px', borderRadius:20 }}>{exam.examType}</span>
+                          </td>
+                          <td style={{ padding:'10px 14px', color:'#6B7280', fontSize:12, whiteSpace:'nowrap' }}>
                             {exam.startTime||'—'}{exam.endTime?` – ${exam.endTime}`:''}
                           </td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <span style={{ fontWeight:800, color:'#111827' }}>{exam.totalMarks}</span>
-                            <span style={{ fontSize:10, color:'#16A34A', marginLeft:4 }}>/pass {exam.passingMarks}</span>
-                          </td>
+                          <td style={{ padding:'10px 14px', fontWeight:800, color:'#111827' }}>{exam.totalMarks}</td>
+                          <td style={{ padding:'10px 14px', fontWeight:700, color:'#16A34A' }}>{exam.passingMarks}</td>
                         </tr>
                       );
                     })}
@@ -505,41 +611,45 @@ export default function StudentDashboard() {
                 </table>
               </div>
             </div>
-          )}
-
-          {/* Past exams */}
-          {exams.filter(e => e.date && new Date(e.date) < new Date()).length > 0 && (
-            <div className="card overflow-hidden" style={{ padding:0 }}>
-              <div style={{ padding:'12px 18px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:14, color:'#374151' }}>
-                ✅ Completed Exams
-              </div>
-              <div style={{ display:'flex', flexDirection:'column' }}>
-                {exams.filter(e => e.date && new Date(e.date) < new Date())
-                  .sort((a,b)=>new Date(b.date)-new Date(a.date))
-                  .map((exam,i) => {
-                    const d = new Date(exam.date);
-                    return (
-                      <div key={exam._id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
-                        <div style={{ width:42, height:42, borderRadius:10, background:'#F3F4F6', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          <div style={{ fontSize:14, fontWeight:900, color:'#6B7280' }}>{d.getDate()}</div>
-                          <div style={{ fontSize:9, color:'#9CA3AF', textTransform:'uppercase' }}>{d.toLocaleString('default',{month:'short'})}</div>
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontWeight:700, fontSize:13 }}>{exam.name}</div>
-                          <div style={{ fontSize:11, color:'#6B7280' }}>{exam.subject?.name||'—'} · {exam.totalMarks} marks</div>
-                        </div>
-                        <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', background:'#F3F4F6', padding:'3px 8px', borderRadius:10 }}>Done</span>
-                      </div>
-                    );
-                  })}
-              </div>
+          ) : (
+            <div className="card p-8 text-center">
+              <div style={{ fontSize:36, marginBottom:8 }}>✅</div>
+              <div className="font-semibold text-ink">No upcoming exams</div>
+              <div className="text-sm text-muted mt-1">All clear! No exams scheduled for your class.</div>
             </div>
           )}
 
-          {!exams.length && <EmptyState icon="📝" title="No exams found" subtitle="Your class exams will appear here once scheduled" />}
+          {/* Completed exams */}
+          {exams.filter(e => e.date && new Date(e.date) < new Date()).length > 0 && (
+            <div className="card overflow-hidden" style={{ padding:0 }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:14, color:'#374151', display:'flex', justifyContent:'space-between' }}>
+                <span>✅ Completed Exams</span>
+                <span style={{ fontSize:12, color:'#9CA3AF' }}>{exams.filter(e=>e.date&&new Date(e.date)<new Date()).length} exams</span>
+              </div>
+              {exams.filter(e=>e.date&&new Date(e.date)<new Date()).sort((a,b)=>new Date(b.date)-new Date(a.date)).map((exam,i) => {
+                const d = new Date(exam.date);
+                const typeColors = { unit:'#F59E0B', midterm:'#EF4444', final:'#8B5CF6', practical:'#10B981', assignment:'#3B82F6' };
+                return (
+                  <div key={exam._id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
+                    <div style={{ width:42, height:42, borderRadius:10, background:'#F3F4F6', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <div style={{ fontSize:14, fontWeight:900, color:'#6B7280' }}>{d.getDate()}</div>
+                      <div style={{ fontSize:9, color:'#9CA3AF', textTransform:'uppercase' }}>{d.toLocaleString('default',{month:'short'})}</div>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, fontSize:13 }}>{exam.name}</div>
+                      <div style={{ fontSize:11, color:'#6B7280' }}>
+                        {exam.subject?.name||'—'} &nbsp;·&nbsp; {exam.totalMarks} marks &nbsp;·&nbsp;
+                        <span style={{ color:typeColors[exam.examType]||'#6B7280', fontWeight:700 }}>{exam.examType}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', background:'#F3F4F6', padding:'3px 9px', borderRadius:10 }}>Done</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
-      {/* ════════════════════ ASSIGNMENTS ════════════════════ */}
       {tab === 'assignments' && (
         <div className="space-y-3">
           {!assignments.length ? <EmptyState icon="📋" title="No assignments found" /> : (

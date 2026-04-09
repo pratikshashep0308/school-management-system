@@ -188,11 +188,6 @@ function AllExams({ exams, classes, subjects, onEdit, onDelete, onAdd, canEdit, 
           <option value="">All Classes</option>
           {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
-        {canEdit && (
-          <button onClick={onAdd} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
-            + Create Exam
-          </button>
-        )}
       </div>
 
       {loading ? <LoadingState /> : !filtered.length ? (
@@ -267,170 +262,223 @@ function RecentExams({ exams, canEdit, onEdit, onDelete }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB: EXAM TIMETABLE
+// TAB: EXAM TIMETABLE — grid: rows=dates, columns=subjects
 // ══════════════════════════════════════════════════════════════════════════════
 function ExamTimetable({ exams, classes, subjects, canEdit, onEdit, onDelete, onAdd }) {
-  const [classF,  setClassF]  = useState('');
-  const [typeF,   setTypeF]   = useState('');
+  const [classF, setClassF] = useState('');
 
-  const filtered = exams.filter(e =>
-    (!classF || e.class?._id === classF) &&
-    (!typeF  || e.examType === typeF)
-  ).filter(e => e.date)
-   .sort((a,b) => new Date(a.date) - new Date(b.date));
+  // Filter by class
+  const filtered = exams
+    .filter(e => e.date && (!classF || e.class?._id === classF))
+    .sort((a,b) => new Date(a.date) - new Date(b.date));
 
-  // Group by exam type/series
-  const groups = {};
+  // All unique subjects in filtered exams
+  const subjectIds  = [...new Set(filtered.map(e => e.subject?._id).filter(Boolean))];
+  const subjectMap  = {};
+  filtered.forEach(e => { if(e.subject?._id) subjectMap[e.subject._id] = e.subject; });
+  const cols = subjectIds.map(id => subjectMap[id]);
+
+  // All unique dates
+  const dates = [...new Set(filtered.map(e => e.date?.split('T')[0]).filter(Boolean))].sort();
+
+  // Build grid: grid[date][subjectId] = exam
+  const grid = {};
   filtered.forEach(e => {
-    const key = e.examType;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(e);
+    const d = e.date?.split('T')[0];
+    const s = e.subject?._id || '__none__';
+    if (!grid[d]) grid[d] = {};
+    grid[d][s] = e;
   });
+
+  // Exams with no subject — put in a generic column
+  const noSubExams = filtered.filter(e => !e.subject?._id);
+  const hasNoSub   = noSubExams.length > 0;
 
   const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
 
+  const TC = TYPE_COLORS;
+
   return (
     <div>
-      {/* Filters */}
+      {/* Filter bar */}
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
-        <select value={classF} onChange={e=>setClassF(e.target.value)} style={SEL}>
-          <option value="">All Classes</option>
-          {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
-        </select>
-        <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={SEL}>
-          <option value="">All Types</option>
-          {TYPE_LIST.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
-        </select>
-        {canEdit && (
-          <button onClick={onAdd} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
-            + Add Exam
-          </button>
-        )}
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>Filter by Class</div>
+          <select value={classF} onChange={e=>setClassF(e.target.value)} style={SEL}>
+            <option value="">All Classes</option>
+            {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'flex-end', paddingBottom:2 }}>
+          {classes.map(c => (
+            <button key={c._id} onClick={()=>setClassF(f=>f===c._id?'':c._id)} style={{
+              padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
+              border:`1.5px solid ${classF===c._id?'#1D4ED8':'#E5E7EB'}`,
+              background: classF===c._id?'#EFF6FF':'#fff',
+              color: classF===c._id?'#1D4ED8':'#6B7280',
+            }}>{c.name} {c.section||''}</button>
+          ))}
+        </div>
+        <span style={{ fontSize:12, color:'#9CA3AF', marginLeft:'auto' }}>{filtered.length} exams</span>
       </div>
 
       {!filtered.length ? (
         <EmptyState icon="🗓" title="No exam timetable" subtitle="Create exams with dates to see the timetable" />
       ) : (
         <div>
-          {/* Timetable grid */}
-          <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:20 }}>
-            <div style={{ background:'#0B1F4A', padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div style={{ fontWeight:700, fontSize:14, color:'#fff' }}>📋 Exam Schedule</div>
-              <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{filtered.length} exams</div>
+          {/* ── Grid timetable ── */}
+          <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:24 }}>
+            <div style={{ background:'#0B1F4A', padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontWeight:700, fontSize:15, color:'#fff' }}>🗓 Exam Timetable</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.45)' }}>
+                {dates.length} dates · {cols.length + (hasNoSub?1:0)} subjects
+              </div>
             </div>
+
             <div style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth: Math.max(600, (cols.length + (hasNoSub?1:0)) * 180 + 160) }}>
                 <thead>
-                  <tr style={{ background:'#F8FAFC', borderBottom:'2px solid #E5E7EB' }}>
-                    {['Date','Day','Exam Name','Class','Subject','Type','Time','Marks','Actions'].map(h=>(
-                      <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  {/* Subject header row */}
+                  <tr style={{ background:'#162D6A', borderBottom:'2px solid #1D4ED8' }}>
+                    <th style={{ padding:'12px 16px', textAlign:'left', color:'rgba(255,255,255,0.5)', fontSize:11, fontWeight:700, textTransform:'uppercase', width:140, position:'sticky', left:0, background:'#162D6A', zIndex:2 }}>
+                      Date / Subject
+                    </th>
+                    {cols.map(sub => (
+                      <th key={sub._id} style={{ padding:'12px 16px', textAlign:'center', color:'#fff', fontSize:13, fontWeight:700, minWidth:180, borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
+                        <div style={{ fontSize:18, marginBottom:4 }}>{SUBJECTS_ICON[cols.indexOf(sub) % SUBJECTS_ICON.length]}</div>
+                        {sub.name}
+                        {sub.code && <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', fontWeight:400 }}>{sub.code}</div>}
+                      </th>
                     ))}
+                    {hasNoSub && (
+                      <th style={{ padding:'12px 16px', textAlign:'center', color:'#fff', fontSize:13, fontWeight:700, minWidth:180, borderLeft:'1px solid rgba(255,255,255,0.08)' }}>
+                        📋 General
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((e,i) => {
-                    const d   = new Date(e.date);
-                    const tc  = TYPE_COLORS[e.examType]||TYPE_COLORS.unit;
-                    const past= d < new Date();
-                    const diff= daysUntil(e.date);
-                    const isToday = d.toDateString() === new Date().toDateString();
+                  {dates.map((dateStr, di) => {
+                    const dt      = new Date(dateStr);
+                    const isToday = dt.toDateString() === new Date().toDateString();
+                    const isPast  = dt < new Date() && !isToday;
+                    const diff    = Math.ceil((dt - new Date()) / 86400000);
+
                     return (
-                      <tr key={e._id} style={{
+                      <tr key={dateStr} style={{
                         borderBottom:'1px solid #F3F4F6',
-                        background: isToday ? '#FFFBEB' : i%2 ? '#FAFAFA' : '#fff',
+                        background: isToday ? '#FFFBEB' : di%2 ? '#FAFAFA' : '#fff',
                       }}>
-                        <td style={{ padding:'11px 14px', fontWeight:700, whiteSpace:'nowrap' }}>
-                          <div style={{ fontSize:14, color:'#111827' }}>{d.getDate()} {d.toLocaleString('default',{month:'short'})}</div>
-                          <div style={{ fontSize:10, color:'#9CA3AF' }}>{d.getFullYear()}</div>
-                        </td>
-                        <td style={{ padding:'11px 14px', color:'#6B7280' }}>
-                          {d.toLocaleString('default',{weekday:'short'})}
-                        </td>
-                        <td style={{ padding:'11px 14px' }}>
-                          <div style={{ fontWeight:700, color:'#111827' }}>{e.name}</div>
-                          {e.instructions && <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.instructions}</div>}
-                        </td>
-                        <td style={{ padding:'11px 14px', color:'#374151', whiteSpace:'nowrap' }}>
-                          {e.class?.name} {e.class?.section||''}
-                        </td>
-                        <td style={{ padding:'11px 14px', color:'#374151' }}>{e.subject?.name||'—'}</td>
-                        <td style={{ padding:'11px 14px' }}>
-                          <span style={{ fontSize:11, fontWeight:700, color:tc.color, background:tc.bg, border:`1px solid ${tc.border}50`, padding:'3px 9px', borderRadius:20 }}>
-                            {e.examType}
-                          </span>
-                        </td>
-                        <td style={{ padding:'11px 14px', color:'#6B7280', fontSize:12, whiteSpace:'nowrap' }}>
-                          {e.startTime||'—'}{e.endTime?` – ${e.endTime}`:''}
-                        </td>
-                        <td style={{ padding:'11px 14px' }}>
-                          <div style={{ fontWeight:800, color:'#111827' }}>{e.totalMarks}</div>
-                          <div style={{ fontSize:10, color:'#16A34A', fontWeight:600 }}>Pass: {e.passingMarks}</div>
-                        </td>
-                        <td style={{ padding:'11px 14px' }}>
-                          {canEdit ? (
-                            <div style={{ display:'flex', gap:5 }}>
-                              <button onClick={()=>onEdit(e)} style={{ width:28, height:28, borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:12, color:'#6B7280' }}>✎</button>
-                              <button onClick={()=>onDelete(e._id)} style={{ width:28, height:28, borderRadius:7, border:'1px solid #FCA5A5', background:'#FEF2F2', cursor:'pointer', fontSize:12, color:'#DC2626' }}>✕</button>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize:11, fontWeight:700, color: past?'#9CA3AF': diff===0?'#DC2626':diff<=3?'#D97706':'#16A34A', background: past?'#F3F4F6':diff===0?'#FEF2F2':diff<=3?'#FFFBEB':'#F0FDF4', padding:'3px 8px', borderRadius:10 }}>
-                              {past ? 'Done' : diff===0 ? 'Today' : `In ${diff}d`}
+                        {/* Date cell */}
+                        <td style={{
+                          padding:'14px 16px', verticalAlign:'top',
+                          position:'sticky', left:0, zIndex:1,
+                          background: isToday ? '#FFFBEB' : di%2 ? '#FAFAFA' : '#fff',
+                          borderRight:'2px solid #E5E7EB', minWidth:140,
+                        }}>
+                          <div style={{ fontWeight:900, fontSize:20, color:'#111827', lineHeight:1 }}>{dt.getDate()}</div>
+                          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase' }}>
+                            {dt.toLocaleString('default',{month:'short'})} {dt.getFullYear()}
+                          </div>
+                          <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>
+                            {dt.toLocaleString('default',{weekday:'long'})}
+                          </div>
+                          {isToday && <span style={{ fontSize:10, fontWeight:700, color:'#D97706', background:'#FEF3C7', padding:'2px 7px', borderRadius:10, marginTop:4, display:'inline-block' }}>Today</span>}
+                          {isPast  && <span style={{ fontSize:10, fontWeight:700, color:'#9CA3AF', background:'#F3F4F6', padding:'2px 7px', borderRadius:10, marginTop:4, display:'inline-block' }}>Done</span>}
+                          {!isPast && !isToday && diff !== null && (
+                            <span style={{ fontSize:10, fontWeight:700, color:diff<=3?'#DC2626':'#16A34A', background:diff<=3?'#FEF2F2':'#F0FDF4', padding:'2px 7px', borderRadius:10, marginTop:4, display:'inline-block' }}>
+                              In {diff}d
                             </span>
                           )}
                         </td>
+
+                        {/* Subject cells */}
+                        {cols.map(sub => {
+                          const exam = grid[dateStr]?.[sub._id];
+                          const tc   = exam ? (TC[exam.examType]||TC.unit) : null;
+                          return (
+                            <td key={sub._id} style={{ padding:'10px 14px', verticalAlign:'top', borderLeft:'1px solid #F3F4F6', minWidth:180 }}>
+                              {exam ? (
+                                <div style={{
+                                  background: tc.bg, border:`1.5px solid ${tc.border}50`,
+                                  borderRadius:10, padding:'10px 12px', position:'relative',
+                                }}>
+                                  <div style={{ fontWeight:700, fontSize:13, color:'#111827', marginBottom:4 }}>{exam.name}</div>
+                                  <span style={{ fontSize:10, fontWeight:700, color:tc.color, background:'#fff', border:`1px solid ${tc.border}50`, padding:'2px 7px', borderRadius:10 }}>
+                                    {exam.examType}
+                                  </span>
+                                  <div style={{ fontSize:11, color:'#6B7280', marginTop:6 }}>
+                                    {exam.startTime && <span>⏰ {exam.startTime}{exam.endTime?`–${exam.endTime}`:''}</span>}
+                                  </div>
+                                  <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginTop:4 }}>
+                                    📋 {exam.totalMarks} marks &nbsp;|&nbsp; Pass: {exam.passingMarks}
+                                  </div>
+                                  {canEdit && (
+                                    <div style={{ display:'flex', gap:5, marginTop:8, justifyContent:'flex-end' }}>
+                                      <button onClick={()=>onEdit(exam)} style={{ fontSize:11, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'3px 8px', borderRadius:6, cursor:'pointer', fontWeight:700 }}>✎ Edit</button>
+                                      <button onClick={()=>onDelete(exam._id)} style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 8px', borderRadius:6, cursor:'pointer', fontWeight:700 }}>✕</button>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ height:40, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                  <span style={{ color:'#E5E7EB', fontSize:18 }}>—</span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                        {/* No-subject column */}
+                        {hasNoSub && (
+                          <td style={{ padding:'10px 14px', verticalAlign:'top', borderLeft:'1px solid #F3F4F6', minWidth:180 }}>
+                            {(grid[dateStr]?.['__none__'] ? [grid[dateStr]['__none__']] : []).map(exam => {
+                              const tc = TC[exam.examType]||TC.unit;
+                              return (
+                                <div key={exam._id} style={{ background:tc.bg, border:`1.5px solid ${tc.border}50`, borderRadius:10, padding:'10px 12px' }}>
+                                  <div style={{ fontWeight:700, fontSize:13, color:'#111827', marginBottom:4 }}>{exam.name}</div>
+                                  <div style={{ fontSize:11, color:'#6B7280' }}>{exam.startTime||''}</div>
+                                  <div style={{ fontSize:12, fontWeight:700, color:'#374151', marginTop:4 }}>{exam.totalMarks} marks</div>
+                                  {canEdit && (
+                                    <div style={{ display:'flex', gap:5, marginTop:8 }}>
+                                      <button onClick={()=>onEdit(exam)} style={{ fontSize:11, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'3px 8px', borderRadius:6, cursor:'pointer', fontWeight:700 }}>✎</button>
+                                      <button onClick={()=>onDelete(exam._id)} style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 8px', borderRadius:6, cursor:'pointer', fontWeight:700 }}>✕</button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {!grid[dateStr]?.['__none__'] && (
+                              <div style={{ height:40, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <span style={{ color:'#E5E7EB', fontSize:18 }}>—</span>
+                              </div>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+
+            {/* Legend */}
+            <div style={{ padding:'12px 20px', borderTop:'1px solid #E5E7EB', display:'flex', gap:12, flexWrap:'wrap', background:'#F8FAFC' }}>
+              {Object.entries(TC).map(([t,c])=>(
+                <div key={t} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                  <div style={{ width:10, height:10, borderRadius:3, background:c.bg, border:`1px solid ${c.border}` }}/>
+                  <span style={{ fontSize:11, color:'#6B7280', textTransform:'capitalize' }}>{t}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Grouped by type */}
-          {Object.entries(groups).map(([type, items]) => {
-            const tc = TYPE_COLORS[type]||TYPE_COLORS.unit;
-            return (
-              <div key={type} style={{ marginBottom:16 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-                  <span style={{ fontSize:12, fontWeight:800, color:tc.color, background:tc.bg, border:`1px solid ${tc.border}50`, padding:'3px 12px', borderRadius:20, textTransform:'uppercase' }}>
-                    {type} — {items.length} exams
-                  </span>
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:10 }}>
-                  {items.map(e => {
-                    const d = new Date(e.date);
-                    const diff = daysUntil(e.date);
-                    return (
-                      <div key={e._id} style={{
-                        background:'#fff', borderRadius:12, padding:'14px 16px',
-                        border:`1.5px solid ${tc.border}40`, borderTop:`3px solid ${tc.border}`,
-                      }}>
-                        <div style={{ fontWeight:700, fontSize:13, color:'#111827', marginBottom:4 }}>{e.name}</div>
-                        <div style={{ fontSize:11, color:'#6B7280', marginBottom:8 }}>
-                          {e.subject?.name||'—'} &nbsp;·&nbsp; {e.class?.name}
-                        </div>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                          <div style={{ fontSize:12, fontWeight:700, color:'#374151' }}>
-                            📅 {d.getDate()} {d.toLocaleString('default',{month:'short',year:'numeric'})}
-                          </div>
-                          <span style={{ fontSize:11, fontWeight:700,
-                            color: diff<0?'#9CA3AF':diff===0?'#DC2626':diff<=7?'#D97706':'#16A34A',
-                            background: diff<0?'#F3F4F6':diff===0?'#FEF2F2':diff<=7?'#FFFBEB':'#F0FDF4',
-                            padding:'2px 7px', borderRadius:10 }}>
-                            {diff<0?'Done':diff===0?'Today!':diff<=7?`${diff}d`:`${diff}d`}
-                          </span>
-                        </div>
-                        {e.startTime && <div style={{ fontSize:11, color:'#9CA3AF', marginTop:4 }}>⏰ {e.startTime}{e.endTime?` – ${e.endTime}`:''}</div>}
-                        <div style={{ fontSize:11, color:'#374151', marginTop:4, fontWeight:600 }}>
-                          Total: {e.totalMarks} · Pass: {e.passingMarks}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {/* Add exam hint */}
+          {canEdit && (
+            <div style={{ textAlign:'center', padding:'16px', background:'#F8FAFC', borderRadius:12, border:'1.5px dashed #E5E7EB' }}>
+              <span style={{ fontSize:13, color:'#9CA3AF' }}>Click <strong style={{color:'#1D4ED8'}}>+ Create Exam</strong> (top right) to add exams to the timetable</span>
+            </div>
+          )}
         </div>
       )}
     </div>
