@@ -264,7 +264,7 @@ function RecentExams({ exams, canEdit, onEdit, onDelete }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: EXAM TIMETABLE — 2 rows: Row 1 = Subject names, Row 2 = Date & Time
 // ══════════════════════════════════════════════════════════════════════════════
-function ExamTimetable({ exams, classes, subjects, canEdit, onEdit, onDelete }) {
+function ExamTimetable({ exams, classes, subjects, canEdit, onEdit, onDelete, onAdd }) {
   const [classF,     setClassF]     = useState('');
   const [typeF,      setTypeF]      = useState('');
   const [search,     setSearch]     = useState('');
