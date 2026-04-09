@@ -7,7 +7,6 @@ import api from '../utils/api';
 import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
-import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 
 // ─── Ring chart ─────────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
