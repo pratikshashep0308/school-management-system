@@ -322,6 +322,7 @@ function MonthlyReport({ classes }) {
   const [year,          setYear]          = useState(now.getFullYear());
   const [data,          setData]          = useState(null);
   const [loading,       setLoading]       = useState(false);
+  const [activeFilter,  setActiveFilter]  = useState('all'); // 'all'|'low'|'top'|'good'
 
   useEffect(() => {
     if (classes.length && !selectedClass) setSelectedClass(classes[0]._id);
@@ -380,15 +381,31 @@ function MonthlyReport({ classes }) {
           {data.summary && (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:20 }}>
               {[
-                { icon:'📅', label:'Working Days',    val:data.summary.workingDays||0,                                            color:'#1D4ED8', bg:'#EFF6FF', border:'#3B82F6' },
-                { icon:'✅', label:'Avg Attendance',   val:`${data.summary.classAvgPercentage||0}%`,                               color:'#16A34A', bg:'#F0FDF4', border:'#22C55E' },
-                { icon:'👥', label:'Total Students',   val:data.summary.totalStudents||0,                                          color:'#7C3AED', bg:'#F5F3FF', border:'#8B5CF6' },
-                { icon:'⚠️', label:'Low Attendance',  val:(data.lowStudents||[]).length,                                           color:'#D97706', bg:'#FFFBEB', border:'#F59E0B' },
-                { icon:'🏆', label:'Top Performers',   val:(data.topStudents||[]).filter(s=>s.percentage>=90).length,              color:'#16A34A', bg:'#F0FDF4', border:'#22C55E' },
+                { icon:'📅', label:'Working Days',   val:data.summary.workingDays||0,                                              color:'#1D4ED8', bg:'#EFF6FF', border:'#3B82F6', filter:null },
+                { icon:'👥', label:'All Students',   val:data.summary.totalStudents||0,                                            color:'#7C3AED', bg:'#F5F3FF', border:'#8B5CF6', filter:'all' },
+                { icon:'✅', label:'Good (≥75%)',     val:(data.breakdown||[]).filter(s=>s.percentage>=75).length,                  color:'#16A34A', bg:'#F0FDF4', border:'#22C55E', filter:'good' },
+                { icon:'⚠️', label:'Low (<75%)',     val:(data.lowStudents||data.breakdown?.filter(s=>s.percentage<75&&s.total>0)||[]).length, color:'#D97706', bg:'#FFFBEB', border:'#F59E0B', filter:'low' },
+                { icon:'🏆', label:'Top (≥90%)',     val:(data.breakdown||[]).filter(s=>s.percentage>=90).length,                  color:'#059669', bg:'#ECFDF5', border:'#10B981', filter:'top' },
               ].map(c=>(
-                <div key={c.label} style={{ background:c.bg, border:`1.5px solid ${c.border}`, borderRadius:12, padding:'14px 16px' }}>
-                  <div style={{ fontSize:20, marginBottom:6 }}>{c.icon}</div>
-                  <div style={{ fontSize:20, fontWeight:900, color:c.color }}>{c.val}</div>
+                <div key={c.label}
+                  onClick={() => c.filter !== null && setActiveFilter(f => f===c.filter ? 'all' : c.filter)}
+                  style={{
+                    background: activeFilter===c.filter ? c.border+'22' : c.bg,
+                    border: `1.5px solid ${activeFilter===c.filter ? c.border : c.border+'80'}`,
+                    borderRadius:12, padding:'14px 16px',
+                    cursor: c.filter !== null ? 'pointer' : 'default',
+                    transition:'all 0.18s',
+                    transform: activeFilter===c.filter ? 'translateY(-2px)' : '',
+                    boxShadow: activeFilter===c.filter ? `0 4px 16px ${c.border}40` : '',
+                  }}
+                  onMouseEnter={e=>{ if(c.filter!==null){ e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 4px 16px ${c.border}40`; }}}
+                  onMouseLeave={e=>{ if(activeFilter!==c.filter){ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; }}}
+                >
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                    <div style={{ fontSize:20 }}>{c.icon}</div>
+                    {c.filter !== null && <span style={{ fontSize:9, color:c.color, fontWeight:700, opacity:0.6 }}>{activeFilter===c.filter?'✓ Active':'Click'}</span>}
+                  </div>
+                  <div style={{ fontSize:22, fontWeight:900, color:c.color }}>{c.val}</div>
                   <div style={{ fontSize:11, fontWeight:700, color:'#374151', marginTop:3 }}>{c.label}</div>
                 </div>
               ))}
@@ -443,8 +460,18 @@ function MonthlyReport({ classes }) {
           {/* Student-wise monthly breakdown */}
           {(data.breakdown || data.data || []).length > 0 && (
             <div className="card" style={{ padding:0, overflow:'hidden' }}>
-              <div style={{ padding:'14px 18px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:14 }}>
-                Student-wise Monthly Breakdown
+              <div style={{ padding:'14px 18px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:700, fontSize:14 }}>
+                  Student-wise Breakdown
+                  {activeFilter && activeFilter !== 'all' && (
+                    <span style={{ marginLeft:8, fontSize:12, color:'#1D4ED8', fontWeight:600 }}>({activeFilter})</span>
+                  )}
+                </div>
+                {activeFilter && activeFilter !== 'all' && (
+                  <button onClick={()=>setActiveFilter('all')} style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 10px', borderRadius:6, cursor:'pointer', fontWeight:700 }}>
+                    ✕ Clear Filter
+                  </button>
+                )}
               </div>
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
@@ -456,7 +483,13 @@ function MonthlyReport({ classes }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.breakdown || []).map((r, i) => {
+                    {(data.breakdown || []).filter(r => {
+                    if (activeFilter === 'all' || !activeFilter) return true;
+                    if (activeFilter === 'low')  return r.percentage < 75 && r.total > 0;
+                    if (activeFilter === 'good') return r.percentage >= 75;
+                    if (activeFilter === 'top')  return r.percentage >= 90;
+                    return true;
+                  }).map((r, i) => {
                       const pct  = r.percentage ?? 0;
                       const rc   = pct >= 75 ? '#16A34A' : pct >= 50 ? '#D97706' : '#DC2626';
                       const name = r.student?.name || '—';
