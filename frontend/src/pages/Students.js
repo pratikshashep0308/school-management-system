@@ -64,7 +64,15 @@ export default function Students() {
   const [addModal,     setAddModal]    = useState({ open: false, data: null });
   const [saving,       setSaving]      = useState(false);
 
-  const canManage = can(['superAdmin', 'schoolAdmin']);
+  const location   = useLocation();
+  const canManage  = can(['superAdmin', 'schoolAdmin']);
+
+  // Pre-filter by class if navigated from Classes page
+  useEffect(() => {
+    if (location.state?.classId) {
+      setFilterClass(location.state.classId);
+    }
+  }, [location.state]);
 
   const load = useCallback(async () => {
     setLoading(true);
