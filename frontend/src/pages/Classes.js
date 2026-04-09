@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { classAPI, subjectAPI, teacherAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +10,7 @@ const FORM_EMPTY = { name: '', grade: '', section: '', room: '', capacity: '', c
 
 export default function Classes() {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [classes,  setClasses]  = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -73,9 +75,14 @@ export default function Classes() {
               <div className="font-display text-5xl text-ink leading-none mb-1">{cls.grade}</div>
               <div className="text-sm text-muted mb-4">{cls.name}</div>
               <div className="flex gap-5">
-                <div>
+                <div
+                  onClick={e => { e.stopPropagation(); navigate('/students', { state: { classId: cls._id, className: cls.name } }); }}
+                  style={{ cursor:'pointer', transition:'all 0.15s', padding:'6px 10px', borderRadius:8, margin:'-6px -10px', userSelect:'none' }}
+                  onMouseEnter={e => { e.currentTarget.style.background='rgba(0,0,0,0.04)'; e.currentTarget.style.transform='scale(1.05)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.transform=''; }}
+                >
                   <div className="text-xl font-bold text-ink">{cls.students?.length || 0}</div>
-                  <div className="text-xs text-muted">Students</div>
+                  <div className="text-xs text-muted">Students →</div>
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-ink">{cls.classTeacher?.user?.name || '—'}</div>
