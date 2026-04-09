@@ -258,7 +258,7 @@ function DateWiseHistory({ studentId, dashboardAttendance }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function StudentAttendanceSection({ dashboardAttendance }) {
+export default function StudentAttendanceSection({ dashboardAttendance, studentId }) {
   const now   = new Date();
   const [month,   setMonth]   = useState(now.getMonth() + 1);
   const [year,    setYear]    = useState(now.getFullYear());
