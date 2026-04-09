@@ -649,7 +649,7 @@ export default function ParentDashboard() {
 
           {/* ════════════════════ FEES ════════════════════ */}
           {tab === 'fees' && (
-            <StudentFeePortal />
+            <StudentFeePortal studentId={selected?._id || student?._id} studentData={student} attendance={attendance} />
           )}
 
 

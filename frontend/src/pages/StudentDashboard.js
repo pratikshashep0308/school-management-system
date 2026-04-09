@@ -7,7 +7,6 @@ import api from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import StudentFeePortal from './Fees/StudentFeePortal';
-import StudentFeePortal from './Fees/StudentFeePortal';
 
 // ─── Attendance Ring ────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -582,7 +581,7 @@ export default function StudentDashboard() {
 
       {/* ════════════════════ FEES ════════════════════ */}
       {tab === 'fees' && (
-        <StudentFeePortal />
+        <StudentFeePortal studentId={student?._id} studentData={student} attendance={attendance} />
       )}
 
 
