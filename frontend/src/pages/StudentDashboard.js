@@ -151,6 +151,119 @@ function StudentTimetableView({ classId, className }) {
   );
 }
 
+// ── Assignments Section with filters ─────────────────────────────────────────
+function AssignmentsSection({ assignments, dueAssignments }) {
+  const [filter, setFilter] = React.useState('all'); // all | pending | submitted | overdue
+  const [search, setSearch] = React.useState('');
+
+  const filtered = assignments.filter(a => {
+    const now    = new Date();
+    const isOver = a.dueDate && new Date(a.dueDate) < now;
+    const matchFilter =
+      filter === 'all'       ? true :
+      filter === 'pending'   ? (!a.submitted && !isOver) :
+      filter === 'submitted' ? a.submitted :
+      filter === 'overdue'   ? (isOver && !a.submitted) : true;
+    const matchSearch = !search ||
+      a.title?.toLowerCase().includes(search.toLowerCase()) ||
+      a.subject?.name?.toLowerCase().includes(search.toLowerCase());
+    return matchFilter && matchSearch;
+  });
+
+  const overdue = assignments.filter(a => a.dueDate && new Date(a.dueDate) < new Date() && !a.submitted);
+
+  const FILTERS = [
+    { key:'all',       label:`All (${assignments.length})` },
+    { key:'pending',   label:`⏳ Pending (${dueAssignments.length})` },
+    { key:'submitted', label:`✅ Submitted (${assignments.filter(a=>a.submitted).length})` },
+    { key:'overdue',   label:`⚠️ Overdue (${overdue.length})` },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label:'Total',     val:assignments.length,                          color:'#1D4ED8', bg:'#EFF6FF', onClick:()=>setFilter('all') },
+          { label:'Pending',   val:dueAssignments.length,                       color:'#D97706', bg:'#FFFBEB', onClick:()=>setFilter('pending') },
+          { label:'Submitted', val:assignments.filter(a=>a.submitted).length,   color:'#16A34A', bg:'#F0FDF4', onClick:()=>setFilter('submitted') },
+          { label:'Overdue',   val:overdue.length,                              color:'#DC2626', bg:'#FEF2F2', onClick:()=>setFilter('overdue') },
+        ].map(c => (
+          <div key={c.label} onClick={c.onClick}
+            style={{ background:filter===c.key.toLowerCase()||filter==='all'?c.bg:'#fff', border:`1.5px solid ${c.color}30`, borderRadius:12, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s' }}
+            className="hover:-translate-y-0.5 hover:shadow-sm">
+            <div style={{ fontSize:20, fontWeight:900, color:c.color }}>{c.val}</div>
+            <div style={{ fontSize:11, fontWeight:700, color:'#374151', marginTop:3 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search + filter bar */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+        <input placeholder="🔍 Search assignments…" value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, outline:'none', minWidth:200 }}/>
+        <div style={{ display:'flex', gap:6 }}>
+          {FILTERS.map(f => (
+            <button key={f.key} onClick={()=>setFilter(f.key)} style={{
+              padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
+              border:`1.5px solid ${filter===f.key?'#1D4ED8':'#E5E7EB'}`,
+              background:filter===f.key?'#EFF6FF':'#fff',
+              color:filter===f.key?'#1D4ED8':'#6B7280',
+            }}>{f.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {!filtered.length ? (
+        <div className="card p-8 text-center">
+          <div style={{ fontSize:32, marginBottom:8 }}>📋</div>
+          <div className="font-semibold text-ink">No assignments found</div>
+          <div className="text-sm text-muted mt-1">Try changing the filter</div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(a => {
+            const due    = a.dueDate ? new Date(a.dueDate) : null;
+            const isOver = due && due < new Date();
+            const diff   = due ? Math.ceil((due - new Date()) / 86400000) : null;
+            return (
+              <div key={a._id} className={'card px-6 py-5 flex items-start gap-5 transition-colors ' +
+                (a.submitted?'border-green-200':isOver?'border-red-200':'hover:border-accent/30')}>
+                <div className={'w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ' +
+                  (a.submitted?'bg-green-100':isOver?'bg-red-100':'bg-accent/10')}>
+                  {a.submitted ? '✅' : isOver ? '⚠️' : '📋'}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="font-semibold text-ink">{a.title}</span>
+                    {a.subject?.name && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">{a.subject.name}</span>}
+                    {a.submitted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">✓ Submitted</span>}
+                    {isOver && !a.submitted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Overdue</span>}
+                  </div>
+                  {a.description && <p className="text-sm text-muted line-clamp-2">{a.description}</p>}
+                  <div className="flex flex-wrap gap-4 mt-1.5 text-xs text-muted">
+                    {due && <span>📅 Due: <strong className={isOver&&!a.submitted?'text-red-500':'text-ink'}>{due.toLocaleDateString('en-IN')}</strong></span>}
+                    {a.totalMarks && <span>⭐ {a.totalMarks} marks</span>}
+                    {a.teacher?.user?.name && <span>👨‍🏫 {a.teacher.user.name}</span>}
+                    {a.mySubmission?.marksObtained != null && <span className="font-bold text-green-600">🏆 {a.mySubmission.marksObtained}/{a.totalMarks}</span>}
+                  </div>
+                </div>
+                {!a.submitted && diff !== null && diff >= 0 && (
+                  <span className={'text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 ' +
+                    (diff<=1?'bg-red-100 text-red-600':diff<=3?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700')}>
+                    {diff===0?'Due today!':diff+'d left'}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function StudentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -273,18 +386,18 @@ export default function StudentDashboard() {
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon="📅" value={`${attPct}%`}          label="Attendance"
-          change={`${attendance.present}/${attTotal} days`}
-          changeType={attPct >= 75 ? 'up' : 'down'} color="sage" />
-        <StatCard icon="📝" value={upcoming.length}        label="Upcoming Exams"
-          change="Scheduled" changeType="up" color="gold" />
-        <StatCard icon="📋" value={dueAssignments.length}  label="Due Assignments"
-          change={dueAssignments.length > 0 ? 'Need attention' : 'All clear'}
-          changeType={dueAssignments.length > 0 ? 'down' : 'up'} color="accent" />
-        <StatCard icon="💰" value={pendingFees.length === 0 ? '✅' : pendingFees.length}
-          label="Fee Status"
-          change={pendingFees.length === 0 ? 'All paid' : `${pendingFees.length} pending`}
-          changeType={pendingFees.length > 0 ? 'down' : 'up'} color="purple" />
+        {[
+          { icon:'📅', value:`${attPct}%`,         label:'Attendance',     change:`${attendance.present}/${attTotal} days`, changeType:attPct>=75?'up':'down', color:'sage',   tab:'attendance' },
+          { icon:'📝', value:upcoming.length,       label:'Upcoming Exams', change:'Scheduled',                             changeType:'up',                   color:'gold',   tab:'exams' },
+          { icon:'📋', value:dueAssignments.length, label:'Due Assignments',change:dueAssignments.length>0?'Need attention':'All clear', changeType:dueAssignments.length>0?'down':'up', color:'accent', tab:'assignments' },
+          { icon:'💰', value:pendingFees.length===0?'✅':pendingFees.length, label:'Fee Status', change:pendingFees.length===0?'All paid':`${pendingFees.length} pending`, changeType:pendingFees.length>0?'down':'up', color:'purple', tab:'fees' },
+        ].map(s => (
+          <div key={s.label} onClick={()=>setTab(s.tab)}
+            style={{ cursor:'pointer', transition:'all 0.15s', userSelect:'none' }}
+            className="hover:-translate-y-1 hover:shadow-md">
+            <StatCard icon={s.icon} value={s.value} label={s.label} change={s.change} changeType={s.changeType} color={s.color}/>
+          </div>
+        ))}
       </div>
 
       {/* ── Active Section Indicator ── */}
@@ -694,6 +807,9 @@ export default function StudentDashboard() {
         </div>
       )}
       {tab === 'assignments' && (
+        <AssignmentsSection assignments={assignments} dueAssignments={dueAssignments}/>
+      )}
+      {false && tab === 'assignments_old' && (
         <div className="space-y-3">
           {!assignments.length ? <EmptyState icon="📋" title="No assignments found" /> : (
             <>
