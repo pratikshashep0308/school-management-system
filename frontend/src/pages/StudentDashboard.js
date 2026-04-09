@@ -6,7 +6,6 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
-import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 
 // ─── Attendance Ring ────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -334,7 +333,57 @@ export default function StudentDashboard() {
 
       {/* ════════════════════ ATTENDANCE ════════════════════ */}
       {tab === 'attendance' && (
-        <StudentAttendanceSection dashboardAttendance={attendance} />
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="card p-5 text-center">
+              <div className="font-display text-4xl text-sage mb-1">{attendance.present}</div>
+              <div className="text-xs text-muted">✅ Present</div>
+            </div>
+            <div className="card p-5 text-center">
+              <div className="font-display text-4xl text-accent mb-1">{attendance.absent}</div>
+              <div className="text-xs text-muted">❌ Absent</div>
+            </div>
+            <div className="card p-5 flex flex-col items-center gap-1">
+              <Ring pct={attPct} size={64} stroke={6} />
+              <div className="text-xs text-muted">Percentage</div>
+            </div>
+          </div>
+
+          {attPct < 75 && (
+            <div className="card p-4 bg-red-50 dark:bg-red-900/20 border border-red-200">
+              <p className="font-semibold text-red-700 dark:text-red-300">⚠️ Attendance Warning</p>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                Your attendance is {attPct}%. Minimum 75% is required. Please attend classes regularly.
+              </p>
+            </div>
+          )}
+
+          {attendance.records?.length > 0 && (
+            <div className="card p-6">
+              <h3 className="font-semibold text-ink dark:text-white mb-4">Monthly Calendar</h3>
+              <div className="grid grid-cols-7 gap-1.5">
+                {['S','M','T','W','T','F','S'].map((d,i) => (
+                  <div key={i} className="text-center text-[10px] text-muted font-bold py-1">{d}</div>
+                ))}
+                {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_,i) => (
+                  <div key={'e'+i} />
+                ))}
+                {attendance.records.map((r, i) => (
+                  <div key={i} className={'w-8 h-8 rounded-lg mx-auto flex items-center justify-center text-[11px] font-bold ' +
+                    (r.status === 'present' ? 'bg-green-100 dark:bg-green-900/40 text-green-700' :
+                     r.status === 'absent'  ? 'bg-red-100 dark:bg-red-900/40 text-red-600' :
+                                              'bg-gray-100 dark:bg-gray-700 text-muted')}>
+                    {r.day || i+1}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-5 mt-4">
+                <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-green-200 inline-block" /> Present</span>
+                <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-red-200 inline-block" /> Absent</span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ════════════════════ TIMETABLE ════════════════════ */}
@@ -388,66 +437,108 @@ export default function StudentDashboard() {
 
       {/* ════════════════════ EXAMS ════════════════════ */}
       {tab === 'exams' && (
-        <div className="space-y-3">
-          {!exams.length ? <EmptyState icon="📝" title="No exams found" /> : (
-            <>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="card p-4 text-center">
-                  <div className="font-display text-3xl text-amber-500">{upcoming.length}</div>
-                  <div className="text-xs text-muted mt-1">Upcoming</div>
-                </div>
-                <div className="card p-4 text-center">
-                  <div className="font-display text-3xl text-muted">{exams.length - upcoming.length}</div>
-                  <div className="text-xs text-muted mt-1">Completed</div>
-                </div>
-                <div className="card p-4 text-center">
-                  <div className="font-display text-3xl text-ink dark:text-white">{exams.length}</div>
-                  <div className="text-xs text-muted mt-1">Total</div>
-                </div>
+        <div className="space-y-4">
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="card p-5 text-center">
+              <div className="font-display text-3xl text-amber-500">{upcoming.length}</div>
+              <div className="text-xs text-muted mt-1">📅 Upcoming</div>
+            </div>
+            <div className="card p-5 text-center">
+              <div className="font-display text-3xl text-muted">{exams.length - upcoming.length}</div>
+              <div className="text-xs text-muted mt-1">✅ Completed</div>
+            </div>
+            <div className="card p-5 text-center">
+              <div className="font-display text-3xl text-ink dark:text-white">{exams.length}</div>
+              <div className="text-xs text-muted mt-1">📝 Total</div>
+            </div>
+          </div>
+
+          {/* Upcoming exams timetable */}
+          {upcoming.length > 0 && (
+            <div className="card overflow-hidden" style={{ padding:0 }}>
+              <div style={{ background:'#0B1F4A', padding:'12px 18px', fontWeight:700, fontSize:14, color:'#fff', display:'flex', justifyContent:'space-between' }}>
+                <span>📅 Upcoming Exam Timetable</span>
+                <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{upcoming.length} exams</span>
               </div>
-              {exams.map(exam => {
-                const d    = exam.date ? new Date(exam.date) : null;
-                const past = d && d < new Date();
-                const diff = d ? Math.ceil((d - new Date()) / 86400000) : null;
-                const typeColors = {
-                  unit: 'bg-amber-100 text-amber-700',
-                  midterm: 'bg-red-100 text-red-700',
-                  final: 'bg-purple-100 text-purple-700',
-                  practical: 'bg-green-100 text-green-700',
-                };
-                return (
-                  <div key={exam._id} className="card px-5 py-4 flex items-center gap-5 hover:border-accent/30 transition-colors">
-                    <div className="w-14 h-14 rounded-xl bg-warm dark:bg-gray-700 flex flex-col items-center justify-center flex-shrink-0">
-                      <div className="font-bold text-ink dark:text-white">{d?.getDate() || '—'}</div>
-                      <div className="text-[9px] text-muted uppercase">{d?.toLocaleString('default',{month:'short'}) || ''}</div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-semibold text-ink dark:text-white">{exam.name}</span>
-                        {exam.examType && (
-                          <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (typeColors[exam.examType] || 'bg-gray-100 text-gray-600')}>
-                            {exam.examType}
-                          </span>
-                        )}
-                        {past && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500">Done</span>}
-                      </div>
-                      <div className="text-sm text-muted">{exam.subject?.name} · {exam.totalMarks} marks</div>
-                      {exam.venue && <div className="text-xs text-muted/70 mt-0.5">📍 {exam.venue}</div>}
-                    </div>
-                    {!past && diff !== null && (
-                      <span className={'text-xs font-bold px-3 py-1.5 rounded-full ' +
-                        (diff <= 0 ? 'bg-red-100 text-red-600' : diff <= 3 ? 'bg-red-100 text-red-600' : diff <= 7 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700')}>
-                        {diff === 0 ? 'Today!' : `In ${diff}d`}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                  <thead>
+                    <tr style={{ background:'#F8FAFC', borderBottom:'1px solid #E5E7EB' }}>
+                      {['Date','Day','Exam','Subject','Time','Marks'].map(h=>(
+                        <th key={h} style={{ padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...upcoming].sort((a,b)=>new Date(a.date)-new Date(b.date)).map((exam,i) => {
+                      const d = new Date(exam.date);
+                      const diff = Math.ceil((d - new Date()) / 86400000);
+                      const typeColors = { unit:'#F59E0B', midterm:'#EF4444', final:'#8B5CF6', practical:'#10B981', assignment:'#3B82F6' };
+                      return (
+                        <tr key={exam._id} style={{ borderBottom:'1px solid #F3F4F6', background: i%2?'#FAFAFA':'#fff' }}>
+                          <td style={{ padding:'10px 14px', fontWeight:700 }}>
+                            <div>{d.getDate()} {d.toLocaleString('default',{month:'short'})}</div>
+                            <div style={{ fontSize:10, color:'#9CA3AF' }}>{d.getFullYear()}</div>
+                          </td>
+                          <td style={{ padding:'10px 14px', color:'#6B7280' }}>
+                            {d.toLocaleString('default',{weekday:'short'})}
+                          </td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <div style={{ fontWeight:700 }}>{exam.name}</div>
+                            <span style={{ fontSize:10, fontWeight:700, color:typeColors[exam.examType]||'#6B7280', background:typeColors[exam.examType]+'15'||'#F3F4F6', padding:'1px 6px', borderRadius:10 }}>
+                              {exam.examType}
+                            </span>
+                          </td>
+                          <td style={{ padding:'10px 14px', color:'#374151' }}>{exam.subject?.name||'—'}</td>
+                          <td style={{ padding:'10px 14px', color:'#6B7280', fontSize:12 }}>
+                            {exam.startTime||'—'}{exam.endTime?` – ${exam.endTime}`:''}
+                          </td>
+                          <td style={{ padding:'10px 14px' }}>
+                            <span style={{ fontWeight:800, color:'#111827' }}>{exam.totalMarks}</span>
+                            <span style={{ fontSize:10, color:'#16A34A', marginLeft:4 }}>/pass {exam.passingMarks}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
+
+          {/* Past exams */}
+          {exams.filter(e => e.date && new Date(e.date) < new Date()).length > 0 && (
+            <div className="card overflow-hidden" style={{ padding:0 }}>
+              <div style={{ padding:'12px 18px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:14, color:'#374151' }}>
+                ✅ Completed Exams
+              </div>
+              <div style={{ display:'flex', flexDirection:'column' }}>
+                {exams.filter(e => e.date && new Date(e.date) < new Date())
+                  .sort((a,b)=>new Date(b.date)-new Date(a.date))
+                  .map((exam,i) => {
+                    const d = new Date(exam.date);
+                    return (
+                      <div key={exam._id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
+                        <div style={{ width:42, height:42, borderRadius:10, background:'#F3F4F6', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <div style={{ fontSize:14, fontWeight:900, color:'#6B7280' }}>{d.getDate()}</div>
+                          <div style={{ fontSize:9, color:'#9CA3AF', textTransform:'uppercase' }}>{d.toLocaleString('default',{month:'short'})}</div>
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700, fontSize:13 }}>{exam.name}</div>
+                          <div style={{ fontSize:11, color:'#6B7280' }}>{exam.subject?.name||'—'} · {exam.totalMarks} marks</div>
+                        </div>
+                        <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', background:'#F3F4F6', padding:'3px 8px', borderRadius:10 }}>Done</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {!exams.length && <EmptyState icon="📝" title="No exams found" subtitle="Your class exams will appear here once scheduled" />}
         </div>
       )}
-
       {/* ════════════════════ ASSIGNMENTS ════════════════════ */}
       {tab === 'assignments' && (
         <div className="space-y-3">

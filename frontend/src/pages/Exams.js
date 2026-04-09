@@ -1,58 +1,481 @@
-import React, { useEffect, useState } from 'react';
+// frontend/src/pages/Exams.js
+// Tabs: All Exams | Recent Exams | Exam Timetable
+import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { examAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 
 const TYPE_COLORS = {
-  unit:       'bg-amber-100 text-amber-700',
-  midterm:    'bg-red-100 text-red-700',
-  final:      'bg-purple-100 text-purple-700',
-  practical:  'bg-green-100 text-green-700',
-  assignment: 'bg-blue-100 text-blue-700',
+  unit:       { bg:'#FEF3C7', color:'#92400E', border:'#F59E0B' },
+  midterm:    { bg:'#FEE2E2', color:'#991B1B', border:'#EF4444' },
+  final:      { bg:'#EDE9FE', color:'#5B21B6', border:'#8B5CF6' },
+  practical:  { bg:'#D1FAE5', color:'#065F46', border:'#10B981' },
+  assignment: { bg:'#DBEAFE', color:'#1E40AF', border:'#3B82F6' },
 };
-const FORM_EMPTY = { name: '', class: '', subject: '', examType: 'unit', date: '', startTime: '', endTime: '', totalMarks: 100, passingMarks: 35, instructions: '' };
+const TYPE_LIST = ['unit','midterm','final','practical','assignment'];
+const SUBJECTS_ICON = ['📐','📖','🔬','📜','🎨','🌍','💻','🏃','🎵','📊'];
+const FORM_EMPTY = { name:'', class:'', subject:'', examType:'unit', date:'', startTime:'', endTime:'', totalMarks:100, passingMarks:35, instructions:'' };
 
+const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
+const daysUntil = (d) => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null;
+
+// ── Exam card ─────────────────────────────────────────────────────────────────
+function ExamCard({ exam, onEdit, onDelete, canEdit }) {
+  const d    = exam.date ? new Date(exam.date) : null;
+  const past = d && d < new Date();
+  const diff = daysUntil(exam.date);
+  const tc   = TYPE_COLORS[exam.examType] || TYPE_COLORS.unit;
+
+  const urgency = !past && diff !== null
+    ? diff <= 0 ? { bg:'#FEF2F2', color:'#DC2626', text:'Today!' }
+    : diff <= 3 ? { bg:'#FEF2F2', color:'#DC2626', text:`In ${diff}d` }
+    : diff <= 7 ? { bg:'#FFFBEB', color:'#D97706', text:`In ${diff}d` }
+    : { bg:'#F0FDF4', color:'#16A34A', text:`In ${diff}d` }
+    : null;
+
+  return (
+    <div style={{
+      background:'#fff', borderRadius:14,
+      border:`1px solid #E5E7EB`,
+      borderLeft:`4px solid ${tc.border}`,
+      padding:'16px 20px',
+      display:'flex', alignItems:'center', gap:16, flexWrap:'wrap',
+      transition:'all 0.15s',
+      boxShadow:'0 1px 4px rgba(0,0,0,0.04)',
+    }}
+      onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)'}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.04)'}
+    >
+      {/* Date box */}
+      <div style={{ width:54, height:54, borderRadius:12, background:'#F8FAFC', border:'1px solid #E5E7EB', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+        <div style={{ fontSize:18, fontWeight:900, color:'#111827', lineHeight:1 }}>{d?.getDate() || '—'}</div>
+        <div style={{ fontSize:10, color:'#6B7280', textTransform:'uppercase', fontWeight:700 }}>{d?.toLocaleString('default',{month:'short'})||''}</div>
+      </div>
+
+      {/* Info */}
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:5 }}>
+          <span style={{ fontWeight:700, fontSize:15, color:'#111827' }}>{exam.name}</span>
+          <span style={{ fontSize:11, fontWeight:700, color:tc.color, background:tc.bg, border:`1px solid ${tc.border}50`, padding:'2px 8px', borderRadius:20 }}>
+            {exam.examType}
+          </span>
+          {past && <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', background:'#F3F4F6', padding:'2px 8px', borderRadius:20 }}>Done</span>}
+          {exam.isPublished && <span style={{ fontSize:11, fontWeight:700, color:'#16A34A', background:'#F0FDF4', padding:'2px 8px', borderRadius:20 }}>✅ Published</span>}
+        </div>
+        <div style={{ fontSize:13, color:'#6B7280' }}>
+          {exam.class?.name} {exam.class?.section||''} &nbsp;·&nbsp; {exam.subject?.name||'—'}
+          {exam.startTime && <span> &nbsp;·&nbsp; ⏰ {exam.startTime}{exam.endTime?` – ${exam.endTime}`:''}</span>}
+        </div>
+        {exam.instructions && <div style={{ fontSize:12, color:'#9CA3AF', marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📝 {exam.instructions}</div>}
+      </div>
+
+      {/* Marks */}
+      <div style={{ textAlign:'center', minWidth:60 }}>
+        <div style={{ fontSize:26, fontWeight:900, color:'#111827', lineHeight:1 }}>{exam.totalMarks}</div>
+        <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:600 }}>Total</div>
+        <div style={{ fontSize:11, fontWeight:700, color:'#16A34A' }}>Pass: {exam.passingMarks}</div>
+      </div>
+
+      {/* Urgency badge */}
+      {urgency && (
+        <span style={{ fontSize:12, fontWeight:800, color:urgency.color, background:urgency.bg, padding:'5px 12px', borderRadius:20, flexShrink:0 }}>
+          {urgency.text}
+        </span>
+      )}
+
+      {/* Actions */}
+      {canEdit && (
+        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+          <button onClick={()=>onEdit(exam)} style={{ width:32, height:32, borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', color:'#6B7280' }}>✎</button>
+          <button onClick={()=>onDelete(exam._id)} style={{ width:32, height:32, borderRadius:8, border:'1px solid #FCA5A5', background:'#FEF2F2', cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', color:'#DC2626' }}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Exam form modal ───────────────────────────────────────────────────────────
+function ExamModal({ form, setForm, onSave, onClose, saving, classes, subjects }) {
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  return (
+    <Modal isOpen onClose={onClose} title={form._id ? '✎ Edit Exam' : '+ Create Exam'} size="lg"
+      footer={<>
+        <button className="btn-secondary" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" onClick={onSave} disabled={saving}>
+          {saving ? '⏳ Saving…' : form._id ? 'Update Exam' : 'Create Exam'}
+        </button>
+      </>}>
+      <div className="grid grid-cols-2 gap-4">
+        <FormGroup label="Exam Name *" className="col-span-2">
+          <input className="form-input" value={form.name} onChange={e=>set('name',e.target.value)} placeholder="e.g. Unit Test 1 — April 2026" />
+        </FormGroup>
+        <FormGroup label="Class *">
+          <select className="form-input" value={form.class} onChange={e=>set('class',e.target.value)}>
+            <option value="">Select class</option>
+            {classes.map(c=><option key={c._id} value={c._id}>{c.name} — {c.section}</option>)}
+          </select>
+        </FormGroup>
+        <FormGroup label="Subject">
+          <select className="form-input" value={form.subject} onChange={e=>set('subject',e.target.value)}>
+            <option value="">Select subject</option>
+            {subjects.map(s=><option key={s._id} value={s._id}>{s.name}</option>)}
+          </select>
+        </FormGroup>
+        <FormGroup label="Exam Type">
+          <select className="form-input" value={form.examType} onChange={e=>set('examType',e.target.value)}>
+            {TYPE_LIST.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+          </select>
+        </FormGroup>
+        <FormGroup label="Date">
+          <input type="date" className="form-input" value={form.date} onChange={e=>set('date',e.target.value)} />
+        </FormGroup>
+        <FormGroup label="Start Time">
+          <input type="time" className="form-input" value={form.startTime} onChange={e=>set('startTime',e.target.value)} />
+        </FormGroup>
+        <FormGroup label="End Time">
+          <input type="time" className="form-input" value={form.endTime} onChange={e=>set('endTime',e.target.value)} />
+        </FormGroup>
+        <FormGroup label="Total Marks">
+          <input type="number" className="form-input" value={form.totalMarks} onChange={e=>set('totalMarks',+e.target.value)} />
+        </FormGroup>
+        <FormGroup label="Passing Marks">
+          <input type="number" className="form-input" value={form.passingMarks} onChange={e=>set('passingMarks',+e.target.value)} />
+        </FormGroup>
+        <FormGroup label="Instructions" className="col-span-2">
+          <textarea className="form-input" rows={2} value={form.instructions} onChange={e=>set('instructions',e.target.value)} placeholder="Any special instructions…" style={{resize:'vertical'}} />
+        </FormGroup>
+      </div>
+    </Modal>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: ALL EXAMS
+// ══════════════════════════════════════════════════════════════════════════════
+function AllExams({ exams, classes, subjects, onEdit, onDelete, onAdd, canEdit, loading }) {
+  const [filter, setFilter] = useState('');
+  const [classF, setClassF] = useState('');
+  const filtered = exams.filter(e =>
+    (!filter || e.examType === filter) &&
+    (!classF || e.class?._id === classF)
+  );
+  const upcoming = filtered.filter(e => e.date && new Date(e.date) >= new Date());
+  const past     = filtered.filter(e => e.date && new Date(e.date) < new Date());
+
+  const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
+
+  return (
+    <div>
+      {/* Filter bar */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {['','unit','midterm','final','practical','assignment'].map(t=>{
+            const tc = t ? TYPE_COLORS[t] : null;
+            return (
+              <button key={t} onClick={()=>setFilter(t)} style={{
+                padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
+                border:`1.5px solid ${filter===t?(tc?.border||'#374151'):'#E5E7EB'}`,
+                background: filter===t ? (tc?.bg||'#111827') : '#fff',
+                color: filter===t ? (tc?.color||'#fff') : '#6B7280',
+              }}>
+                {t ? t.charAt(0).toUpperCase()+t.slice(1) : 'All'}
+              </button>
+            );
+          })}
+        </div>
+        <select value={classF} onChange={e=>setClassF(e.target.value)} style={SEL}>
+          <option value="">All Classes</option>
+          {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
+        </select>
+        {canEdit && (
+          <button onClick={onAdd} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
+            + Create Exam
+          </button>
+        )}
+      </div>
+
+      {loading ? <LoadingState /> : !filtered.length ? (
+        <EmptyState icon="📝" title="No exams found" subtitle="Try adjusting the filters or create a new exam" />
+      ) : (
+        <div>
+          {upcoming.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:13, fontWeight:800, color:'#374151', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ background:'#FEF3C7', color:'#92400E', padding:'3px 10px', borderRadius:20, fontSize:11 }}>📅 Upcoming — {upcoming.length}</span>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {upcoming.map(e=><ExamCard key={e._id} exam={e} onEdit={onEdit} onDelete={onDelete} canEdit={canEdit}/>)}
+              </div>
+            </div>
+          )}
+          {past.length > 0 && (
+            <div>
+              <div style={{ fontSize:13, fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:10 }}>
+                <span style={{ background:'#F3F4F6', color:'#6B7280', padding:'3px 10px', borderRadius:20, fontSize:11 }}>✓ Completed — {past.length}</span>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {past.map(e=><ExamCard key={e._id} exam={e} onEdit={onEdit} onDelete={onDelete} canEdit={canEdit}/>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: RECENT EXAMS
+// ══════════════════════════════════════════════════════════════════════════════
+function RecentExams({ exams, canEdit, onEdit, onDelete }) {
+  const now     = new Date();
+  const weekAgo = new Date(now - 7*24*60*60*1000);
+  const monthAgo= new Date(now - 30*24*60*60*1000);
+
+  const today    = exams.filter(e => e.date && new Date(e.date).toDateString() === now.toDateString());
+  const thisWeek = exams.filter(e => { const d=new Date(e.date); return e.date && d>=weekAgo && d.toDateString()!==now.toDateString() && d<=now; });
+  const upcoming7= exams.filter(e => { const d=new Date(e.date); const diff=daysUntil(e.date); return e.date && diff!==null && diff>0 && diff<=7; });
+  const next30   = exams.filter(e => { const diff=daysUntil(e.date); return e.date && diff!==null && diff>7 && diff<=30; });
+
+  if (!exams.length) return <EmptyState icon="📝" title="No exams found" />;
+
+  const Section = ({ title, items, badge }) => items.length === 0 ? null : (
+    <div style={{ marginBottom:24 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+        <span style={{ fontSize:13, fontWeight:800, color:'#374151' }}>{title}</span>
+        <span style={{ fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', padding:'2px 8px', borderRadius:20 }}>{items.length}</span>
+        {badge && <span style={{ fontSize:11, fontWeight:700, background:badge.bg, color:badge.color, padding:'2px 8px', borderRadius:20 }}>{badge.text}</span>}
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {items.map(e=><ExamCard key={e._id} exam={e} onEdit={onEdit} onDelete={onDelete} canEdit={canEdit}/>)}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Section title="📅 Today" items={today} badge={{ bg:'#FEF2F2', color:'#DC2626', text:'TODAY' }} />
+      <Section title="⏰ Next 7 Days" items={upcoming7} badge={{ bg:'#FFFBEB', color:'#D97706', text:'UPCOMING' }} />
+      <Section title="📆 Next 30 Days" items={next30} />
+      <Section title="✅ This Week (Past)" items={thisWeek} />
+      {!today.length && !upcoming7.length && !next30.length && !thisWeek.length && (
+        <EmptyState icon="📅" title="No recent or upcoming exams" subtitle="Exams from the last 7 days and next 30 days appear here" />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: EXAM TIMETABLE
+// ══════════════════════════════════════════════════════════════════════════════
+function ExamTimetable({ exams, classes, subjects, canEdit, onEdit, onDelete, onAdd }) {
+  const [classF,  setClassF]  = useState('');
+  const [typeF,   setTypeF]   = useState('');
+
+  const filtered = exams.filter(e =>
+    (!classF || e.class?._id === classF) &&
+    (!typeF  || e.examType === typeF)
+  ).filter(e => e.date)
+   .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  // Group by exam type/series
+  const groups = {};
+  filtered.forEach(e => {
+    const key = e.examType;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+
+  const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
+
+  return (
+    <div>
+      {/* Filters */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
+        <select value={classF} onChange={e=>setClassF(e.target.value)} style={SEL}>
+          <option value="">All Classes</option>
+          {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
+        </select>
+        <select value={typeF} onChange={e=>setTypeF(e.target.value)} style={SEL}>
+          <option value="">All Types</option>
+          {TYPE_LIST.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+        </select>
+        {canEdit && (
+          <button onClick={onAdd} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
+            + Add Exam
+          </button>
+        )}
+      </div>
+
+      {!filtered.length ? (
+        <EmptyState icon="🗓" title="No exam timetable" subtitle="Create exams with dates to see the timetable" />
+      ) : (
+        <div>
+          {/* Timetable grid */}
+          <div className="card" style={{ padding:0, overflow:'hidden', marginBottom:20 }}>
+            <div style={{ background:'#0B1F4A', padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontWeight:700, fontSize:14, color:'#fff' }}>📋 Exam Schedule</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)' }}>{filtered.length} exams</div>
+            </div>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <thead>
+                  <tr style={{ background:'#F8FAFC', borderBottom:'2px solid #E5E7EB' }}>
+                    {['Date','Day','Exam Name','Class','Subject','Type','Time','Marks','Actions'].map(h=>(
+                      <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((e,i) => {
+                    const d   = new Date(e.date);
+                    const tc  = TYPE_COLORS[e.examType]||TYPE_COLORS.unit;
+                    const past= d < new Date();
+                    const diff= daysUntil(e.date);
+                    const isToday = d.toDateString() === new Date().toDateString();
+                    return (
+                      <tr key={e._id} style={{
+                        borderBottom:'1px solid #F3F4F6',
+                        background: isToday ? '#FFFBEB' : i%2 ? '#FAFAFA' : '#fff',
+                      }}>
+                        <td style={{ padding:'11px 14px', fontWeight:700, whiteSpace:'nowrap' }}>
+                          <div style={{ fontSize:14, color:'#111827' }}>{d.getDate()} {d.toLocaleString('default',{month:'short'})}</div>
+                          <div style={{ fontSize:10, color:'#9CA3AF' }}>{d.getFullYear()}</div>
+                        </td>
+                        <td style={{ padding:'11px 14px', color:'#6B7280' }}>
+                          {d.toLocaleString('default',{weekday:'short'})}
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontWeight:700, color:'#111827' }}>{e.name}</div>
+                          {e.instructions && <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2, maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.instructions}</div>}
+                        </td>
+                        <td style={{ padding:'11px 14px', color:'#374151', whiteSpace:'nowrap' }}>
+                          {e.class?.name} {e.class?.section||''}
+                        </td>
+                        <td style={{ padding:'11px 14px', color:'#374151' }}>{e.subject?.name||'—'}</td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <span style={{ fontSize:11, fontWeight:700, color:tc.color, background:tc.bg, border:`1px solid ${tc.border}50`, padding:'3px 9px', borderRadius:20 }}>
+                            {e.examType}
+                          </span>
+                        </td>
+                        <td style={{ padding:'11px 14px', color:'#6B7280', fontSize:12, whiteSpace:'nowrap' }}>
+                          {e.startTime||'—'}{e.endTime?` – ${e.endTime}`:''}
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontWeight:800, color:'#111827' }}>{e.totalMarks}</div>
+                          <div style={{ fontSize:10, color:'#16A34A', fontWeight:600 }}>Pass: {e.passingMarks}</div>
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          {canEdit ? (
+                            <div style={{ display:'flex', gap:5 }}>
+                              <button onClick={()=>onEdit(e)} style={{ width:28, height:28, borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:12, color:'#6B7280' }}>✎</button>
+                              <button onClick={()=>onDelete(e._id)} style={{ width:28, height:28, borderRadius:7, border:'1px solid #FCA5A5', background:'#FEF2F2', cursor:'pointer', fontSize:12, color:'#DC2626' }}>✕</button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize:11, fontWeight:700, color: past?'#9CA3AF': diff===0?'#DC2626':diff<=3?'#D97706':'#16A34A', background: past?'#F3F4F6':diff===0?'#FEF2F2':diff<=3?'#FFFBEB':'#F0FDF4', padding:'3px 8px', borderRadius:10 }}>
+                              {past ? 'Done' : diff===0 ? 'Today' : `In ${diff}d`}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Grouped by type */}
+          {Object.entries(groups).map(([type, items]) => {
+            const tc = TYPE_COLORS[type]||TYPE_COLORS.unit;
+            return (
+              <div key={type} style={{ marginBottom:16 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                  <span style={{ fontSize:12, fontWeight:800, color:tc.color, background:tc.bg, border:`1px solid ${tc.border}50`, padding:'3px 12px', borderRadius:20, textTransform:'uppercase' }}>
+                    {type} — {items.length} exams
+                  </span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:10 }}>
+                  {items.map(e => {
+                    const d = new Date(e.date);
+                    const diff = daysUntil(e.date);
+                    return (
+                      <div key={e._id} style={{
+                        background:'#fff', borderRadius:12, padding:'14px 16px',
+                        border:`1.5px solid ${tc.border}40`, borderTop:`3px solid ${tc.border}`,
+                      }}>
+                        <div style={{ fontWeight:700, fontSize:13, color:'#111827', marginBottom:4 }}>{e.name}</div>
+                        <div style={{ fontSize:11, color:'#6B7280', marginBottom:8 }}>
+                          {e.subject?.name||'—'} &nbsp;·&nbsp; {e.class?.name}
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:'#374151' }}>
+                            📅 {d.getDate()} {d.toLocaleString('default',{month:'short',year:'numeric'})}
+                          </div>
+                          <span style={{ fontSize:11, fontWeight:700,
+                            color: diff<0?'#9CA3AF':diff===0?'#DC2626':diff<=7?'#D97706':'#16A34A',
+                            background: diff<0?'#F3F4F6':diff===0?'#FEF2F2':diff<=7?'#FFFBEB':'#F0FDF4',
+                            padding:'2px 7px', borderRadius:10 }}>
+                            {diff<0?'Done':diff===0?'Today!':diff<=7?`${diff}d`:`${diff}d`}
+                          </span>
+                        </div>
+                        {e.startTime && <div style={{ fontSize:11, color:'#9CA3AF', marginTop:4 }}>⏰ {e.startTime}{e.endTime?` – ${e.endTime}`:''}</div>}
+                        <div style={{ fontSize:11, color:'#374151', marginTop:4, fontWeight:600 }}>
+                          Total: {e.totalMarks} · Pass: {e.passingMarks}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN
+// ══════════════════════════════════════════════════════════════════════════════
 export default function Exams() {
   const { isAdmin, isTeacher } = useAuth();
+  const [tab,      setTab]     = useState('all');
   const [exams,    setExams]   = useState([]);
   const [classes,  setClasses] = useState([]);
   const [subjects, setSubjects]= useState([]);
   const [loading,  setLoading] = useState(true);
-  const [modal,    setModal]   = useState({ open: false });
+  const [modal,    setModal]   = useState(false);
   const [form,     setForm]    = useState(FORM_EMPTY);
   const [saving,   setSaving]  = useState(false);
-  const [filter,   setFilter]  = useState('');
 
-  const load = async () => {
+  const canEdit = isAdmin || isTeacher;
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [eRes, cRes, sRes] = await Promise.all([examAPI.getAll(), classAPI.getAll(), subjectAPI.getAll()]);
-      setExams(eRes.data.data);
-      setClasses(cRes.data.data);
-      setSubjects(sRes.data.data);
+      setExams(eRes.data.data || []);
+      setClasses(cRes.data.data || []);
+      setSubjects(sRes.data.data || []);
     } catch { toast.error('Failed to load exams'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const openAdd  = () => { setForm(FORM_EMPTY); setModal({ open: true }); };
+  const openAdd  = () => { setForm(FORM_EMPTY); setModal(true); };
   const openEdit = (exam) => {
     setForm({
-      _id: exam._id,
-      name: exam.name || '',
-      class: exam.class?._id || exam.class || '',
-      subject: exam.subject?._id || exam.subject || '',
-      examType: exam.examType || 'unit',
-      date: exam.date ? exam.date.split('T')[0] : '',
-      startTime: exam.startTime || '',
-      endTime: exam.endTime || '',
-      totalMarks: exam.totalMarks || 100,
-      passingMarks: exam.passingMarks || 35,
-      instructions: exam.instructions || '',
+      _id: exam._id, name: exam.name||'', class: exam.class?._id||exam.class||'',
+      subject: exam.subject?._id||exam.subject||'', examType: exam.examType||'unit',
+      date: exam.date?exam.date.split('T')[0]:'', startTime: exam.startTime||'',
+      endTime: exam.endTime||'', totalMarks: exam.totalMarks||100,
+      passingMarks: exam.passingMarks||35, instructions: exam.instructions||'',
     });
-    setModal({ open: true });
+    setModal(true);
   };
 
   const handleSave = async () => {
@@ -62,8 +485,8 @@ export default function Exams() {
     try {
       if (form._id) { await examAPI.update(form._id, form); toast.success('Exam updated'); }
       else          { await examAPI.create(form);           toast.success('Exam created'); }
-      setModal({ open: false }); setForm(FORM_EMPTY); load();
-    } catch (err) { toast.error(err.response?.data?.message || 'Error saving exam'); }
+      setModal(false); setForm(FORM_EMPTY); load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
 
@@ -73,117 +496,57 @@ export default function Exams() {
     catch { toast.error('Failed to delete'); }
   };
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const filtered = exams.filter(e => !filter || e.examType === filter);
+  const upcoming = exams.filter(e => e.date && new Date(e.date) >= new Date());
+  const TABS = [
+    { key:'all',       label:'📝 All Exams' },
+    { key:'recent',    label:'🕐 Recent / Upcoming' },
+    { key:'timetable', label:'🗓 Exam Timetable' },
+  ];
 
   return (
     <div className="animate-fade-in">
       <div className="page-header">
         <div>
-          <h2 className="font-display text-2xl text-ink">Exams & Results</h2>
-          <p className="text-sm text-muted mt-0.5">{exams.length} exams scheduled</p>
+          <h2 className="font-display text-2xl text-ink">📝 Exams & Results</h2>
+          <p className="text-sm text-muted mt-0.5">
+            {exams.length} total · {upcoming.length} upcoming
+          </p>
         </div>
-        {(isAdmin || isTeacher) && <button className="btn-primary" onClick={openAdd}>+ Create Exam</button>}
+        {canEdit && (
+          <button onClick={openAdd} className="btn-primary">+ Create Exam</button>
+        )}
       </div>
 
-      <div className="flex gap-2 mb-5 flex-wrap">
-        {['', 'unit', 'midterm', 'final', 'practical', 'assignment'].map(t => (
-          <button key={t} onClick={() => setFilter(t)}
-            className={"px-3 py-1.5 rounded-lg text-sm font-medium transition-all " + (filter === t ? 'bg-ink text-white dark:bg-white dark:text-ink' : 'bg-white dark:bg-gray-800 border border-border text-slate hover:border-accent')}>
-            {t ? t.charAt(0).toUpperCase() + t.slice(1) : 'All'}
-          </button>
+      {/* Tab bar */}
+      <div style={{ display:'flex', gap:4, background:'#F3F4F6', borderRadius:10, padding:4, marginBottom:22, flexWrap:'wrap' }}>
+        {TABS.map(t=>(
+          <button key={t.key} onClick={()=>setTab(t.key)} style={{
+            padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:700,
+            border:'none', cursor:'pointer', transition:'all 0.15s',
+            background: tab===t.key ? '#1D4ED8' : 'transparent',
+            color:      tab===t.key ? '#fff'    : '#6B7280',
+          }}>{t.label}</button>
         ))}
       </div>
 
-      {loading ? <LoadingState /> : !filtered.length ? <EmptyState icon="📝" title="No exams found" /> : (
-        <div className="flex flex-col gap-3">
-          {filtered.map(exam => {
-            const d = exam.date ? new Date(exam.date) : null;
-            const isPast = d && d < new Date();
-            const borderColors = { unit:'#c9a84c', midterm:'#d4522a', final:'#7c6af5', practical:'#4a7c59', assignment:'#2d9cdb' };
-            return (
-              <div key={exam._id} className="card overflow-hidden" style={{ borderLeft: "4px solid " + (borderColors[exam.examType] || '#ccc') }}>
-                <div className="flex items-center gap-5 px-6 py-5">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                      <span className="font-semibold text-ink dark:text-white">{exam.name}</span>
-                      <span className={"text-[10px] font-bold px-2 py-0.5 rounded-full uppercase " + (TYPE_COLORS[exam.examType] || 'bg-gray-100 text-gray-600')}>{exam.examType}</span>
-                      {isPast && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 uppercase">Past</span>}
-                    </div>
-                    <div className="text-sm text-muted">{exam.class?.name} {exam.class?.section ? "— " + exam.class.section : ""} · {exam.subject?.name}</div>
-                  </div>
-                  <div className="text-center hidden sm:block">
-                    <div className="text-xs text-muted mb-1">Date</div>
-                    <div className="font-medium text-sm text-ink dark:text-white">{d?.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) || 'TBD'}</div>
-                  </div>
-                  <div className="text-center hidden sm:block">
-                    <div className="text-xs text-muted mb-1">Total Marks</div>
-                    <div className="font-display text-3xl text-ink dark:text-white">{exam.totalMarks}</div>
-                  </div>
-                  <div className="text-center hidden md:block">
-                    <div className="text-xs text-muted mb-1">Passing</div>
-                    <div className="font-medium text-green-600">{exam.passingMarks}</div>
-                  </div>
-                  {(isAdmin || isTeacher) && (
-                    <div className="flex gap-1.5">
-                      <button onClick={() => openEdit(exam)} className="w-8 h-8 rounded-lg border border-border text-slate hover:border-accent hover:text-accent transition-all flex items-center justify-center text-sm">✎</button>
-                      <button onClick={() => handleDelete(exam._id)} className="w-8 h-8 rounded-lg border border-red-200 text-red-400 hover:border-red-400 hover:text-red-600 transition-all flex items-center justify-center text-sm">✕</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {tab === 'all' && (
+        <AllExams exams={exams} classes={classes} subjects={subjects}
+          onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd}
+          canEdit={canEdit} loading={loading} />
+      )}
+      {tab === 'recent' && (
+        <RecentExams exams={exams} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} />
+      )}
+      {tab === 'timetable' && (
+        <ExamTimetable exams={exams} classes={classes} subjects={subjects}
+          canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} />
       )}
 
-      <Modal isOpen={modal.open} onClose={() => { setModal({ open: false }); setForm(FORM_EMPTY); }}
-        title={form._id ? 'Edit Exam' : 'Create Exam'} size="lg"
-        footer={<>
-          <button className="btn-secondary" onClick={() => { setModal({ open: false }); setForm(FORM_EMPTY); }}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : form._id ? 'Update Exam' : 'Create Exam'}</button>
-        </>}>
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Exam Name *" className="col-span-2">
-            <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Midterm Examination 2026" />
-          </FormGroup>
-          <FormGroup label="Class *">
-            <select className="form-input" value={form.class} onChange={e => set('class', e.target.value)}>
-              <option value="">Select class</option>
-              {classes.map(c => <option key={c._id} value={c._id}>{c.name} — {c.section}</option>)}
-            </select>
-          </FormGroup>
-          <FormGroup label="Subject">
-            <select className="form-input" value={form.subject} onChange={e => set('subject', e.target.value)}>
-              <option value="">Select subject</option>
-              {subjects.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-            </select>
-          </FormGroup>
-          <FormGroup label="Exam Type">
-            <select className="form-input" value={form.examType} onChange={e => set('examType', e.target.value)}>
-              {['unit','midterm','final','practical','assignment'].map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
-            </select>
-          </FormGroup>
-          <FormGroup label="Date">
-            <input type="date" className="form-input" value={form.date} onChange={e => set('date', e.target.value)} />
-          </FormGroup>
-          <FormGroup label="Start Time">
-            <input type="time" className="form-input" value={form.startTime} onChange={e => set('startTime', e.target.value)} />
-          </FormGroup>
-          <FormGroup label="End Time">
-            <input type="time" className="form-input" value={form.endTime} onChange={e => set('endTime', e.target.value)} />
-          </FormGroup>
-          <FormGroup label="Total Marks">
-            <input type="number" className="form-input" value={form.totalMarks} onChange={e => set('totalMarks', +e.target.value)} placeholder="100" />
-          </FormGroup>
-          <FormGroup label="Passing Marks">
-            <input type="number" className="form-input" value={form.passingMarks} onChange={e => set('passingMarks', +e.target.value)} placeholder="35" />
-          </FormGroup>
-          <FormGroup label="Instructions" className="col-span-2">
-            <textarea className="form-input" rows={3} value={form.instructions} onChange={e => set('instructions', e.target.value)} placeholder="Any special instructions for students..." style={{ resize: 'vertical' }} />
-          </FormGroup>
-        </div>
-      </Modal>
+      {modal && (
+        <ExamModal form={form} setForm={setForm} onSave={handleSave}
+          onClose={()=>{setModal(false);setForm(FORM_EMPTY);}}
+          saving={saving} classes={classes} subjects={subjects} />
+      )}
     </div>
   );
 }
