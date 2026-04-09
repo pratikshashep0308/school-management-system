@@ -125,17 +125,22 @@ export default function Students() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Students', value: total,  icon: '👥', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' },
-          { label: 'Active',         value: active, icon: '✅', color: 'bg-green-50 dark:bg-green-900/20 text-green-600' },
-          { label: 'Boys',           value: boys,   icon: '👦', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' },
-          { label: 'Girls',          value: girls,  icon: '👧', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' },
+          { label: 'Total Students', value: total,                                          icon: '👥', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600',    tab: 'all'      },
+          { label: 'Active',         value: active,                                         icon: '✅', color: 'bg-green-50 dark:bg-green-900/20 text-green-600',  tab: 'active'   },
+          { label: 'Inactive',       value: students.filter(s => !s.isActive).length,       icon: '⭕', color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-500', tab: 'inactive' },
+          { label: 'Alumni',         value: students.filter(s => s.status === 'alumni').length, icon: '🎓', color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600', tab: 'alumni' },
         ].map(s => (
-          <div key={s.label} className="card p-4 flex items-center gap-3">
+          <div key={s.label}
+            onClick={() => setTab(s.tab)}
+            style={{ cursor:'pointer', transition:'all 0.18s', userSelect:'none' }}
+            className="card p-4 flex items-center gap-3 hover:-translate-y-1 hover:shadow-lg active:scale-95"
+          >
             <div className={'w-11 h-11 rounded-xl flex items-center justify-center text-xl ' + s.color}>{s.icon}</div>
-            <div>
+            <div style={{ flex:1 }}>
               <div className="text-2xl font-display text-ink dark:text-white">{s.value}</div>
               <div className="text-xs text-muted">{s.label}</div>
             </div>
+            <span style={{ fontSize:10, opacity:0.3, fontWeight:800 }}>→</span>
           </div>
         ))}
       </div>
