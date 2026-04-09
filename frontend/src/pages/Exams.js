@@ -223,10 +223,9 @@ function AllExams({ exams, classes, subjects, onEdit, onDelete, onAdd, canEdit, 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB: RECENT EXAMS
 // ══════════════════════════════════════════════════════════════════════════════
-function RecentExams({ exams, canEdit, onEdit, onDelete }) {
+function RecentExams({ exams }) {
   const now     = new Date();
   const weekAgo = new Date(now - 7*24*60*60*1000);
-  const monthAgo= new Date(now - 30*24*60*60*1000);
 
   const today    = exams.filter(e => e.date && new Date(e.date).toDateString() === now.toDateString());
   const thisWeek = exams.filter(e => { const d=new Date(e.date); return e.date && d>=weekAgo && d.toDateString()!==now.toDateString() && d<=now; });
@@ -243,7 +242,7 @@ function RecentExams({ exams, canEdit, onEdit, onDelete }) {
         {badge && <span style={{ fontSize:11, fontWeight:700, background:badge.bg, color:badge.color, padding:'2px 8px', borderRadius:20 }}>{badge.text}</span>}
       </div>
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {items.map(e=><ExamCard key={e._id} exam={e} onEdit={onEdit} onDelete={onDelete} canEdit={canEdit}/>)}
+        {items.map(e=><ExamCard key={e._id} exam={e} canEdit={false}/>)}
       </div>
     </div>
   );
@@ -625,7 +624,7 @@ export default function Exams() {
           canEdit={canEdit} loading={loading} />
       )}
       {tab === 'recent' && (
-        <RecentExams exams={exams} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} />
+        <RecentExams exams={exams} />
       )}
       {tab === 'timetable' && (
         <ExamTimetable exams={exams} classes={classes} subjects={subjects}
