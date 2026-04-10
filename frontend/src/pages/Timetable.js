@@ -415,9 +415,10 @@ export default function Timetable() {
                     return (
                       <th key={d} style={{
                         padding:'12px 10px', textAlign:'center', fontSize:11, fontWeight:700,
-                        color: isToday ? '#FFD700' : '#c8d8ef',
+                        color: isToday ? '#FFD700' : '#E2E8F0',
                         borderRight:'1px solid rgba(255,255,255,0.08)',
                         borderTop: isToday ? '2px solid #FFD700' : 'none',
+                        background: isToday ? '#162D6A' : '#0B1F4A',
                         minWidth:110,
                       }}>
                         {DAY_SHORT[d]}
@@ -433,15 +434,15 @@ export default function Timetable() {
                 {(periodNums.length ? periodNums : [1,2,3,4,5,6,7,8]).map(pn => {
                   const times = periodTimes[pn];
                   return (
-                    <tr key={pn} style={{ borderBottom:'0.5px solid #F3F4F6' }}>
+                    <tr key={pn} style={{ borderBottom:'0.5px solid #1E3A6A' }}>
                       {/* Period label cell */}
-                      <td style={{ padding:'8px 6px', textAlign:'center', background:'#F8FAFC', borderRight:'0.5px solid #E5E7EB', verticalAlign:'middle' }}>
+                      <td style={{ padding:'8px 6px', textAlign:'center', background:'#0B1F4A', borderRight:'0.5px solid rgba(255,255,255,0.08)', verticalAlign:'middle' }}>
                         <div style={{ width:30, height:30, borderRadius:8, background:'#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 3px' }}>
                           <span style={{ fontSize:12, fontWeight:700, color:'#fff' }}>P{pn}</span>
                         </div>
                         {times && <>
-                          <div style={{ fontSize:9, color:'#9CA3AF' }}>{fmt12(times.start)}</div>
-                          <div style={{ fontSize:9, color:'#9CA3AF' }}>{fmt12(times.end)}</div>
+                          <div style={{ fontSize:9, color:'rgba(255,255,255,0.45)' }}>{fmt12(times.start)}</div>
+                          <div style={{ fontSize:9, color:'rgba(255,255,255,0.45)' }}>{fmt12(times.end)}</div>
                         </>}
                       </td>
 
@@ -451,7 +452,7 @@ export default function Timetable() {
                         const period  = grid[d]?.[pn];
                         return (
                           <td key={d} style={{
-                            borderRight:'0.5px solid #F3F4F6', verticalAlign:'top',
+                            borderRight:'0.5px solid #E5E7EB', verticalAlign:'top',
                             background: isToday ? '#FFFBEB' : 'transparent',
                             position:'relative',
                           }}>
