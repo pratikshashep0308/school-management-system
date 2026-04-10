@@ -53,20 +53,19 @@ export default function FeeReport() {
   // Load school summary + class list
   useEffect(() => {
     Promise.all([
-      feeAPI.getClassSummary(),
-      classAPI.getAll(),
+      feeAPI.getClassSummary().catch(()=>({ data:{ data:{ classes:[], totals:{} } } })),
+      classAPI.getAll().catch(()=>({ data:{ data:[] } })),
     ]).then(([sRes, cRes]) => {
       setSummary(sRes.data.data);
       setClasses(cRes.data.data || []);
-    }).catch(() => toast.error('Failed to load fee data'))
-      .finally(() => setLoading(false));
+    }).finally(() => setLoading(false));
   }, []);
 
   // Load students when class selected
   const loadClassStudents = useCallback(async (classId) => {
     setLoading(true);
     try {
-      const r = await feeAPI.getStudentsFees({ classId });
+      const r = await (feeAPI.getStudentsFees || feeAPI.getStudents)({ classId });
       setStudents(r.data.data || []);
     } catch { toast.error('Failed to load students'); }
     finally { setLoading(false); }
