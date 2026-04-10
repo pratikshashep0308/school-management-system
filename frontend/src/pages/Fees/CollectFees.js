@@ -1,0 +1,533 @@
+// frontend/src/pages/Fees/CollectFees.js
+// eSkooly-style fee collection with period plans:
+// Monthly | Quarterly | Half Yearly (5% off) | Yearly (10% off)
+
+import React, { useEffect, useState, useRef } from 'react';
+import toast from 'react-hot-toast';
+import feeAPI from '../../utils/feeAPI';
+import { studentAPI } from '../../utils/api';
+
+const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;
+
+const DEFAULT_FEE_ITEMS = [
+  { key:'monthly',      label:'Monthly Fee',      amount:0 },
+  { key:'admission',    label:'Admission Fee',     amount:0 },
+  { key:'registration', label:'Registration Fee',  amount:0 },
+  { key:'artMaterial',  label:'Art Material',      amount:0 },
+  { key:'transport',    label:'Transport',         amount:0 },
+  { key:'books',        label:'Books',             amount:0 },
+  { key:'uniform',      label:'Uniform',           amount:0 },
+  { key:'fine',         label:'Fine',              amount:0 },
+  { key:'others',       label:'Others',            amount:0 },
+  { key:'prevBalance',  label:'Previous Balance',  amount:0 },
+  { key:'discount',     label:'Discount in Fee',   amount:0, isDiscount:true },
+];
+
+const PERIODS = {
+  monthly:    { months:1,  discount:0,  label:'Monthly',          sub:'1 month fee' },
+  quarterly:  { months:3,  discount:0,  label:'Quarterly',        sub:'3 months fee' },
+  halfyearly: { months:6,  discount:5,  label:'Half Yearly',      sub:'6 months fee', badge:'Save 5%' },
+  yearly:     { months:12, discount:10, label:'Yearly / Annual',  sub:'12 months — best value', badge:'Save 10%' },
+};
+
+// ── Receipt Modal ──────────────────────────────────────────────────────────────
+function ReceiptModal({ receipt, onClose }) {
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', padding:16 }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:700, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.3)' }}>
+        {/* Header */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0 }}>
+          <div>
+            <h3 style={{ fontSize:17, fontWeight:700, margin:0, color:'#16A34A' }}>✅ Payment Successful</h3>
+            <div style={{ fontSize:12, color:'#16A34A', marginTop:2 }}>{receipt.periodLabel} plan · {receipt.periodCovered} · Receipt {receipt.receiptNumber}</div>
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={()=>window.print()} style={{ padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>🖨 Print</button>
+            <button onClick={onClose} style={{ padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:700, background:'#F3F4F6', border:'none', cursor:'pointer' }}>Close</button>
+          </div>
+        </div>
+
+        {/* Receipt body */}
+        <div id="printable-receipt" style={{ overflowY:'auto', flex:1, padding:'24px', fontFamily:'Arial, sans-serif' }}>
+          {/* School header */}
+          <div style={{ textAlign:'center', marginBottom:16 }}>
+            <div style={{ fontSize:20, fontWeight:900, color:'#0B1F4A' }}>The Future Step School</div>
+            <div style={{ fontSize:12, color:'#6B7280', marginTop:2 }}>Securing Future By Adaptive Learning</div>
+            <div style={{ fontSize:14, fontWeight:700, color:'#D4522A', marginTop:10, borderBottom:'2px solid #D4522A', paddingBottom:6 }}>Fees Paid Receipt</div>
+          </div>
+
+          {/* Period banner */}
+          {receipt.periodMonths > 1 && (
+            <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:8, padding:'10px 14px', marginBottom:14, fontSize:13, color:'#1E40AF', fontWeight:600 }}>
+              {receipt.periodLabel} plan — covers {receipt.periodMonths} months ({receipt.periodCovered})
+              {receipt.discountPct > 0 && ` · ${receipt.discountPct}% period discount applied`}
+            </div>
+          )}
+
+          {/* Student info grid */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:16, background:'#F8FAFC', borderRadius:10, padding:'12px 16px' }}>
+            {[
+              { label:'Registration No',  value:receipt.rollNumber },
+              { label:'Serial No',        value:receipt.receiptNumber },
+              { label:'Total Amount',     value:fmt(receipt.totalAmount), color:'#0B1F4A' },
+              { label:'Your Amount',      value:fmt(receipt.deposit),     color:'#16A34A' },
+              { label:'Student Name',     value:receipt.studentName },
+              { label:'Date of Submission',value:receipt.date },
+              { label:'Deposit Amount',   value:fmt(receipt.deposit),     color:'#16A34A' },
+              { label:'Remaining Balance',value:fmt(receipt.balance),     color:receipt.balance>0?'#DC2626':'#16A34A' },
+              { label:'Guardian Name',    value:receipt.parentName },
+              { label:'Period',           value:receipt.periodLabel },
+              { label:'Months Covered',   value:receipt.periodCovered },
+              { label:'Class',            value:receipt.className },
+            ].map(f=>(
+              <div key={f.label}>
+                <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:600 }}>{f.label}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:f.color||'#111827', marginTop:2 }}>{f.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Fee table */}
+          <table style={{ width:'100%', borderCollapse:'collapse', marginBottom:14, fontSize:13 }}>
+            <thead>
+              <tr style={{ background:'#F3F4F6' }}>
+                <th style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:50 }}>Sr.</th>
+                <th style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB' }}>Particulars</th>
+                <th style={{ padding:'8px 12px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:80 }}>Per Month</th>
+                <th style={{ padding:'8px 12px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:110 }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receipt.items.map((item,i)=>(
+                <tr key={i}>
+                  <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'center' }}>{i+1}</td>
+                  <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB' }}>{item.label.toUpperCase()}{receipt.periodMonths>1?` × ${receipt.periodMonths}`:''}</td>
+                  <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'right', color:'#6B7280' }}>{fmt(item.perMonth)}</td>
+                  <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:600 }}>{fmt(item.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background:'#F8FAFC', fontWeight:700 }}>
+                <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right' }}>SUBTOTAL</td>
+                <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right' }}>{fmt(receipt.subtotal)}</td>
+              </tr>
+              {receipt.discountAmt > 0 && (
+                <tr style={{ background:'#F0FDF4' }}>
+                  <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', color:'#16A34A', fontWeight:700 }}>
+                    {receipt.periodLabel} Discount ({receipt.discountPct}%)
+                  </td>
+                  <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', color:'#16A34A', fontWeight:700 }}>-{fmt(receipt.discountAmt)}</td>
+                </tr>
+              )}
+              <tr style={{ background:'#EFF6FF' }}>
+                <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#1E40AF' }}>TOTAL</td>
+                <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:900, fontSize:15, color:'#1E40AF' }}>{fmt(receipt.totalAmount)}</td>
+              </tr>
+              <tr>
+                <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>DEPOSIT</td>
+                <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', color:'#16A34A', fontWeight:700 }}>{fmt(receipt.deposit)}</td>
+              </tr>
+              <tr style={{ background:receipt.balance>0?'#FEF2F2':'#F0FDF4' }}>
+                <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>DUE-ABLE BALANCE</td>
+                <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:900, fontSize:15, color:receipt.balance>0?'#DC2626':'#16A34A' }}>{fmt(receipt.balance)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* Submission history */}
+          {receipt.history?.length > 0 && (
+            <>
+              <div style={{ fontSize:13, fontWeight:700, marginBottom:8, color:'#0B1F4A' }}>
+                Fee Submission Statement Of <span style={{ color:'#D4522A' }}>{receipt.studentName}</span>
+              </div>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, marginBottom:16 }}>
+                <thead>
+                  <tr style={{ background:'#F3F4F6' }}>
+                    {['Sr#','Submission Date','Period','Total Amount','Deposit','Due-able'].map(h=>(
+                      <th key={h} style={{ padding:'7px 10px', border:'1px solid #E5E7EB', fontWeight:700 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {receipt.history.map((h,i)=>(
+                    <tr key={i}>
+                      <td style={{ padding:'6px 10px', border:'1px solid #E5E7EB', textAlign:'center' }}>{i+1}</td>
+                      <td style={{ padding:'6px 10px', border:'1px solid #E5E7EB' }}>{h.date}</td>
+                      <td style={{ padding:'6px 10px', border:'1px solid #E5E7EB' }}>{h.period}</td>
+                      <td style={{ padding:'6px 10px', border:'1px solid #E5E7EB', textAlign:'right' }}>{fmt(h.total)}</td>
+                      <td style={{ padding:'6px 10px', border:'1px solid #E5E7EB', textAlign:'right', color:'#16A34A' }}>{fmt(h.deposit)}</td>
+                      <td style={{ padding:'6px 10px', border:'1px solid #E5E7EB', textAlign:'right', color:'#DC2626' }}>{fmt(h.due)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {/* Footer */}
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:20, paddingTop:14, borderTop:'1px solid #E5E7EB', fontSize:12 }}>
+            <div><div style={{ marginBottom:20 }}>Prepared By:</div><div style={{ color:'#1D4ED8', fontWeight:600 }}>The Future Step School</div></div>
+            <div style={{ textAlign:'center' }}><div style={{ marginBottom:20 }}>Checked By:</div><div style={{ borderBottom:'1px solid #374151', minWidth:160 }}>&nbsp;</div></div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontWeight:700 }}>Accounts Department</div>
+              <div style={{ color:'#6B7280' }}>The Future Step School</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN
+// ══════════════════════════════════════════════════════════════════════════════
+export default function CollectFees() {
+  const [query,       setQuery]       = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [selected,    setSelected]    = useState(null);
+  const [feeRecord,   setFeeRecord]   = useState(null);
+  const [feeItems,    setFeeItems]    = useState(DEFAULT_FEE_ITEMS.map(f=>({...f})));
+  const [period,      setPeriod]      = useState('monthly');
+  const [feesMonth,   setFeesMonth]   = useState('');
+  const [payDate,     setPayDate]     = useState(new Date().toISOString().split('T')[0]);
+  const [deposit,     setDeposit]     = useState('');
+  const [method,      setMethod]      = useState('cash');
+  const [transId,     setTransId]     = useState('');
+  const [submitting,  setSubmitting]  = useState(false);
+  const [receipt,     setReceipt]     = useState(null);
+
+  const pd = PERIODS[period];
+
+  // Student search with debounce
+  useEffect(() => {
+    if (query.length < 1) { setSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const r = await studentAPI.getAll({ search: query });
+        setSuggestions(r.data.data?.slice(0,8) || []);
+      } catch { setSuggestions([]); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const selectStudent = async (student) => {
+    setSelected(student);
+    setQuery(`${student.rollNumber} - ${student.user?.name} - ${student.class?.name||''}`);
+    setSuggestions([]);
+    try {
+      const r = await feeAPI.getStudentFee(student._id);
+      setFeeRecord(r.data.data);
+      // Pre-fill from assignments
+      const assignments = r.data.assignments || [];
+      if (assignments.length > 0) {
+        setFeeItems(DEFAULT_FEE_ITEMS.map(item => {
+          const match = assignments.find(a =>
+            a.feeType?.name?.toLowerCase().includes(item.key.toLowerCase()) ||
+            a.feeType?.category?.toLowerCase() === item.key.toLowerCase()
+          );
+          return { ...item, amount: match ? (match.pendingAmount || match.finalAmount) : 0 };
+        }));
+      }
+    } catch { setFeeRecord(null); }
+  };
+
+  // Build months covered list
+  const getMonthsCovered = () => {
+    if (!feesMonth) return [];
+    const [y,m] = feesMonth.split('-').map(Number);
+    const months = [];
+    for (let i = 0; i < pd.months; i++) {
+      const d = new Date(y, m-1+i, 1);
+      months.push(d.toLocaleString('default', { month:'long', year:'numeric' }));
+    }
+    return months;
+  };
+
+  // Totals
+  const baseTotal = feeItems.reduce((s,f) => f.isDiscount ? s-f.amount : s+f.amount, 0);
+  const subtotal  = Math.max(0, baseTotal) * pd.months;
+  const discAmt   = Math.round(subtotal * (pd.discount / 100));
+  const totalAmount = subtotal - discAmt;
+  const dueBalance  = totalAmount - (+deposit||0);
+
+  // Auto-fill deposit when period changes
+  useEffect(() => {
+    setDeposit(String(totalAmount));
+  }, [period, feeItems]);
+
+  const handleSubmit = async () => {
+    if (!selected)   return toast.error('Please select a student');
+    if (!feesMonth)  return toast.error('Please select fees month');
+    if (!deposit || +deposit <= 0) return toast.error('Enter deposit amount');
+    setSubmitting(true);
+    try {
+      const months = getMonthsCovered();
+      const periodCovered = pd.months === 1 ? months[0] : `${months[0]} – ${months[months.length-1]}`;
+      const [y] = feesMonth.split('-');
+
+      const r = await feeAPI.recordPayment({
+        studentId:     selected._id,
+        classId:       selected.class?._id,
+        amount:        +deposit,
+        totalFees:     totalAmount,
+        method,
+        transactionId: transId,
+        month:         periodCovered,
+        year:          +y,
+        remarks:       `${pd.label} plan · ${feeItems.filter(f=>f.amount>0).map(f=>`${f.label}:${f.amount}`).join(', ')}`,
+      });
+
+      const history = feeRecord?.paymentHistory || [];
+      setReceipt({
+        receiptNumber:  r.data.receiptNumber,
+        studentName:    selected.user?.name,
+        parentName:     selected.parentName || selected.fatherName || '—',
+        className:      `${selected.class?.name||''} ${selected.class?.section||''}`.trim(),
+        rollNumber:     selected.rollNumber,
+        periodLabel:    pd.label,
+        periodMonths:   pd.months,
+        periodCovered,
+        discountPct:    pd.discount,
+        discountAmt,
+        subtotal,
+        totalAmount,
+        deposit:        +deposit,
+        balance:        dueBalance,
+        date:           new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),
+        items:          feeItems
+          .filter(f => f.amount > 0)
+          .map(f => ({ label:f.label, perMonth:f.amount, total:f.isDiscount ? -f.amount*pd.months : f.amount*pd.months })),
+        history: [...history.map(h=>({
+          date:    new Date(h.paidOn).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),
+          period:  h.month || '—',
+          total:   totalAmount,
+          deposit: h.amount,
+          due:     totalAmount - h.amount,
+        })), {
+          date:    new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),
+          period:  periodCovered,
+          total:   totalAmount,
+          deposit: +deposit,
+          due:     dueBalance,
+        }],
+      });
+      toast.success('Payment recorded! Receipt ready.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record payment');
+    } finally { setSubmitting(false); }
+  };
+
+  const reset = () => {
+    setSelected(null); setQuery(''); setSuggestions([]);
+    setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f}))); setPeriod('monthly');
+    setFeesMonth(''); setDeposit(''); setTransId(''); setReceipt(null); setFeeRecord(null);
+  };
+
+  const INP  = { width:'100%', padding:'9px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none', background:'#fff' };
+  const LBL  = { fontSize:11, fontWeight:700, display:'block', marginBottom:5, color:'#374151', textTransform:'uppercase', letterSpacing:'0.04em' };
+  const months = getMonthsCovered();
+
+  return (
+    <div>
+      <div style={{ marginBottom:20 }}>
+        <h2 className="font-display text-2xl text-ink">💳 Collect Fees</h2>
+        <p className="text-sm text-muted mt-0.5">Search student → select period → enter amounts → submit</p>
+      </div>
+
+      {/* Student search */}
+      <div className="card" style={{ padding:'20px 24px', marginBottom:16 }}>
+        <div style={{ fontSize:15, fontWeight:700, marginBottom:12, color:'#111827' }}>Collect Fees of a Student</div>
+        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+          <span style={{ fontSize:11, fontWeight:700, background:'#1D4ED8', color:'#fff', padding:'2px 10px', borderRadius:20 }}>Required *</span>
+          <span style={{ fontSize:11, fontWeight:700, background:'#F3F4F6', color:'#6B7280', padding:'2px 10px', borderRadius:20 }}>Optional</span>
+        </div>
+        <label style={LBL}>Search Student *</label>
+        <div style={{ position:'relative' }}>
+          <input value={query} onChange={e=>{ setQuery(e.target.value); setSelected(null); }}
+            placeholder="Type student name or roll number…" style={{ ...INP, fontSize:14 }}/>
+          {suggestions.length > 0 && (
+            <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:50, marginTop:4 }}>
+              {suggestions.map(s=>(
+                <div key={s._id} onClick={()=>selectStudent(s)}
+                  style={{ padding:'10px 16px', cursor:'pointer', fontSize:13, borderBottom:'0.5px solid #F3F4F6', display:'flex', alignItems:'center', gap:10 }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#EFF6FF'}
+                  onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                  <div style={{ width:30, height:30, borderRadius:8, background:'#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontWeight:700, color:'#111827' }}>{s.rollNumber} – {s.user?.name}</span>
+                    <span style={{ color:'#9CA3AF', marginLeft:8 }}>– {s.class?.name} {s.class?.section||''}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selected && (
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          {/* Student info header */}
+          <div style={{ background:'#0B1F4A', padding:'14px 24px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14 }}>
+            {[
+              { l:'Registration', v:selected.rollNumber||'—' },
+              { l:'Student Name', v:selected.user?.name },
+              { l:'Guardian',     v:selected.parentName||selected.fatherName||'—' },
+              { l:'Class',        v:`${selected.class?.name||''} ${selected.class?.section||''}` },
+            ].map(f=>(
+              <div key={f.l}>
+                <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', marginBottom:3 }}>{f.l}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{f.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Period selector ── */}
+          <div style={{ padding:'20px 24px', borderBottom:'1px solid #E5E7EB' }}>
+            <label style={{ ...LBL, color:'#1D4ED8', marginBottom:12 }}>Select Fee Period *</label>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+              {Object.entries(PERIODS).map(([key, p]) => {
+                const active = period === key;
+                const isWide = key === 'yearly';
+                return (
+                  <div key={key} onClick={()=>setPeriod(key)} style={{
+                    gridColumn: isWide ? '1/-1' : 'span 1',
+                    padding:'12px 16px', borderRadius:10, cursor:'pointer', transition:'all 0.15s',
+                    border: `2px solid ${active ? '#1D4ED8' : '#E5E7EB'}`,
+                    background: active ? '#EFF6FF' : '#fff',
+                    textAlign: isWide ? 'center' : 'left',
+                  }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:active?'#1E40AF':'#111827' }}>{p.label}</div>
+                    <div style={{ fontSize:12, color:active?'#3B82F6':'#9CA3AF', marginTop:2 }}>{p.sub}</div>
+                    {p.badge && (
+                      <span style={{ display:'inline-block', marginTop:6, fontSize:10, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'2px 8px', borderRadius:20 }}>{p.badge}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Months covered */}
+            {feesMonth && pd.months > 1 && months.length > 0 && (
+              <div style={{ marginTop:14, background:'#F8FAFC', borderRadius:9, padding:'12px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:8 }}>Months covered</div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {months.map(m=>(
+                    <span key={m} style={{ fontSize:11, fontWeight:700, background:'#E6F1FB', color:'#185FA5', padding:'3px 10px', borderRadius:20 }}>{m}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Month & Date */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, padding:'16px 24px', borderBottom:'1px solid #E5E7EB' }}>
+            <div>
+              <label style={{ ...LBL, color:'#1D4ED8' }}>Starting Month *</label>
+              <input type="month" value={feesMonth} onChange={e=>setFeesMonth(e.target.value)} style={INP}/>
+            </div>
+            <div>
+              <label style={LBL}>Date</label>
+              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={INP}/>
+            </div>
+          </div>
+
+          {/* Fee items table */}
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ background:'#F8FAFC' }}>
+                <th style={{ padding:'10px 24px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:50, color:'#6B7280' }}>Sr.</th>
+                <th style={{ padding:'10px 24px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', color:'#6B7280' }}>Particulars</th>
+                <th style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:130, color:'#6B7280' }}>Per Month</th>
+                <th style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:150, color:'#1D4ED8' }}>
+                  Total ({pd.months} mo)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {feeItems.map((item,i)=>(
+                <tr key={item.key} style={{ borderBottom:'0.5px solid #F3F4F6' }}>
+                  <td style={{ padding:'8px 24px', textAlign:'center', color:'#9CA3AF' }}>{i+1}</td>
+                  <td style={{ padding:'8px 24px', textTransform:'uppercase', fontSize:12, color:'#374151' }}>{item.label}</td>
+                  <td style={{ padding:'6px 12px', textAlign:'right' }}>
+                    <input type="number" min="0" value={item.amount}
+                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,amount:+e.target.value||0}:f))}
+                      style={{ width:110, padding:'6px 10px', border:'1.5px solid #E5E7EB', borderRadius:7, fontSize:13, textAlign:'right', outline:'none' }}/>
+                  </td>
+                  <td style={{ padding:'8px 16px', textAlign:'right', fontWeight:700, color:'#0B1F4A', fontSize:14 }}>
+                    {item.isDiscount
+                      ? item.amount > 0 ? `-${fmt(item.amount * pd.months)}` : '0'
+                      : fmt(item.amount * pd.months)
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background:'#F8FAFC' }}>
+                <td colSpan={3} style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Subtotal</td>
+                <td style={{ padding:'10px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:15, color:'#0B1F4A' }}>{fmt(subtotal)}</td>
+              </tr>
+              {pd.discount > 0 && (
+                <tr style={{ background:'#F0FDF4' }}>
+                  <td colSpan={3} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
+                    {pd.label} Discount ({pd.discount}%)
+                  </td>
+                  <td style={{ padding:'9px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>-{fmt(discAmt)}</td>
+                </tr>
+              )}
+              <tr style={{ background:'#EFF6FF' }}>
+                <td colSpan={3} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#1E40AF', fontSize:14 }}>TOTAL</td>
+                <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:17, color:'#1E40AF' }}>{fmt(totalAmount)}</td>
+              </tr>
+              <tr>
+                <td colSpan={3} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Deposit</td>
+                <td style={{ padding:'5px 10px', border:'1px solid #E5E7EB' }}>
+                  <input type="number" min="0" value={deposit} onChange={e=>setDeposit(e.target.value)}
+                    style={{ width:'100%', padding:'7px 10px', border:'1.5px solid #16A34A', borderRadius:7, fontSize:14, textAlign:'right', outline:'none', color:'#16A34A', fontWeight:700 }}/>
+                </td>
+              </tr>
+              <tr style={{ background:dueBalance>0?'#FEF2F2':'#F0FDF4' }}>
+                <td colSpan={3} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:14 }}>Due-able Balance</td>
+                <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:16, color:dueBalance>0?'#DC2626':'#16A34A' }}>{fmt(dueBalance)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* Submit bar */}
+          <div style={{ display:'flex', gap:14, alignItems:'flex-end', padding:'18px 24px', flexWrap:'wrap', borderTop:'1px solid #E5E7EB' }}>
+            <div>
+              <label style={LBL}>Payment Method</label>
+              <select value={method} onChange={e=>setMethod(e.target.value)}
+                style={{ padding:'9px 14px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, outline:'none' }}>
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cheque">Cheque</option>
+                <option value="card">Card</option>
+              </select>
+            </div>
+            <div style={{ flex:1, minWidth:200 }}>
+              <label style={LBL}>Transaction ID (optional)</label>
+              <input value={transId} onChange={e=>setTransId(e.target.value)} placeholder="UPI / Bank ref no."
+                style={{ ...INP, maxWidth:300 }}/>
+            </div>
+            <button onClick={handleSubmit} disabled={submitting} style={{
+              padding:'12px 32px', borderRadius:10, fontSize:14, fontWeight:700,
+              background:submitting?'#9CA3AF':'#D97706', color:'#fff', border:'none', cursor:submitting?'not-allowed':'pointer',
+            }}>
+              {submitting ? '⏳ Processing…' : '✅ Submit Fees'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {receipt && (
+        <ReceiptModal receipt={receipt} onClose={()=>{ setReceipt(null); reset(); }}/>
+      )}
+    </div>
+  );
+}
