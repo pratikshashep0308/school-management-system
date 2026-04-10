@@ -90,12 +90,10 @@ export const subjectAPI = {
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
 export const attendanceAPI = {
-  mark:              (data)                    => api.post('/attendance', data),
-  getByClass:        (classId, date)           => api.get('/attendance/class', { params: { classId, date } }),
-  getByStudent:      (studentId, params)       => api.get(`/attendance/student/${studentId}`, { params }),
-  getMonthlyReport:  (classId, month, year)    => api.get('/attendance/monthly-report', { params: { classId, month, year } }),
-  getClassAnalytics: (classId, month, year)    => api.get('/attendance/analytics', { params: { classId, month, year } }),
-  getOverview:       ()                        => api.get('/attendance/overview'),
+  mark:             (data)              => api.post('/attendance', data),
+  getByClass:       (classId, date)     => api.get('/attendance/class', { params: { classId, date } }),
+  getByStudent:     (studentId, params) => api.get(`/attendance/student/${studentId}`, { params }),
+  getMonthlyReport: (classId, month, year) => api.get('/attendance/monthly-report', { params: { classId, month, year } }),
 };
 
 // ── EXAMS ─────────────────────────────────────────────────────────────────────
@@ -111,11 +109,36 @@ export const examAPI = {
 
 // ── FEES ──────────────────────────────────────────────────────────────────────
 export const feeAPI = {
-  getStructures:   ()       => api.get('/fees/structures'),
-  createStructure: (data)   => api.post('/fees/structures', data),
-  getPayments:     (params) => api.get('/fees/payments', { params }),
-  recordPayment:   (data)   => api.post('/fees/payments', data),
-  getSummary:      ()       => api.get('/fees/summary'),
+  // Dashboard & analytics
+  getDashboard:    ()           => api.get('/fees/dashboard'),
+  getAnalytics:    (params)     => api.get('/fees/analytics', { params }),
+  getSummary:      ()           => api.get('/fees/summary'),
+  getClassSummary: (params)     => api.get('/fees/class-summary', { params }),
+  getStudentsFees: (params)     => api.get('/fees/students', { params }),
+
+  // Fee types
+  getFeeTypes:     ()           => api.get('/fees/types'),
+  createFeeType:   (data)       => api.post('/fees/types', data),
+  updateFeeType:   (id, data)   => api.put(`/fees/types/${id}`, data),
+  deleteFeeType:   (id)         => api.delete(`/fees/types/${id}`),
+
+  // Fee assignments
+  getAssignments:  (params)     => api.get('/fees/assignments', { params }),
+  createAssignment:(data)       => api.post('/fees/assignments', data),
+  updateAssignment:(id, data)   => api.put(`/fees/assignments/${id}`, data),
+  deleteAssignment:(id)         => api.delete(`/fees/assignments/${id}`),
+  payAssignment:   (id, data)   => api.post(`/fees/assignments/${id}/pay`, data),
+
+  // Student ledger
+  getStudentFee:   (studentId)  => api.get(`/fees/student/${studentId}`),
+
+  // Structures (legacy)
+  getStructures:   ()           => api.get('/fees/structures'),
+  createStructure: (data)       => api.post('/fees/structures', data),
+  recordPayment:   (data)       => api.post('/fees/pay', data),
+
+  // Receipt
+  getReceipt:      (num)        => api.get(`/fees/receipt/${num}`),
 };
 
 // ── TIMETABLE ─────────────────────────────────────────────────────────────────

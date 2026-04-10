@@ -1,7 +1,6 @@
 // frontend/src/pages/Students.js
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -65,15 +64,7 @@ export default function Students() {
   const [addModal,     setAddModal]    = useState({ open: false, data: null });
   const [saving,       setSaving]      = useState(false);
 
-  const location   = useLocation();
-  const canManage  = can(['superAdmin', 'schoolAdmin']);
-
-  // Pre-filter by class if navigated from Classes page
-  useEffect(() => {
-    if (location.state?.classId) {
-      setFilterClass(location.state.classId);
-    }
-  }, [location.state]);
+  const canManage = can(['superAdmin', 'schoolAdmin']);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,22 +125,17 @@ export default function Students() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Students', value: total,                                          icon: '👥', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600',    tab: 'all'      },
-          { label: 'Active',         value: active,                                         icon: '✅', color: 'bg-green-50 dark:bg-green-900/20 text-green-600',  tab: 'active'   },
-          { label: 'Inactive',       value: students.filter(s => !s.isActive).length,       icon: '⭕', color: 'bg-orange-50 dark:bg-orange-900/20 text-orange-500', tab: 'inactive' },
-          { label: 'Alumni',         value: students.filter(s => s.status === 'alumni').length, icon: '🎓', color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600', tab: 'alumni' },
+          { label: 'Total Students', value: total,  icon: '👥', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' },
+          { label: 'Active',         value: active, icon: '✅', color: 'bg-green-50 dark:bg-green-900/20 text-green-600' },
+          { label: 'Boys',           value: boys,   icon: '👦', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' },
+          { label: 'Girls',          value: girls,  icon: '👧', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' },
         ].map(s => (
-          <div key={s.label}
-            onClick={() => setTab(s.tab)}
-            style={{ cursor:'pointer', transition:'all 0.18s', userSelect:'none' }}
-            className="card p-4 flex items-center gap-3 hover:-translate-y-1 hover:shadow-lg active:scale-95"
-          >
+          <div key={s.label} className="card p-4 flex items-center gap-3">
             <div className={'w-11 h-11 rounded-xl flex items-center justify-center text-xl ' + s.color}>{s.icon}</div>
-            <div style={{ flex:1 }}>
+            <div>
               <div className="text-2xl font-display text-ink dark:text-white">{s.value}</div>
               <div className="text-xs text-muted">{s.label}</div>
             </div>
-            <span style={{ fontSize:10, opacity:0.3, fontWeight:800 }}>→</span>
           </div>
         ))}
       </div>
@@ -172,21 +158,87 @@ export default function Students() {
         </div>
       </div>
 
-      {/* Student cards / table */}
+      {/* Student list table */}
       {loading ? <LoadingState /> : !filtered.length ? (
         <EmptyState icon="👤" title="No students found" subtitle="Try adjusting your search or filters" />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(s => (
-            <StudentCard
-              key={s._id}
-              student={s}
-              canManage={canManage}
-              onView={() => setViewStudent(s)}
-              onEdit={() => setAddModal({ open: true, data: { ...s, name: s.user?.name, email: s.user?.email, classId: s.class?._id } })}
-              onDelete={() => handleDelete(s._id, s.user?.name)}
-            />
-          ))}
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#0B1F4A' }}>
+                  {['#','Student','Roll No','Class','Gender','Blood','Parent','Status','Actions'].map(h=>(
+                    <th key={h} style={{ padding:'11px 14px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => {
+                  const name   = s.user?.name || '—';
+                  const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+                  const colors = ['#D4522A','#C9A84C','#4A7C59','#7C6AF5','#2D9CDB','#F2994A','#10B981','#8B5CF6'];
+                  const bg     = colors[name.charCodeAt(0) % colors.length];
+                  const statusStyle = s.status === 'active'
+                    ? { bg:'#D1FAE5', color:'#065F46' }
+                    : s.status === 'alumni'
+                    ? { bg:'#EDE9FE', color:'#5B21B6' }
+                    : { bg:'#FEE2E2', color:'#991B1B' };
+                  return (
+                    <tr key={s._id}
+                      style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff', cursor:'pointer', transition:'background 0.1s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                      onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}
+                      onClick={()=>setViewStudent(s)}>
+                      <td style={{ padding:'10px 14px', color:'#9CA3AF', fontSize:12 }}>{i+1}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <div style={{ width:36, height:36, borderRadius:10, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{initials}</span>
+                          </div>
+                          <div>
+                            <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{name}</div>
+                            <div style={{ fontSize:11, color:'#9CA3AF' }}>{s.admissionNumber || s.studentId || ''}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding:'10px 14px', fontWeight:600, color:'#374151' }}>{s.rollNumber || '—'}</td>
+                      <td style={{ padding:'10px 14px', color:'#374151' }}>{s.class?.name} {s.class?.section||''}</td>
+                      <td style={{ padding:'10px 14px', color:'#6B7280' }}>{s.gender || '—'}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        {s.bloodGroup ? (
+                          <span style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', padding:'2px 8px', borderRadius:20 }}>{s.bloodGroup}</span>
+                        ) : <span style={{ color:'#D1D5DB' }}>—</span>}
+                      </td>
+                      <td style={{ padding:'10px 14px', color:'#6B7280', fontSize:12 }}>{s.parentName || s.fatherName || '—'}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:statusStyle.color, background:statusStyle.bg, padding:'3px 10px', borderRadius:20, textTransform:'capitalize' }}>
+                          {s.status || 'active'}
+                        </span>
+                      </td>
+                      <td style={{ padding:'10px 14px' }} onClick={e=>e.stopPropagation()}>
+                        <div style={{ display:'flex', gap:5 }}>
+                          <button onClick={()=>setViewStudent(s)}
+                            style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                            👁 View
+                          </button>
+                          {canManage && <>
+                            <button onClick={()=>setAddModal({ open:true, data:{ ...s, name:s.user?.name, email:s.user?.email, classId:s.class?._id } })}
+                              style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                              ✎
+                            </button>
+                            <button onClick={()=>handleDelete(s._id, s.user?.name)}
+                              style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                              ✕
+                            </button>
+                          </>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
