@@ -227,22 +227,30 @@ export default function CollectFees() {
       const asgn = r.data.assignments || [];
       setAssignments(asgn);
 
-      // Pre-fill fee items from assigned fees
+      // Pre-fill fee items directly from assignments
       if (asgn.length > 0) {
-        const filled = DEFAULT_FEE_ITEMS.map(item => {
-          const match = asgn.find(a => {
-            const typeName = (a.feeType?.name||'').toLowerCase();
-            return typeName.includes(item.key.toLowerCase()) ||
-                   item.key.includes(typeName.split(' ')[0]) ||
-                   (a.feeType?.category||'').toLowerCase() === item.key.toLowerCase();
-          });
-          const amt = match ? Math.round((match.pendingAmount||match.finalAmount)||0) : '';
-          return { ...item, amount: amt===0 ? '' : amt };
-        });
-        setFeeItems(filled);
-        // Auto-set deposit to total of pending assignments
-        const total = asgn.reduce((s,a)=>s+(a.pendingAmount||a.finalAmount||0),0);
+        // Build fee items from actual assignments - don't try to match keys
+        const fromAssignments = asgn
+          .filter(a => a.status !== 'paid')
+          .map(a => ({
+            key:        a._id,
+            label:      a.feeType?.name || 'Fee',
+            amount:     Math.round(a.pendingAmount || a.finalAmount || 0),
+            assignmentId: a._id,
+          }));
+        // Also keep extra items for fine/others/discount/prevBalance
+        const extras = [
+          { key:'fine',        label:'Fine',             amount:0 },
+          { key:'others',      label:'Others',           amount:0 },
+          { key:'prevBalance', label:'Previous Balance', amount:0 },
+          { key:'discount',    label:'Discount',         amount:0, isDiscount:true },
+        ];
+        setFeeItems([...fromAssignments, ...extras]);
+        const total = fromAssignments.reduce((s,f)=>s+f.amount, 0);
         setDeposit(String(Math.round(total)));
+      } else {
+        // No assignments - show default empty items
+        setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f})));
       }
     } catch {
       setFeeRecord(null);
