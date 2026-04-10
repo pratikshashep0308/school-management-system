@@ -6,7 +6,6 @@ import CollectFees    from './Fees/CollectFees';
 import FeesPaidSlip   from './Fees/FeesPaidSlip';
 import AssignFees     from './Fees/AssignFees';
 import StudentFees    from './Fees/StudentFees';
-import FeeTypes       from './Fees/FeeTypes';
 import PaymentHistory from './Fees/PaymentHistory';
 import FeesAnalytics  from './Fees/FeesAnalytics';
 
@@ -21,7 +20,6 @@ export default function Fees() {
     { key:'slip',      label:'🧾 Fees Paid Slip', show:isAdmin  },
     { key:'assign',    label:'📋 Assign Fees',    show:isAdmin  },
     { key:'students',  label:'👥 Students',       show:isAdmin  },
-    { key:'types',     label:'🏷 Fee Types',      show:isAdmin  },
     { key:'history',   label:'📜 History',        show:true     },
     { key:'analytics', label:'📈 Analytics',     show:isAdmin  },
   ].filter(t => t.show);
@@ -43,7 +41,6 @@ export default function Fees() {
       {tab==='slip'      && <FeesPaidSlip />}
       {tab==='assign'    && <AssignFees />}
       {tab==='students'  && <StudentFees />}
-      {tab==='types'     && <FeeTypes />}
       {tab==='history'   && <PaymentHistory />}
       {tab==='analytics' && <FeesAnalytics />}
     </div>
