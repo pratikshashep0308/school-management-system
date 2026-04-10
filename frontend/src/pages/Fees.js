@@ -5,9 +5,7 @@ import FeesDashboard  from './Fees/FeesDashboard';
 import CollectFees    from './Fees/CollectFees';
 import FeesPaidSlip   from './Fees/FeesPaidSlip';
 import AssignFees     from './Fees/AssignFees';
-import StudentFees    from './Fees/StudentFees';
-import PaymentHistory from './Fees/PaymentHistory';
-import FeesAnalytics  from './Fees/FeesAnalytics';
+import FeeReport      from './Fees/FeeReport';
 
 export default function Fees() {
   const { user } = useAuth();
@@ -19,9 +17,7 @@ export default function Fees() {
     { key:'collect',   label:'💳 Collect Fees',   show:isAdmin  },
     { key:'slip',      label:'🧾 Fees Paid Slip', show:isAdmin  },
     { key:'assign',    label:'📋 Assign Fees',    show:isAdmin  },
-    { key:'students',  label:'👥 Students',       show:isAdmin  },
-    { key:'history',   label:'📜 History',        show:true     },
-    { key:'analytics', label:'📈 Analytics',     show:isAdmin  },
+    { key:'report',    label:'📊 Fee Report',     show:isAdmin  },
   ].filter(t => t.show);
 
   return (
@@ -40,9 +36,7 @@ export default function Fees() {
       {tab==='collect'   && <CollectFees />}
       {tab==='slip'      && <FeesPaidSlip />}
       {tab==='assign'    && <AssignFees />}
-      {tab==='students'  && <StudentFees />}
-      {tab==='history'   && <PaymentHistory />}
-      {tab==='analytics' && <FeesAnalytics />}
+      {tab==='report'    && <FeeReport />}
     </div>
   );
 }
