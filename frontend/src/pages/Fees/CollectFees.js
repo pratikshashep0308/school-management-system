@@ -290,7 +290,7 @@ export default function CollectFees() {
         periodMonths:   pd.months,
         periodCovered,
         discountPct:    pd.discount,
-        discountAmt,
+        discountAmt:    discAmt,
         subtotal,
         totalAmount,
         deposit:        +deposit,
