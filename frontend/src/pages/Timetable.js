@@ -271,6 +271,16 @@ export default function Timetable() {
     });
   }
 
+  const handleDeleteTimetable = async () => {
+    if (!timetable?._id) return;
+    if (!window.confirm('Delete entire timetable for this class? This cannot be undone.')) return;
+    try {
+      await timetableAPI.delete(timetable._id);
+      toast.success('Timetable cleared!');
+      setTimetable(null);
+    } catch { toast.error('Failed to delete timetable'); }
+  };
+
   const handleSavePeriod = async (form) => {
     if (!form.startTime || !form.endTime) return toast.error('Start and end time required');
     setSaving(true);
@@ -353,10 +363,18 @@ export default function Timetable() {
           </p>
         </div>
         {canEdit && (
-          <button onClick={()=>setModal({ period:null, day:'Monday', periodNum:1 })}
-            style={{ padding:'9px 20px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
-            + Add Period
-          </button>
+          <div style={{ display:'flex', gap:8 }}>
+            {timetable && (
+              <button onClick={handleDeleteTimetable}
+                style={{ padding:'9px 18px', borderRadius:9, fontSize:13, fontWeight:700, background:'#FEF2F2', color:'#DC2626', border:'1.5px solid #FECACA', cursor:'pointer' }}>
+                🗑 Clear All
+              </button>
+            )}
+            <button onClick={()=>setModal({ period:null, day:'Monday', periodNum:1 })}
+              style={{ padding:'9px 20px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
+              + Add Period
+            </button>
+          </div>
         )}
       </div>
 
