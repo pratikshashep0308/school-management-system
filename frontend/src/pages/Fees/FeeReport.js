@@ -182,7 +182,8 @@ export default function FeeReport() {
       const params = {};
       if (classId) params.classId = classId;
       if (statusFilter) params.status = statusFilter;
-      const r = await (feeAPI.getStudentsFees || feeAPI.getStudents)(params);
+      const fn = feeAPI.getStudentsFees || feeAPI.getStudents || feeAPI.getStudents;
+      const r = await fn(params);
       setStudents(r.data.data || []);
     } catch { toast.error('Failed to load'); }
     finally { setLoading(false); }

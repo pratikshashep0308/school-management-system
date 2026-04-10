@@ -4,6 +4,7 @@ import api from './api';
 const feeAPI = {
   // ── Dashboard ───────────────────────────────────────────────────────────────
   getDashboard:    ()             => api.get('/fees/dashboard'),
+  getRecentPayments:(limit=10)     => api.get('/fees/recent-payments', { params:{ limit } }),
   getAnalytics:    ()             => api.get('/fees/analytics'),
   getSummary:      ()             => api.get('/fees/summary'),
   getClassSummary: ()             => api.get('/fees/class-summary'),

@@ -20,22 +20,31 @@ export default function FeesDashboard({ onNavigate }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    feeAPI.getDashboard()
-      .then(r => setData(r.data.data))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
+    Promise.all([
+      feeAPI.getDashboard().catch(()=>({ data:{ data:{} } })),
+      feeAPI.getAssignments({ status:'overdue' }).catch(()=>({ data:{ data:[] } })),
+      feeAPI.getRecentPayments(8).catch(()=>({ data:{ data:[] } })),
+    ]).then(([dRes, overdueRes, recentRes]) => {
+      const d = dRes.data.data || {};
+      setData({
+        ...d,
+        overdueList:    (overdueRes.data.data||[]).slice(0,5),
+        recentPayments: recentRes.data.data || [],
+      });
+    }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <LoadingState />;
 
-  const totalAssigned  = data?.totalAssigned  || 0;
+  // Backend returns: totalExpected, totalCollected, totalPending, overdueCount, todayCollection
+  const totalAssigned  = data?.totalExpected   || data?.totalAssigned  || 0;
   const totalCollected = data?.totalCollected  || 0;
   const totalPending   = data?.totalPending    || 0;
-  const totalOverdue   = data?.totalOverdue    || 0;
+  const totalOverdue   = data?.overdueCount    || data?.totalOverdue   || 0;
   const todayCollection= data?.todayCollection || 0;
   const recentPayments = data?.recentPayments  || [];
   const overdueList    = data?.overdueList     || [];
-  const collectionRate = pct(totalCollected, totalAssigned);
+  const collectionRate = totalAssigned > 0 ? Math.min(100, Math.round((totalCollected/totalAssigned)*100)) : totalCollected > 0 ? 100 : 0;
 
   const KPI = ({ label, value, sub, color, bg, onClick }) => (
     <div onClick={onClick} style={{ background:bg||'#fff', border:`1.5px solid ${color}30`, borderRadius:14, padding:'18px 20px', cursor:onClick?'pointer':'default', transition:'all 0.15s' }}
@@ -62,9 +71,9 @@ export default function FeesDashboard({ onNavigate }) {
       {/* KPI Cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
         <KPI label="Total Assigned"  value={fmt(totalAssigned)}   color="#1D4ED8" bg="#EFF6FF" sub={`${data?.totalStudents||0} students`}/>
-        <KPI label="Collected"       value={fmt(totalCollected)}  color="#16A34A" bg="#F0FDF4" sub={`${collectionRate}% collection rate`} onClick={()=>onNavigate?.('history')}/>
-        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`} onClick={()=>onNavigate?.('students')}/>
-        <KPI label="Overdue"         value={fmt(totalOverdue)}    color="#DC2626" bg="#FEF2F2" sub={`${data?.overdueCount||0} students`} onClick={()=>onNavigate?.('students')}/>
+        <KPI label="Collected"       value={fmt(totalCollected)}  color="#16A34A" bg="#F0FDF4" sub={`${collectionRate}% collection rate`} onClick={()=>onNavigate?.('slip')}/>
+        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`} onClick={()=>onNavigate?.('report')}/>
+        <KPI label="Overdue"         value={fmt(totalOverdue)}    color="#DC2626" bg="#FEF2F2" sub={`${data?.overdueCount||0} students`} onClick={()=>onNavigate?.('report')}/>
       </div>
 
       {/* Collection Rate Bar */}
@@ -87,7 +96,7 @@ export default function FeesDashboard({ onNavigate }) {
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
             <span style={{ fontWeight:700, fontSize:14 }}>Recent Payments</span>
-            <button onClick={()=>onNavigate?.('history')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>View all →</button>
+            <button onClick={()=>onNavigate?.('slip')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>View all →</button>
           </div>
           {!recentPayments.length ? (
             <EmptyState icon="💳" title="No payments yet" subtitle="Payments will appear here"/>
@@ -109,7 +118,7 @@ export default function FeesDashboard({ onNavigate }) {
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
             <span style={{ fontWeight:700, fontSize:14 }}>⚠️ Overdue / Pending</span>
-            <button onClick={()=>onNavigate?.('students')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Manage →</button>
+            <button onClick={()=>onNavigate?.('report')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Manage →</button>
           </div>
           {!overdueList.length ? (
             <EmptyState icon="✅" title="No overdue fees!" subtitle="All students are up to date"/>

@@ -166,6 +166,39 @@ exports.getReceipt = async (req, res) => {
   res.json({ success: true, data });
 };
 
+
+exports.getRecentPayments = async (req, res) => {
+  const school = req.user.school;
+  const limit = parseInt(req.query.limit) || 10;
+  try {
+    const payments = await require('../models/index').StudentFee.aggregate([
+      { $match: { school: new (require('mongoose').Types.ObjectId)(school) } },
+      { $unwind: '$paymentHistory' },
+      { $sort: { 'paymentHistory.paidOn': -1 } },
+      { $limit: limit },
+      { $lookup: { from:'students', localField:'student', foreignField:'_id', as:'studentDoc' }},
+      { $unwind: { path:'$studentDoc', preserveNullAndEmptyArrays:true }},
+      { $lookup: { from:'users', localField:'studentDoc.user', foreignField:'_id', as:'userDoc' }},
+      { $unwind: { path:'$userDoc', preserveNullAndEmptyArrays:true }},
+      { $lookup: { from:'classes', localField:'class', foreignField:'_id', as:'classDoc' }},
+      { $unwind: { path:'$classDoc', preserveNullAndEmptyArrays:true }},
+      { $project: {
+        amount:        '$paymentHistory.amount',
+        paidOn:        '$paymentHistory.paidOn',
+        method:        '$paymentHistory.method',
+        receiptNumber: '$paymentHistory.receiptNumber',
+        month:         '$paymentHistory.month',
+        studentName:   '$userDoc.name',
+        className:     '$classDoc.name',
+        rollNumber:    '$studentDoc.rollNumber',
+      }}
+    ]);
+    res.json({ success:true, data: payments });
+  } catch(err) {
+    res.status(500).json({ success:false, message: err.message });
+  }
+};
+
 exports.getOverallSummary = async (req, res) => {
   const school = new mongoose.Types.ObjectId(req.user.school);
   const [stats] = await StudentFee.aggregate([

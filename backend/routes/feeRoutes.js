@@ -14,6 +14,7 @@ const STAFF = ['superAdmin', 'schoolAdmin', 'accountant', 'teacher'];
 
 // Dashboard
 router.get('/dashboard',      authorize(...ADMIN), ctrl.getDashboard);
+router.get('/recent-payments', authorize(...ADMIN), ctrl.getRecentPayments);
 router.get('/analytics',      authorize(...ADMIN), ctrl.getAnalytics);   // ← NEW: school-wide analytics
 
 // Summary & analytics (existing — kept)

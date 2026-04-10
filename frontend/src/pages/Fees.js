@@ -5,6 +5,7 @@ import FeesDashboard  from './Fees/FeesDashboard';
 import CollectFees    from './Fees/CollectFees';
 import FeesPaidSlip   from './Fees/FeesPaidSlip';
 import AssignFees     from './Fees/AssignFees';
+import FeeTypes       from './Fees/FeeTypes';
 import FeeReport      from './Fees/FeeReport';
 
 export default function Fees() {
@@ -17,6 +18,7 @@ export default function Fees() {
     { key:'collect',   label:'💳 Collect Fees',   show:isAdmin  },
     { key:'slip',      label:'🧾 Fees Paid Slip', show:isAdmin  },
     { key:'assign',    label:'📋 Assign Fees',    show:isAdmin  },
+    { key:'types',     label:'🏷 Fee Types',      show:isAdmin  },
     { key:'report',    label:'📊 Fee Report',     show:isAdmin  },
   ].filter(t => t.show);
 
@@ -36,6 +38,7 @@ export default function Fees() {
       {tab==='collect'   && <CollectFees />}
       {tab==='slip'      && <FeesPaidSlip />}
       {tab==='assign'    && <AssignFees />}
+      {tab==='types'     && <FeeTypes />}
       {tab==='report'    && <FeeReport />}
     </div>
   );
