@@ -4,28 +4,15 @@ import { useAuth } from '../context/AuthContext';
 import { dashboardAPI } from '../utils/api';
 import { StatCard, LoadingState } from '../components/ui';
 
-const WEEK_ATT = [
-  { day: 'Mon', present: 85, absent: 15 },
-  { day: 'Tue', present: 92, absent: 8 },
-  { day: 'Wed', present: 88, absent: 12 },
-  { day: 'Thu', present: 96, absent: 4 },
-  { day: 'Fri', present: 90, absent: 10 },
-];
+const WEEK_DAYS = ['Mon','Tue','Wed','Thu','Fri'];
 
-const EVENTS = [
-  { day: '18', month: 'Mar', title: 'Unit Test — Class X', sub: 'Mathematics & Science', tag: 'Exam', tagColor: 'bg-gold/15 text-gold' },
-  { day: '21', month: 'Mar', title: 'Holi — School Holiday', sub: 'School closed', tag: 'Holiday', tagColor: 'bg-sage/10 text-sage' },
-  { day: '26', month: 'Mar', title: 'Annual Science Fair', sub: 'All classes — Main Hall', tag: 'Event', tagColor: 'bg-purple-50 text-purple-600' },
-  { day: '28', month: 'Mar', title: 'Annual Sports Day', sub: 'School Grounds, 8:00 AM', tag: 'Event', tagColor: 'bg-purple-50 text-purple-600' },
-];
-
-const ACTIVITY = [
-  { dot: '#4a7c59', text: 'Attendance marked for Class X-A by Mr. Sharma', time: '2 min ago' },
-  { dot: '#c9a84c', text: 'Fee payment received — Aryan Mehta (STU-001) ₹12,500', time: '18 min ago' },
-  { dot: '#7c6af5', text: 'New student enrolled — Priya Nair, Class VIII-B', time: '1 hr ago' },
-  { dot: '#d4522a', text: 'Exam results published — Midterm 2025, Class XII', time: '3 hrs ago' },
-  { dot: '#2d9cdb', text: 'Library book issued — "Physics Concepts" to Rohan Das', time: '5 hrs ago' },
-];
+function timeAgo(date) {
+  const diff = Math.floor((new Date() - new Date(date)) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)} hr ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
 
 export default function AdminDashboard() {
   const { user, isAdmin, isTeacher } = useAuth();
@@ -47,8 +34,6 @@ export default function AdminDashboard() {
     return 'Good evening';
   };
 
-  const maxBar = Math.max(...WEEK_ATT.map(d => d.present));
-
   return (
     <div className="animate-fade-in">
       <div className="mb-7">
@@ -59,10 +44,10 @@ export default function AdminDashboard() {
       {loading ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <StatCard icon="👤" value={stats?.totalStudents?.toLocaleString() || '1,284'} label="Total Students" change="12 new this month" changeType="up" color="accent" route="/students" />
-            <StatCard icon="🎓" value={stats?.totalTeachers || '86'} label="Teachers" change="3 new this term" changeType="up" color="gold" route="/teachers" />
-            <StatCard icon="✓" value={`${stats?.attendanceRate || 94}%`} label="Avg Attendance" change="1.4% vs last week" changeType="up" color="sage" route="/attendance" />
-            <StatCard icon="₹" value="₹8.4L" label="Fees Collected" change="₹1.2L pending" changeType="down" color="purple" route="/fees" />
+            <StatCard icon="👤" value={stats?.totalStudents?.toLocaleString() || '1,284'} label="Total Students" change="12 new this month" changeType="up" color="accent" />
+            <StatCard icon="🎓" value={stats?.totalTeachers || '86'} label="Teachers" change="3 new this term" changeType="up" color="gold" />
+            <StatCard icon="✓" value={`${stats?.attendanceRate || 94}%`} label="Avg Attendance" change="1.4% vs last week" changeType="up" color="sage" />
+            <StatCard icon="₹" value={stats?.feesCollected ? `₹${(stats.feesCollected/100000).toFixed(1)}L` : '₹0'} label="Fees Collected" change={stats?.feesCollected ? 'This month' : 'No payments'} changeType="up" color="purple" />
           </div>
 
           <div className="grid xl:grid-cols-5 gap-5 mb-5">
@@ -79,54 +64,64 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
-                <div className="flex items-end gap-3 h-32">
-                  {WEEK_ATT.map(d => (
-                    <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full flex items-end gap-0.5" style={{ height: '100px' }}>
-                        <div className="flex-1 rounded-t-md bg-sage transition-all hover:opacity-80" style={{ height: `${(d.present / maxBar) * 95}%` }} />
-                        <div className="flex-1 rounded-t-md transition-all hover:opacity-80" style={{ height: `${(d.absent / maxBar) * 95}%`, background: 'rgba(212,82,42,0.25)' }} />
-                      </div>
-                      <div className="text-[10px] text-muted">{d.day}</div>
-                    </div>
-                  ))}
+                {/* Attendance bar chart - today's rate shown as info */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:100, flexDirection:'column', gap:8 }}>
+                  <div style={{ fontSize:36, fontWeight:900, color:'#4a7c59' }}>{stats?.attendanceRate || 0}%</div>
+                  <div style={{ fontSize:13, color:'#6B7280' }}>Today's attendance rate</div>
+                  <div style={{ width:'100%', height:8, background:'#F3F4F6', borderRadius:4, overflow:'hidden', marginTop:4 }}>
+                    <div style={{ height:'100%', width:`${stats?.attendanceRate||0}%`, background:'#4a7c59', borderRadius:4, transition:'width 1s' }}/>
+                  </div>
+                  <div style={{ display:'flex', gap:16, fontSize:12, color:'#6B7280' }}>
+                    <span>✅ Present: {stats?.todayPresent || 0}</span>
+                    <span>👥 Total: {stats?.totalStudents || 0}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="xl:col-span-2 card dark:bg-gray-800 dark:border-gray-700 p-0 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border dark:border-gray-700">
-                <div className="font-semibold text-ink dark:text-white">Upcoming Events</div>
+                <div className="font-semibold text-ink dark:text-white">Upcoming Exams</div>
+                <button onClick={()=>navigate('/exams')} className="text-xs text-accent hover:underline">View all</button>
               </div>
               <div className="divide-y divide-border dark:divide-gray-700">
-                {EVENTS.map((ev, i) => (
-                  <div key={i} className="flex gap-3 px-5 py-3.5 items-start hover:bg-warm/50 dark:hover:bg-gray-700/50 transition-colors">
-                    <div className="w-10 h-10 rounded-lg bg-warm dark:bg-gray-700 flex flex-col items-center justify-center flex-shrink-0">
-                      <div className="font-bold text-sm text-ink dark:text-white leading-none">{ev.day}</div>
-                      <div className="text-[9px] text-muted uppercase">{ev.month}</div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="font-medium text-sm text-ink dark:text-white truncate">{ev.title}</div>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ev.tagColor}`}>{ev.tag}</span>
+                {!stats?.upcomingExams?.length ? (
+                  <div className="px-5 py-8 text-center text-muted text-sm">No upcoming exams scheduled</div>
+                ) : stats.upcomingExams.map((exam, i) => {
+                  const d = exam.date ? new Date(exam.date) : null;
+                  return (
+                    <div key={i} className="flex gap-3 px-5 py-3.5 items-start hover:bg-warm/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={()=>navigate('/exams')}>
+                      <div className="w-10 h-10 rounded-lg bg-warm dark:bg-gray-700 flex flex-col items-center justify-center flex-shrink-0">
+                        <div className="font-bold text-sm text-ink dark:text-white leading-none">{d?.getDate()}</div>
+                        <div className="text-[9px] text-muted uppercase">{d?.toLocaleString('default',{month:'short'})}</div>
                       </div>
-                      <div className="text-xs text-muted mt-0.5">{ev.sub}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="font-medium text-sm text-ink dark:text-white truncate">{exam.name}</div>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gold/15 text-gold">{exam.examType}</span>
+                        </div>
+                        <div className="text-xs text-muted mt-0.5">{exam.class?.name} {exam.class?.section||''} · {exam.subject?.name||'—'}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
 
           <div className="card dark:bg-gray-800 dark:border-gray-700 p-0 overflow-hidden mb-5">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border dark:border-gray-700">
-              <div className="font-semibold text-ink dark:text-white">Recent Activity</div>
+              <div className="font-semibold text-ink dark:text-white">Recent Notifications</div>
+              <button onClick={()=>navigate('/notifications')} className="text-xs text-accent hover:underline">View all</button>
             </div>
             <div className="divide-y divide-border dark:divide-gray-700">
-              {ACTIVITY.map((a, i) => (
-                <div key={i} className="flex items-center gap-3 px-6 py-3 hover:bg-warm/50 dark:hover:bg-gray-700/50 transition-colors">
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: a.dot }} />
-                  <div className="flex-1 text-sm text-ink dark:text-gray-300">{a.text}</div>
-                  <div className="text-xs text-muted whitespace-nowrap">{a.time}</div>
+              {!stats?.recentNotifications?.length ? (
+                <div className="px-6 py-8 text-center text-muted text-sm">No recent notifications</div>
+              ) : stats.recentNotifications.map((n, i) => (
+                <div key={i} className="flex items-center gap-3 px-6 py-3 hover:bg-warm/50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={()=>navigate('/notifications')}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: n.type==='warning'?'#d4522a':n.type==='success'?'#4a7c59':'#7c6af5' }} />
+                  <div className="flex-1 text-sm text-ink dark:text-gray-300">{n.title}{n.message ? ` — ${n.message.slice(0,60)}${n.message.length>60?'…':''}` : ''}</div>
+                  <div className="text-xs text-muted whitespace-nowrap">{timeAgo(n.createdAt)}</div>
                 </div>
               ))}
             </div>
