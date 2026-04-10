@@ -2,6 +2,7 @@
 // Student Portal — admin-dashboard style, shows only the student's own data
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api, { timetableAPI, classAPI } from '../utils/api';
@@ -575,60 +576,8 @@ export default function StudentDashboard() {
 
       {/* ════════════════════ ATTENDANCE ════════════════════ */}
       {tab === 'attendance' && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="card p-5 text-center">
-              <div className="font-display text-4xl text-sage mb-1">{attendance.present}</div>
-              <div className="text-xs text-muted">✅ Present</div>
-            </div>
-            <div className="card p-5 text-center">
-              <div className="font-display text-4xl text-accent mb-1">{attendance.absent}</div>
-              <div className="text-xs text-muted">❌ Absent</div>
-            </div>
-            <div className="card p-5 flex flex-col items-center gap-1">
-              <Ring pct={attPct} size={64} stroke={6} />
-              <div className="text-xs text-muted">Percentage</div>
-            </div>
-          </div>
-
-          {attPct < 75 && (
-            <div className="card p-4 bg-red-50 dark:bg-red-900/20 border border-red-200">
-              <p className="font-semibold text-red-700 dark:text-red-300">⚠️ Attendance Warning</p>
-              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                Your attendance is {attPct}%. Minimum 75% is required. Please attend classes regularly.
-              </p>
-            </div>
-          )}
-
-          {attendance.records?.length > 0 && (
-            <div className="card p-6">
-              <h3 className="font-semibold text-ink dark:text-white mb-4">Monthly Calendar</h3>
-              <div className="grid grid-cols-7 gap-1.5">
-                {['S','M','T','W','T','F','S'].map((d,i) => (
-                  <div key={i} className="text-center text-[10px] text-muted font-bold py-1">{d}</div>
-                ))}
-                {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_,i) => (
-                  <div key={'e'+i} />
-                ))}
-                {attendance.records.map((r, i) => (
-                  <div key={i} className={'w-8 h-8 rounded-lg mx-auto flex items-center justify-center text-[11px] font-bold ' +
-                    (r.status === 'present' ? 'bg-green-100 dark:bg-green-900/40 text-green-700' :
-                     r.status === 'absent'  ? 'bg-red-100 dark:bg-red-900/40 text-red-600' :
-                                              'bg-gray-100 dark:bg-gray-700 text-muted')}>
-                    {r.day || i+1}
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-5 mt-4">
-                <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-green-200 inline-block" /> Present</span>
-                <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-red-200 inline-block" /> Absent</span>
-              </div>
-            </div>
-          )}
-        </div>
+        <StudentAttendanceSection dashboardAttendance={attendance} studentId={student?._id} />
       )}
-
-      {/* ════════════════════ TIMETABLE ════════════════════ */}
       {tab === 'timetable' && (
         <div>
           {!timetable.length ? (
