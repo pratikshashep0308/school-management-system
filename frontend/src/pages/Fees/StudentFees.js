@@ -42,8 +42,8 @@ export default function StudentFees() {
   useEffect(() => { load(); }, [classId]);
 
   const filtered = students.filter(s =>
-    !search || s.studentName?.toLowerCase().includes(search.toLowerCase()) ||
-    s.rollNumber?.toString().includes(search)
+    !search || s.student?.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
+    s.student?.rollNumber?.toString().includes(search)
   );
 
   const handlePay = async () => {
@@ -85,18 +85,18 @@ export default function StudentFees() {
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           {filtered.map(s => {
             const isOpen = expanded === s.studentId;
-            const paidPct = s.totalFees > 0 ? Math.round((s.paidAmount/s.totalFees)*100) : 0;
+            const paidPct = s.totalFees > 0 ? Math.min(100, Math.round((s.paidAmount/s.totalFees)*100)) : 0;
             return (
               <div key={s.studentId} className="card" style={{ padding:0, overflow:'hidden' }}>
                 {/* Student row */}
                 <div onClick={()=>setExpanded(isOpen ? null : s.studentId)}
                   style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 18px', cursor:'pointer', background:isOpen?'#F8FAFC':'#fff' }}>
                   <div style={{ width:40, height:40, borderRadius:10, background:'#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ fontSize:16, fontWeight:700, color:'#fff' }}>{(s.studentName||'?')[0].toUpperCase()}</span>
+                    <span style={{ fontSize:16, fontWeight:700, color:'#fff' }}>{(s.student?.user?.name||'?')[0].toUpperCase()}</span>
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:700, fontSize:14, color:'#111827' }}>{s.studentName}</div>
-                    <div style={{ fontSize:12, color:'#6B7280' }}>{s.className} · Roll {s.rollNumber}</div>
+                    <div style={{ fontWeight:700, fontSize:14, color:'#111827' }}>{s.student?.user?.name||'—'}</div>
+                    <div style={{ fontSize:12, color:'#6B7280' }}>{s.class?.name} {s.class?.section||''} · Roll {s.student?.rollNumber||'—'}</div>
                   </div>
                   {/* Progress */}
                   <div style={{ flex:1, minWidth:120, maxWidth:200 }}>
@@ -134,7 +134,7 @@ export default function StudentFees() {
                           <span style={{ fontSize:12, fontWeight:700, color: pending>0?'#DC2626':'#16A34A', minWidth:60, textAlign:'right' }}>{fmt(pending)}</span>
                           <span style={{ fontSize:10, fontWeight:700, color:ss.color, background:ss.bg, padding:'2px 8px', borderRadius:20, flexShrink:0 }}>{a.status}</span>
                           {a.status !== 'paid' && (
-                            <button onClick={()=>{ setPayModal({ ...a, assignmentId:a._id, studentName:s.studentName }); setPayForm({ amount:String(pending), method:'cash', transactionId:'', remarks:'' }); }}
+                            <button onClick={()=>{ setPayModal({ ...a, assignmentId:a._id, studentName:s.student?.user?.name }); setPayForm({ amount:String(pending), method:'cash', transactionId:'', remarks:'' }); }}
                               style={{ fontSize:11, fontWeight:700, color:'#16A34A', background:'#F0FDF4', border:'1px solid #BBF7D0', padding:'4px 10px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
                               💳 Pay
                             </button>
