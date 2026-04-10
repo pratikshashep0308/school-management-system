@@ -1,6 +1,7 @@
 // frontend/src/pages/Fees/FeesDashboard.js
 import React, { useEffect, useState } from 'react';
-import { feeAPI } from '../../utils/api';
+import feeAPI from '../../utils/feeAPI';
+import { classAPI, studentAPI } from '../../utils/api';
 import { LoadingState, EmptyState } from '../../components/ui';
 
 const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;

@@ -1,7 +1,8 @@
 // frontend/src/pages/Fees/StudentFees.js
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { feeAPI, classAPI } from '../../utils/api';
+import feeAPI from '../../utils/feeAPI';
+import { classAPI } from '../../utils/api';
 import { LoadingState, EmptyState } from '../../components/ui';
 
 const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;

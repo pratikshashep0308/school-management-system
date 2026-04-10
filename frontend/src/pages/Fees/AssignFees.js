@@ -1,7 +1,8 @@
 // frontend/src/pages/Fees/AssignFees.js
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { feeAPI } from '../../utils/api';
+import feeAPI from '../../utils/feeAPI';
+import { classAPI, studentAPI } from '../../utils/api';
 import { classAPI, studentAPI } from '../../utils/api';
 import { LoadingState, EmptyState } from '../../components/ui';
 
