@@ -1,34 +1,32 @@
 // frontend/src/pages/Timetable.js
-// Simple timetable: 2 main columns — Subject | Day & Time
-// Admin: full CRUD · Teacher/Student/Parent: read-only
+// 7-day grid: columns = Mon–Sun, rows = periods
+// Admin: full CRUD | Teacher/Student/Parent: read-only
 
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { timetableAPI, classAPI, subjectAPI, teacherAPI } from '../utils/api';
-import { LoadingState, EmptyState, Modal } from '../components/ui';
+import { LoadingState, EmptyState } from '../components/ui';
 
-const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAY_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu', Friday:'Fri', Saturday:'Sat', Sunday:'Sun' };
 const DAY_COLORS = {
-  Monday:'#D4522A', Tuesday:'#C9A84C', Wednesday:'#4A7C59',
-  Thursday:'#7C6AF5', Friday:'#2D9CDB', Saturday:'#F2994A',
+  Monday:'#993C1D', Tuesday:'#854F0B', Wednesday:'#3B6D11',
+  Thursday:'#534AB7', Friday:'#185FA5', Saturday:'#993556', Sunday:'#A32D2D',
 };
 const SUBJECT_COLORS = [
-  '#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444',
-  '#06B6D4','#F59E0B','#EC4899','#6366F1','#14B8A6',
+  '#185FA5','#0F6E56','#534AB7','#993C1D','#854F0B',
+  '#993556','#1D9E75','#D85A30','#7F77DD','#3B6D11',
 ];
 const TYPES = ['lecture','lab','break','lunch','free','assembly'];
-const TYPE_LABELS = {
-  lecture:'📚 Lecture', lab:'🔬 Lab', break:'☕ Break',
-  lunch:'🍽 Lunch', free:'— Free', assembly:'🎓 Assembly',
-};
+const TYPE_LABELS = { lecture:'Lecture', lab:'Lab', break:'Break', lunch:'Lunch', free:'Free', assembly:'Assembly' };
 const TODAY = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
 
 const fmt12 = t => {
-  if (!t) return '—';
+  if (!t) return '';
   const [h,m] = t.split(':');
   const hh = +h;
-  return `${hh>12?hh-12:hh||12}:${m} ${hh>=12?'PM':'AM'}`;
+  return `${hh>12?hh-12:hh||12}:${m}${hh>=12?'pm':'am'}`;
 };
 
 function buildColorMap(subjects) {
@@ -37,35 +35,34 @@ function buildColorMap(subjects) {
   return map;
 }
 
-// Flatten timetable doc → array of period rows sorted by day then period
-function flattenTimetable(tt) {
-  if (!tt?.schedule) return [];
-  const rows = [];
-  tt.schedule.forEach(ds => {
-    (ds.periods||[]).forEach(p => {
-      rows.push({
-        day:          ds.day,
-        periodNumber: p.periodNumber,
-        startTime:    p.startTime,
-        endTime:      p.endTime,
-        subject:      p.subject,
-        teacher:      p.teacher,
-        type:         p.type || 'lecture',
-        room:         p.room || '',
-        _periodId:    p._id,
-      });
+// Build a lookup: day → periodNumber → period object
+function buildGrid(timetable) {
+  const grid = {};
+  DAYS.forEach(d => { grid[d] = {}; });
+  if (!timetable?.schedule) return grid;
+  timetable.schedule.forEach(ds => {
+    (ds.periods || []).forEach(p => {
+      if (!grid[ds.day]) grid[ds.day] = {};
+      grid[ds.day][p.periodNumber] = p;
     });
   });
-  return rows.sort((a,b) => {
-    const di = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
-    return di !== 0 ? di : a.periodNumber - b.periodNumber;
+  return grid;
+}
+
+// Get sorted unique period numbers across all days
+function getPeriodNumbers(timetable) {
+  const nums = new Set();
+  if (!timetable?.schedule) return [1,2,3,4,5,6,7,8];
+  timetable.schedule.forEach(ds => {
+    (ds.periods||[]).forEach(p => nums.add(p.periodNumber));
   });
+  return nums.size ? [...nums].sort((a,b)=>a-b) : [1,2,3,4,5,6,7,8];
 }
 
 // ── Period add/edit modal ─────────────────────────────────────────────────────
-function PeriodModal({ period, onClose, onSave, saving, subjects, teachers, colorMap }) {
+function PeriodModal({ period, onClose, onSave, saving, subjects, teachers, colorMap, defaultDay }) {
   const [form, setForm] = useState({
-    day:          period?.day          || 'Monday',
+    day:          period?.day          || defaultDay || 'Monday',
     periodNumber: period?.periodNumber || 1,
     startTime:    period?.startTime    || '09:00',
     endTime:      period?.endTime      || '09:45',
@@ -75,236 +72,138 @@ function PeriodModal({ period, onClose, onSave, saving, subjects, teachers, colo
     room:         period?.room         || '',
   });
   const set = (k,v) => setForm(p=>({...p,[k]:v}));
-  const INP = { width:'100%', padding:'9px 12px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit' };
-  const LBL = { fontSize:11, fontWeight:700, display:'block', marginBottom:5, color:'#374151', textTransform:'uppercase', letterSpacing:'0.04em' };
-  const selSub   = subjects.find(s=>s._id===form.subject);
+  const INP = { width:'100%', padding:'8px 11px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit', background:'#fff' };
+  const LBL = { fontSize:11, fontWeight:700, display:'block', marginBottom:4, color:'#374151', textTransform:'uppercase', letterSpacing:'0.04em' };
+  const selSub = subjects.find(s=>s._id===form.subject);
   const subColor = selSub ? (colorMap[selSub._id]||'#1D4ED8') : '#E5E7EB';
 
   return (
-    <Modal isOpen onClose={onClose}
-      title={period?._periodId ? '✎ Edit Period' : '+ Add Period'} size="sm"
-      footer={<>
-        <button onClick={onClose} className="btn-secondary">Cancel</button>
-        <button onClick={()=>onSave(form)} disabled={saving} className="btn-primary"
-          style={{ background:'#1D4ED8', borderColor:'#1D4ED8' }}>
-          {saving ? '⏳ Saving…' : period?._periodId ? 'Update' : 'Add Period'}
-        </button>
-      </>}>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <div>
-          <label style={LBL}>Day *</label>
-          <select value={form.day} onChange={e=>set('day',e.target.value)} style={INP}>
-            {DAYS.map(d=><option key={d} value={d}>{d}</option>)}
-          </select>
+    <div style={{ position:'fixed', inset:0, zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div onClick={onClose} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)' }}/>
+      <div style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:520, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.15)' }}>
+        <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <h3 style={{ fontSize:17, fontWeight:700, color:'#111827', margin:0 }}>
+            {period?._periodId ? '✎ Edit Period' : '+ Add Period'}
+          </h3>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:16, color:'#6B7280' }}>×</button>
         </div>
-        <div>
-          <label style={LBL}>Period #</label>
-          <input type="number" min={1} max={10} value={form.periodNumber}
-            onChange={e=>set('periodNumber',+e.target.value)} style={INP}/>
+        <div style={{ padding:'20px 24px', overflowY:'auto', flex:1 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div>
+              <label style={LBL}>Day</label>
+              <select value={form.day} onChange={e=>set('day',e.target.value)} style={INP}>
+                {DAYS.map(d=><option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Period #</label>
+              <input type="number" min={1} max={10} value={form.periodNumber} onChange={e=>set('periodNumber',+e.target.value)} style={INP}/>
+            </div>
+            <div>
+              <label style={LBL}>Start Time</label>
+              <input type="time" value={form.startTime} onChange={e=>set('startTime',e.target.value)} style={INP}/>
+            </div>
+            <div>
+              <label style={LBL}>End Time</label>
+              <input type="time" value={form.endTime} onChange={e=>set('endTime',e.target.value)} style={INP}/>
+            </div>
+            <div style={{ gridColumn:'1/-1' }}>
+              <label style={LBL}>Subject</label>
+              <select value={form.subject} onChange={e=>set('subject',e.target.value)} style={{ ...INP, borderColor:form.subject?subColor:'#E5E7EB' }}>
+                <option value="">— Select Subject —</option>
+                {subjects.map(s=><option key={s._id} value={s._id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div style={{ gridColumn:'1/-1' }}>
+              <label style={LBL}>Teacher</label>
+              <select value={form.teacher} onChange={e=>set('teacher',e.target.value)} style={INP}>
+                <option value="">— Select Teacher —</option>
+                {teachers.map(t=><option key={t._id} value={t._id}>{t.user?.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Type</label>
+              <select value={form.type} onChange={e=>set('type',e.target.value)} style={INP}>
+                {TYPES.map(t=><option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Room</label>
+              <input value={form.room} onChange={e=>set('room',e.target.value)} placeholder="e.g. A101" style={INP}/>
+            </div>
+          </div>
         </div>
-        <div>
-          <label style={LBL}>Start Time *</label>
-          <input type="time" value={form.startTime} onChange={e=>set('startTime',e.target.value)} style={INP}/>
-        </div>
-        <div>
-          <label style={LBL}>End Time *</label>
-          <input type="time" value={form.endTime} onChange={e=>set('endTime',e.target.value)} style={INP}/>
-        </div>
-        <div style={{ gridColumn:'1/-1' }}>
-          <label style={LBL}>Subject</label>
-          <select value={form.subject} onChange={e=>set('subject',e.target.value)}
-            style={{ ...INP, borderColor: form.subject?subColor:'#E5E7EB' }}>
-            <option value="">— Select Subject —</option>
-            {subjects.map(s=><option key={s._id} value={s._id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div style={{ gridColumn:'1/-1' }}>
-          <label style={LBL}>Teacher</label>
-          <select value={form.teacher} onChange={e=>set('teacher',e.target.value)} style={INP}>
-            <option value="">— Select Teacher —</option>
-            {teachers.map(t=><option key={t._id} value={t._id}>{t.user?.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={LBL}>Type</label>
-          <select value={form.type} onChange={e=>set('type',e.target.value)} style={INP}>
-            {TYPES.map(t=><option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={LBL}>Room</label>
-          <input value={form.room} onChange={e=>set('room',e.target.value)} placeholder="e.g. A101" style={INP}/>
+        <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', justifyContent:'flex-end', gap:10, flexShrink:0 }}>
+          <button onClick={onClose} style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700, background:'#F3F4F6', border:'none', cursor:'pointer', color:'#374151' }}>Cancel</button>
+          <button onClick={()=>onSave(form)} disabled={saving} style={{ padding:'8px 22px', borderRadius:8, fontSize:13, fontWeight:700, background:saving?'#9CA3AF':'#1D4ED8', color:'#fff', border:'none', cursor:saving?'not-allowed':'pointer' }}>
+            {saving ? '⏳ Saving…' : period?._periodId ? 'Update' : 'Add Period'}
+          </button>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 }
 
-// ── Main timetable table ──────────────────────────────────────────────────────
-function TimetableTable({ rows, colorMap, canEdit, onAdd, onEdit, onDelete, activeDay, setActiveDay }) {
-  const filtered = activeDay === 'All' ? rows : rows.filter(r=>r.day===activeDay);
+// ── Grid Cell ─────────────────────────────────────────────────────────────────
+function GridCell({ period, canEdit, onEdit, onDelete, onAdd, day, periodNum, colorMap }) {
+  const isFree = !period || ['break','lunch','free','assembly'].includes(period.type);
+  const typeStyle = {
+    break:    { bg:'#FEF3C7', color:'#92400E', label:'Break' },
+    lunch:    { bg:'#D1FAE5', color:'#065F46', label:'Lunch' },
+    free:     { bg:'#F3F4F6', color:'#9CA3AF', label:'Free' },
+    assembly: { bg:'#EDE9FE', color:'#5B21B6', label:'Assembly' },
+  };
 
-  if (!rows.length) return (
-    <EmptyState icon="🗓" title="No timetable yet"
-      subtitle={canEdit ? "Click '+ Add Period' to start building" : "No timetable set for this class yet"} />
-  );
-
-  return (
-    <div>
-      {/* Day filter */}
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:16 }}>
-        {['All',...DAYS].map(d=>{
-          const active  = activeDay===d;
-          const isToday = d===TODAY;
-          return (
-            <button key={d} onClick={()=>setActiveDay(d)} style={{
-              padding:'6px 16px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer', position:'relative',
-              border:`1.5px solid ${active?(DAY_COLORS[d]||'#1D4ED8'):'#E5E7EB'}`,
-              background: active?`${DAY_COLORS[d]||'#1D4ED8'}18`:'#fff',
-              color: active?(DAY_COLORS[d]||'#1D4ED8'):'#6B7280',
-            }}>
-              {d}
-              {isToday&&d!=='All'&&<span style={{ position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#EF4444',border:'2px solid #fff' }}/>}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="card" style={{ padding:0, overflow:'hidden' }}>
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-            <thead>
-              <tr style={{ background:'#0B1F4A' }}>
-                {[
-                  { label:'Day',         w:100 },
-                  { label:'Period',      w:60  },
-                  { label:'Subject',     w:null },
-                  { label:'Day & Time',  w:180 },
-                  { label:'Teacher',     w:160 },
-                  { label:'Room',        w:80  },
-                  ...(canEdit?[{ label:'Actions', w:110 }]:[]),
-                ].map(h=>(
-                  <th key={h.label} style={{
-                    padding:'11px 16px', textAlign: h.label==='Actions'?'right':'left',
-                    color:'#E2E8F0', fontSize:11, fontWeight:700,
-                    textTransform:'uppercase', letterSpacing:'0.05em',
-                    whiteSpace:'nowrap', width:h.w||undefined,
-                  }}>{h.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row,i)=>{
-                const color   = colorMap[row.subject?._id||row.subject] || '#9CA3AF';
-                const isFree  = ['break','lunch','free','assembly'].includes(row.type);
-                const isToday = row.day===TODAY;
-                const typeBg  = { break:'#FEF3C7', lunch:'#D1FAE5', free:'#F3F4F6', assembly:'#EDE9FE' };
-                const typeC   = { break:'#92400E', lunch:'#065F46', free:'#6B7280', assembly:'#5B21B6' };
-
-                return (
-                  <tr key={`${row.day}-${row.periodNumber}-${i}`}
-                    style={{ borderBottom:'1px solid #F3F4F6', background:isToday?'#FFFBEB':i%2?'#FAFAFA':'#fff', transition:'background 0.1s' }}
-                    onMouseEnter={e=>e.currentTarget.style.background=isToday?'#FEF3C7':'#F0F7FF'}
-                    onMouseLeave={e=>e.currentTarget.style.background=isToday?'#FFFBEB':i%2?'#FAFAFA':'#fff'}
-                  >
-                    {/* Day */}
-                    <td style={{ padding:'12px 16px', whiteSpace:'nowrap' }}>
-                      <span style={{
-                        fontSize:11, fontWeight:800,
-                        color:DAY_COLORS[row.day]||'#374151',
-                        background:`${DAY_COLORS[row.day]||'#374151'}15`,
-                        padding:'3px 10px', borderRadius:20,
-                      }}>
-                        {row.day.slice(0,3).toUpperCase()}
-                        {isToday&&<span style={{ marginLeft:4,fontSize:9,color:'#DC2626' }}>●</span>}
-                      </span>
-                    </td>
-
-                    {/* Period # */}
-                    <td style={{ padding:'12px 16px' }}>
-                      <div style={{
-                        width:28, height:28, borderRadius:8,
-                        background:`${isFree?'#9CA3AF':color}20`,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontWeight:800, fontSize:12, color:isFree?'#9CA3AF':color,
-                      }}>{row.periodNumber}</div>
-                    </td>
-
-                    {/* Subject — the primary column */}
-                    <td style={{ padding:'12px 16px' }}>
-                      {isFree ? (
-                        <span style={{
-                          fontSize:12, fontWeight:700,
-                          color:typeC[row.type]||'#6B7280',
-                          background:typeBg[row.type]||'#F3F4F6',
-                          padding:'5px 14px', borderRadius:20,
-                        }}>{TYPE_LABELS[row.type]}</span>
-                      ) : (
-                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                          <div style={{ width:4, height:40, borderRadius:2, background:color, flexShrink:0 }}/>
-                          <div>
-                            <div style={{ fontWeight:800, fontSize:15, color:'#111827' }}>
-                              {row.subject?.name || '—'}
-                            </div>
-                            {row.subject?.code&&<div style={{ fontSize:11, color:'#9CA3AF' }}>{row.subject.code}</div>}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Day & Time — the secondary column */}
-                    <td style={{ padding:'12px 16px', whiteSpace:'nowrap' }}>
-                      <div style={{ fontWeight:700, fontSize:13, color:`${DAY_COLORS[row.day]}` }}>
-                        📅 {row.day}
-                      </div>
-                      <div style={{ fontSize:12, color:'#6B7280', marginTop:3, display:'flex', alignItems:'center', gap:4 }}>
-                        ⏰ <span style={{ fontWeight:600 }}>{fmt12(row.startTime)}</span>
-                        <span style={{ color:'#D1D5DB' }}>–</span>
-                        <span style={{ fontWeight:600 }}>{fmt12(row.endTime)}</span>
-                      </div>
-                    </td>
-
-                    {/* Teacher */}
-                    <td style={{ padding:'12px 16px', color:'#374151', fontSize:13 }}>
-                      {row.teacher?.user?.name || '—'}
-                    </td>
-
-                    {/* Room */}
-                    <td style={{ padding:'12px 16px', color:'#9CA3AF', fontSize:12 }}>
-                      {row.room || '—'}
-                    </td>
-
-                    {/* Actions (admin only) */}
-                    {canEdit&&(
-                      <td style={{ padding:'12px 16px', textAlign:'right' }}>
-                        <div style={{ display:'flex', gap:5, justifyContent:'flex-end' }}>
-                          <button onClick={()=>onEdit(row)}
-                            style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'5px 10px', borderRadius:6, cursor:'pointer' }}>
-                            ✎ Edit
-                          </button>
-                          <button onClick={()=>onDelete(row)}
-                            style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'5px 10px', borderRadius:6, cursor:'pointer' }}>
-                            ✕
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {canEdit&&(
-          <div style={{ padding:'12px 16px', borderTop:'1px solid #E5E7EB', background:'#FAFAFA' }}>
-            <button onClick={onAdd} style={{
-              fontSize:12, fontWeight:700, color:'#16A34A', background:'#F0FDF4',
-              border:'1.5px dashed #22C55E', padding:'7px 16px', borderRadius:8, cursor:'pointer',
-            }}>+ Add Period</button>
-          </div>
+  if (!period) {
+    return (
+      <div style={{ minHeight:72, display:'flex', alignItems:'center', justifyContent:'center', padding:6 }}>
+        {canEdit ? (
+          <button onClick={()=>onAdd(day, periodNum)} style={{
+            width:28, height:28, borderRadius:8, border:'1.5px dashed #D1D5DB',
+            background:'transparent', cursor:'pointer', color:'#9CA3AF', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center',
+          }}>+</button>
+        ) : (
+          <span style={{ fontSize:10, color:'#D1D5DB' }}>—</span>
         )}
       </div>
+    );
+  }
+
+  if (isFree) {
+    const ts = typeStyle[period.type] || { bg:'#F3F4F6', color:'#9CA3AF', label:'Free' };
+    return (
+      <div style={{ minHeight:72, display:'flex', alignItems:'center', justifyContent:'center', background:ts.bg, padding:6 }}>
+        <span style={{ fontSize:11, fontWeight:700, color:ts.color }}>{ts.label}</span>
+        {canEdit && (
+          <button onClick={()=>onDelete(period)} style={{ position:'absolute', top:4, right:4, width:16, height:16, borderRadius:4, border:'none', background:'rgba(0,0,0,0.1)', cursor:'pointer', fontSize:10, color:ts.color, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+        )}
+      </div>
+    );
+  }
+
+  const color = colorMap[period.subject?._id || period.subject] || '#6B7280';
+  const subjName = period.subject?.name || '—';
+  const teacherName = period.teacher?.user?.name || '';
+
+  return (
+    <div onClick={canEdit ? ()=>onEdit(day, period) : undefined}
+      style={{
+        minHeight:72, padding:'7px 8px', borderLeft:`3px solid ${color}`,
+        background:`${color}12`, cursor:canEdit?'pointer':'default',
+        position:'relative', transition:'background 0.1s',
+      }}
+      onMouseEnter={e=>{ if(canEdit) e.currentTarget.style.background=`${color}22`; }}
+      onMouseLeave={e=>{ e.currentTarget.style.background=`${color}12`; }}>
+      <div style={{ fontSize:12, fontWeight:700, color, lineHeight:1.3, marginBottom:3 }}>{subjName}</div>
+      {teacherName && <div style={{ fontSize:10, color:'#6B7280' }}>{teacherName}</div>}
+      {period.room && <div style={{ fontSize:9, color:'#9CA3AF', marginTop:1 }}>{period.room}</div>}
+      {canEdit && (
+        <button onClick={e=>{ e.stopPropagation(); onDelete(period); }}
+          style={{ position:'absolute', top:3, right:3, width:16, height:16, borderRadius:4, border:'none', background:'rgba(220,38,38,0.12)', cursor:'pointer', fontSize:10, color:'#DC2626', display:'flex', alignItems:'center', justifyContent:'center', opacity:0 }}
+          onMouseEnter={e=>e.currentTarget.style.opacity=1}
+          onMouseLeave={e=>e.currentTarget.style.opacity=0}
+          className="del-btn">×</button>
+      )}
     </div>
   );
 }
@@ -323,8 +222,7 @@ export default function Timetable() {
   const [timetable, setTimetable] = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [colorMap,  setColorMap]  = useState({});
-  const [activeDay, setActiveDay] = useState('All');
-  const [modal,     setModal]     = useState(null);
+  const [modal,     setModal]     = useState(null); // { period?, day?, periodNum? }
   const [saving,    setSaving]    = useState(false);
 
   useEffect(() => {
@@ -358,12 +256,23 @@ export default function Timetable() {
 
   useEffect(() => { loadTimetable(); }, [loadTimetable]);
 
-  const rows = flattenTimetable(timetable);
+  const grid       = buildGrid(timetable);
+  const periodNums = getPeriodNumbers(timetable);
+
+  // Get start/end times per period number (from any day)
+  const periodTimes = {};
+  if (timetable?.schedule) {
+    timetable.schedule.forEach(ds => {
+      (ds.periods||[]).forEach(p => {
+        if (!periodTimes[p.periodNumber]) {
+          periodTimes[p.periodNumber] = { start: p.startTime, end: p.endTime };
+        }
+      });
+    });
+  }
 
   const handleSavePeriod = async (form) => {
     if (!form.startTime || !form.endTime) return toast.error('Start and end time required');
-    if (!form.subject && !['break','lunch','free','assembly'].includes(form.type))
-      return toast.error('Select a subject');
     setSaving(true);
     try {
       let schedule = timetable?.schedule
@@ -382,24 +291,19 @@ export default function Timetable() {
 
       const editing = modal?.period?._periodId;
 
-      if (editing) {
-        // Remove from old day if day changed
-        if (modal.period.day !== form.day) {
-          const oldD = schedule.find(d=>d.day===modal.period.day);
-          if (oldD) oldD.periods = oldD.periods.filter(p=>p._id?.toString()!==editing?.toString());
-        }
-        // Update in new day
-        let dayDoc = schedule.find(d=>d.day===form.day);
-        if (!dayDoc) { dayDoc={day:form.day,periods:[]}; schedule.push(dayDoc); }
+      if (editing && modal.period.day !== form.day) {
+        const oldD = schedule.find(d=>d.day===modal.period.day);
+        if (oldD) oldD.periods = oldD.periods.filter(p=>p._id?.toString()!==editing?.toString());
+      }
+
+      let dayDoc = schedule.find(d=>d.day===form.day);
+      if (!dayDoc) { dayDoc = { day:form.day, periods:[] }; schedule.push(dayDoc); }
+
+      if (editing && modal.period.day === form.day) {
         const idx = dayDoc.periods.findIndex(p=>p._id?.toString()===editing?.toString());
-        if (modal.period.day===form.day && idx>=0) {
-          dayDoc.periods[idx] = { ...dayDoc.periods[idx], ...newPeriod };
-        } else {
-          dayDoc.periods.push(newPeriod);
-        }
+        if (idx>=0) dayDoc.periods[idx] = { ...dayDoc.periods[idx], ...newPeriod };
+        else dayDoc.periods.push(newPeriod);
       } else {
-        let dayDoc = schedule.find(d=>d.day===form.day);
-        if (!dayDoc) { dayDoc={day:form.day,periods:[]}; schedule.push(dayDoc); }
         dayDoc.periods.push(newPeriod);
       }
 
@@ -417,34 +321,39 @@ export default function Timetable() {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (row) => {
-    if (!window.confirm(`Delete ${row.subject?.name||row.type} on ${row.day} Period ${row.periodNumber}?`)) return;
+  const handleDelete = async (day, period) => {
+    if (!window.confirm(`Delete ${period.subject?.name||period.type} on ${day}?`)) return;
     try {
       const schedule = JSON.parse(JSON.stringify(timetable.schedule));
-      const dayDoc   = schedule.find(d=>d.day===row.day);
-      if (dayDoc) dayDoc.periods = dayDoc.periods.filter(p=>p._id?.toString()!==row._periodId?.toString());
+      const dayDoc   = schedule.find(d=>d.day===day);
+      if (dayDoc) dayDoc.periods = dayDoc.periods.filter(p=>p._id?.toString()!==period._id?.toString());
       await timetableAPI.update(timetable._id, { schedule });
       toast.success('Period deleted');
       loadTimetable();
     } catch { toast.error('Failed to delete'); }
   };
 
-  const SEL = { padding:'8px 12px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, background:'#fff', outline:'none' };
-  const todayRows     = rows.filter(r=>r.day===TODAY);
-  const subjectCount  = [...new Set(rows.filter(r=>r.subject).map(r=>r.subject?._id||r.subject))].length;
   const selectedClass = classes.find(c=>c._id===classId);
+  const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, background:'#fff', outline:'none' };
+
+  // Today strip
+  const todayPeriods = DAYS.includes(TODAY)
+    ? (periodNums.map(pn => grid[TODAY]?.[pn]).filter(p=>p&&p.subject)).slice(0,6)
+    : [];
 
   return (
     <div className="animate-fade-in">
+      {/* Header */}
       <div className="page-header" style={{ marginBottom:20 }}>
         <div>
           <h2 className="font-display text-2xl text-ink">🗓 Timetable</h2>
           <p className="text-sm text-muted mt-0.5">
-            {selectedClass?`${selectedClass.name} ${selectedClass.section||''}`:''} · {rows.length} periods · {subjectCount} subjects
+            {selectedClass ? `${selectedClass.name} ${selectedClass.section||''}` : ''}
+            {' '} · Weekly schedule
           </p>
         </div>
-        {canEdit&&(
-          <button onClick={()=>setModal({ period:null })}
+        {canEdit && (
+          <button onClick={()=>setModal({ period:null, day:'Monday', periodNum:1 })}
             style={{ padding:'9px 20px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
             + Add Period
           </button>
@@ -452,47 +361,35 @@ export default function Timetable() {
       </div>
 
       {/* Class selector */}
-      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end', marginBottom:18 }}>
-        <div>
-          <div style={{ fontSize:11, fontWeight:700, color:'#6B7280', marginBottom:5, textTransform:'uppercase' }}>Class</div>
-          <select value={classId} onChange={e=>{ setClassId(e.target.value); setActiveDay('All'); }} style={SEL}>
-            {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
-          </select>
-        </div>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
+        <select value={classId} onChange={e=>{ setClassId(e.target.value); }} style={SEL}>
+          {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
+        </select>
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {classes.map(c=>(
-            <button key={c._id} onClick={()=>{ setClassId(c._id); setActiveDay('All'); }} style={{
-              padding:'7px 16px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
+            <button key={c._id} onClick={()=>setClassId(c._id)} style={{
+              padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
               border:`1.5px solid ${classId===c._id?'#1D4ED8':'#E5E7EB'}`,
-              background: classId===c._id?'#EFF6FF':'#fff',
-              color: classId===c._id?'#1D4ED8':'#6B7280',
+              background:classId===c._id?'#EFF6FF':'#fff',
+              color:classId===c._id?'#1D4ED8':'#6B7280',
             }}>{c.name} {c.section||''}</button>
           ))}
         </div>
       </div>
 
-      {/* Today's strip */}
-      {todayRows.length>0&&(
-        <div style={{ background:'linear-gradient(135deg,#0B1F4A,#162D6A)', borderRadius:14, padding:'14px 20px', marginBottom:18 }}>
+      {/* Today strip */}
+      {todayPeriods.length > 0 && (
+        <div style={{ background:'#0B1F4A', borderRadius:14, padding:'14px 20px', marginBottom:16 }}>
           <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:10 }}>
-            📅 Today — {TODAY} · {todayRows.filter(r=>!['break','lunch','free'].includes(r.type)).length} classes
+            Today — {TODAY} · {todayPeriods.length} classes
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {todayRows.map((row,i)=>{
-              const color = colorMap[row.subject?._id] || '#9CA3AF';
-              const isFree= ['break','lunch','free'].includes(row.type);
+            {todayPeriods.map((p,i)=>{
+              const color = colorMap[p.subject?._id] || '#9CA3AF';
               return (
-                <div key={i} style={{
-                  background:isFree?'rgba(255,255,255,0.05)':`${color}22`,
-                  border:`1px solid ${isFree?'rgba(255,255,255,0.08)':`${color}50`}`,
-                  borderRadius:10, padding:'8px 14px', minWidth:110,
-                }}>
-                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.45)', fontWeight:700 }}>
-                    P{row.periodNumber} · {fmt12(row.startTime)}
-                  </div>
-                  <div style={{ fontSize:13, fontWeight:800, color:isFree?'rgba(255,255,255,0.25)':'#fff', marginTop:2 }}>
-                    {isFree?TYPE_LABELS[row.type]:(row.subject?.name||'—')}
-                  </div>
+                <div key={i} style={{ background:`${color}22`, border:`1px solid ${color}50`, borderRadius:10, padding:'8px 14px', minWidth:110 }}>
+                  <div style={{ fontSize:10, color:'rgba(255,255,255,0.45)', fontWeight:700 }}>P{p.periodNumber} · {fmt12(p.startTime)}</div>
+                  <div style={{ fontSize:13, fontWeight:700, color:'#fff', marginTop:2 }}>{p.subject?.name||'—'}</div>
                 </div>
               );
             })}
@@ -500,22 +397,121 @@ export default function Timetable() {
         </div>
       )}
 
-      {loading ? <LoadingState /> : (
-        <TimetableTable
-          rows={rows}
-          colorMap={colorMap}
-          canEdit={canEdit}
-          onAdd={()=>setModal({ period:null })}
-          onEdit={row=>setModal({ period:row })}
-          onDelete={handleDelete}
-          activeDay={activeDay}
-          setActiveDay={setActiveDay}
-        />
+      {/* Grid */}
+      {loading ? <LoadingState /> : !timetable && !canEdit ? (
+        <EmptyState icon="🗓" title="No timetable set" subtitle="Admin hasn't configured the timetable yet"/>
+      ) : (
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', minWidth:700 }}>
+              {/* Header row — days as columns */}
+              <thead>
+                <tr style={{ background:'#0B1F4A' }}>
+                  <th style={{ padding:'12px 14px', textAlign:'center', color:'#94afd4', fontSize:10, fontWeight:700, textTransform:'uppercase', width:72, borderRight:'1px solid rgba(255,255,255,0.08)' }}>
+                    Period
+                  </th>
+                  {DAYS.map(d => {
+                    const isToday = d === TODAY;
+                    return (
+                      <th key={d} style={{
+                        padding:'12px 10px', textAlign:'center', fontSize:11, fontWeight:700,
+                        color: isToday ? '#FFD700' : '#c8d8ef',
+                        borderRight:'1px solid rgba(255,255,255,0.08)',
+                        borderTop: isToday ? '2px solid #FFD700' : 'none',
+                        minWidth:110,
+                      }}>
+                        {DAY_SHORT[d]}
+                        {isToday && <div style={{ fontSize:8, color:'#FFD700', fontWeight:500, marginTop:2 }}>TODAY</div>}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+
+              {/* Body rows — periods */}
+              <tbody>
+                {(periodNums.length ? periodNums : [1,2,3,4,5,6,7,8]).map(pn => {
+                  const times = periodTimes[pn];
+                  return (
+                    <tr key={pn} style={{ borderBottom:'0.5px solid #F3F4F6' }}>
+                      {/* Period label cell */}
+                      <td style={{ padding:'8px 6px', textAlign:'center', background:'#F8FAFC', borderRight:'0.5px solid #E5E7EB', verticalAlign:'middle' }}>
+                        <div style={{ width:30, height:30, borderRadius:8, background:'#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 3px' }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:'#fff' }}>P{pn}</span>
+                        </div>
+                        {times && <>
+                          <div style={{ fontSize:9, color:'#9CA3AF' }}>{fmt12(times.start)}</div>
+                          <div style={{ fontSize:9, color:'#9CA3AF' }}>{fmt12(times.end)}</div>
+                        </>}
+                      </td>
+
+                      {/* Day cells */}
+                      {DAYS.map(d => {
+                        const isToday = d === TODAY;
+                        const period  = grid[d]?.[pn];
+                        return (
+                          <td key={d} style={{
+                            borderRight:'0.5px solid #F3F4F6', verticalAlign:'top',
+                            background: isToday ? '#FFFBEB' : 'transparent',
+                            position:'relative',
+                          }}>
+                            {d === 'Sunday' ? (
+                              <div style={{ minHeight:72, display:'flex', alignItems:'center', justifyContent:'center', background:'#F9FAFB' }}>
+                                <span style={{ fontSize:10, color:'#D1D5DB' }}>Holiday</span>
+                              </div>
+                            ) : (
+                              <GridCell
+                                period={period}
+                                canEdit={canEdit}
+                                onEdit={(day, p) => setModal({ period:{ ...p, _periodId:p._id, day }, day })}
+                                onDelete={(p) => handleDelete(d, p)}
+                                onAdd={(day, pNum) => setModal({ period:null, day, periodNum:pNum })}
+                                day={d}
+                                periodNum={pn}
+                                colorMap={colorMap}
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+
+                {/* Add row button for admin */}
+                {canEdit && (
+                  <tr>
+                    <td colSpan={8} style={{ padding:'10px 14px', background:'#FAFAFA', borderTop:'0.5px solid #E5E7EB' }}>
+                      <button onClick={()=>setModal({ period:null, day:'Monday', periodNum:(periodNums[periodNums.length-1]||8)+1 })}
+                        style={{ fontSize:12, fontWeight:700, color:'#16A34A', background:'#F0FDF4', border:'1.5px dashed #22C55E', padding:'6px 16px', borderRadius:8, cursor:'pointer' }}>
+                        + Add Period
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Legend */}
+          {subjects.length > 0 && (
+            <div style={{ padding:'12px 16px', borderTop:'0.5px solid #E5E7EB', display:'flex', gap:12, flexWrap:'wrap', background:'#FAFAFA' }}>
+              {subjects.slice(0,8).map(s=>(
+                <div key={s._id} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                  <div style={{ width:10, height:10, borderRadius:3, background:colorMap[s._id]||'#6B7280' }}/>
+                  <span style={{ fontSize:11, color:'#6B7280' }}>{s.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
-      {modal!==null&&(
+      {/* Period modal */}
+      {modal !== null && (
         <PeriodModal
           period={modal.period}
+          defaultDay={modal.day}
           onClose={()=>setModal(null)}
           onSave={handleSavePeriod}
           saving={saving}
