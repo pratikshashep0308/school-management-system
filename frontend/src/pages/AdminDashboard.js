@@ -44,10 +44,16 @@ export default function AdminDashboard() {
       {loading ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <StatCard icon="👤" value={stats?.totalStudents?.toLocaleString() || '1,284'} label="Total Students" change="12 new this month" changeType="up" color="accent" />
-            <StatCard icon="🎓" value={stats?.totalTeachers || '86'} label="Teachers" change="3 new this term" changeType="up" color="gold" />
-            <StatCard icon="✓" value={`${stats?.attendanceRate || 94}%`} label="Avg Attendance" change="1.4% vs last week" changeType="up" color="sage" />
-            <StatCard icon="₹" value={stats?.feesCollected ? `₹${(stats.feesCollected/100000).toFixed(1)}L` : '₹0'} label="Fees Collected" change={stats?.feesCollected ? 'This month' : 'No payments'} changeType="up" color="purple" />
+            {[
+              { icon:'👤', value:stats?.totalStudents?.toLocaleString()||'0',  label:'Total Students', change:'12 new this month',  changeType:'up',   color:'accent', to:'/students'   },
+              { icon:'🎓', value:stats?.totalTeachers||'0',                    label:'Teachers',       change:'3 new this term',    changeType:'up',   color:'gold',   to:'/teachers'   },
+              { icon:'✓',  value:`${stats?.attendanceRate||0}%`,               label:'Avg Attendance', change:"Today's rate",       changeType:'up',   color:'sage',   to:'/attendance' },
+              { icon:'₹',  value:stats?.feesCollected?`₹${(stats.feesCollected/100000).toFixed(1)}L`:'₹0', label:'Fees Collected', change:stats?.feesCollected?'This month':'No payments', changeType:'up', color:'purple', to:'/fees' },
+            ].map(s => (
+              <div key={s.label} onClick={()=>navigate(s.to)} className="cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all">
+                <StatCard icon={s.icon} value={s.value} label={s.label} change={s.change} changeType={s.changeType} color={s.color}/>
+              </div>
+            ))}
           </div>
 
           <div className="grid xl:grid-cols-5 gap-5 mb-5">
