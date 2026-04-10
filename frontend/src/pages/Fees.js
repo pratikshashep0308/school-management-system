@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import FeesDashboard  from './Fees/FeesDashboard';
+import AssignFees     from './Fees/AssignFees';
 import CollectFees    from './Fees/CollectFees';
 import FeesPaidSlip   from './Fees/FeesPaidSlip';
 import FeeReport      from './Fees/FeeReport';
@@ -15,6 +16,7 @@ export default function Fees() {
     { key:'dashboard', label:'📊 Dashboard',     show:true     },
     { key:'collect',   label:'💳 Collect Fees',   show:isAdmin  },
     { key:'slip',      label:'🧾 Fees Paid Slip', show:isAdmin  },
+    { key:'assign',    label:'📋 Assign Fees',    show:isAdmin  },
     { key:'report',    label:'📊 Fee Report',     show:isAdmin  },
   ].filter(t => t.show);
 
@@ -33,6 +35,7 @@ export default function Fees() {
       {tab==='dashboard' && <FeesDashboard onNavigate={setTab}/>}
       {tab==='collect'   && <CollectFees />}
       {tab==='slip'      && <FeesPaidSlip />}
+      {tab==='assign'    && <AssignFees />}
       {tab==='report'    && <FeeReport />}
     </div>
   );

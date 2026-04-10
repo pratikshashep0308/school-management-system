@@ -16,20 +16,20 @@ const PERIODS = {
 };
 
 const DEFAULT_FEE_ITEMS = [
-  { key:'tuition',      label:'Tuition Fee',       amount:0 },
-  { key:'admission',    label:'Admission Fee',      amount:0 },
-  { key:'registration', label:'Registration Fee',   amount:0 },
-  { key:'exam',         label:'Exam Fee',           amount:0 },
-  { key:'transport',    label:'Transport Fee',      amount:0 },
-  { key:'library',      label:'Library Fee',        amount:0 },
-  { key:'sports',       label:'Sports Fee',         amount:0 },
-  { key:'uniform',      label:'Uniform',            amount:0 },
-  { key:'books',        label:'Books',              amount:0 },
-  { key:'artMaterial',  label:'Art Material',       amount:0 },
-  { key:'fine',         label:'Fine',               amount:0 },
-  { key:'others',       label:'Others',             amount:0 },
-  { key:'prevBalance',  label:'Previous Balance',   amount:0 },
-  { key:'discount',     label:'Discount',           amount:0, isDiscount:true },
+  { key:'tuition',      label:'Tuition Fee',       amount:'' },
+  { key:'admission',    label:'Admission Fee',      amount:'' },
+  { key:'registration', label:'Registration Fee',   amount:'' },
+  { key:'exam',         label:'Exam Fee',           amount:'' },
+  { key:'transport',    label:'Transport Fee',      amount:'' },
+  { key:'library',      label:'Library Fee',        amount:'' },
+  { key:'sports',       label:'Sports Fee',         amount:'' },
+  { key:'uniform',      label:'Uniform',            amount:'' },
+  { key:'books',        label:'Books',              amount:'' },
+  { key:'artMaterial',  label:'Art Material',       amount:'' },
+  { key:'fine',         label:'Fine',               amount:'' },
+  { key:'others',       label:'Others',             amount:'' },
+  { key:'prevBalance',  label:'Previous Balance',   amount:'' },
+  { key:'discount',     label:'Discount',           amount:'', isDiscount:true },
 ];
 
 // ── Receipt Modal ─────────────────────────────────────────────────────────────
@@ -43,7 +43,25 @@ function ReceiptModal({ receipt, onClose }) {
             <div style={{ fontSize:12, color:'#16A34A', marginTop:2 }}>{receipt.periodLabel} · {receipt.periodCovered} · #{receipt.receiptNumber}</div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
-            <button onClick={()=>window.print()} style={{ padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>🖨 Print</button>
+            <button onClick={()=>{
+              const content = document.getElementById('printable-receipt').innerHTML;
+              const win = window.open('','_blank','width=800,height=900');
+              win.document.write(`
+                <html><head><title>Fee Receipt</title>
+                <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
+                  table { width:100%; border-collapse:collapse; font-size:13px; }
+                  td,th { border:1px solid #ccc; padding:7px 10px; }
+                  th { background:#f3f4f6; font-weight:700; }
+                  @page { margin: 15mm; size: A4; }
+                  @media print { body { margin:0; } }
+                </style></head>
+                <body>${content}</body></html>
+              `);
+              win.document.close();
+              win.focus();
+              setTimeout(()=>{ win.print(); win.close(); }, 500);
+            }} style={{ padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>🖨 Print</button>
             <button onClick={onClose} style={{ padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:700, background:'#F3F4F6', border:'none', cursor:'pointer' }}>Close</button>
           </div>
         </div>
@@ -218,7 +236,8 @@ export default function CollectFees() {
                    item.key.includes(typeName.split(' ')[0]) ||
                    (a.feeType?.category||'').toLowerCase() === item.key.toLowerCase();
           });
-          return { ...item, amount: match ? Math.round((match.pendingAmount||match.finalAmount)||0) : 0 };
+          const amt = match ? Math.round((match.pendingAmount||match.finalAmount)||0) : '';
+          return { ...item, amount: amt===0 ? '' : amt };
         });
         setFeeItems(filled);
         // Auto-set deposit to total of pending assignments
@@ -244,7 +263,7 @@ export default function CollectFees() {
     return months;
   };
 
-  const baseTotal   = feeItems.reduce((s,f) => f.isDiscount ? s-f.amount : s+f.amount, 0);
+  const baseTotal   = feeItems.reduce((s,f) => { const v=+f.amount||0; return f.isDiscount ? s-v : s+v; }, 0);
   const subtotal    = Math.max(0, baseTotal) * pd.months;
   const discAmt     = Math.round(subtotal * (pd.discount / 100));
   const totalAmount = subtotal - discAmt;
@@ -301,7 +320,7 @@ export default function CollectFees() {
 
   const reset = () => {
     setSelected(null); setQuery(''); setSuggestions([]); setAssignments([]);
-    setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f}))); setPeriod('halfyearly');
+    setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f, amount:''}))); setPeriod('halfyearly');
     setFeesMonth(''); setDeposit(''); setTransId(''); setReceipt(null); setFeeRecord(null);
   };
 
@@ -420,59 +439,78 @@ export default function CollectFees() {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, marginTop:4 }}>
             <thead>
               <tr style={{ background:'#F8FAFC' }}>
-                <th style={{ padding:'10px 24px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:50, color:'#6B7280' }}>Sr.</th>
-                <th style={{ padding:'10px 24px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', color:'#6B7280' }}>Particulars</th>
-                <th style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:150, color:'#6B7280' }}>Per Month (₹)</th>
-                <th style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:160, color:'#1D4ED8' }}>
-                  Total ({pd.months} mo)
-                </th>
+                <th style={{ padding:'10px 14px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:40, color:'#6B7280' }}>Sr.</th>
+                <th style={{ padding:'10px 14px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', color:'#6B7280' }}>Particulars <span style={{ fontSize:10, color:'#9CA3AF', fontWeight:400 }}>(click to edit)</span></th>
+                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:150, color:'#6B7280' }}>Per Month (₹)</th>
+                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:160, color:'#1D4ED8' }}>Total ({pd.months} mo)</th>
+                <th style={{ padding:'10px 14px', width:36, border:'1px solid #E5E7EB' }}></th>
               </tr>
             </thead>
             <tbody>
-              {feeItems.map((item,i)=>(
-                <tr key={item.key} style={{ borderBottom:'0.5px solid #F3F4F6', background:item.amount>0?'#FAFFFE':'#fff' }}>
-                  <td style={{ padding:'8px 24px', textAlign:'center', color:'#9CA3AF' }}>{i+1}</td>
-                  <td style={{ padding:'8px 24px', textTransform:'uppercase', fontSize:12, color:'#374151', fontWeight:item.amount>0?700:400 }}>{item.label}</td>
-                  <td style={{ padding:'6px 12px', textAlign:'right' }}>
-                    <input type="number" min="0" value={item.amount}
-                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,amount:+e.target.value||0}:f))}
-                      style={{ width:120, padding:'6px 10px', border:`1.5px solid ${item.amount>0?'#10B981':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:item.amount>0?'#F0FDF4':'#fff', fontWeight:item.amount>0?700:400 }}/>
+              {feeItems.map((item,i)=>{
+                const hasVal = item.amount !== '' && +item.amount > 0;
+                const rowTotal = hasVal ? +item.amount * pd.months : null;
+                return (
+                <tr key={item.key} style={{ borderBottom:'0.5px solid #F3F4F6', background:hasVal?'#FAFFFE':'#fff' }}>
+                  <td style={{ padding:'8px 14px', textAlign:'center', color:'#9CA3AF', width:40 }}>{i+1}</td>
+                  <td style={{ padding:'6px 10px', width:220 }}>
+                    <input value={item.label}
+                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,label:e.target.value}:f))}
+                      style={{ width:'100%', padding:'5px 9px', border:'1px solid transparent', borderRadius:6, fontSize:12, textTransform:'uppercase', fontWeight:hasVal?700:400, color:'#374151', background:'transparent', outline:'none', cursor:'text' }}
+                      onFocus={e=>e.target.style.borderColor='#BFDBFE'}
+                      onBlur={e=>e.target.style.borderColor='transparent'}/>
                   </td>
-                  <td style={{ padding:'8px 16px', textAlign:'right', fontWeight:700, color:item.isDiscount?'#DC2626':'#0B1F4A', fontSize:14 }}>
-                    {item.isDiscount
-                      ? item.amount>0 ? `-${fmt(item.amount*pd.months)}` : '—'
-                      : item.amount>0 ? fmt(item.amount*pd.months) : '—'
-                    }
+                  <td style={{ padding:'6px 10px', textAlign:'right' }}>
+                    <input type="number" min="0" value={item.amount} placeholder="—"
+                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,amount:e.target.value}:f))}
+                      style={{ width:110, padding:'6px 10px', border:`1.5px solid ${hasVal?'#10B981':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:hasVal?'#F0FDF4':'#fff', fontWeight:hasVal?700:400 }}/>
+                  </td>
+                  <td style={{ padding:'8px 14px', textAlign:'right', fontWeight:700, color:item.isDiscount?'#DC2626':'#0B1F4A', fontSize:14 }}>
+                    {rowTotal !== null ? (item.isDiscount ? `-${fmt(rowTotal)}` : fmt(rowTotal)) : '—'}
+                  </td>
+                  <td style={{ padding:'6px 8px', textAlign:'center', width:36 }}>
+                    <button onClick={()=>setFeeItems(prev=>prev.filter((_,fi)=>fi!==i))}
+                      style={{ width:24, height:24, borderRadius:6, border:'1px solid #FECACA', background:'#FEF2F2', color:'#DC2626', cursor:'pointer', fontSize:14, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+              {/* Add row button */}
+              <tr>
+                <td colSpan={5} style={{ padding:'8px 14px' }}>
+                  <button onClick={()=>setFeeItems(prev=>[...prev, { key:'custom_'+Date.now(), label:'New Fee', amount:'', isDiscount:false }])}
+                    style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px dashed #BFDBFE', padding:'6px 16px', borderRadius:8, cursor:'pointer', width:'100%' }}>
+                    + Add Fee Item
+                  </button>
+                </td>
+              </tr>
             </tbody>
             <tfoot>
               <tr style={{ background:'#F8FAFC' }}>
-                <td colSpan={3} style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Subtotal</td>
+                <td colSpan={4} style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Subtotal</td>
                 <td style={{ padding:'10px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:15, color:'#0B1F4A' }}>{fmt(subtotal)}</td>
               </tr>
               {pd.discount > 0 && (
                 <tr style={{ background:'#F0FDF4' }}>
-                  <td colSpan={3} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
+                  <td colSpan={4} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
                     {pd.label} Discount ({pd.discount}%)
                   </td>
                   <td style={{ padding:'9px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>-{fmt(discAmt)}</td>
                 </tr>
               )}
               <tr style={{ background:'#EFF6FF' }}>
-                <td colSpan={3} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#1E40AF', fontSize:14 }}>TOTAL</td>
+                <td colSpan={4} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#1E40AF', fontSize:14 }}>TOTAL</td>
                 <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:17, color:'#1E40AF' }}>{fmt(totalAmount)}</td>
               </tr>
               <tr>
-                <td colSpan={3} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>DEPOSIT</td>
+                <td colSpan={4} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>DEPOSIT</td>
                 <td style={{ padding:'5px 10px', border:'1px solid #E5E7EB' }}>
                   <input type="number" min="0" value={deposit} onChange={e=>setDeposit(e.target.value)}
                     style={{ width:'100%', padding:'7px 10px', border:'1.5px solid #16A34A', borderRadius:7, fontSize:14, textAlign:'right', outline:'none', color:'#16A34A', fontWeight:700 }}/>
                 </td>
               </tr>
               <tr style={{ background:dueBalance>0?'#FEF2F2':'#F0FDF4' }}>
-                <td colSpan={3} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:14 }}>Due-able Balance</td>
+                <td colSpan={4} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:14 }}>Due-able Balance</td>
                 <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:16, color:dueBalance>0?'#DC2626':'#16A34A' }}>{fmt(dueBalance)}</td>
               </tr>
             </tfoot>
