@@ -140,18 +140,7 @@ export default function Students() {
           <h2 className="font-display text-2xl text-ink dark:text-white">Students</h2>
           <p className="text-sm text-muted">{total} enrolled · {active} active</p>
         </div>
-        {canManage && total === 0 && (
-          <button onClick={async ()=>{
-            try {
-              await studentAPI.seedTest();
-              toast.success('Test student added!');
-              load();
-            } catch(e){ toast.error(e.response?.data?.message||'Failed'); }
-          }}
-            style={{ padding:'8px 18px', borderRadius:9, background:'#059669', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-            + Add Test Student
-          </button>
-        )}
+
       </div>
 
       {/* Stats row */}
