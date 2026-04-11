@@ -22,10 +22,11 @@ function QRPlaceholder({ value, size = 80 }) {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'all',      label: 'All Students', icon: '👥' },
-  { id: 'active',   label: 'Active',       icon: '✅' },
-  { id: 'inactive', label: 'Inactive',     icon: '⭕' },
-  { id: 'alumni',   label: 'Alumni',       icon: '🎓' },
+  { id: 'all',         label: 'All Students', icon: '👥' },
+  { id: 'active',      label: 'Active',       icon: '✅' },
+  { id: 'inactive',    label: 'Inactive',     icon: '⭕' },
+  { id: 'alumni',      label: 'Alumni',       icon: '🎓' },
+  { id: 'managelogin', label: 'Manage Login', icon: '🔑' },
 ];
 
 const BLOOD_GROUPS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
@@ -62,6 +63,10 @@ export default function Students() {
   const [viewStudent,  setViewStudent] = useState(null);  // student profile drawer
   const [addModal,     setAddModal]    = useState({ open: false, data: null });
   const [saving,       setSaving]      = useState(false);
+  const [resetModal,   setResetModal]  = useState(null); // student to reset password
+  const [newPassword,  setNewPassword] = useState('');
+  const [resetting,    setResetting]   = useState(false);
+  const [showPwd,      setShowPwd]     = useState({});
 
   const canManage = can(['superAdmin', 'schoolAdmin']);
 
@@ -114,6 +119,17 @@ export default function Students() {
       toast.error(msg);
       console.error('Delete error:', err);
     }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) return toast.error('Password must be at least 6 characters');
+    setResetting(true);
+    try {
+      await studentAPI.resetPassword(resetModal._id, { password: newPassword });
+      toast.success(`Password reset for ${resetModal.user?.name}`);
+      setResetModal(null); setNewPassword('');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to reset password'); }
+    finally { setResetting(false); }
   };
 
   return (
@@ -243,6 +259,120 @@ export default function Students() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Login Tab */}
+      {tab === 'managelogin' && (
+        <div className="card overflow-hidden" style={{ padding:0 }}>
+          <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:15, color:'#111827' }}>🔑 Manage Student Login</div>
+              <div style={{ fontSize:12, color:'#9CA3AF', marginTop:2 }}>View credentials and reset passwords for student portal access</div>
+            </div>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#0B1F4A' }}>
+                  {['#','Student','Class','Username (Email)','Password','Status','Actions'].map(h=>(
+                    <th key={h} style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {students.filter(s=>s.isActive).map((s,i)=>(
+                  <tr key={s._id} style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
+                    <td style={{ padding:'11px 16px', color:'#9CA3AF' }}>{i+1}</td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+                        <div style={{ width:32, height:32, borderRadius:9, background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight:700, color:'#111827' }}>{s.user?.name}</div>
+                          <div style={{ fontSize:11, color:'#9CA3AF' }}>Roll: {s.rollNumber||'—'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px', color:'#374151' }}>{s.class?.name} {s.class?.section||''}</td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ fontFamily:'monospace', fontSize:12, color:'#1D4ED8', background:'#EFF6FF', padding:'4px 10px', borderRadius:6, display:'inline-block' }}>
+                        {s.user?.email||'—'}
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ fontFamily:'monospace', fontSize:12, color:'#374151', background:'#F3F4F6', padding:'4px 10px', borderRadius:6 }}>
+                          {showPwd[s._id] ? 'Student@123' : '••••••••••'}
+                        </div>
+                        <button onClick={()=>setShowPwd(p=>({...p,[s._id]:!p[s._id]}))}
+                          style={{ fontSize:11, color:'#6B7280', background:'none', border:'none', cursor:'pointer' }}>
+                          {showPwd[s._id] ? '🙈' : '👁'}
+                        </button>
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <span style={{ fontSize:11, fontWeight:700, color:'#065F46', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
+                        Active
+                      </span>
+                    </td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <button onClick={()=>{ setResetModal(s); setNewPassword('Student@123'); }}
+                        style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FEF3C7', border:'1px solid #FDE68A', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
+                        🔑 Reset Password
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!students.filter(s=>s.isActive).length && (
+            <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>No active students found</div>
+          )}
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:400, boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <h3 style={{ fontSize:16, fontWeight:700, margin:0 }}>🔑 Reset Password</h3>
+              <button onClick={()=>{setResetModal(null);setNewPassword('');}} style={{ width:28, height:28, borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:16, color:'#6B7280' }}>×</button>
+            </div>
+            <div style={{ padding:'20px 24px' }}>
+              <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px 16px', marginBottom:16 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{resetModal.user?.name}</div>
+                <div style={{ fontSize:12, color:'#6B7280', marginTop:2 }}>{resetModal.user?.email} · {resetModal.class?.name}</div>
+              </div>
+              <label style={{ fontSize:11, fontWeight:700, display:'block', marginBottom:5, color:'#374151', textTransform:'uppercase' }}>New Password</label>
+              <input
+                type="text"
+                value={newPassword}
+                onChange={e=>setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none', marginBottom:8 }}
+              />
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {['Student@123','Pass@1234',`${resetModal.user?.name?.split(' ')[0]}@123`].map(p=>(
+                  <button key={p} onClick={()=>setNewPassword(p)}
+                    style={{ fontSize:11, color:'#6366F1', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10 }}>
+              <button onClick={()=>{setResetModal(null);setNewPassword('');}}
+                style={{ flex:1, padding:'10px', borderRadius:9, fontSize:13, fontWeight:700, background:'#F3F4F6', border:'none', cursor:'pointer' }}>Cancel</button>
+              <button onClick={handleResetPassword} disabled={resetting}
+                style={{ flex:2, padding:'10px', borderRadius:9, fontSize:13, fontWeight:700, background:resetting?'#9CA3AF':'#D97706', color:'#fff', border:'none', cursor:resetting?'not-allowed':'pointer' }}>
+                {resetting ? '⏳ Resetting...' : '✓ Reset Password'}
+              </button>
+            </div>
           </div>
         </div>
       )}
