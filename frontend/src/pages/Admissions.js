@@ -565,6 +565,14 @@ export default function Admissions() {
           onSuccess={()=>{setFormModal({open:false,data:null});load();}}/>
       )}
 
+      {enrollModal.open && enrollModal.data && (
+        <EnrollModal
+          app={enrollModal.data}
+          onClose={()=>setEnrollModal({open:false,data:null})}
+          onSuccess={()=>{ setEnrollModal({open:false,data:null}); load(); }}
+        />
+      )}
+
     </div>
   );
 }
