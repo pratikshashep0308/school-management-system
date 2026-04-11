@@ -356,7 +356,7 @@ export default function Admissions() {
           style={{ ...SEL, minWidth:260 }}/>
         <select value={classFilter} onChange={e=>setClass(e.target.value)} style={SEL}>
           <option value="">All Classes</option>
-          {['Nursery','LKG','UKG',...Array.from({length:12},(_,i)=>`Class ${i+1}`)].map(c=><option key={c} value={c}>{c}</option>)}
+          {Array.from({length:12},(_,i)=>i+1).map(n=><option key={n} value={n}>Class {n}</option>)}
         </select>
         <select value={priorityFilter} onChange={e=>setPriority(e.target.value)} style={SEL}>
           <option value="">All Priority</option>

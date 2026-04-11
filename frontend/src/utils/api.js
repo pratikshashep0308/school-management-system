@@ -58,7 +58,7 @@ export const studentAPI = {
   getMyProfile: ()           => api.get('/students/my-profile'),
   create:       (data)       => api.post('/students', data),
   update:       (id, data)   => api.put(`/students/${id}`, data),
-  delete:       (id)         => api.delete(`/students/${id}?hard=true`),
+  delete:       (id)         => api.delete(`/students/${id}`),
   resetPassword:(id, data)   => api.put(`/students/${id}/reset-password`, data),
 };
 

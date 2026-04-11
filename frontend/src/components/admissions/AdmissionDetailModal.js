@@ -155,7 +155,15 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                   </div>
                 </div>
               </div>
-              <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl px-2">✕</button>
+              <div className="flex items-center gap-2">
+                {!showEnroll && app.status !== 'enrolled' && (
+                  <button onClick={()=>setShowEnroll(true)}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 flex items-center gap-1">
+                    🎓 Enroll as Student
+                  </button>
+                )}
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl px-2">✕</button>
+              </div>
             </div>
 
             {/* Quick stats bar */}
