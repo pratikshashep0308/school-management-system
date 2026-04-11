@@ -91,8 +91,10 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
       // Build student payload from admission data
       const payload = {
         name:          app.studentName,
-        email:         app.parentEmail || `${app.parentPhone}@student.local`,
+        // Generate unique student email - NOT parent email
+        email:         `${(app.studentName||'student').toLowerCase().replace(/\s+/g,'.')}.${app.parentPhone||Date.now()}@student.local`,
         phone:         app.parentPhone,
+        parentEmail:   app.parentEmail || '',
         password:      'Student@123',
         role:          'student',
         classId:       enrollClass,
@@ -115,7 +117,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
       await studentAPI.create(payload);
       // Update admission status to enrolled
       await admissionAPI.updateStatus(id, { status: 'enrolled', notes: `Enrolled in class. Roll: ${enrollRoll||'—'}` });
-      toast.success(`${app.studentName} enrolled successfully! Login: ${payload.email} / Student@123`);
+      toast.success(`✅ ${app.studentName} enrolled! Student can login with:\nEmail: ${payload.email}\nPassword: Student@123`);
       setShowEnroll(false);
       load();
     } catch (err) {
