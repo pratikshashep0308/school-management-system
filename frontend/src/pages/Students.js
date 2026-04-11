@@ -87,7 +87,7 @@ export default function Students() {
     const q = search.toLowerCase();
     const matchSearch = !q || s.user?.name?.toLowerCase().includes(q) || s.admissionNumber?.toLowerCase().includes(q) || s.class?.name?.toLowerCase().includes(q);
     const matchClass  = !filterClass || s.class?._id === filterClass;
-    const matchTab    = tab === 'all' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
+    const matchTab    = tab === 'all' || tab === 'managelogin' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
     return matchSearch && matchClass && matchTab;
   });
 
@@ -169,11 +169,11 @@ export default function Students() {
               background: tab === t.id ? '#6366F1' : 'transparent',
               color:      tab === t.id ? '#fff'    : '#6B7280' }}>
             {t.icon} {t.label} ({
-              t.id === 'all'         ? students.length :
-              t.id === 'active'      ? students.filter(s=>s.isActive).length :
-              t.id === 'inactive'    ? students.filter(s=>!s.isActive).length :
+              t.id === 'all'         ? total :
+              t.id === 'active'      ? active :
+              t.id === 'inactive'    ? (total - active) :
               t.id === 'alumni'      ? students.filter(s=>s.status==='alumni').length :
-              t.id === 'managelogin' ? students.filter(s=>s.isActive).length : 0
+              t.id === 'managelogin' ? active : 0
             })
           </button>
         ))}
@@ -198,7 +198,7 @@ export default function Students() {
       </div>
 
       {/* Student list table */}
-      {loading ? <LoadingState /> : !filtered.length ? (
+      {tab !== 'managelogin' && (loading ? <LoadingState /> : !filtered.length ? (
         <div style={{ padding: 40 }}></div>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
@@ -279,7 +279,7 @@ export default function Students() {
             </table>
           </div>
         </div>
-      )}
+      ))}
 
       {/* Manage Login Tab */}
       {tab === 'managelogin' && (
