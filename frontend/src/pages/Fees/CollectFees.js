@@ -197,13 +197,16 @@ export default function CollectFees() {
   const [period,      setPeriod]      = useState('halfyearly');
   const [feesMonth,   setFeesMonth]   = useState('');
   const [payDate,     setPayDate]     = useState(new Date().toISOString().split('T')[0]);
-  const [deposit,     setDeposit]     = useState('');
+  const [deposit,         setDeposit]         = useState('');
+  const [customDiscount,  setCustomDiscount]  = useState('');
   const [method,      setMethod]      = useState('cash');
   const [transId,     setTransId]     = useState('');
   const [submitting,  setSubmitting]  = useState(false);
   const [receipt,     setReceipt]     = useState(null);
 
   const pd = PERIODS[period];
+  // Reset custom discount when period changes
+  React.useEffect(()=>{ setCustomDiscount(''); }, [period]);
 
   // Student search
   useEffect(() => {
@@ -276,7 +279,9 @@ export default function CollectFees() {
     return f.isDiscount ? s - v : s + v;
   }, 0);
   const subtotal = Math.max(0, baseTotal);
-  const discAmt     = Math.round(subtotal * (pd.discount / 100));
+  const discAmt = customDiscount !== '' 
+    ? Math.round(+customDiscount) 
+    : Math.round(subtotal * (pd.discount / 100));
   const totalAmount = subtotal - discAmt;
   const dueBalance  = totalAmount - (+deposit||0);
   const months      = getMonthsCovered();
@@ -498,14 +503,18 @@ export default function CollectFees() {
                 <td colSpan={4} style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Subtotal</td>
                 <td style={{ padding:'10px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:15, color:'#0B1F4A' }}>{fmt(subtotal)}</td>
               </tr>
-              {pd.discount > 0 && (
-                <tr style={{ background:'#F0FDF4' }}>
+              <tr style={{ background:'#F0FDF4' }}>
                   <td colSpan={4} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
-                    {pd.label} Discount ({pd.discount}%)
+                    Discount {pd.discount > 0 ? `(${pd.discount}% auto)` : ''}
                   </td>
-                  <td style={{ padding:'9px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>-{fmt(discAmt)}</td>
+                  <td style={{ padding:'5px 10px', border:'1px solid #E5E7EB' }}>
+                    <input type="number" min="0"
+                      value={customDiscount !== '' ? customDiscount : (pd.discount > 0 ? discAmt : '')}
+                      placeholder={pd.discount > 0 ? fmt(discAmt) : '0'}
+                      onChange={e=>setCustomDiscount(e.target.value)}
+                      style={{ width:'100%', padding:'5px 10px', border:'1.5px solid #10B981', borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:'#F0FDF4', fontWeight:700, color:'#16A34A' }}/>
+                  </td>
                 </tr>
-              )}
               <tr style={{ background:'#EFF6FF' }}>
                 <td colSpan={4} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#1E40AF', fontSize:14 }}>TOTAL</td>
                 <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:17, color:'#1E40AF' }}>{fmt(totalAmount)}</td>
