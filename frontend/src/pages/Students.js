@@ -161,27 +161,45 @@ export default function Students() {
         ))}
       </div>
 
+      {/* Pipeline Tabs */}
+      <div style={{ display:'flex', gap:4, flexWrap:'wrap', background:'#F3F4F6', borderRadius:10, padding:4 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:'7px 16px', borderRadius:8, fontSize:12, fontWeight:700, border:'none', cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s',
+              background: tab === t.id ? '#6366F1' : 'transparent',
+              color:      tab === t.id ? '#fff'    : '#6B7280' }}>
+            {t.icon} {t.label} ({
+              t.id === 'all'         ? students.length :
+              t.id === 'active'      ? students.filter(s=>s.isActive).length :
+              t.id === 'inactive'    ? students.filter(s=>!s.isActive).length :
+              t.id === 'alumni'      ? students.filter(s=>s.status==='alumni').length :
+              t.id === 'managelogin' ? students.filter(s=>s.isActive).length : 0
+            })
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search name, ID, class…" />
-        <select className="form-input w-44" value={filterClass} onChange={e => setFilterClass(e.target.value)}>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', padding:'12px 16px', background:'#F8FAFC', borderRadius:12, alignItems:'center' }}>
+        <input placeholder="🔍 Search name, ID, class, parent…" value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none', minWidth:240 }}/>
+        <select value={filterClass} onChange={e=>setFilterClass(e.target.value)}
+          style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' }}>
           <option value="">All Classes</option>
-          {classes.map(c => <option key={c._id} value={c._id}>{c.name} — {c.section}</option>)}
+          {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
-        <div className="flex gap-1 p-1 rounded-xl bg-warm dark:bg-gray-800 border border-border">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ' +
-                (tab === t.id ? 'bg-white dark:bg-gray-700 shadow text-accent' : 'text-muted hover:text-ink dark:hover:text-white')}>
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
+        {(search || filterClass) && (
+          <button onClick={()=>{setSearch('');setFilterClass('');}}
+            style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
+            ✕ Clear
+          </button>
+        )}
+        <div style={{ marginLeft:'auto', fontSize:12, color:'#9CA3AF', fontWeight:600 }}>{filtered.length} results</div>
       </div>
 
       {/* Student list table */}
       {loading ? <LoadingState /> : !filtered.length ? (
-        <EmptyState icon="👤" title="No students found" subtitle="Try adjusting your search or filters" />
+        <div style={{ padding: 40 }}></div>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ overflowX:'auto' }}>
