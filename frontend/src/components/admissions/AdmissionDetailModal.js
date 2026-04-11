@@ -106,7 +106,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
         fatherName:    app.father?.name || app.fatherName || '',
         motherName:    app.mother?.name || app.motherName || '',
         address:       app.address?.street || app.address || '',
-        admissionNumber: app.applicationNumber,
+        admissionNumber: `${app.applicationNumber}-${Date.now().toString().slice(-4)}`,
         aadhaarNumber: app.aadhaarNumber || '',
         religion:      app.religion || '',
         category:      app.category || '',
@@ -121,7 +121,9 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
       setShowEnroll(false);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Enrollment failed');
+      const msg = err.response?.data?.message || err.message || 'Enrollment failed';
+      console.error('Enrollment error:', err.response?.data || err);
+      toast.error(msg);
     } finally { setEnrolling(false); }
   };
 
