@@ -89,35 +89,31 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
     setEnrolling(true);
     try {
       // Build student payload from admission data
+      // Build clean unique email from name + timestamp
+      const cleanName = (app.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
+      const uniqueEmail = `${cleanName}.${Date.now()}@student.local`;
+      
       const payload = {
-        name:          app.studentName,
-        // Generate unique student email - NOT parent email
-        email:         `${(app.studentName||'student').toLowerCase().replace(/\s+/g,'.')}.${app.parentPhone||Date.now()}@student.local`,
-        phone:         app.parentPhone,
-        parentEmail:   app.parentEmail || '',
-        password:      'Student@123',
-        role:          'student',
-        classId:       enrollClass,
-        rollNumber:    enrollRoll || '',
-        gender:        app.gender || '',
-        dateOfBirth:   app.dateOfBirth || '',
-        bloodGroup:    app.bloodGroup || '',
-        parentName:    app.parentName || app.father?.name || '',
-        fatherName:    app.father?.name || app.fatherName || '',
-        motherName:    app.mother?.name || app.motherName || '',
-        address:       app.address?.street || app.address || '',
-        admissionNumber: `${app.applicationNumber}-${Date.now().toString().slice(-4)}`,
-        aadhaarNumber: app.aadhaarNumber || '',
-        religion:      app.religion || '',
-        category:      app.category || '',
-        nationality:   app.nationality || 'Indian',
-        status:        'active',
-        isActive:      true,
+        name:            app.studentName,
+        email:           uniqueEmail,
+        phone:           app.parentPhone || '',
+        password:        'Student@123',
+        role:            'student',
+        classId:         enrollClass,
+        rollNumber:      enrollRoll || '',
+        gender:          app.gender || 'other',
+        parentName:      app.parentName || '',
+        parentPhone:     app.parentPhone || '',
+        parentEmail:     app.parentEmail || '',
+        admissionNumber: `${app.applicationNumber || 'STU'}-${Date.now().toString().slice(-6)}`,
+        status:          'active',
+        isActive:        true,
       };
       await studentAPI.create(payload);
       // Update admission status to enrolled
       await admissionAPI.updateStatus(id, { status: 'enrolled', notes: `Enrolled in class. Roll: ${enrollRoll||'—'}` });
-      toast.success(`✅ ${app.studentName} enrolled! Student can login with:\nEmail: ${payload.email}\nPassword: Student@123`);
+      toast.success(`✅ ${app.studentName} enrolled successfully!`);
+      console.log('Student login:', payload.email, '/ Student@123');
       setShowEnroll(false);
       load();
     } catch (err) {
@@ -548,4 +544,4 @@ function Field({ label, value, capitalize }) {
       <p className={`text-sm font-medium text-slate-700 ${capitalize ? 'capitalize' : ''}`}>{value}</p>
     </div>
   );
-}
+}g
