@@ -90,8 +90,9 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
     try {
       // Build student payload from admission data
       // Build clean unique email from name + timestamp
-      const cleanName = (app.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
-      const uniqueEmail = `${cleanName}.${Date.now()}@student.local`;
+      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
+      const cleanName = nameParts.join('');
+      const uniqueEmail = cleanName + '.' + Date.now() + '@student.local';
       
       const payload = {
         name:            app.studentName,
@@ -544,4 +545,4 @@ function Field({ label, value, capitalize }) {
       <p className={`text-sm font-medium text-slate-700 ${capitalize ? 'capitalize' : ''}`}>{value}</p>
     </div>
   );
-}g
+}
