@@ -271,8 +271,11 @@ export default function CollectFees() {
     return months;
   };
 
-  const baseTotal   = feeItems.reduce((s,f) => { const v=+f.amount||0; return f.isDiscount ? s-v : s+v; }, 0);
-  const subtotal    = Math.max(0, baseTotal) * pd.months;
+  const baseTotal = feeItems.reduce((s,f) => {
+    const v = f.total !== undefined && f.total !== '' ? +f.total : ((+f.amount||0) * pd.months);
+    return f.isDiscount ? s - v : s + v;
+  }, 0);
+  const subtotal = Math.max(0, baseTotal);
   const discAmt     = Math.round(subtotal * (pd.discount / 100));
   const totalAmount = subtotal - discAmt;
   const dueBalance  = totalAmount - (+deposit||0);
@@ -424,16 +427,10 @@ export default function CollectFees() {
             )}
           </div>
 
-          {/* Month & Date */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, padding:'16px 24px', borderBottom:'1px solid #E5E7EB' }}>
-            <div>
-              <label style={{ ...LBL, color:'#1D4ED8' }}>Starting Month *</label>
-              <input type="month" value={feesMonth} onChange={e=>setFeesMonth(e.target.value)} style={INP}/>
-            </div>
-            <div>
-              <label style={LBL}>Date</label>
-              <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={INP}/>
-            </div>
+          {/* Date only */}
+          <div style={{ padding:'16px 24px', borderBottom:'1px solid #E5E7EB', maxWidth:300 }}>
+            <label style={LBL}>Date</label>
+            <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} style={INP}/>
           </div>
 
           {/* Assigned fees notice */}
@@ -449,7 +446,7 @@ export default function CollectFees() {
               <tr style={{ background:'#F8FAFC' }}>
                 <th style={{ padding:'10px 14px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:40, color:'#6B7280' }}>Sr.</th>
                 <th style={{ padding:'10px 14px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', color:'#6B7280' }}>Particulars <span style={{ fontSize:10, color:'#9CA3AF', fontWeight:400 }}>(click to edit)</span></th>
-                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:150, color:'#6B7280' }}>Per Month (₹)</th>
+                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:150, color:'#6B7280' }}>Paid (₹)</th>
                 <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:160, color:'#1D4ED8' }}>Total ({pd.months} mo)</th>
                 <th style={{ padding:'10px 14px', width:36, border:'1px solid #E5E7EB' }}></th>
               </tr>
@@ -457,7 +454,8 @@ export default function CollectFees() {
             <tbody>
               {feeItems.map((item,i)=>{
                 const hasVal = item.amount !== '' && +item.amount > 0;
-                const rowTotal = hasVal ? +item.amount * pd.months : null;
+                const autoTotal = hasVal ? +item.amount * pd.months : null;
+                const rowTotal = item.total !== undefined && item.total !== '' ? +item.total : autoTotal;
                 return (
                 <tr key={item.key} style={{ borderBottom:'0.5px solid #F3F4F6', background:hasVal?'#FAFFFE':'#fff' }}>
                   <td style={{ padding:'8px 14px', textAlign:'center', color:'#9CA3AF', width:40 }}>{i+1}</td>
@@ -473,8 +471,10 @@ export default function CollectFees() {
                       onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,amount:e.target.value}:f))}
                       style={{ width:110, padding:'6px 10px', border:`1.5px solid ${hasVal?'#10B981':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:hasVal?'#F0FDF4':'#fff', fontWeight:hasVal?700:400 }}/>
                   </td>
-                  <td style={{ padding:'8px 14px', textAlign:'right', fontWeight:700, color:item.isDiscount?'#DC2626':'#0B1F4A', fontSize:14 }}>
-                    {rowTotal !== null ? (item.isDiscount ? `-${fmt(rowTotal)}` : fmt(rowTotal)) : '—'}
+                  <td style={{ padding:'6px 10px', textAlign:'right' }}>
+                    <input type="number" min="0" value={item.total !== undefined ? item.total : (rowTotal !== null ? rowTotal : '')} placeholder="—"
+                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,total:e.target.value}:f))}
+                      style={{ width:120, padding:'6px 10px', border:`1.5px solid ${hasVal?'#3B82F6':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:hasVal?'#EFF6FF':'#fff', fontWeight:hasVal?700:400, color:'#1D4ED8' }}/>
                   </td>
                   <td style={{ padding:'6px 8px', textAlign:'center', width:36 }}>
                     <button onClick={()=>setFeeItems(prev=>prev.filter((_,fi)=>fi!==i))}
