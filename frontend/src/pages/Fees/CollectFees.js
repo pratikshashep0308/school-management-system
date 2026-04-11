@@ -195,7 +195,10 @@ export default function CollectFees() {
   const [assignments, setAssignments] = useState([]);
   const [feeItems,    setFeeItems]    = useState(DEFAULT_FEE_ITEMS.map(f=>({...f})));
   const [period,      setPeriod]      = useState('halfyearly');
-  const [feesMonth,   setFeesMonth]   = useState('');
+  const [feesMonth,   setFeesMonth]   = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  });
   const [payDate,     setPayDate]     = useState(new Date().toISOString().split('T')[0]);
   const [deposit,         setDeposit]         = useState('');
   const [customDiscount,  setCustomDiscount]  = useState('');
@@ -288,7 +291,7 @@ export default function CollectFees() {
 
   const handleSubmit = async () => {
     if (!selected)               return toast.error('Please select a student');
-    if (!feesMonth)              return toast.error('Please select starting month');
+    // feesMonth auto-set to current month
     if (!deposit || +deposit<=0) return toast.error('Enter deposit amount');
     setSubmitting(true);
     try {
