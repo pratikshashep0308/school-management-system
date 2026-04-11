@@ -492,24 +492,11 @@ export default function Admissions() {
       </div>
 
       {/* ── Table ── */}
-      <div className="card" style={{ padding:0, overflow:'hidden' }}>
-        {loading ? (
-          <div style={{ padding:48, textAlign:'center', color:'#9CA3AF' }}>
-            <div style={{ fontSize:24, marginBottom:8 }}>⏳</div>Loading applications...
-          </div>
-        ) : !applications.length ? (
-          <div style={{ padding:60, textAlign:'center' }}>
-            <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
-            <div style={{ fontSize:16, fontWeight:700, color:'#374151', marginBottom:6 }}>No applications found</div>
-            <div style={{ fontSize:13, color:'#9CA3AF', marginBottom:20 }}>Try adjusting your filters or add a new application</div>
-            {isAdmin && (
-              <button onClick={()=>setFormModal({open:true,data:null})}
-                style={{ padding:'10px 24px', borderRadius:10, background:'#6366F1', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-                + New Application
-              </button>
-            )}
-          </div>
-        ) : (
+      {loading ? (
+        <div style={{ padding:48, textAlign:'center', color:'#9CA3AF' }}>⏳ Loading...</div>
+      ) : applications.length > 0 && (
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          {(true) && (
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
               <thead>
@@ -532,9 +519,9 @@ export default function Admissions() {
               </tbody>
             </table>
           </div>
-        )}
+          )}
 
-        {/* Pagination */}
+          {/* Pagination */}
         {total > limit && (
           <div style={{ padding:'12px 16px', borderTop:'0.5px solid #F3F4F6', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:12, color:'#6B7280' }}>
             <span>Showing {(page-1)*limit+1}–{Math.min(page*limit,total)} of {fmt(total)}</span>
@@ -551,8 +538,9 @@ export default function Admissions() {
                 style={{ padding:'6px 14px', borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:page>=Math.ceil(total/limit)?'not-allowed':'pointer', color:page>=Math.ceil(total/limit)?'#D1D5DB':'#374151' }}>Next →</button>
             </div>
           </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* ── Modals ── */}
       {detailId && (
