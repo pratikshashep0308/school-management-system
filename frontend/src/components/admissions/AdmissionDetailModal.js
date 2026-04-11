@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../utils/admissionUtils';
+import { studentAPI, classAPI } from '../../utils/api';
 
 const DOCS = [
   { key: 'birthCertificate',    label: 'Birth Certificate'    },
@@ -21,6 +22,11 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState('details'); // details | documents | timeline | notes
   const [saving, setSaving]   = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [classes, setClasses]     = useState([]);
+  const [enrollClass, setEnrollClass] = useState('');
+  const [enrollRoll, setEnrollRoll]   = useState('');
+  const [showEnroll, setShowEnroll]   = useState(false);
 
   // Status update
   const [newStatus, setNewStatus]   = useState('');
@@ -40,7 +46,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, [id]);
 
   const handleStatusUpdate = async () => {
     if (!newStatus) return;
@@ -77,6 +83,45 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
   const docsSubmitted = app ? DOCS.filter(d => app.documents?.[d.key]?.submitted).length : 0;
+
+  const handleEnroll = async () => {
+    if (!enrollClass) return toast.error('Please select a class');
+    setEnrolling(true);
+    try {
+      // Build student payload from admission data
+      const payload = {
+        name:          app.studentName,
+        email:         app.parentEmail || `${app.parentPhone}@student.local`,
+        phone:         app.parentPhone,
+        password:      'Student@123',
+        role:          'student',
+        classId:       enrollClass,
+        rollNumber:    enrollRoll || '',
+        gender:        app.gender || '',
+        dateOfBirth:   app.dateOfBirth || '',
+        bloodGroup:    app.bloodGroup || '',
+        parentName:    app.parentName || app.father?.name || '',
+        fatherName:    app.father?.name || app.fatherName || '',
+        motherName:    app.mother?.name || app.motherName || '',
+        address:       app.address?.street || app.address || '',
+        admissionNumber: app.applicationNumber,
+        aadhaarNumber: app.aadhaarNumber || '',
+        religion:      app.religion || '',
+        category:      app.category || '',
+        nationality:   app.nationality || 'Indian',
+        status:        'active',
+        isActive:      true,
+      };
+      await studentAPI.create(payload);
+      // Update admission status to enrolled
+      await admissionAPI.updateStatus(id, { status: 'enrolled', notes: `Enrolled in class. Roll: ${enrollRoll||'—'}` });
+      toast.success(`${app.studentName} enrolled successfully! Login: ${payload.email} / Student@123`);
+      setShowEnroll(false);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Enrollment failed');
+    } finally { setEnrolling(false); }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -126,7 +171,42 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
               ))}
             </div>
 
-            {/* Tabs */}
+            {/* Enroll Panel */}
+        {showEnroll && (
+          <div className="mx-6 mb-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <div className="font-semibold text-emerald-800 text-sm mb-3">🎓 Enroll {app?.studentName} as Student</div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Class *</label>
+                <select value={enrollClass} onChange={e=>setEnrollClass(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                  <option value="">Select Class</option>
+                  {classes.map(cl=><option key={cl._id} value={cl._id}>{cl.name} {cl.section||''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Roll Number</label>
+                <input value={enrollRoll} onChange={e=>setEnrollRoll(e.target.value)} placeholder="e.g. 01"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"/>
+              </div>
+            </div>
+            <div className="text-xs text-emerald-700 bg-emerald-100 rounded-lg p-2 mb-3">
+              Default password: <strong>Student@123</strong> — student can change after first login
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleEnroll} disabled={enrolling}
+                className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                {enrolling ? 'Enrolling...' : '✓ Confirm Enrollment'}
+              </button>
+              <button onClick={()=>setShowEnroll(false)}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs */}
             <div className="flex gap-1 px-6 pt-4 flex-shrink-0">
               {[
                 { id: 'details',   label: '📋 Details'   },

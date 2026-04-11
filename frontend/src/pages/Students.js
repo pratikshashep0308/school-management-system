@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState } from '../components/ui';
-import api from '../utils/api';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -125,9 +124,7 @@ export default function Students() {
           <h2 className="font-display text-2xl text-ink dark:text-white">Students</h2>
           <p className="text-sm text-muted">{total} enrolled · {active} active</p>
         </div>
-        {canManage && (
-          <button className="btn-primary" onClick={() => setAddModal({ open: true, data: null })}>+ Add Student</button>
-        )}
+
       </div>
 
       {/* Stats row */}
