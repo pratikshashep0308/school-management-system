@@ -140,7 +140,18 @@ export default function Students() {
           <h2 className="font-display text-2xl text-ink dark:text-white">Students</h2>
           <p className="text-sm text-muted">{total} enrolled · {active} active</p>
         </div>
-
+        {canManage && total === 0 && (
+          <button onClick={async ()=>{
+            try {
+              await studentAPI.seedTest();
+              toast.success('Test student added!');
+              load();
+            } catch(e){ toast.error(e.response?.data?.message||'Failed'); }
+          }}
+            style={{ padding:'8px 18px', borderRadius:9, background:'#059669', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            + Add Test Student
+          </button>
+        )}
       </div>
 
       {/* Stats row */}
@@ -199,7 +210,19 @@ export default function Students() {
 
       {/* Student list table */}
       {tab !== 'managelogin' && (loading ? <LoadingState /> : !filtered.length ? (
-        <div style={{ padding: 40 }}></div>
+        <div style={{ padding:'40px', textAlign:'center', color:'#9CA3AF' }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
+          <div style={{ fontSize:15, fontWeight:700, color:'#374151', marginBottom:6 }}>No students found</div>
+          <div style={{ fontSize:13, color:'#9CA3AF' }}>
+            {filterClass || search ? 'Try clearing the filters above' : 'Enroll students from the Admissions module to see them here'}
+          </div>
+          {(filterClass || search) && (
+            <button onClick={()=>{setSearch('');setFilterClass('');}}
+              style={{ marginTop:16, padding:'8px 20px', borderRadius:8, background:'#6366F1', color:'#fff', border:'none', fontSize:13, cursor:'pointer' }}>
+              Clear Filters
+            </button>
+          )}
+        </div>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ overflowX:'auto' }}>

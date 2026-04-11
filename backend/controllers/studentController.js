@@ -340,3 +340,37 @@ exports.linkParent = async (req, res) => {
     },
   });
 };
+// ── QUICK SEED (temp debug) ──────────────────────────────────────────────────
+exports.seedTestStudent = async (req, res) => {
+  try {
+    const email = 'test.student.' + Date.now() + '@student.local';
+    const bcrypt = require('bcryptjs');
+    const hashed = await bcrypt.hash('Student@123', 10);
+    
+    const studentUser = await User.create({
+      name: 'Test Student', email, phone: '9999999999',
+      password: hashed, role: 'student',
+      school: req.user.school, isActive: true,
+    });
+
+    const classes = await Class.find({ school: req.user.school }).limit(1);
+    const classId = classes[0]?._id;
+
+    const student = await Student.create({
+      user: studentUser._id,
+      admissionNumber: 'TEST-' + Date.now(),
+      rollNumber: '99',
+      class: classId,
+      gender: 'other',
+      parentName: 'Test Parent',
+      parentPhone: '9999999999',
+      isActive: true,
+      status: 'active',
+      school: req.user.school,
+    });
+
+    res.json({ success: true, message: 'Test student created', email, password: 'Student@123', studentId: student._id });
+  } catch(err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

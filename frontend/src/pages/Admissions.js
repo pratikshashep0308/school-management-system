@@ -46,9 +46,24 @@ function EnrollModal({ app, onClose, onSuccess }) {
     if (!enrollClass) return toast.error('Please select a class');
     setEnrolling(true);
     try {
-      // Use dedicated enroll endpoint - handles everything server-side
-      const res = await admissionAPI.enroll(app._id, { classId: enrollClass, rollNumber: enrollRoll || '' });
-      toast.success('✅ ' + app.studentName + ' enrolled! Login: ' + res.data.loginEmail + ' / Student@123');
+      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
+      const email = nameParts.join('') + Date.now() + '@student.local';
+      await studentAPI.create({
+        name:            app.studentName,
+        email:           email,
+        phone:           app.parentPhone || '',
+        password:        'Student@123',
+        classId:         enrollClass,
+        rollNumber:      enrollRoll || '',
+        gender:          app.gender || 'other',
+        parentName:      app.parentName || '',
+        parentPhone:     app.parentPhone || '',
+        admissionNumber: (app.applicationNumber||'ADM') + '-' + Date.now().toString().slice(-4),
+        status:          'active',
+        isActive:        true,
+      });
+      await admissionAPI.updateStatus(app._id, { status: 'enrolled' });
+      toast.success('✅ ' + app.studentName + ' enrolled! Email: ' + email + ' | Password: Student@123');
       onSuccess();
     } catch(err) {
       const msg = err.response?.data?.message || err.message || 'Enrollment failed';
@@ -163,7 +178,7 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
               ✓ Approve
             </button>
           )}
-          {isAdmin && app.status==='approved' && (
+          {isAdmin && app.status!=='enrolled' && (
             <button onClick={()=>onEnroll(app)}
               style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
               🎓 Enroll

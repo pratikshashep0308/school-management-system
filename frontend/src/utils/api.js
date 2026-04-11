@@ -60,6 +60,7 @@ export const studentAPI = {
   update:       (id, data)   => api.put(`/students/${id}`, data),
   delete:       (id)         => api.delete(`/students/${id}`),
   resetPassword:(id, data)   => api.put(`/students/${id}/reset-password`, data),
+  seedTest:     ()             => api.post('/students/seed-test'),
 };
 
 // ── TEACHERS ──────────────────────────────────────────────────────────────────
