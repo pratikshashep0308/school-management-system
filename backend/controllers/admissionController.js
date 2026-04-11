@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 const Admission = require('../models/Admission');
+const Student   = require('../models/Student');
+const User      = require('../models/User');
+const bcrypt    = require('bcryptjs');
 
 // ─────────────────────────────────────────────
 // GET /api/admissions
@@ -290,4 +293,83 @@ exports.addNote = async (req, res) => {
 exports.deleteAdmission = async (req, res) => {
   await Admission.findByIdAndDelete(req.params.id);
   res.json({ success: true, message: 'Application deleted' });
+};
+
+// ─────────────────────────────────────────────
+// POST /api/admissions/:id/enroll
+// Creates a Student + User account from admission data
+// ─────────────────────────────────────────────
+exports.enrollFromAdmission = async (req, res) => {
+  try {
+    const { classId, rollNumber } = req.body;
+    if (!classId) return res.status(400).json({ success:false, message:'Class is required' });
+
+    const admission = await Admission.findOne({ _id: req.params.id, school: req.user.school });
+    if (!admission) return res.status(404).json({ success:false, message:'Admission not found' });
+    if (admission.status === 'enrolled') return res.status(400).json({ success:false, message:'Already enrolled' });
+
+    // Generate unique student email
+    const cleanName = (admission.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const studentEmail = cleanName + '.' + Date.now() + '@student.local';
+
+    // Check email not taken
+    const existing = await User.findOne({ email: studentEmail });
+    if (existing) return res.status(400).json({ success:false, message:'Email conflict, try again' });
+
+    // Create User account
+    const hashed = await bcrypt.hash('Student@123', 10);
+    const studentUser = await User.create({
+      name:     admission.studentName,
+      email:    studentEmail,
+      phone:    admission.parentPhone || '',
+      password: hashed,
+      role:     'student',
+      school:   req.user.school,
+      isActive: true,
+    });
+
+    // Generate admission number
+    const admNo = admission.applicationNumber + '-' + Date.now().toString().slice(-4);
+
+    // Create Student document
+    const student = await Student.create({
+      user:            studentUser._id,
+      admissionNumber: admNo,
+      rollNumber:      rollNumber || '',
+      class:           classId,
+      gender:          admission.gender || 'other',
+      dateOfBirth:     admission.dateOfBirth || null,
+      bloodGroup:      admission.bloodGroup || '',
+      parentName:      admission.parentName || '',
+      parentEmail:     admission.parentEmail || '',
+      parentPhone:     admission.parentPhone || '',
+      religion:        admission.religion || '',
+      category:        admission.category || '',
+      isActive:        true,
+      status:          'active',
+      school:          req.user.school,
+    });
+
+    // Update admission status
+    await Admission.findByIdAndUpdate(admission._id, {
+      status: 'enrolled',
+      $push: { timeline: { action:'enrolled', note:'Enrolled as student', byName: req.user.name, by: req.user.id, at: new Date() }}
+    });
+
+    await student.populate([
+      { path:'user',  select:'name email' },
+      { path:'class', select:'name section' },
+    ]);
+
+    res.json({
+      success: true,
+      message: admission.studentName + ' enrolled successfully',
+      data: student,
+      loginEmail:    studentEmail,
+      loginPassword: 'Student@123',
+    });
+  } catch (err) {
+    console.error('Enroll error:', err);
+    res.status(500).json({ success:false, message: err.message || 'Enrollment failed' });
+  }
 };

@@ -17,6 +17,7 @@ export const admissionAPI = {
   updateDocuments: (id, d)  => api.put(`/admissions/${id}/documents`, d),
   addNote:         (id, d)  => api.put(`/admissions/${id}/note`, d),
   delete:          (id)     => api.delete(`/admissions/${id}`),
+  enroll:          (id, d)  => api.post(`/admissions/${id}/enroll`, d),
 };
 
 // ── Status config ─────────────────────────────────────────────────────────────

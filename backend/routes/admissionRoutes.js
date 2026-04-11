@@ -5,7 +5,7 @@ const {
   getAdmissions, createAdmission, publicSubmit,
   getAdmission, updateAdmission, updateStatus,
   updateInterview, updateDocuments, addNote,
-  deleteAdmission, getStats,
+  deleteAdmission, getStats, enrollFromAdmission,
 } = require('../controllers/admissionController');
 
 const admin = ['superAdmin', 'schoolAdmin'];
@@ -26,5 +26,6 @@ router.put('/:id/interview',    authorize(...admin), updateInterview);
 router.put('/:id/documents',    authorize(...admin), updateDocuments);
 router.put('/:id/note',         authorize(...admin), addNote);
 router.delete('/:id',           authorize(...admin), deleteAdmission);
+router.post('/:id/enroll',      authorize(...admin), enrollFromAdmission);
 
 module.exports = router;

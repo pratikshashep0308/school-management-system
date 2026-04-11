@@ -46,31 +46,9 @@ function EnrollModal({ app, onClose, onSuccess }) {
     if (!enrollClass) return toast.error('Please select a class');
     setEnrolling(true);
     try {
-      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
-      const cleanName = nameParts.join('');
-      const uniqueEmail = cleanName + '.' + Date.now() + '@student.local';
-      const payload = {
-        name:            app.studentName,
-        email:           uniqueEmail,
-        phone:           app.parentPhone || '',
-        password:        'Student@123',
-        role:            'student',
-        classId:         enrollClass,
-        rollNumber:      enrollRoll || '',
-        gender:          app.gender || 'other',
-        parentName:      app.parentName || '',
-        parentPhone:     app.parentPhone || '',
-        admissionNumber: (app.applicationNumber||'STU') + '-' + Date.now().toString().slice(-6),
-        status:          'active',
-        isActive:        true,
-      };
-      // Only add parentEmail if it's a valid email (avoid empty string causing DB error)
-      if (app.parentEmail && app.parentEmail.includes('@')) {
-        payload.parentEmail = app.parentEmail;
-      }
-      await studentAPI.create(payload);
-      await admissionAPI.updateStatus(app._id, { status:'enrolled', notes:`Enrolled. Roll: ${enrollRoll||'—'}` });
-      toast.success('✅ ' + app.studentName + ' enrolled! Login: ' + uniqueEmail + ' / Student@123');
+      // Use dedicated enroll endpoint - handles everything server-side
+      const res = await admissionAPI.enroll(app._id, { classId: enrollClass, rollNumber: enrollRoll || '' });
+      toast.success('✅ ' + app.studentName + ' enrolled! Login: ' + res.data.loginEmail + ' / Student@123');
       onSuccess();
     } catch(err) {
       const msg = err.response?.data?.message || err.message || 'Enrollment failed';
