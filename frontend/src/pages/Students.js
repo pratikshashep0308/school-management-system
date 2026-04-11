@@ -1,570 +1,986 @@
-// frontend/src/pages/Admissions.js
+// frontend/src/pages/Students.js
+// Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { admissionAPI } from '../utils/admissionUtils';
-import { studentAPI, classAPI } from '../utils/api';
-import AdmissionDetailModal from '../components/admissions/AdmissionDetailModal';
-import AdmissionFormModal   from '../components/admissions/AdmissionFormModal';
+import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState } from '../components/ui';
 
-const fmt = n => (n||0).toLocaleString('en-IN');
-
-const STATUS_META = {
-  pending:             { label:'Pending',      color:'#D97706', bg:'#FEF3C7', border:'#FDE68A' },
-  under_review:        { label:'Under Review', color:'#2563EB', bg:'#DBEAFE', border:'#BFDBFE' },
-  approved:            { label:'Approved',     color:'#059669', bg:'#D1FAE5', border:'#A7F3D0' },
-  rejected:            { label:'Rejected',     color:'#DC2626', bg:'#FEE2E2', border:'#FECACA' },
-  enrolled:            { label:'Enrolled',     color:'#0D9488', bg:'#CCFBF1', border:'#99F6E4' },
-  waitlisted:          { label:'Waitlisted',   color:'#EA580C', bg:'#FFEDD5', border:'#FED7AA' },
-};
-
-function KPICard({ label, value, sub, color, bg, onClick, active }) {
+// ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
+function QRPlaceholder({ value, size = 80 }) {
+  // Simple visual placeholder — replace with qrcode.react if installed
+  const hash = value.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const cells = Array.from({ length: 7 }, (_, r) => Array.from({ length: 7 }, (_, c) => ((hash * (r + 1) * (c + 1)) % 3 === 0)));
   return (
-    <div onClick={onClick} style={{
-      background: bg, border:`2px solid ${active ? color : 'transparent'}`,
-      borderRadius:14, padding:'14px 16px', cursor:onClick?'pointer':'default',
-      transition:'all 0.15s', flex:'1 1 0', minWidth:100,
-    }}>
-      <div style={{ fontSize:22, fontWeight:900, color }}>{value}</div>
-      <div style={{ fontSize:11, fontWeight:700, color, marginTop:2 }}>{label}</div>
-      {sub && <div style={{ fontSize:10, color:'#9CA3AF', marginTop:2 }}>{sub}</div>}
+    <div style={{ width: size, height: size, padding: 4, background: 'white', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+      <svg width={size - 8} height={size - 8} viewBox="0 0 7 7">
+        {cells.map((row, r) => row.map((filled, c) => filled && <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} fill="#1a3a6b" />))}
+      </svg>
     </div>
   );
 }
 
-function EnrollModal({ app, onClose, onSuccess }) {
-  const [classes,     setClasses]    = React.useState([]);
-  const [enrollClass, setEnrollClass]= React.useState('');
-  const [enrollRoll,  setEnrollRoll] = React.useState('');
-  const [enrolling,   setEnrolling]  = React.useState(false);
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'all',         label: 'All Students', icon: '👥' },
+  { id: 'active',      label: 'Active',       icon: '✅' },
+  { id: 'inactive',    label: 'Inactive',     icon: '⭕' },
+  { id: 'alumni',      label: 'Alumni',       icon: '🎓' },
+  { id: 'managelogin', label: 'Manage Login', icon: '🔑' },
+];
 
-  React.useEffect(()=>{
-    classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{});
-  },[]);
+const BLOOD_GROUPS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
 
-  const handleEnroll = async () => {
-    if (!enrollClass) return toast.error('Please select a class');
-    setEnrolling(true);
-    try {
-      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
-      const email = nameParts.join('') + Date.now() + '@student.local';
-      await studentAPI.create({
-        name:            app.studentName,
-        email:           email,
-        phone:           app.parentPhone || '',
-        password:        'Student@123',
-        classId:         enrollClass,
-        rollNumber:      enrollRoll || '',
-        gender:          app.gender || 'other',
-        parentName:      app.parentName || '',
-        parentPhone:     app.parentPhone || '',
-        admissionNumber: (app.applicationNumber||'ADM') + '-' + Date.now().toString().slice(-4),
-        status:          'active',
-        isActive:        true,
-      });
-      await admissionAPI.updateStatus(app._id, { status: 'enrolled' });
-      toast.success('✅ ' + app.studentName + ' enrolled! Email: ' + email + ' | Password: Student@123');
-      onSuccess();
-    } catch(err) {
-      const msg = err.response?.data?.message || err.message || 'Enrollment failed';
-      console.error('Enroll error:', err.response?.data || err);
-      toast.error(msg);
-    } finally { setEnrolling(false); }
-  };
-
+// ─── Mini stat ring ───────────────────────────────────────────────────────────
+function Ring({ pct, size = 56, stroke = 6, color }) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const col = color || (pct >= 75 ? '#4a7c59' : pct >= 50 ? '#c9a84c' : '#d4522a');
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.5)', padding:16 }}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:440, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
-        <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F0FDF4' }}>
-          <div>
-            <div style={{ fontWeight:700, fontSize:16, color:'#065F46' }}>🎓 Enroll as Student</div>
-            <div style={{ fontSize:13, color:'#059669', marginTop:2 }}>{app.studentName}</div>
-          </div>
-          <button onClick={onClose} style={{ width:30, height:30, borderRadius:8, border:'1px solid #D1FAE5', background:'#fff', cursor:'pointer', fontSize:18, color:'#6B7280' }}>×</button>
-        </div>
-        <div style={{ padding:'20px 24px' }}>
-          <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px', marginBottom:16, fontSize:12, color:'#374151' }}>
-            <div><strong>Application:</strong> {app.applicationNumber}</div>
-            <div><strong>Class Applied:</strong> Class {app.applyingForClass}</div>
-            <div><strong>Parent:</strong> {app.parentName} · {app.parentPhone}</div>
-          </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', display:'block', marginBottom:5 }}>Assign to Class *</label>
-            <select value={enrollClass} onChange={e=>setEnrollClass(e.target.value)}
-              style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none', background:'#fff' }}>
-              <option value="">Select Class</option>
-              {classes.map(cl=><option key={cl._id} value={cl._id}>{cl.name} {cl.section||''}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', display:'block', marginBottom:5 }}>Roll Number</label>
-            <input value={enrollRoll} onChange={e=>setEnrollRoll(e.target.value)} placeholder="e.g. 01"
-              style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none' }}/>
-          </div>
-          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'10px 12px', fontSize:12, color:'#92400E', marginBottom:16 }}>
-            Default password: <strong>Student@123</strong> — student can change after first login
-          </div>
-        </div>
-        <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10 }}>
-          <button onClick={onClose}
-            style={{ flex:1, padding:'11px', borderRadius:9, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', color:'#6B7280' }}>
-            Cancel
-          </button>
-          <button onClick={handleEnroll} disabled={enrolling}
-            style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:enrolling?'#9CA3AF':'#059669', color:'#fff', fontSize:13, fontWeight:700, cursor:enrolling?'not-allowed':'pointer' }}>
-            {enrolling ? '⏳ Enrolling...' : '✓ Confirm Enrollment'}
-          </button>
-        </div>
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg className="-rotate-90" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e5e7eb" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth={stroke}
+          strokeDasharray={`${(pct/100)*c} ${c}`} strokeLinecap="round" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-xs font-bold" style={{ color: col }}>{pct}%</span>
       </div>
     </div>
   );
 }
 
-function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, isAdmin }) {
-  const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
-  return (
-    <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
-      onMouseEnter={e=>e.currentTarget.style.background='#F8FAFF'}
-      onMouseLeave={e=>e.currentTarget.style.background='#fff'}
-      onClick={onView}>
-      <td style={{ padding:'12px 16px' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ width:38, height:38, borderRadius:10, background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <span style={{ fontSize:15, fontWeight:700, color:'#fff' }}>{(app.studentName||'?')[0].toUpperCase()}</span>
-          </div>
-          <div>
-            <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{app.studentName}</div>
-            <div style={{ fontSize:11, color:'#9CA3AF', fontFamily:'monospace' }}>{app.applicationNumber}</div>
-            <div style={{ marginTop:3 }}>
-              {(()=>{
-                const sm = STATUS_META[app.status]||STATUS_META.pending;
-                return <span style={{ fontSize:10, fontWeight:700, color:sm.color, background:sm.bg, border:`1px solid ${sm.border}`, padding:'2px 8px', borderRadius:20 }}>{sm.label}</span>;
-              })()}
-            </div>
-          </div>
-        </div>
-      </td>
-      <td style={{ padding:'12px 16px' }}>
-        <span style={{ fontWeight:700, fontSize:13, color:'#374151' }}>
-          {app.applyingForClass ? (isNaN(app.applyingForClass) ? app.applyingForClass : `Class ${app.applyingForClass}`) : '—'}
-        </span>
-        {app.applyingForSection && <span style={{ color:'#9CA3AF' }}> – {app.applyingForSection}</span>}
-      </td>
-      <td style={{ padding:'12px 16px' }}>
-        <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>{app.parentName||'—'}</div>
-        <div style={{ fontSize:11, color:'#9CA3AF' }}>{app.parentPhone||''}</div>
-      </td>
+// =============================================================================
+// MAIN STUDENTS PAGE
+// =============================================================================
+export default function Students() {
+  const { isAdmin, can } = useAuth();
+  const [students,     setStudents]    = useState([]);
+  const [classes,      setClasses]     = useState([]);
+  const [loading,      setLoading]     = useState(true);
+  const [search,       setSearch]      = useState('');
+  const [filterClass,  setFilterClass] = useState('');
+  const [tab,          setTab]         = useState('all');
+  const [viewStudent,  setViewStudent] = useState(null);  // student profile drawer
+  const [addModal,     setAddModal]    = useState({ open: false, data: null });
+  const [saving,       setSaving]      = useState(false);
+  const [resetModal,   setResetModal]  = useState(null); // student to reset password
+  const [newPassword,  setNewPassword] = useState('');
+  const [resetting,    setResetting]   = useState(false);
+  const [showPwd,      setShowPwd]     = useState({});
 
-      <td style={{ padding:'12px 16px' }}>
-        <div style={{ fontSize:12, color:'#6B7280' }}>
-          {app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
-        </div>
-        {daysAgo > 0 && <div style={{ fontSize:10, color:'#9CA3AF' }}>{daysAgo}d ago</div>}
-      </td>
-
-      <td style={{ padding:'12px 16px' }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-          <button onClick={onView}
-            style={{ fontSize:11, fontWeight:700, color:'#6366F1', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-            👁 View
-          </button>
-          <button onClick={()=>onDownload(app)}
-            style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#F0FDF4', border:'1px solid #BBF7D0', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-            ⬇ Download
-          </button>
-          {isAdmin && app.status==='pending' && (
-            <button onClick={()=>onStatusChange(app._id,'approved')}
-              style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#D1FAE5', border:'1px solid #6EE7B7', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-              ✓ Approve
-            </button>
-          )}
-          {isAdmin && app.status!=='enrolled' && (
-            <button onClick={()=>onEnroll(app)}
-              style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-              🎓 Enroll
-            </button>
-          )}
-          {isAdmin && <>
-            <button onClick={()=>onEdit(app)}
-              style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-              ✎
-            </button>
-            <button onClick={()=>onDelete(app._id, app.studentName)}
-              style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-              ✕
-            </button>
-          </>}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-export default function Admissions() {
-  const { isAdmin } = useAuth();
-  const [applications, setApplications] = useState([]);
-  const [stats,        setStats]        = useState(null);
-  const [loading,      setLoading]      = useState(true);
-  const [total,        setTotal]        = useState(0);
-  const [search,       setSearch]       = useState('');
-  const [statusFilter, setStatus]       = useState('');
-  const [classFilter,  setClass]        = useState('');
-  const [priorityFilter,setPriority]    = useState('');
-  const [page,         setPage]         = useState(1);
-  const [detailId,     setDetailId]     = useState(null);
-  const [formModal,    setFormModal]    = useState({ open:false, data:null });
-  const [enrollModal,  setEnrollModal]  = useState({ open:false, data:null });
-  const limit = 20;
-
-  const downloadReceipt = (app) => {
-    const win = window.open('','_blank','width=820,height=950');
-    const docsSubmitted = Object.entries(app.documents||{}).filter(([,v])=>v).map(([k])=>k.replace(/([A-Z])/g,' $1').trim());
-    win.document.write(`
-      <html><head><title>Admission Receipt - ${app.studentName}</title>
-      <style>
-        *{box-sizing:border-box;margin:0;padding:0}
-        body{font-family:Arial,sans-serif;padding:30px;color:#111;font-size:13px}
-        .header{text-align:center;border-bottom:3px solid #6366F1;padding-bottom:16px;margin-bottom:20px}
-        .school-name{font-size:22px;font-weight:900;color:#1F2937}
-        .school-sub{font-size:12px;color:#6B7280;margin-top:4px}
-        .receipt-title{display:inline-block;margin-top:12px;padding:5px 20px;border:2px solid #6366F1;border-radius:6px;font-size:14px;font-weight:700;color:#6366F1}
-        .app-no{margin:14px 0;text-align:center;background:#F8F8FF;border:1px solid #E0E0FF;border-radius:8px;padding:10px;font-size:13px}
-        .app-no strong{color:#6366F1;font-size:15px}
-        .section{margin-bottom:16px}
-        .section-title{font-size:11px;font-weight:700;color:#6366F1;text-transform:uppercase;letter-spacing:.08em;border-bottom:1.5px solid #E5E7EB;padding-bottom:5px;margin-bottom:10px}
-        table{width:100%;border-collapse:collapse;font-size:12px}
-        td{padding:6px 10px;border-bottom:0.5px solid #F3F4F6;vertical-align:top}
-        td:first-child,td:nth-child(3){color:#6B7280;font-weight:600;width:25%}
-        .doc-grid{display:flex;flex-wrap:wrap;gap:6px;padding:6px 0}
-        .doc-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#EEF2FF;color:#4338CA}
-        .footer{margin-top:32px;padding-top:14px;border-top:1.5px solid #E5E7EB;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:12px}
-        .sign-box{text-align:center}
-        .sign-line{border-bottom:1px solid #374151;margin:24px auto 6px;width:140px}
-        .notice{margin-top:20px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:11px;color:#92400E}
-        @page{margin:12mm;size:A4}
-      </style></head><body>
-      <div class="header">
-        <div class="school-name">The Future Step School</div>
-        <div class="school-sub">Securing Future By Adaptive Learning</div>
-        <div class="receipt-title">Admission Application Receipt</div>
-      </div>
-      <div class="app-no">
-        Application No: <strong>${app.applicationNumber||'—'}</strong>
-        &nbsp;&nbsp;|&nbsp;&nbsp;
-        Date: <strong>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</strong>
-        &nbsp;&nbsp;|&nbsp;&nbsp;
-        Status: <strong>${app.status?.replace(/_/g,' ')?.toUpperCase()||'PENDING'}</strong>
-      </div>
-      <div class="section">
-        <div class="section-title">1. Student Information</div>
-        <table>
-          <tr><td>Student Name</td><td><strong>${app.studentName||'—'}</strong></td><td>Class Applied</td><td><strong>${app.applyingForClass||'—'}</strong></td></tr>
-          <tr><td>Date of Birth</td><td>${app.dateOfBirth?new Date(app.dateOfBirth).toLocaleDateString('en-IN'):'—'}</td><td>Gender</td><td>${app.gender||'—'}</td></tr>
-          <tr><td>Blood Group</td><td>${app.bloodGroup||'—'}</td><td>Aadhaar No</td><td>${app.aadhaarNumber||'—'}</td></tr>
-          <tr><td>Religion</td><td>${app.religion||'—'}</td><td>Category</td><td>${app.category||'—'}</td></tr>
-          <tr><td>Address</td><td colspan="3">${[app.address?.street||app.address,app.address?.city||app.city,app.address?.state||app.state,app.address?.pincode||app.pincode].filter(Boolean).join(', ')||'—'}</td></tr>
-          <tr><td>Date of Admission</td><td>${app.dateOfAdmission?new Date(app.dateOfAdmission).toLocaleDateString('en-IN'):'—'}</td><td>Academic Year</td><td>${app.academicYear||'—'}</td></tr>
-        </table>
-      </div>
-      <div class="section">
-        <div class="section-title">2. Parent / Guardian Information</div>
-        <table>
-          <tr><td>Father's Name</td><td>${app.father?.name||app.fatherName||'—'}</td><td>Father's Phone</td><td>${app.father?.phone||app.fatherPhone||'—'}</td></tr>
-          <tr><td>Mother's Name</td><td>${app.mother?.name||app.motherName||'—'}</td><td>Mother's Phone</td><td>${app.mother?.phone||app.motherPhone||'—'}</td></tr>
-          <tr><td>Primary Contact</td><td><strong>${app.parentName||'—'}</strong></td><td>Contact Phone</td><td><strong>${app.parentPhone||'—'}</strong></td></tr>
-          <tr><td>Email</td><td colspan="3">${app.parentEmail||'—'}</td></tr>
-        </table>
-      </div>
-      <div class="section">
-        <div class="section-title">3. Previous School</div>
-        <table>
-          <tr><td>School Name</td><td>${app.previousSchool||'—'}</td><td>Board</td><td>${app.previousBoard||'—'}</td></tr>
-          <tr><td>Previous Class</td><td>${app.previousClass||'—'}</td><td>TC Number</td><td>${app.tcNumber||'—'}</td></tr>
-        </table>
-      </div>
-      <div class="section">
-        <div class="section-title">4. Documents Submitted (${docsSubmitted.length}/14)</div>
-        <div class="doc-grid">
-          ${docsSubmitted.length?docsSubmitted.map(d=>`<span class="doc-badge">✓ ${d}</span>`).join(''):'<span style="color:#9CA3AF">No documents uploaded yet</span>'}
-        </div>
-      </div>
-      <div class="notice">⚠️ This is a preliminary receipt. Admission confirmed only after document verification and approval by school administration.</div>
-      <div class="footer">
-        <div class="sign-box"><div style="font-weight:700;margin-bottom:4px">Prepared By</div><div class="sign-line"></div><div>The Future Step School</div></div>
-        <div class="sign-box"><div style="font-weight:700;margin-bottom:4px">Parent / Guardian</div><div class="sign-line"></div><div>${app.parentName||'—'}</div></div>
-        <div class="sign-box"><div style="font-weight:700;margin-bottom:4px">Received By</div><div class="sign-line"></div><div>School Admin</div></div>
-      </div>
-      </body></html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(()=>win.print(),600);
-  };
+  const canManage = can(['superAdmin', 'schoolAdmin']);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { page, limit };
-      if (search)         params.search = search;
-      if (statusFilter)   params.status = statusFilter;
-      if (classFilter)    params.applyingForClass = classFilter;
-      if (priorityFilter) params.priority = priorityFilter;
-      const [res, statsRes] = await Promise.all([
-        admissionAPI.getAll(params),
-        admissionAPI.getStats(),
-      ]);
-      setApplications(res.data.data);
-      setTotal(res.data.total);
-      setStats(statsRes.data.data);
-    } catch { toast.error('Failed to load admissions'); }
+      const [sRes, cRes] = await Promise.all([studentAPI.getAll(), classAPI.getAll()]);
+      setStudents(sRes.data.data || []);
+      setClasses(cRes.data.data || []);
+    } catch { toast.error('Failed to load students'); }
     finally { setLoading(false); }
-  }, [search, statusFilter, classFilter, priorityFilter, page]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter]);
 
-  const handleStatusChange = async (id, status) => {
+  // Filter
+  const filtered = students.filter(s => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || s.user?.name?.toLowerCase().includes(q) || s.admissionNumber?.toLowerCase().includes(q) || s.class?.name?.toLowerCase().includes(q);
+    const matchClass  = !filterClass || s.class?._id === filterClass;
+    const matchTab    = tab === 'all' || tab === 'managelogin' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
+    return matchSearch && matchClass && matchTab;
+  });
+
+  // Stats
+  const total    = students.length;
+  const active   = students.filter(s => s.isActive).length;
+  const boys     = students.filter(s => s.gender === 'male').length;
+  const girls    = students.filter(s => s.gender === 'female').length;
+
+  const handleSave = async (form) => {
+    setSaving(true);
     try {
-      await admissionAPI.updateStatus(id, { status });
-      toast.success(`Status updated to ${status}`);
-      load();
-    } catch { toast.error('Failed to update status'); }
+      if (form._id) { await studentAPI.update(form._id, form); toast.success('Student updated'); }
+      else          { await studentAPI.create(form); toast.success('Student added ✅'); }
+      setAddModal({ open: false, data: null }); load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Error saving student'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete application for ${name}?`)) return;
-    try { await admissionAPI.delete(id); toast.success('Deleted'); load(); }
-    catch { toast.error('Delete failed'); }
+    if (!id) return toast.error('Invalid student');
+    if (!window.confirm(`Delete student "${name}"?\n\nThis will permanently remove the student from the system.`)) return;
+    try {
+      await studentAPI.delete(id);
+      toast.success(`${name} deleted successfully`);
+      load();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to delete';
+      toast.error(msg);
+      console.error('Delete error:', err);
+    }
   };
 
-  const s = stats?.status || {};
-  const convRate = s.conversionRate || 0;
-  const pipeline = [
-    { key:'',                    label:`All (${s.total||0})` },
-    { key:'pending',             label:`Pending (${s.pending||0})` },
-    { key:'under_review',        label:`Review (${s.under_review||0})` },
-    { key:'approved',            label:`Approved (${s.approved||0})` },
-    { key:'enrolled',            label:`Enrolled (${s.enrolled||0})` },
-    { key:'rejected',            label:`Rejected (${s.rejected||0})` },
-    { key:'waitlisted',          label:`Waitlisted (${s.waitlisted||0})` },
-  ];
-
-  const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 6) return toast.error('Password must be at least 6 characters');
+    setResetting(true);
+    try {
+      await studentAPI.resetPassword(resetModal._id, { password: newPassword });
+      toast.success(`Password reset for ${resetModal.user?.name}`);
+      setResetModal(null); setNewPassword('');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to reset password'); }
+    finally { setResetting(false); }
+  };
 
   return (
-    <div className="animate-fade-in">
-      {/* ── Header ── */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20, flexWrap:'wrap', gap:12 }}>
+    <div className="animate-fade-in space-y-5">
+      {/* Header */}
+      <div className="page-header">
         <div>
-          <h1 className="font-display text-3xl text-ink">🎓 Admissions</h1>
-          <p className="text-sm text-muted mt-1">{fmt(total)} applications · {s.enrolled||0} enrolled · {convRate}% conversion rate</p>
+          <h2 className="font-display text-2xl text-ink dark:text-white">Students</h2>
+          <p className="text-sm text-muted">{total} enrolled · {active} active</p>
         </div>
-        {isAdmin && (
-          <button onClick={()=>setFormModal({open:true,data:null})}
-            style={{ padding:'10px 22px', borderRadius:10, background:'#6366F1', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer' }}>
-            + New Application
+        {canManage && total === 0 && (
+          <button onClick={async ()=>{
+            try {
+              await studentAPI.seedTest();
+              toast.success('Test student added!');
+              load();
+            } catch(e){ toast.error(e.response?.data?.message||'Failed'); }
+          }}
+            style={{ padding:'8px 18px', borderRadius:9, background:'#059669', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            + Add Test Student
           </button>
         )}
       </div>
 
-      {/* ── KPI Cards ── */}
-      <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:20 }}>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label:'Total',       value:s.total||0,       color:'#374151', bg:'#F9FAFB', sub:null },
-          { label:'Pending',     value:s.pending||0,     color:'#D97706', bg:'#FEF3C7', sub:'awaiting review' },
-          { label:'Under Review',value:s.under_review||0,color:'#2563EB', bg:'#DBEAFE', sub:'being assessed' },
-          { label:'Approved',    value:s.approved||0,    color:'#059669', bg:'#D1FAE5', sub:'ready to enroll' },
-          { label:'Enrolled',    value:s.enrolled||0,    color:'#0D9488', bg:'#CCFBF1', sub:'admitted' },
-          { label:'Rejected',    value:s.rejected||0,    color:'#DC2626', bg:'#FEE2E2', sub:null },
-          { label:'Conversion',  value:`${convRate}%`,   color:'#6366F1', bg:'#EEF2FF', sub:'approval rate' },
-        ].map(k=>(
-          <KPICard key={k.label} {...k}
-            active={statusFilter===(k.label==='Total'?'':k.label.toLowerCase().replace(' ','_'))}
-            onClick={()=>{
-              if(k.label==='Total'||k.label==='Conversion') setStatus('');
-              else setStatus(Object.keys(STATUS_META).find(key=>STATUS_META[key].label===k.label)||'');
-            }}/>
+          { label: 'Total Students', value: total,  icon: '👥', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' },
+          { label: 'Active',         value: active, icon: '✅', color: 'bg-green-50 dark:bg-green-900/20 text-green-600' },
+          { label: 'Boys',           value: boys,   icon: '👦', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' },
+          { label: 'Girls',          value: girls,  icon: '👧', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' },
+        ].map(s => (
+          <div key={s.label} className="card p-4 flex items-center gap-3">
+            <div className={'w-11 h-11 rounded-xl flex items-center justify-center text-xl ' + s.color}>{s.icon}</div>
+            <div>
+              <div className="text-2xl font-display text-ink dark:text-white">{s.value}</div>
+              <div className="text-xs text-muted">{s.label}</div>
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* ── Analytics Row ── */}
-      {stats && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, marginBottom:20 }}>
-          {/* Monthly trend */}
-          <div className="card" style={{ padding:'14px 16px' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:12 }}>Monthly Trend</div>
-            {!(stats.monthly||[]).length ? (
-              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', padding:'16px 0' }}>No data yet</div>
-            ) : (
-              <div style={{ display:'flex', alignItems:'flex-end', gap:4, height:60 }}>
-                {(stats.monthly||[]).map((m,i)=>{
-                  const max = Math.max(...(stats.monthly||[]).map(x=>x.count),1);
-                  const h = Math.max(4, Math.round((m.count/max)*100));
-                  return (
-                    <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
-                      <div style={{ width:'100%', height:`${h}%`, background:'#6366F1', borderRadius:3, minHeight:4 }} title={`${m.label}: ${m.count}`}/>
-                      <span style={{ fontSize:9, color:'#9CA3AF' }}>{m.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* By Class */}
-          <div className="card" style={{ padding:'14px 16px' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:12 }}>By Class</div>
-            {!(stats.byClass||[]).length ? (
-              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', padding:'16px 0' }}>No data yet</div>
-            ) : (stats.byClass||[]).slice(0,5).map((c,i)=>{
-              const max = Math.max(...(stats.byClass||[]).map(x=>x.count),1);
-              return (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                  <span style={{ fontSize:11, color:'#6B7280', minWidth:60 }}>{isNaN(c.class)?c.class:`Class ${c.class}`}</span>
-                  <div style={{ flex:1, height:6, background:'#F3F4F6', borderRadius:3, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:`${(c.count/max)*100}%`, background:'#6366F1', borderRadius:3 }}/>
-                  </div>
-                  <span style={{ fontSize:11, fontWeight:700, color:'#374151', minWidth:16 }}>{c.count}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* By Source */}
-          <div className="card" style={{ padding:'14px 16px' }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:12 }}>Source</div>
-            {!(stats.bySource||[]).length ? (
-              <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', padding:'16px 0' }}>No data yet</div>
-            ) : (stats.bySource||[]).map((src,i)=>{
-              const icons = { online:'🌐', walk_in:'🚶', referral:'👥', agent:'🤝' };
-              const srcTotal = (stats.bySource||[]).reduce((a,b)=>a+b.count,0);
-              const pct = srcTotal > 0 ? Math.round((src.count/srcTotal)*100) : 0;
-              return (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                  <span style={{ fontSize:14 }}>{icons[src.source]||'📌'}</span>
-                  <span style={{ fontSize:12, color:'#6B7280', flex:1, textTransform:'capitalize' }}>{(src.source||'').replace('_',' ')}</span>
-                  <div style={{ width:50, height:6, background:'#F3F4F6', borderRadius:3, overflow:'hidden' }}>
-                    <div style={{ height:'100%', width:`${pct}%`, background:'#0D9488', borderRadius:3 }}/>
-                  </div>
-                  <span style={{ fontSize:11, fontWeight:700, color:'#374151', minWidth:20 }}>{src.count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Pipeline tabs ── */}
-      <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:14, background:'#F3F4F6', borderRadius:10, padding:4 }}>
-        {pipeline.map(p=>(
-          <button key={p.key} onClick={()=>setStatus(p.key)}
-            style={{ padding:'7px 14px', borderRadius:8, fontSize:12, fontWeight:700, border:'none', cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s',
-              background:statusFilter===p.key?'#6366F1':'transparent',
-              color:statusFilter===p.key?'#fff':'#6B7280' }}>
-            {p.label}
+      {/* Pipeline Tabs */}
+      <div style={{ display:'flex', gap:4, flexWrap:'wrap', background:'#F3F4F6', borderRadius:10, padding:4 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:'7px 16px', borderRadius:8, fontSize:12, fontWeight:700, border:'none', cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s',
+              background: tab === t.id ? '#6366F1' : 'transparent',
+              color:      tab === t.id ? '#fff'    : '#6B7280' }}>
+            {t.icon} {t.label} ({
+              t.id === 'all'         ? total :
+              t.id === 'active'      ? active :
+              t.id === 'inactive'    ? (total - active) :
+              t.id === 'alumni'      ? students.filter(s=>s.status==='alumni').length :
+              t.id === 'managelogin' ? active : 0
+            })
           </button>
         ))}
       </div>
 
-      {/* ── Filters ── */}
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, padding:'12px 16px', background:'#F8FAFC', borderRadius:12, alignItems:'center' }}>
-        <input placeholder="🔍 Search name, App#, parent, phone…" value={search} onChange={e=>setSearch(e.target.value)}
-          style={{ ...SEL, minWidth:260 }}/>
-        <select value={classFilter} onChange={e=>setClass(e.target.value)} style={SEL}>
+      {/* Filters */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', padding:'12px 16px', background:'#F8FAFC', borderRadius:12, alignItems:'center' }}>
+        <input placeholder="🔍 Search name, ID, class, parent…" value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none', minWidth:240 }}/>
+        <select value={filterClass} onChange={e=>setFilterClass(e.target.value)}
+          style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' }}>
           <option value="">All Classes</option>
-          {Array.from({length:12},(_,i)=>i+1).map(n=><option key={n} value={n}>Class {n}</option>)}
+          {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
-        <select value={priorityFilter} onChange={e=>setPriority(e.target.value)} style={SEL}>
-          <option value="">All Priority</option>
-          <option value="urgent">🔴 Urgent</option>
-          <option value="high">🟠 High</option>
-          <option value="normal">⚪ Normal</option>
-        </select>
-        {(search||statusFilter||classFilter||priorityFilter) && (
-          <button onClick={()=>{setSearch('');setStatus('');setClass('');setPriority('');}}
+        {(search || filterClass) && (
+          <button onClick={()=>{setSearch('');setFilterClass('');}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
-            ✕ Clear all
+            ✕ Clear
           </button>
         )}
-        <div style={{ marginLeft:'auto', fontSize:12, color:'#9CA3AF', fontWeight:600 }}>
-          {fmt(total)} results
-        </div>
+        <div style={{ marginLeft:'auto', fontSize:12, color:'#9CA3AF', fontWeight:600 }}>{filtered.length} results</div>
       </div>
 
-      {/* ── Table ── */}
-      <div className="card" style={{ padding:0, overflow:'hidden' }}>
-        {loading ? (
-          <div style={{ padding:48, textAlign:'center', color:'#9CA3AF' }}>
-            <div style={{ fontSize:24, marginBottom:8 }}>⏳</div>Loading applications...
+      {/* Student list table */}
+      {tab !== 'managelogin' && (loading ? <LoadingState /> : !filtered.length ? (
+        <div style={{ padding:'40px', textAlign:'center', color:'#9CA3AF' }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
+          <div style={{ fontSize:15, fontWeight:700, color:'#374151', marginBottom:6 }}>No students found</div>
+          <div style={{ fontSize:13, color:'#9CA3AF' }}>
+            {filterClass || search ? 'Try clearing the filters above' : 'Enroll students from the Admissions module to see them here'}
           </div>
-        ) : !applications.length ? (
-          <div style={{ padding:60, textAlign:'center' }}>
-            <div style={{ fontSize:40, marginBottom:12 }}>📋</div>
-            <div style={{ fontSize:16, fontWeight:700, color:'#374151', marginBottom:6 }}>No applications found</div>
-            <div style={{ fontSize:13, color:'#9CA3AF', marginBottom:20 }}>Try adjusting your filters or add a new application</div>
-            {isAdmin && (
-              <button onClick={()=>setFormModal({open:true,data:null})}
-                style={{ padding:'10px 24px', borderRadius:10, background:'#6366F1', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-                + New Application
-              </button>
-            )}
-          </div>
-        ) : (
+          {(filterClass || search) && (
+            <button onClick={()=>{setSearch('');setFilterClass('');}}
+              style={{ marginTop:16, padding:'8px 20px', borderRadius:8, background:'#6366F1', color:'#fff', border:'none', fontSize:13, cursor:'pointer' }}>
+              Clear Filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
               <thead>
                 <tr style={{ background:'#0B1F4A' }}>
-                  {['Applicant','Class','Parent / Contact','Applied','Actions'].map(h=>(
+                  {['#','Student','Roll No','Class','Gender','Blood','Parent','Status','Actions'].map(h=>(
+                    <th key={h} style={{ padding:'11px 14px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => {
+                  const name   = s.user?.name || '—';
+                  const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+                  const colors = ['#D4522A','#C9A84C','#4A7C59','#7C6AF5','#2D9CDB','#F2994A','#10B981','#8B5CF6'];
+                  const bg     = colors[name.charCodeAt(0) % colors.length];
+                  const statusStyle = s.status === 'active'
+                    ? { bg:'#D1FAE5', color:'#065F46' }
+                    : s.status === 'alumni'
+                    ? { bg:'#EDE9FE', color:'#5B21B6' }
+                    : { bg:'#FEE2E2', color:'#991B1B' };
+                  return (
+                    <tr key={s._id}
+                      style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff', cursor:'pointer', transition:'background 0.1s' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                      onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}
+                      onClick={()=>setViewStudent(s)}>
+                      <td style={{ padding:'10px 14px', color:'#9CA3AF', fontSize:12 }}>{i+1}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <div style={{ width:36, height:36, borderRadius:10, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{initials}</span>
+                          </div>
+                          <div>
+                            <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{name}</div>
+                            <div style={{ fontSize:11, color:'#9CA3AF' }}>{s.admissionNumber || s.studentId || ''}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding:'10px 14px', fontWeight:600, color:'#374151' }}>{s.rollNumber || '—'}</td>
+                      <td style={{ padding:'10px 14px', color:'#374151' }}>{s.class?.name} {s.class?.section||''}</td>
+                      <td style={{ padding:'10px 14px', color:'#6B7280' }}>{s.gender || '—'}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        {s.bloodGroup ? (
+                          <span style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', padding:'2px 8px', borderRadius:20 }}>{s.bloodGroup}</span>
+                        ) : <span style={{ color:'#D1D5DB' }}>—</span>}
+                      </td>
+                      <td style={{ padding:'10px 14px', color:'#6B7280', fontSize:12 }}>{s.parentName || s.fatherName || '—'}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:statusStyle.color, background:statusStyle.bg, padding:'3px 10px', borderRadius:20, textTransform:'capitalize' }}>
+                          {s.status || 'active'}
+                        </span>
+                      </td>
+                      <td style={{ padding:'10px 14px' }} onClick={e=>e.stopPropagation()}>
+                        <div style={{ display:'flex', gap:5 }}>
+                          <button onClick={()=>setViewStudent(s)}
+                            style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                            👁 View
+                          </button>
+                          {canManage && <>
+                            <button onClick={()=>setAddModal({ open:true, data:{ ...s, name:s.user?.name, email:s.user?.email, classId:s.class?._id } })}
+                              style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                              ✎
+                            </button>
+                            <button onClick={()=>handleDelete(s._id, s.user?.name)}
+                              style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                              ✕
+                            </button>
+                          </>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+
+      {/* Manage Login Tab */}
+      {tab === 'managelogin' && (
+        <div className="card overflow-hidden" style={{ padding:0 }}>
+          <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:15, color:'#111827' }}>🔑 Manage Student Login</div>
+              <div style={{ fontSize:12, color:'#9CA3AF', marginTop:2 }}>View credentials and reset passwords for student portal access</div>
+            </div>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#0B1F4A' }}>
+                  {['#','Student','Class','Username (Email)','Password','Status','Actions'].map(h=>(
                     <th key={h} style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {applications.map(app=>(
-                  <AppRow key={app._id} app={app} isAdmin={isAdmin}
-                    onView={()=>setDetailId(app._id)}
-                    onEdit={(a)=>setFormModal({open:true,data:a})}
-                    onDelete={handleDelete}
-                    onDownload={(a)=>downloadReceipt(a)}
-                    onStatusChange={handleStatusChange}
-                    onEnroll={(a)=>setEnrollModal({open:true,data:a})}/>
+                {students.filter(s=>s.isActive).map((s,i)=>(
+                  <tr key={s._id} style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
+                    <td style={{ padding:'11px 16px', color:'#9CA3AF' }}>{i+1}</td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+                        <div style={{ width:32, height:32, borderRadius:9, background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight:700, color:'#111827' }}>{s.user?.name}</div>
+                          <div style={{ fontSize:11, color:'#9CA3AF' }}>Roll: {s.rollNumber||'—'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px', color:'#374151' }}>{s.class?.name} {s.class?.section||''}</td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ fontFamily:'monospace', fontSize:12, color:'#1D4ED8', background:'#EFF6FF', padding:'4px 10px', borderRadius:6, display:'inline-block' }}>
+                        {s.user?.email||'—'}
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ fontFamily:'monospace', fontSize:12, color:'#374151', background:'#F3F4F6', padding:'4px 10px', borderRadius:6 }}>
+                          {showPwd[s._id] ? 'Student@123' : '••••••••••'}
+                        </div>
+                        <button onClick={()=>setShowPwd(p=>({...p,[s._id]:!p[s._id]}))}
+                          style={{ fontSize:11, color:'#6B7280', background:'none', border:'none', cursor:'pointer' }}>
+                          {showPwd[s._id] ? '🙈' : '👁'}
+                        </button>
+                      </div>
+                    </td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <span style={{ fontSize:11, fontWeight:700, color:'#065F46', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
+                        Active
+                      </span>
+                    </td>
+                    <td style={{ padding:'11px 16px' }}>
+                      <button onClick={()=>{ setResetModal(s); setNewPassword('Student@123'); }}
+                        style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FEF3C7', border:'1px solid #FDE68A', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
+                        🔑 Reset Password
+                      </button>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
+          {!students.filter(s=>s.isActive).length && (
+            <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>No active students found</div>
+          )}
+        </div>
+      )}
 
-        {/* Pagination */}
-        {total > limit && (
-          <div style={{ padding:'12px 16px', borderTop:'0.5px solid #F3F4F6', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:12, color:'#6B7280' }}>
-            <span>Showing {(page-1)*limit+1}–{Math.min(page*limit,total)} of {fmt(total)}</span>
-            <div style={{ display:'flex', gap:6 }}>
-              <button disabled={page===1} onClick={()=>setPage(p=>p-1)}
-                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:page===1?'not-allowed':'pointer', color:page===1?'#D1D5DB':'#374151' }}>← Prev</button>
-              {[...Array(Math.min(5,Math.ceil(total/limit)))].map((_,i)=>(
-                <button key={i} onClick={()=>setPage(i+1)}
-                  style={{ padding:'6px 12px', borderRadius:7, border:'1px solid', borderColor:page===i+1?'#6366F1':'#E5E7EB', background:page===i+1?'#6366F1':'#fff', color:page===i+1?'#fff':'#374151', cursor:'pointer', fontWeight:page===i+1?700:400 }}>
-                  {i+1}
-                </button>
-              ))}
-              <button disabled={page>=Math.ceil(total/limit)} onClick={()=>setPage(p=>p+1)}
-                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:page>=Math.ceil(total/limit)?'not-allowed':'pointer', color:page>=Math.ceil(total/limit)?'#D1D5DB':'#374151' }}>Next →</button>
+      {/* Reset Password Modal */}
+      {resetModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', padding:16 }}>
+          <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:400, boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <h3 style={{ fontSize:16, fontWeight:700, margin:0 }}>🔑 Reset Password</h3>
+              <button onClick={()=>{setResetModal(null);setNewPassword('');}} style={{ width:28, height:28, borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:16, color:'#6B7280' }}>×</button>
+            </div>
+            <div style={{ padding:'20px 24px' }}>
+              <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px 16px', marginBottom:16 }}>
+                <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{resetModal.user?.name}</div>
+                <div style={{ fontSize:12, color:'#6B7280', marginTop:2 }}>{resetModal.user?.email} · {resetModal.class?.name}</div>
+              </div>
+              <label style={{ fontSize:11, fontWeight:700, display:'block', marginBottom:5, color:'#374151', textTransform:'uppercase' }}>New Password</label>
+              <input
+                type="text"
+                value={newPassword}
+                onChange={e=>setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none', marginBottom:8 }}
+              />
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {['Student@123','Pass@1234',`${resetModal.user?.name?.split(' ')[0]}@123`].map(p=>(
+                  <button key={p} onClick={()=>setNewPassword(p)}
+                    style={{ fontSize:11, color:'#6366F1', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10 }}>
+              <button onClick={()=>{setResetModal(null);setNewPassword('');}}
+                style={{ flex:1, padding:'10px', borderRadius:9, fontSize:13, fontWeight:700, background:'#F3F4F6', border:'none', cursor:'pointer' }}>Cancel</button>
+              <button onClick={handleResetPassword} disabled={resetting}
+                style={{ flex:2, padding:'10px', borderRadius:9, fontSize:13, fontWeight:700, background:resetting?'#9CA3AF':'#D97706', color:'#fff', border:'none', cursor:resetting?'not-allowed':'pointer' }}>
+                {resetting ? '⏳ Resetting...' : '✓ Reset Password'}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Student Profile Drawer */}
+      {viewStudent && (
+        <StudentProfileDrawer
+          student={viewStudent}
+          classes={classes}
+          canManage={canManage}
+          onClose={() => setViewStudent(null)}
+          onEdit={() => { setAddModal({ open: true, data: { ...viewStudent, name: viewStudent.user?.name, email: viewStudent.user?.email, classId: viewStudent.class?._id } }); setViewStudent(null); }}
+        />
+      )}
+
+      {/* Add / Edit Modal */}
+      <StudentFormModal
+        isOpen={addModal.open}
+        data={addModal.data}
+        classes={classes}
+        saving={saving}
+        onClose={() => setAddModal({ open: false, data: null })}
+        onSave={handleSave}
+      />
+    </div>
+  );
+}
+
+// =============================================================================
+// STUDENT CARD
+// =============================================================================
+function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
+  const genderColor = s.gender === 'female' ? '#ec4899' : s.gender === 'male' ? '#3b82f6' : '#8b5cf6';
+  return (
+    <div className="card p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer" onClick={onView}>
+      <div className="flex items-start gap-3 mb-3">
+        {/* Avatar */}
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0"
+          style={{ background: `linear-gradient(135deg, ${genderColor}cc, ${genderColor}88)` }}>
+          {s.user?.name?.charAt(0)?.toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-ink dark:text-white truncate">{s.user?.name}</p>
+          <p className="text-xs text-muted">{s.admissionNumber}</p>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {s.class && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600">{s.class.name} {s.class.section}</span>}
+            <span className={'text-[10px] font-semibold px-2 py-0.5 rounded-full ' + (s.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>{s.isActive ? 'Active' : 'Inactive'}</span>
+          </div>
+        </div>
+        <QRPlaceholder value={s.admissionNumber || s._id} size={40} />
       </div>
 
-      {/* ── Modals ── */}
-      {detailId && (
-        <AdmissionDetailModal id={detailId}
-          onClose={()=>{setDetailId(null);load();}}/>
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted mb-3">
+        {s.rollNumber && <span>🔢 Roll: <span className="text-ink dark:text-gray-200 font-medium">{s.rollNumber}</span></span>}
+        {s.gender    && <span>👤 <span className="capitalize text-ink dark:text-gray-200 font-medium">{s.gender}</span></span>}
+        {s.bloodGroup && <span>🩸 <span className="text-ink dark:text-gray-200 font-medium">{s.bloodGroup}</span></span>}
+        {s.parentName && <span>👨‍👩‍👧 <span className="text-ink dark:text-gray-200 font-medium truncate">{s.parentName}</span></span>}
+      </div>
+
+      {canManage && (
+        <div className="flex gap-2 pt-3 border-t border-border dark:border-gray-700" onClick={e => e.stopPropagation()}>
+          <button onClick={onView}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-accent hover:text-accent transition-all">👁 View</button>
+          <button onClick={onEdit}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-blue-400 hover:text-blue-600 transition-all">✎ Edit</button>
+          <button onClick={onDelete} className="text-xs border border-red-200 rounded-lg px-2.5 py-1.5 text-red-400 hover:border-red-400 hover:text-red-600 transition-all">✕</button>
+        </div>
       )}
-      {formModal.open && (
-        <AdmissionFormModal initial={formModal.data}
-          onClose={()=>setFormModal({open:false,data:null})}
-          onSuccess={()=>{setFormModal({open:false,data:null});load();}}/>
+    </div>
+  );
+}
+
+// =============================================================================
+// STUDENT PROFILE DRAWER — full detail panel
+// =============================================================================
+const PROFILE_TABS = [
+  { id: 'overview',    label: 'Overview',    icon: '👤' },
+  { id: 'academic',    label: 'Academic',    icon: '📊' },
+  { id: 'attendance',  label: 'Attendance',  icon: '📅' },
+  { id: 'fees',        label: 'Fees',        icon: '💰' },
+  { id: 'assignments', label: 'Assignments', icon: '📚' },
+  { id: 'health',      label: 'Health',      icon: '🏥' },
+];
+
+function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit }) {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [exams,       setExams]       = useState([]);
+  const [attendance,  setAttendance]  = useState([]);
+  const [fees,        setFees]        = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoadingData(true);
+      try {
+        const [eRes, aRes, fRes] = await Promise.allSettled([
+          examAPI.getAll().catch(() => ({ data: { data: [] } })),
+          assignmentAPI.getAll().catch(() => ({ data: { data: [] } })),
+          feeAPI.getPayments({ student: s._id }).catch(() => ({ data: { data: [] } })),
+        ]);
+        if (eRes.status === 'fulfilled') setExams(eRes.value.data.data || []);
+        if (aRes.status === 'fulfilled') setAssignments(aRes.value.data.data || []);
+        if (fRes.status === 'fulfilled') setFees(fRes.value.data.data || []);
+        // Mock attendance
+        setAttendance(Array.from({ length: 30 }, (_, i) => ({ day: i + 1, status: Math.random() > 0.15 ? 'present' : 'absent' })));
+      } catch {}
+      finally { setLoadingData(false); }
+    };
+    fetchData();
+  }, [s._id]);
+
+  const presentDays = attendance.filter(a => a.status === 'present').length;
+  const attPct = attendance.length > 0 ? Math.round((presentDays / attendance.length) * 100) : 0;
+
+  // Exam stats
+  const examResults = exams.filter(e => e.results?.length).map(e => {
+    const res = e.results?.find(r => r.student === s._id);
+    return res ? { subject: e.subject?.name || 'Exam', marks: res.marksObtained, total: e.totalMarks, pct: Math.round((res.marksObtained / e.totalMarks) * 100) } : null;
+  }).filter(Boolean);
+  const avgPct  = examResults.length ? Math.round(examResults.reduce((s, e) => s + e.pct, 0) / examResults.length) : 0;
+  const weakSub = examResults.filter(e => e.pct < 50);
+
+  return (
+    <div className="fixed inset-0 z-[300] flex">
+      {/* Backdrop */}
+      <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      {/* Drawer */}
+      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 h-full overflow-y-auto shadow-2xl">
+        {/* Drawer header */}
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-border dark:border-gray-700 px-6 py-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-2xl">
+              {s.user?.name?.charAt(0)}
+            </div>
+            <div className="flex-1">
+              <h2 className="font-bold text-xl text-ink dark:text-white">{s.user?.name}</h2>
+              <p className="text-sm text-muted">{s.admissionNumber} · {s.class?.name} {s.class?.section}</p>
+            </div>
+            <QRPlaceholder value={s.admissionNumber || s._id} size={52} />
+            <div className="flex gap-2">
+              {canManage && <button onClick={onEdit} className="text-xs border border-border px-3 py-1.5 rounded-lg hover:border-accent hover:text-accent transition-all">✎ Edit</button>}
+              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted hover:border-accent hover:text-accent text-lg">×</button>
+            </div>
+          </div>
+
+          {/* Profile tabs */}
+          <div className="flex gap-1 mt-4 overflow-x-auto pb-1">
+            {PROFILE_TABS.map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)}
+                className={'flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ' +
+                  (activeTab === t.id ? 'bg-accent text-white' : 'text-muted hover:text-ink dark:hover:text-white hover:bg-warm dark:hover:bg-gray-800')}>
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {loadingData && <LoadingState />}
+
+          {/* ── OVERVIEW ── */}
+          {activeTab === 'overview' && (
+            <div className="space-y-5">
+              {/* Quick stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="card p-4 text-center">
+                  <Ring pct={attPct} size={60} />
+                  <p className="text-xs text-muted mt-2">Attendance</p>
+                </div>
+                <div className="card p-4 text-center">
+                  <Ring pct={avgPct} size={60} color="#7c6af5" />
+                  <p className="text-xs text-muted mt-2">Avg Score</p>
+                </div>
+                <div className="card p-4 text-center flex flex-col items-center justify-center">
+                  <div className="text-2xl font-display text-ink dark:text-white">{fees.filter(f => f.status === 'pending').length}</div>
+                  <p className="text-xs text-muted mt-1">Pending Fees</p>
+                </div>
+              </div>
+
+              {/* Personal info */}
+              <Section title="Personal Information">
+                <InfoGrid items={[
+                  { label: 'Full Name',       value: s.user?.name },
+                  { label: 'Email',           value: s.user?.email },
+                  { label: 'Phone',           value: s.user?.phone || '—' },
+                  { label: 'Date of Birth',   value: s.dateOfBirth ? new Date(s.dateOfBirth).toLocaleDateString('en-IN') : '—' },
+                  { label: 'Gender',          value: s.gender ? s.gender.charAt(0).toUpperCase()+s.gender.slice(1) : '—' },
+                  { label: 'Blood Group',     value: s.bloodGroup || '—' },
+                  { label: 'Admission No',    value: s.admissionNumber },
+                  { label: 'Roll Number',     value: s.rollNumber || '—' },
+                  { label: 'Admission Date',  value: s.admissionDate ? new Date(s.admissionDate).toLocaleDateString('en-IN') : '—' },
+                  { label: 'Status',          value: s.isActive ? '✅ Active' : '⭕ Inactive' },
+                ]} />
+              </Section>
+
+              {/* Address */}
+              {(s.address?.city || s.address?.street) && (
+                <Section title="Address">
+                  <p className="text-sm text-slate dark:text-gray-300">
+                    {[s.address.street, s.address.city, s.address.state, s.address.pincode].filter(Boolean).join(', ')}
+                  </p>
+                </Section>
+              )}
+
+              {/* Guardian */}
+              <Section title="Guardian / Parent">
+                <InfoGrid items={[
+                  { label: 'Name',  value: s.parentName  || '—' },
+                  { label: 'Phone', value: s.parentPhone || '—' },
+                  { label: 'Email', value: s.parentEmail || '—' },
+                ]} />
+              </Section>
+
+              {/* Transport */}
+              {s.transportRoute && (
+                <Section title="Transport">
+                  <p className="text-sm text-slate dark:text-gray-300">🚌 Route: {s.transportRoute?.routeName || s.transportRoute}</p>
+                </Section>
+              )}
+            </div>
+          )}
+
+          {/* ── ACADEMIC ── */}
+          {activeTab === 'academic' && (
+            <div className="space-y-4">
+              {/* GPA card */}
+              <div className="card p-5 flex items-center gap-5">
+                <Ring pct={avgPct} size={72} stroke={8} />
+                <div>
+                  <p className="text-3xl font-display text-ink dark:text-white">{avgPct}%</p>
+                  <p className="text-sm text-muted">Overall Average</p>
+                  <p className="text-xs font-semibold mt-1">
+                    Grade: {avgPct >= 90 ? 'A+' : avgPct >= 80 ? 'A' : avgPct >= 70 ? 'B' : avgPct >= 60 ? 'C' : avgPct >= 50 ? 'D' : 'F'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Weak subjects alert */}
+              {weakSub.length > 0 && (
+                <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">⚠️ Needs Attention</p>
+                  {weakSub.map((w, i) => (
+                    <p key={i} className="text-xs text-red-600 dark:text-red-400">📌 {w.subject} — {w.pct}% (below 50%)</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Subject bars */}
+              {examResults.length > 0 ? (
+                <Section title="Subject Performance">
+                  {examResults.map((e, i) => (
+                    <div key={i} className="mb-3">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-medium text-ink dark:text-white">{e.subject}</span>
+                        <span className="text-muted">{e.marks}/{e.total} ({e.pct}%)</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: e.pct + '%', background: e.pct >= 75 ? '#4a7c59' : e.pct >= 50 ? '#c9a84c' : '#d4522a' }} />
+                      </div>
+                    </div>
+                  ))}
+                </Section>
+              ) : <EmptyState icon="📊" title="No exam results yet" />}
+
+              {/* Upcoming exams */}
+              {exams.length > 0 && (
+                <Section title="Upcoming Exams">
+                  {exams.filter(e => new Date(e.date) >= new Date()).slice(0, 5).map(e => (
+                    <div key={e._id} className="flex items-center justify-between py-2 border-b border-border dark:border-gray-700 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-ink dark:text-white">{e.name}</p>
+                        <p className="text-xs text-muted">{e.subject?.name}</p>
+                      </div>
+                      <span className="text-xs font-semibold text-accent">{new Date(e.date).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}</span>
+                    </div>
+                  ))}
+                </Section>
+              )}
+            </div>
+          )}
+
+          {/* ── ATTENDANCE ── */}
+          {activeTab === 'attendance' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="card p-4 text-center">
+                  <div className="text-2xl font-display text-green-600">{presentDays}</div>
+                  <div className="text-xs text-muted">Present</div>
+                </div>
+                <div className="card p-4 text-center">
+                  <div className="text-2xl font-display text-red-500">{attendance.length - presentDays}</div>
+                  <div className="text-xs text-muted">Absent</div>
+                </div>
+                <div className="card p-4 text-center">
+                  <div className={'text-2xl font-display ' + (attPct >= 75 ? 'text-green-600' : attPct >= 50 ? 'text-amber-500' : 'text-red-500')}>{attPct}%</div>
+                  <div className="text-xs text-muted">Percentage</div>
+                </div>
+              </div>
+
+              {attPct < 75 && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700 dark:text-amber-300">
+                  ⚠️ Attendance below 75%. Minimum required: 75% for exam eligibility.
+                </div>
+              )}
+
+              {/* Calendar heat-map simulation */}
+              <Section title="This Month — Attendance Calendar">
+                <div className="grid grid-cols-7 gap-1.5">
+                  {['S','M','T','W','T','F','S'].map(d => (
+                    <div key={d} className="text-center text-[10px] text-muted font-bold">{d}</div>
+                  ))}
+                  {Array.from({ length: 2 }, (_, i) => <div key={'pad-'+i} />)}
+                  {attendance.map((a, i) => (
+                    <div key={i} title={'Day ' + a.day + ': ' + a.status}
+                      className={'w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold cursor-default ' +
+                        (a.status === 'present' ? 'bg-green-100 text-green-700 dark:bg-green-900/40' : 'bg-red-100 text-red-600 dark:bg-red-900/40')}>
+                      {a.day}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            </div>
+          )}
+
+          {/* ── FEES ── */}
+          {activeTab === 'fees' && (
+            <div className="space-y-4">
+              {fees.length === 0 ? <EmptyState icon="💰" title="No fee records found" /> : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="card p-4 text-center">
+                      <div className="text-xl font-display text-green-600">₹{fees.filter(f => f.status === 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
+                      <div className="text-xs text-muted">Paid</div>
+                    </div>
+                    <div className="card p-4 text-center">
+                      <div className="text-xl font-display text-amber-500">₹{fees.filter(f => f.status !== 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
+                      <div className="text-xs text-muted">Pending</div>
+                    </div>
+                  </div>
+                  {fees.map(f => (
+                    <div key={f._id} className="card p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm text-ink dark:text-white">{f.feeType || 'Fee'}</p>
+                        <p className="text-xs text-muted">{f.dueDate ? new Date(f.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-ink dark:text-white">₹{(f.amount || 0).toLocaleString('en-IN')}</p>
+                        <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (f.status === 'paid' ? 'bg-green-100 text-green-700' : f.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                          {f.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── ASSIGNMENTS ── */}
+          {activeTab === 'assignments' && (
+            <div className="space-y-3">
+              {assignments.length === 0 ? <EmptyState icon="📚" title="No assignments" /> :
+                assignments.slice(0, 10).map(a => {
+                  const isOverdue = new Date(a.dueDate) < new Date();
+                  return (
+                    <div key={a._id} className="card p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm text-ink dark:text-white">{a.title}</p>
+                          <p className="text-xs text-muted">{a.subject?.name} · {a.class?.name}</p>
+                        </div>
+                        <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (isOverdue ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700')}>
+                          {isOverdue ? 'Overdue' : 'Active'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted mt-2">📅 Due: {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                    </div>
+                  );
+                })
+              }
+            </div>
+          )}
+
+          {/* ── HEALTH ── */}
+          {activeTab === 'health' && (
+            <div className="space-y-4">
+              <Section title="Medical Information">
+                <InfoGrid items={[
+                  { label: 'Blood Group',     value: s.bloodGroup || '—' },
+                  { label: 'Medical Info',    value: s.medicalInfo || 'None recorded' },
+                  { label: 'Emergency Contact', value: s.parentName ? `${s.parentName} (${s.parentPhone})` : '—' },
+                ]} />
+              </Section>
+              <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 text-sm text-blue-700 dark:text-blue-300">
+                💡 To add detailed health records, update the student profile with medical information.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// ADD / EDIT STUDENT FORM MODAL
+// =============================================================================
+function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: '', email: '', phone: '', admissionNumber: '', rollNumber: '',
+    classId: '', gender: '', dateOfBirth: '', bloodGroup: '',
+    parentName: '', parentPhone: '', parentEmail: '',
+    address: { street: '', city: '', state: '', pincode: '' },
+    medicalInfo: '', hobbies: '',
+  });
+  const [activeSection, setActiveSection] = useState('basic');
+
+  useEffect(() => {
+    if (data) {
+      setForm({
+        name: data.user?.name || data.name || '',
+        email: data.user?.email || data.email || '',
+        phone: data.user?.phone || data.phone || '',
+        admissionNumber: data.admissionNumber || '',
+        rollNumber: data.rollNumber || '',
+        classId: data.class?._id || data.classId || '',
+        gender: data.gender || '',
+        dateOfBirth: data.dateOfBirth ? data.dateOfBirth.split('T')[0] : '',
+        bloodGroup: data.bloodGroup || '',
+        parentName: data.parentName || '',
+        parentPhone: data.parentPhone || '',
+        parentEmail: data.parentEmail || '',
+        address: data.address || { street: '', city: '', state: '', pincode: '' },
+        medicalInfo: data.medicalInfo || '',
+        hobbies: data.hobbies || '',
+        _id: data._id,
+      });
+    } else {
+      setForm({
+        name: '', email: '', phone: '', admissionNumber: '', rollNumber: '',
+        classId: '', gender: '', dateOfBirth: '', bloodGroup: '',
+        parentName: '', parentPhone: '', parentEmail: '',
+        address: { street: '', city: '', state: '', pincode: '' },
+        medicalInfo: '', hobbies: '',
+      });
+    }
+    setActiveSection('basic');
+  }, [data, isOpen]);
+
+  const set  = (k, v)    => setForm(f => ({ ...f, [k]: v }));
+  const setA = (k, v)    => setForm(f => ({ ...f, address: { ...f.address, [k]: v } }));
+
+  const sections = [
+    { id: 'basic',    label: '👤 Basic' },
+    { id: 'academic', label: '🎓 Academic' },
+    { id: 'guardian', label: '👨‍👩‍👧 Guardian' },
+    { id: 'address',  label: '📍 Address' },
+    { id: 'medical',  label: '🏥 Medical' },
+  ];
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={form._id ? 'Edit Student Profile' : 'Add New Student'} size="xl"
+      footer={<>
+        <button className="btn-secondary" onClick={onClose}>Cancel</button>
+        <button className="btn-primary" onClick={() => onSave(form)} disabled={saving}>{saving ? 'Saving…' : form._id ? 'Save Changes' : 'Add Student'}</button>
+      </>}>
+
+      {/* Section tabs inside modal */}
+      <div className="flex gap-1 mb-5 p-1 rounded-xl bg-warm dark:bg-gray-800 border border-border">
+        {sections.map(s => (
+          <button key={s.id} onClick={() => setActiveSection(s.id)}
+            className={'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ' +
+              (activeSection === s.id ? 'bg-white dark:bg-gray-700 shadow text-accent' : 'text-muted hover:text-ink dark:hover:text-white')}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {activeSection === 'basic' && (
+        <div className="grid grid-cols-2 gap-4">
+          <FormGroup label="Full Name *" className="col-span-2"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Arjun Sharma" /></FormGroup>
+          <FormGroup label="Email *"><input type="email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@school.com" /></FormGroup>
+          <FormGroup label="Phone"><input className="form-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" /></FormGroup>
+          <FormGroup label="Gender">
+            <select className="form-input" value={form.gender} onChange={e => set('gender', e.target.value)}>
+              <option value="">Select gender</option>
+              <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
+            </select>
+          </FormGroup>
+          <FormGroup label="Date of Birth"><input type="date" className="form-input" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} /></FormGroup>
+          <FormGroup label="Blood Group">
+            <select className="form-input" value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}>
+              <option value="">Select</option>
+              {BLOOD_GROUPS.map(b => <option key={b}>{b}</option>)}
+            </select>
+          </FormGroup>
+          <FormGroup label="Hobbies"><input className="form-input" value={form.hobbies} onChange={e => set('hobbies', e.target.value)} placeholder="Cricket, Drawing…" /></FormGroup>
+        </div>
       )}
 
+      {activeSection === 'academic' && (
+        <div className="grid grid-cols-2 gap-4">
+          <FormGroup label="Admission Number *"><input className="form-input" value={form.admissionNumber} onChange={e => set('admissionNumber', e.target.value)} placeholder="STU-2024-001" /></FormGroup>
+          <FormGroup label="Roll Number"><input className="form-input" value={form.rollNumber} onChange={e => set('rollNumber', e.target.value)} placeholder="01" /></FormGroup>
+          <FormGroup label="Class" className="col-span-2">
+            <select className="form-input" value={form.classId} onChange={e => set('classId', e.target.value)}>
+              <option value="">Select class</option>
+              {classes.map(c => <option key={c._id} value={c._id}>{c.name} — {c.section}</option>)}
+            </select>
+          </FormGroup>
+          {!form._id && (
+            <div className="col-span-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 text-xs text-blue-700 dark:text-blue-300">
+              💡 Default password: <strong>Student@123</strong> — student can change after first login.
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeSection === 'guardian' && (
+        <div className="grid grid-cols-2 gap-4">
+          <FormGroup label="Parent / Guardian Name" className="col-span-2"><input className="form-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" /></FormGroup>
+          <FormGroup label="Parent Phone"><input className="form-input" value={form.parentPhone} onChange={e => set('parentPhone', e.target.value)} placeholder="9876543210" /></FormGroup>
+          <FormGroup label="Parent Email"><input type="email" className="form-input" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} placeholder="parent@email.com" /></FormGroup>
+        </div>
+      )}
+
+      {activeSection === 'address' && (
+        <div className="grid grid-cols-2 gap-4">
+          <FormGroup label="Street / House No" className="col-span-2"><input className="form-input" value={form.address?.street} onChange={e => setA('street', e.target.value)} placeholder="123 Main Street" /></FormGroup>
+          <FormGroup label="City"><input className="form-input" value={form.address?.city} onChange={e => setA('city', e.target.value)} placeholder="Pune" /></FormGroup>
+          <FormGroup label="State"><input className="form-input" value={form.address?.state} onChange={e => setA('state', e.target.value)} placeholder="Maharashtra" /></FormGroup>
+          <FormGroup label="Pincode"><input className="form-input" value={form.address?.pincode} onChange={e => setA('pincode', e.target.value)} placeholder="411001" /></FormGroup>
+        </div>
+      )}
+
+      {activeSection === 'medical' && (
+        <div className="space-y-4">
+          <FormGroup label="Medical Conditions / Allergies">
+            <textarea className="form-input" rows={4} value={form.medicalInfo} onChange={e => set('medicalInfo', e.target.value)} placeholder="Any known allergies, chronic conditions, medications…" style={{ resize: 'vertical' }} />
+          </FormGroup>
+          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700">
+            ⚕️ This information is confidential and only visible to school administration.
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
+function Section({ title, children }) {
+  return (
+    <div>
+      <h4 className="text-xs font-bold text-muted uppercase tracking-wide mb-3">{title}</h4>
+      <div className="card p-4">{children}</div>
+    </div>
+  );
+}
+
+function InfoGrid({ items }) {
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+      {items.map(({ label, value }) => (
+        <div key={label}>
+          <p className="text-[10px] text-muted uppercase tracking-wide">{label}</p>
+          <p className="text-sm font-medium text-ink dark:text-white">{value || '—'}</p>
+        </div>
+      ))}
     </div>
   );
 }
