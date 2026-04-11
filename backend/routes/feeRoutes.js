@@ -46,8 +46,9 @@ router.put('/structures/:id',   authorize(...ADMIN), ctrl.updateStructure);
 // Ledger setup (existing)
 router.post('/setup-ledger',    authorize(...ADMIN), ctrl.setupClassLedger);
 
-// Payment (existing)
+// Payment (existing + alias)
 router.post('/pay',             authorize(...ADMIN), ctrl.recordPayment);
+router.post('/payments',        authorize(...ADMIN), ctrl.recordPayment);  // alias used by frontend
 
 // Receipt — JSON + PDF download (existing + new)
 router.get('/receipt/:receiptNumber/pdf', ctrl.downloadReceipt);
