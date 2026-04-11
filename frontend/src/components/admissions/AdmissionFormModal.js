@@ -128,7 +128,8 @@ function Section({ number, title, children }) {
 
 export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   const [form,   setForm]   = useState(initial ? mergeDeep(EMPTY, initial) : EMPTY);
-  const [saving, setSaving] = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [submitted, setSubmitted] = useState(null); // holds saved application data for receipt
 
   useEffect(() => {
     setForm(initial ? mergeDeep(EMPTY, initial) : EMPTY);
@@ -164,13 +165,128 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         await admissionAPI.update(initial._id, payload);
         toast.success('Application updated!');
       } else {
-        await admissionAPI.create(payload);
+        const res = await admissionAPI.create(payload);
         toast.success('Application submitted!');
+        setSubmitted({ ...payload, applicationNumber: res.data.data?.applicationNumber || 'APP-'+Date.now().toString().slice(-6), _id: res.data.data?._id });
+        return;
       }
-      onSuccess();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to save');
     } finally { setSaving(false); }
+  };
+
+  const downloadReceipt = () => {
+    const app = submitted || { ...form, applicationNumber: initial?.applicationNumber || 'DRAFT' };
+    const win = window.open('','_blank','width=820,height=950');
+    const docsSubmitted = Object.entries(app.documents||{}).filter(([,v])=>v).map(([k])=>k.replace(/([A-Z])/g,' $1').trim());
+    win.document.write(`
+      <html><head><title>Admission Receipt - ${app.studentName}</title>
+      <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family: Arial, sans-serif; padding: 30px; color: #111; font-size:13px; }
+        .header { text-align:center; border-bottom:3px solid #6366F1; padding-bottom:16px; margin-bottom:20px; }
+        .school-name { font-size:22px; font-weight:900; color:#1F2937; }
+        .school-sub { font-size:12px; color:#6B7280; margin-top:4px; }
+        .receipt-title { display:inline-block; margin-top:12px; padding:5px 20px; border:2px solid #6366F1; border-radius:6px; font-size:14px; font-weight:700; color:#6366F1; }
+        .app-no { margin:14px 0; text-align:center; background:#F8F8FF; border:1px solid #E0E0FF; border-radius:8px; padding:10px; font-size:13px; color:#374151; }
+        .app-no strong { color:#6366F1; font-size:15px; }
+        .status-badge { display:inline-block; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; background:#D1FAE5; color:#065F46; margin-left:10px; }
+        .section { margin-bottom:16px; }
+        .section-title { font-size:11px; font-weight:700; color:#6366F1; text-transform:uppercase; letter-spacing:.08em; border-bottom:1.5px solid #E5E7EB; padding-bottom:5px; margin-bottom:10px; }
+        table { width:100%; border-collapse:collapse; font-size:12px; }
+        td { padding:6px 10px; border-bottom:0.5px solid #F3F4F6; vertical-align:top; }
+        td:first-child { color:#6B7280; width:35%; font-weight:600; }
+        td:nth-child(3) { color:#6B7280; width:25%; font-weight:600; }
+        .doc-grid { display:flex; flex-wrap:wrap; gap:6px; padding:6px 0; }
+        .doc-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#EEF2FF; color:#4338CA; }
+        .footer { margin-top:32px; padding-top:14px; border-top:1.5px solid #E5E7EB; display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; font-size:12px; }
+        .sign-box { text-align:center; }
+        .sign-line { border-bottom:1px solid #374151; margin:24px auto 6px; width:140px; }
+        .notice { margin-top:20px; padding:10px 14px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; font-size:11px; color:#92400E; }
+        @page { margin:12mm; size:A4; }
+        @media print { body { padding:0; } }
+      </style></head><body>
+      <div class="header">
+        <div class="school-name">The Future Step School</div>
+        <div class="school-sub">Securing Future By Adaptive Learning | thefuturestepschool.in</div>
+        <div class="receipt-title">Admission Application Receipt</div>
+      </div>
+      <div class="app-no">
+        Application No: <strong>${app.applicationNumber || '—'}</strong>
+        <span class="status-badge">Submitted</span>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        Date: <strong>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</strong>
+      </div>
+
+      <div class="section">
+        <div class="section-title">1. Student Information</div>
+        <table>
+          <tr><td>Student Name</td><td><strong>${app.studentName||'—'}</strong></td><td>Class Applied</td><td><strong>${app.applyingForClass||'—'}</strong></td></tr>
+          <tr><td>Date of Birth</td><td>${app.dateOfBirth?new Date(app.dateOfBirth).toLocaleDateString('en-IN'):'—'}</td><td>Gender</td><td>${app.gender||'—'}</td></tr>
+          <tr><td>Blood Group</td><td>${app.bloodGroup||'—'}</td><td>Aadhaar No</td><td>${app.aadhaarNumber||'—'}</td></tr>
+          <tr><td>Religion</td><td>${app.religion||'—'}</td><td>Category</td><td>${app.category||'—'}</td></tr>
+          <tr><td>Caste</td><td>${app.cast||'—'}</td><td>Nationality</td><td>${app.nationality||'—'}</td></tr>
+          <tr><td>Address</td><td colspan="3">${[app.address,app.city,app.state,app.pincode].filter(Boolean).join(', ')||'—'}</td></tr>
+          <tr><td>Date of Admission</td><td>${app.dateOfAdmission?new Date(app.dateOfAdmission).toLocaleDateString('en-IN'):'—'}</td><td>Academic Year</td><td>${app.academicYear||'—'}</td></tr>
+          <tr><td>Discount in Fee</td><td>${app.discountInFee?app.discountInFee+'%':'—'}</td><td>Mobile (SMS)</td><td>${app.mobileForSMS||'—'}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">2. Parent / Guardian Information</div>
+        <table>
+          <tr><td>Father's Name</td><td>${app.fatherName||'—'}</td><td>Father's Phone</td><td>${app.fatherPhone||'—'}</td></tr>
+          <tr><td>Father's Occupation</td><td>${app.fatherOccupation||'—'}</td><td>Mother's Name</td><td>${app.motherName||'—'}</td></tr>
+          <tr><td>Mother's Phone</td><td>${app.motherPhone||'—'}</td><td>Mother's Occupation</td><td>${app.motherOccupation||'—'}</td></tr>
+          <tr><td>Primary Contact</td><td><strong>${app.parentName||'—'}</strong></td><td>Contact Phone</td><td><strong>${app.parentPhone||'—'}</strong></td></tr>
+          <tr><td>Email</td><td colspan="3">${app.parentEmail||'—'}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">3. Previous School Details</div>
+        <table>
+          <tr><td>School Name</td><td>${app.previousSchoolName||app.previousSchool||'—'}</td><td>Board</td><td>${app.previousBoard||'—'}</td></tr>
+          <tr><td>Previous Class</td><td>${app.previousClass||'—'}</td><td>Grade / CGPA</td><td>${app.previousGrade||'—'}</td></tr>
+          <tr><td>TC Number</td><td>${app.tcNumber||'—'}</td><td>LC Number</td><td>${app.lcNumber||'—'}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">4. Documents Submitted (${docsSubmitted.length} / 14)</div>
+        <div class="doc-grid">
+          ${docsSubmitted.length
+            ? docsSubmitted.map(d=>`<span class="doc-badge">✓ ${d}</span>`).join('')
+            : '<span style="color:#9CA3AF;font-size:12px">No documents uploaded yet</span>'}
+        </div>
+      </div>
+
+      <div class="notice">
+        ⚠️ This is a preliminary application receipt. Admission is confirmed only after document verification and approval by the school administration.
+      </div>
+
+      <div class="footer">
+        <div class="sign-box">
+          <div style="font-weight:700;margin-bottom:4px">Prepared By</div>
+          <div class="sign-line"></div>
+          <div>The Future Step School</div>
+        </div>
+        <div class="sign-box">
+          <div style="font-weight:700;margin-bottom:4px">Parent / Guardian Signature</div>
+          <div class="sign-line"></div>
+          <div>${app.parentName||'—'}</div>
+        </div>
+        <div class="sign-box">
+          <div style="font-weight:700;margin-bottom:4px">Received By</div>
+          <div class="sign-line"></div>
+          <div>School Admin</div>
+        </div>
+      </div>
+      </body></html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(()=>{ win.print(); }, 600);
   };
 
   const docsTotal   = Object.keys(form.documents).length;
@@ -464,13 +580,42 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         </div>
 
         {/* Footer */}
-        <div style={{ background:'#fff', padding:'16px 28px', borderTop:'1px solid #E5E7EB', display:'flex', gap:12, flexShrink:0 }}>
-          <button onClick={onClose} style={{ flex:1, padding:'12px', borderRadius:22, border:'1.5px solid #E5E7EB', fontSize:14, fontWeight:600, cursor:'pointer', color:'#6B7280', background:'#fff' }}>
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={saving} style={{ flex:2, padding:'12px', borderRadius:22, border:'none', fontSize:14, fontWeight:700, cursor:saving?'not-allowed':'pointer', background:saving?'#9CA3AF':'#6366F1', color:'#fff' }}>
-            {saving ? '⏳ Saving...' : initial?._id ? '✓ Save Changes' : '✓ Submit Application'}
-          </button>
+        <div style={{ background:'#fff', padding:'16px 28px', borderTop:'1px solid #E5E7EB', flexShrink:0 }}>
+          {submitted ? (
+            /* After successful submission - show receipt options */
+            <div>
+              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:'14px 18px', marginBottom:14, display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ fontSize:24 }}>✅</div>
+                <div>
+                  <div style={{ fontWeight:700, color:'#15803D', fontSize:14 }}>Application Submitted Successfully!</div>
+                  <div style={{ fontSize:12, color:'#16A34A', marginTop:2 }}>Application No: <strong>{submitted.applicationNumber}</strong></div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={downloadReceipt} style={{ flex:1, padding:'12px', borderRadius:22, border:'none', fontSize:14, fontWeight:700, cursor:'pointer', background:'#6366F1', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  🖨 Download / Print Receipt
+                </button>
+                <button onClick={()=>{ setSubmitted(null); onSuccess(); }} style={{ flex:1, padding:'12px', borderRadius:22, border:'1.5px solid #E5E7EB', fontSize:14, fontWeight:600, cursor:'pointer', color:'#6B7280', background:'#fff' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Normal footer */
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={onClose} style={{ flex:1, padding:'12px', borderRadius:22, border:'1.5px solid #E5E7EB', fontSize:14, fontWeight:600, cursor:'pointer', color:'#6B7280', background:'#fff' }}>
+                Cancel
+              </button>
+              {initial?._id && (
+                <button onClick={downloadReceipt} style={{ flex:1, padding:'12px', borderRadius:22, border:'1.5px solid #6366F1', fontSize:14, fontWeight:600, cursor:'pointer', color:'#6366F1', background:'#EEF2FF' }}>
+                  🖨 Download Receipt
+                </button>
+              )}
+              <button onClick={handleSubmit} disabled={saving} style={{ flex:2, padding:'12px', borderRadius:22, border:'none', fontSize:14, fontWeight:700, cursor:saving?'not-allowed':'pointer', background:saving?'#9CA3AF':'#6366F1', color:'#fff' }}>
+                {saving ? '⏳ Saving...' : initial?._id ? '✓ Save Changes' : '✓ Submit Application'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
