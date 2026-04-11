@@ -220,6 +220,7 @@ export default function Admissions() {
   const [page,         setPage]         = useState(1);
   const [detailId,     setDetailId]     = useState(null);
   const [formModal,    setFormModal]    = useState({ open:false, data:null });
+  const [enrollModal,  setEnrollModal]  = useState({ open:false, data:null });
   const limit = 20;
 
   const downloadReceipt = (app) => {
