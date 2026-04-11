@@ -61,19 +61,13 @@ const EMPTY = {
   // Section 5 - Documents Checklist
   documents: {
     birthCertificate:    null,
-    aadhaarStudent:      null,
-    aadhaarParent:       null,
-    photos:              null,
+    aadhaarCard:         null,
+    passportPhoto:       null,
     addressProof:        null,
-    leavingCertificate:  null,
     transferCertificate: null,
-    previousMarksheet:   null,
+    marksheet:           null,
     casteCertificate:    null,
-    incomeCertificate:   null,
-    bankDetails:         null,
     medicalCertificate:  null,
-    apaarId:             null,
-    studentId:           null,
   },
 
   // Meta
@@ -136,7 +130,13 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }, [initial]);
 
   const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const setDoc = (k, file) => setForm(f => ({ ...f, documents: { ...f.documents, [k]: file ? file.name : null } }));
+  const setDoc = (k, file) => setForm(f => ({
+    ...f,
+    documents: {
+      ...f.documents,
+      [k]: file ? { submitted: true, url: file.name, fileName: file.name } : null
+    }
+  }));
 
   const handleSubmit = async () => {
     if (!form.studentName)    return toast.error('Student name is required');
@@ -145,12 +145,24 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     if (!form.parentPhone)    return toast.error('Parent phone is required');
 
     // Map fields for backend compatibility
+    const classNum = parseInt(form.applyingForClass) || 1;
     const payload = {
       ...form,
+      applyingForClass: classNum,
       parentEmail: form.parentEmail || `${form.parentPhone}@school.local`,
       father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone },
       mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone },
       address: { street: form.address, city: form.city, state: form.state, pincode: form.pincode },
+        documents: {
+          birthCertificate:    form.documents.birthCertificate    ? { submitted: true, url: form.documents.birthCertificate.fileName||'' }    : { submitted: false },
+          aadhaarCard:         form.documents.aadhaarCard         ? { submitted: true, url: form.documents.aadhaarCard.fileName||'' }         : { submitted: false },
+          passportPhoto:       form.documents.passportPhoto       ? { submitted: true, url: form.documents.passportPhoto.fileName||'' }       : { submitted: false },
+          addressProof:        form.documents.addressProof        ? { submitted: true, url: form.documents.addressProof.fileName||'' }        : { submitted: false },
+          transferCertificate: form.documents.transferCertificate ? { submitted: true, url: form.documents.transferCertificate.fileName||'' } : { submitted: false },
+          marksheet:           form.documents.marksheet           ? { submitted: true, url: form.documents.marksheet.fileName||'' }           : { submitted: false },
+          casteCertificate:    form.documents.casteCertificate    ? { submitted: true, url: form.documents.casteCertificate.fileName||'' }    : { submitted: false },
+          medicalCertificate:  form.documents.medicalCertificate  ? { submitted: true, url: form.documents.medicalCertificate.fileName||'' }  : { submitted: false },
+        },
       previousSchool: form.previousSchoolName || form.previousSchool,
       previousBoard:  form.previousBoard,
       previousClass:  form.previousClass,
@@ -326,7 +338,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Select Class" required>
               <select style={SEL} value={form.applyingForClass} onChange={e=>set('applyingForClass',e.target.value)}>
                 <option value="">Select Class</option>
-                {['Nursery','LKG','UKG',...Array.from({length:12},(_,i)=>`Class ${i+1}`)].map(c=><option key={c} value={c}>{c}</option>)}
+                {[{v:1,l:'Grade 1 / Class I'},{v:2,l:'Grade 2 / Class II'},{v:3,l:'Grade 3 / Class III'},{v:4,l:'Grade 4 / Class IV'},{v:5,l:'Grade 5 / Class V'},{v:6,l:'Grade 6 / Class VI'},{v:7,l:'Grade 7 / Class VII'},{v:8,l:'Grade 8 / Class VIII'},{v:9,l:'Grade 9 / Class IX'},{v:10,l:'Grade 10 / Class X'},{v:11,l:'Grade 11 / Class XI'},{v:12,l:'Grade 12 / Class XII'}].map(c=><option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
             </FloatInput>
             <FloatInput label="Date of Admission" required>
@@ -347,7 +359,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Category">
               <select style={SEL} value={form.category} onChange={e=>set('category',e.target.value)}>
                 <option value="">Select</option>
-                {['General','OBC','SC','ST','Other'].map(c=><option key={c}>{c}</option>)}
+                <option value="general">General</option>
+                <option value="obc">OBC</option>
+                <option value="sc">SC</option>
+                <option value="st">ST</option>
+                <option value="other">Other</option>
               </select>
             </FloatInput>
           </Section>
