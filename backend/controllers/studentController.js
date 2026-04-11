@@ -50,12 +50,22 @@ exports.getStudents = async (req, res) => {
   if (req.query.isActive) filter.isActive = req.query.isActive === 'true';
   if (req.query.gender)   filter.gender   = req.query.gender;
   if (req.query.status)   filter.status   = req.query.status;
+  // Build base query without search first
+  let students;
   if (req.query.search) {
     const re = { $regex: req.query.search, $options: 'i' };
-    filter.$or = [{ admissionNumber: re }, { rollNumber: re }, { parentName: re }];
+    // First find users matching the name
+    const matchingUsers = await User.find({ name: re, school: req.user.school }).select('_id');
+    const userIds = matchingUsers.map(u => u._id);
+    filter.$or = [
+      { admissionNumber: re },
+      { rollNumber: re },
+      { parentName: re },
+      { user: { $in: userIds } }
+    ];
   }
 
-  const students = await Student.find(filter)
+  students = await Student.find(filter)
     .populate('user',     'name email phone profileImage')
     .populate('class',    'name grade section')
     .populate('parentId', 'name email phone')
