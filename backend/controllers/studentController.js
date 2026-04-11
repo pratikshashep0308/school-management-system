@@ -223,14 +223,21 @@ exports.updateStudent = async (req, res) => {
 
 // ── DELETE (soft) ─────────────────────────────────────────────────────────────
 exports.deleteStudent = async (req, res) => {
+  const { hard } = req.query; // ?hard=true for permanent delete
   const student = await Student.findOne({ _id: req.params.id, school: req.user.school });
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
+  if (hard === 'true') {
+    // Permanent delete
+    await Student.findByIdAndDelete(student._id);
+    await User.findByIdAndDelete(student.user);
+    return res.json({ success: true, message: 'Student permanently deleted' });
+  }
+
+  // Soft delete (deactivate)
   await Student.findByIdAndUpdate(student._id, { isActive: false, status: 'inactive' });
   await User.findByIdAndUpdate(student.user, { isActive: false });
-  // NOTE: we do NOT deactivate the parent User here — they may have other children
-
-  res.json({ success: true, message: 'Student deactivated' });
+  res.json({ success: true, message: 'Student deleted' });
 };
 
 // ── MY PROFILE (student role) ─────────────────────────────────────────────────

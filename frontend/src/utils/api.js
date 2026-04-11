@@ -58,7 +58,7 @@ export const studentAPI = {
   getMyProfile: ()           => api.get('/students/my-profile'),
   create:       (data)       => api.post('/students', data),
   update:       (id, data)   => api.put(`/students/${id}`, data),
-  delete:       (id)         => api.delete(`/students/${id}`),
+  delete:       (id)         => api.delete(`/students/${id}?hard=true`),
 };
 
 // ── TEACHERS ──────────────────────────────────────────────────────────────────
@@ -109,36 +109,11 @@ export const examAPI = {
 
 // ── FEES ──────────────────────────────────────────────────────────────────────
 export const feeAPI = {
-  // Dashboard & analytics
-  getDashboard:    ()           => api.get('/fees/dashboard'),
-  getAnalytics:    (params)     => api.get('/fees/analytics', { params }),
-  getSummary:      ()           => api.get('/fees/summary'),
-  getClassSummary: (params)     => api.get('/fees/class-summary', { params }),
-  getStudentsFees: (params)     => api.get('/fees/students', { params }),
-
-  // Fee types
-  getFeeTypes:     ()           => api.get('/fees/types'),
-  createFeeType:   (data)       => api.post('/fees/types', data),
-  updateFeeType:   (id, data)   => api.put(`/fees/types/${id}`, data),
-  deleteFeeType:   (id)         => api.delete(`/fees/types/${id}`),
-
-  // Fee assignments
-  getAssignments:  (params)     => api.get('/fees/assignments', { params }),
-  createAssignment:(data)       => api.post('/fees/assignments', data),
-  updateAssignment:(id, data)   => api.put(`/fees/assignments/${id}`, data),
-  deleteAssignment:(id)         => api.delete(`/fees/assignments/${id}`),
-  payAssignment:   (id, data)   => api.post(`/fees/assignments/${id}/pay`, data),
-
-  // Student ledger
-  getStudentFee:   (studentId)  => api.get(`/fees/student/${studentId}`),
-
-  // Structures (legacy)
-  getStructures:   ()           => api.get('/fees/structures'),
-  createStructure: (data)       => api.post('/fees/structures', data),
-  recordPayment:   (data)       => api.post('/fees/pay', data),
-
-  // Receipt
-  getReceipt:      (num)        => api.get(`/fees/receipt/${num}`),
+  getStructures:   ()       => api.get('/fees/structures'),
+  createStructure: (data)   => api.post('/fees/structures', data),
+  getPayments:     (params) => api.get('/fees/payments', { params }),
+  recordPayment:   (data)   => api.post('/fees/payments', data),
+  getSummary:      ()       => api.get('/fees/summary'),
 };
 
 // ── TIMETABLE ─────────────────────────────────────────────────────────────────

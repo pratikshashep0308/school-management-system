@@ -104,9 +104,17 @@ export default function Students() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Deactivate ${name}?`)) return;
-    try { await studentAPI.delete(id); toast.success('Student deactivated'); load(); }
-    catch { toast.error('Failed to deactivate'); }
+    if (!id) return toast.error('Invalid student');
+    if (!window.confirm(`Delete student "${name}"?\n\nThis will permanently remove the student from the system.`)) return;
+    try {
+      await studentAPI.delete(id);
+      toast.success(`${name} deleted successfully`);
+      load();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to delete';
+      toast.error(msg);
+      console.error('Delete error:', err);
+    }
   };
 
   return (
