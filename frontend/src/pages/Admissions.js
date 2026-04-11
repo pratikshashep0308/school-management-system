@@ -31,7 +31,7 @@ function KPICard({ label, value, sub, color, bg, onClick, active }) {
   );
 }
 
-function AppRow({ app, onView, onEdit, onDelete, onDownload, isAdmin }) {
+function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, isAdmin }) {
   const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
   return (
     <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
@@ -46,6 +46,12 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, isAdmin }) {
           <div>
             <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{app.studentName}</div>
             <div style={{ fontSize:11, color:'#9CA3AF', fontFamily:'monospace' }}>{app.applicationNumber}</div>
+            <div style={{ marginTop:3 }}>
+              {(()=>{
+                const sm = STATUS_META[app.status]||STATUS_META.pending;
+                return <span style={{ fontSize:10, fontWeight:700, color:sm.color, background:sm.bg, border:`1px solid ${sm.border}`, padding:'2px 8px', borderRadius:20 }}>{sm.label}</span>;
+              })()}
+            </div>
           </div>
         </div>
       </td>
@@ -77,6 +83,18 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, isAdmin }) {
             style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#F0FDF4', border:'1px solid #BBF7D0', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
             ⬇ Download
           </button>
+          {isAdmin && app.status==='pending' && (
+            <button onClick={()=>onStatusChange(app._id,'approved')}
+              style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#D1FAE5', border:'1px solid #6EE7B7', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              ✓ Approve
+            </button>
+          )}
+          {isAdmin && app.status==='approved' && (
+            <button onClick={()=>onStatusChange(app._id,'enrolled')}
+              style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              🎓 Enroll
+            </button>
+          )}
           {isAdmin && <>
             <button onClick={()=>onEdit(app)}
               style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
@@ -214,6 +232,14 @@ export default function Admissions() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter]);
+
+  const handleStatusChange = async (id, status) => {
+    try {
+      await admissionAPI.updateStatus(id, { status });
+      toast.success(`Status updated to ${status}`);
+      load();
+    } catch { toast.error('Failed to update status'); }
+  };
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete application for ${name}?`)) return;
@@ -409,7 +435,8 @@ export default function Admissions() {
                     onView={()=>setDetailId(app._id)}
                     onEdit={(a)=>setFormModal({open:true,data:a})}
                     onDelete={handleDelete}
-                    onDownload={(a)=>downloadReceipt(a)}/>
+                    onDownload={(a)=>downloadReceipt(a)}
+                    onStatusChange={handleStatusChange}/>
                 ))}
               </tbody>
             </table>
