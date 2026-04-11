@@ -89,9 +89,9 @@ exports.createStudent = async (req, res) => {
   } = req.body;
 
   // Resolve guardian fields (form may use either naming convention)
-  const resolvedParentName  = parentName  || guardianName  || null;
-  const resolvedParentEmail = parentEmail || guardianEmail || null;
-  const resolvedParentPhone = parentPhone || guardianPhone || null;
+  const resolvedParentName  = (parentName  || guardianName  || '').trim() || null;
+  const resolvedParentEmail = (parentEmail || guardianEmail || '').trim() || null;
+  const resolvedParentPhone = (parentPhone || guardianPhone || '').trim() || null;
 
   // 1. Validate student email uniqueness
   if (email) {

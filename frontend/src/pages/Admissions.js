@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { admissionAPI } from '../utils/admissionUtils';
+import { studentAPI, classAPI } from '../utils/api';
 import AdmissionDetailModal from '../components/admissions/AdmissionDetailModal';
 import AdmissionFormModal   from '../components/admissions/AdmissionFormModal';
 
@@ -31,7 +32,102 @@ function KPICard({ label, value, sub, color, bg, onClick, active }) {
   );
 }
 
-function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, isAdmin }) {
+function EnrollModal({ app, onClose, onSuccess }) {
+  const [classes,     setClasses]    = React.useState([]);
+  const [enrollClass, setEnrollClass]= React.useState('');
+  const [enrollRoll,  setEnrollRoll] = React.useState('');
+  const [enrolling,   setEnrolling]  = React.useState(false);
+
+  React.useEffect(()=>{
+    classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{});
+  },[]);
+
+  const handleEnroll = async () => {
+    if (!enrollClass) return toast.error('Please select a class');
+    setEnrolling(true);
+    try {
+      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
+      const cleanName = nameParts.join('');
+      const uniqueEmail = cleanName + '.' + Date.now() + '@student.local';
+      const payload = {
+        name:            app.studentName,
+        email:           uniqueEmail,
+        phone:           app.parentPhone || '',
+        password:        'Student@123',
+        role:            'student',
+        classId:         enrollClass,
+        rollNumber:      enrollRoll || '',
+        gender:          app.gender || 'other',
+        parentName:      app.parentName || '',
+        parentPhone:     app.parentPhone || '',
+        admissionNumber: (app.applicationNumber||'STU') + '-' + Date.now().toString().slice(-6),
+        status:          'active',
+        isActive:        true,
+      };
+      // Only add parentEmail if it's a valid email (avoid empty string causing DB error)
+      if (app.parentEmail && app.parentEmail.includes('@')) {
+        payload.parentEmail = app.parentEmail;
+      }
+      await studentAPI.create(payload);
+      await admissionAPI.updateStatus(app._id, { status:'enrolled', notes:`Enrolled. Roll: ${enrollRoll||'—'}` });
+      toast.success('✅ ' + app.studentName + ' enrolled! Login: ' + uniqueEmail + ' / Student@123');
+      onSuccess();
+    } catch(err) {
+      const msg = err.response?.data?.message || err.message || 'Enrollment failed';
+      console.error('Enroll error:', err.response?.data || err);
+      toast.error(msg);
+    } finally { setEnrolling(false); }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.5)', padding:16 }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:440, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+        <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F0FDF4' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:16, color:'#065F46' }}>🎓 Enroll as Student</div>
+            <div style={{ fontSize:13, color:'#059669', marginTop:2 }}>{app.studentName}</div>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:8, border:'1px solid #D1FAE5', background:'#fff', cursor:'pointer', fontSize:18, color:'#6B7280' }}>×</button>
+        </div>
+        <div style={{ padding:'20px 24px' }}>
+          <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px', marginBottom:16, fontSize:12, color:'#374151' }}>
+            <div><strong>Application:</strong> {app.applicationNumber}</div>
+            <div><strong>Class Applied:</strong> Class {app.applyingForClass}</div>
+            <div><strong>Parent:</strong> {app.parentName} · {app.parentPhone}</div>
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', display:'block', marginBottom:5 }}>Assign to Class *</label>
+            <select value={enrollClass} onChange={e=>setEnrollClass(e.target.value)}
+              style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none', background:'#fff' }}>
+              <option value="">Select Class</option>
+              {classes.map(cl=><option key={cl._id} value={cl._id}>{cl.name} {cl.section||''}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', display:'block', marginBottom:5 }}>Roll Number</label>
+            <input value={enrollRoll} onChange={e=>setEnrollRoll(e.target.value)} placeholder="e.g. 01"
+              style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none' }}/>
+          </div>
+          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'10px 12px', fontSize:12, color:'#92400E', marginBottom:16 }}>
+            Default password: <strong>Student@123</strong> — student can change after first login
+          </div>
+        </div>
+        <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10 }}>
+          <button onClick={onClose}
+            style={{ flex:1, padding:'11px', borderRadius:9, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', color:'#6B7280' }}>
+            Cancel
+          </button>
+          <button onClick={handleEnroll} disabled={enrolling}
+            style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:enrolling?'#9CA3AF':'#059669', color:'#fff', fontSize:13, fontWeight:700, cursor:enrolling?'not-allowed':'pointer' }}>
+            {enrolling ? '⏳ Enrolling...' : '✓ Confirm Enrollment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, isAdmin }) {
   const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
   return (
     <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
@@ -90,7 +186,7 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, isA
             </button>
           )}
           {isAdmin && app.status==='approved' && (
-            <button onClick={()=>onStatusChange(app._id,'enrolled')}
+            <button onClick={()=>onEnroll(app)}
               style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
               🎓 Enroll
             </button>
@@ -436,7 +532,8 @@ export default function Admissions() {
                     onEdit={(a)=>setFormModal({open:true,data:a})}
                     onDelete={handleDelete}
                     onDownload={(a)=>downloadReceipt(a)}
-                    onStatusChange={handleStatusChange}/>
+                    onStatusChange={handleStatusChange}
+                    onEnroll={(a)=>setEnrollModal({open:true,data:a})}/>
                 ))}
               </tbody>
             </table>
