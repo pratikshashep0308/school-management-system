@@ -9,14 +9,12 @@ import { useAuth } from '../context/AuthContext';
 // Lazy-load sub-pages to keep initial bundle small
 const AdminTransport    = React.lazy(() => import('./transport/AdminTransport'));
 const LiveTracking      = React.lazy(() => import('./transport/LiveTracking'));
-const TransportFees     = React.lazy(() => import('./transport/TransportFees'));
 const StudentTransportView = React.lazy(() => import('./transport/StudentTransportView'));
 
 const ADMIN_ROLES = ['superAdmin', 'schoolAdmin', 'transportManager'];
 const ADMIN_TABS  = [
   { id: 'manage',   icon: '🚌', label: 'Manage'   },
   { id: 'tracking', icon: '🗺️', label: 'Live Map' },
-  { id: 'fees',     icon: '💰', label: 'Fees'     },
 ];
 
 export default function Transport() {
@@ -74,7 +72,6 @@ function AdminPanel() {
       <React.Suspense fallback={<PageLoader />}>
         {tab === 'manage'   && <AdminTransport />}
         {tab === 'tracking' && <LiveTracking />}
-        {tab === 'fees'     && <TransportFees />}
       </React.Suspense>
     </div>
   );
