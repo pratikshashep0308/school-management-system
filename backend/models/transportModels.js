@@ -38,8 +38,8 @@ const BusSchema = new Schema({
   status:   { type: String, enum: ['active','maintenance','inactive','breakdown'], default: 'active' },
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
-BusSchema.index({ school: 1, busNumber: 1 }, { unique: true });
-BusSchema.index({ school: 1, registrationNo: 1 }, { unique: true });
+BusSchema.index({ school: 1, busNumber: 1 });
+BusSchema.index({ school: 1, registrationNo: 1 }); // unique removed
 
 // ── STOP ──────────────────────────────────────────────────────────────────────
 const StopSchema = new Schema({
@@ -76,7 +76,7 @@ const BusRouteSchema = new Schema({
   totalStudents:        { type: Number, default: 0 },
   isActive:             { type: Boolean, default: true },
 }, { timestamps: true });
-BusRouteSchema.index({ school: 1, code: 1 }, { unique: true });
+BusRouteSchema.index({ school: 1, code: 1 }); // unique removed
 
 // ── TRANSPORT ASSIGNMENT  ✅ FIXED ────────────────────────────────────────────
 // Top-level routeId/busId/pickupStopId/dropStopId for direct querying

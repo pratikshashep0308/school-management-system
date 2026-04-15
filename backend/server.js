@@ -1,3 +1,14 @@
+// Drop old unique transport indexes (one-time migration)
+async function dropTransportIndexes() {
+  try {
+    const db = mongoose.connection.db;
+    await db.collection('buses').dropIndex('school_1_busNumber_1').catch(()=>{});
+    await db.collection('buses').dropIndex('school_1_registrationNo_1').catch(()=>{});
+    await db.collection('busroutes').dropIndex('school_1_code_1').catch(()=>{});
+    console.log('Transport indexes reset');
+  } catch(e) { console.log('Index drop skipped:', e.message); }
+}
+
 const express    = require('express');
 const cors       = require('cors');
 const helmet     = require('helmet');
