@@ -10,11 +10,18 @@ const connectDB = async () => {
     // ── Drop stale unique index on TransportAssignment.student ──────────────
     // Older schema versions added unique:true on student field.
     // That index prevents re-assigning the same student to a new route.
-    try {
-      await conn.connection.collection('transportassignments').dropIndex('student_1');
-      console.log('✅ Migration: dropped stale unique index on transportassignments.student');
-    } catch (_) {
-      // Index doesn't exist — nothing to do
+    // Drop stale indexes
+    const drops = [
+      ['transportassignments', 'student_1'],
+      ['buses', 'school_1_busNumber_1'],
+      ['buses', 'school_1_registrationNo_1'],
+      ['busroutes', 'school_1_code_1'],
+    ];
+    for (const [col, idx] of drops) {
+      try {
+        await conn.connection.collection(col).dropIndex(idx);
+        console.log('✅ Dropped index:', col, idx);
+      } catch (_) {}
     }
   } catch (error) {
     console.error(`❌ MongoDB connection error: ${error.message}`);

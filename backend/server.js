@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 // Drop old unique transport indexes (one-time migration)
 async function dropTransportIndexes() {
   try {
@@ -171,6 +172,6 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 🔗 Connect MongoDB
 // ─────────────────────────────────────────────────────────────────────────────
-connectDB().catch(err =>
-  console.error('❌ MongoDB connection error:', err.message)
-);
+connectDB()
+  .then(() => dropTransportIndexes())
+  .catch(err => console.error('❌ MongoDB connection error:', err.message));
