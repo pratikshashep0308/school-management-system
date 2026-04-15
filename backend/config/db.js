@@ -14,8 +14,12 @@ const connectDB = async () => {
     const drops = [
       ['transportassignments', 'student_1'],
       ['buses', 'school_1_busNumber_1'],
+      ['buses', 'busNumber_1'],
       ['buses', 'school_1_registrationNo_1'],
+      ['buses', 'registrationNo_1'],
       ['busroutes', 'school_1_code_1'],
+      ['busroutes', 'code_1'],
+      ['busroutes', 'school_1'],
     ];
     for (const [col, idx] of drops) {
       try {
