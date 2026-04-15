@@ -81,15 +81,12 @@ exports.getBus = async (req, res) => {
 };
 
 exports.createBus = async (req, res) => {
-  const existing = await Bus.findOne({
-    $or: [
-      { busNumber: req.body.busNumber?.toUpperCase(), school: req.user.school },
-      { registrationNo: req.body.registrationNo?.toUpperCase(), school: req.user.school },
-    ],
-  });
-  if (existing) return res.status(400).json({ success: false, message: 'Bus number or registration already exists' });
-
-  const bus = await Bus.create({ ...req.body, school: req.user.school });
+  // Auto-make busNumber unique if duplicate
+  let busNumber = (req.body.busNumber || 'BUS').toUpperCase();
+  const existingBus = await Bus.findOne({ busNumber, school: req.user.school });
+  if (existingBus) busNumber = busNumber + '-' + Date.now().toString().slice(-4);
+  
+  const bus = await Bus.create({ ...req.body, busNumber, school: req.user.school });
   if (req.body.assignedRoute) {
     await BusRoute.findByIdAndUpdate(req.body.assignedRoute, { assignedBus: bus._id });
   }
@@ -239,8 +236,12 @@ exports.getRoute = async (req, res) => {
 
 exports.createRoute = async (req, res) => {
   const { stops: stopData, ...routeData } = req.body;
-  const existing = await BusRoute.findOne({ code: routeData.code?.toUpperCase(), school: req.user.school });
-  if (existing) return res.status(400).json({ success: false, message: 'Route code already exists' });
+
+  // Auto-make code unique if duplicate exists
+  let code = (routeData.code || 'R').toUpperCase();
+  const existingCode = await BusRoute.findOne({ code, school: req.user.school });
+  if (existingCode) code = code + '-' + Date.now().toString().slice(-4);
+  routeData.code = code;
 
   const route = await BusRoute.create({ ...routeData, school: req.user.school });
 
