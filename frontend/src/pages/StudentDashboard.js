@@ -948,6 +948,43 @@ export default function StudentDashboard() {
                   ))}
                 </div>
               </div>
+
+              {/* GPS Live Location */}
+              <div className="card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize:20 }}>📡</span>
+                    <div>
+                      <div className="font-bold text-sm text-ink dark:text-white">Live Bus Location</div>
+                      <div className="text-xs text-muted">Updates every 30 seconds</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
+                    🟢 Live
+                  </span>
+                </div>
+                {transport.currentLocation?.lat && transport.currentLocation?.lng ? (
+                  <div>
+                    <iframe
+                      title="Bus Live Location"
+                      width="100%"
+                      height="220"
+                      style={{ border:'none', borderRadius:12 }}
+                      src={`https://maps.google.com/maps?q=${transport.currentLocation.lat},${transport.currentLocation.lng}&z=15&output=embed`}
+                    />
+                    <div className="flex items-center gap-2 mt-3 text-xs text-muted">
+                      <span>📍</span>
+                      <span>Lat: {transport.currentLocation.lat?.toFixed(5)}, Lng: {transport.currentLocation.lng?.toFixed(5)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background:'#F8FAFC', borderRadius:12, padding:'32px 16px', textAlign:'center' }}>
+                    <div style={{ fontSize:36, marginBottom:8 }}>🗺️</div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:4 }}>GPS location not available</div>
+                    <div style={{ fontSize:12, color:'#9CA3AF' }}>Location will appear here once the bus device is active</div>
+                  </div>
+                )}
+              </div>
               <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200">
                 <p className="font-semibold text-blue-700 dark:text-blue-300 text-sm">🔔 Reminder</p>
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
