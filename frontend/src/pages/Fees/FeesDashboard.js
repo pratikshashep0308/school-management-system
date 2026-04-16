@@ -101,15 +101,23 @@ export default function FeesDashboard({ onNavigate }) {
           {!recentPayments.length ? (
             <EmptyState icon="💳" title="No payments yet" subtitle="Payments will appear here"/>
           ) : recentPayments.map((p,i) => (
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6' }}>
+            <div key={i} onClick={()=>onNavigate?.('slip')}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
+              onMouseEnter={e=>e.currentTarget.style.background='#F8FAFF'}
+              onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
               <div style={{ width:38, height:38, borderRadius:10, background:'#D1FAE5', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>✅</div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:600, fontSize:13, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {p.studentName || p.student?.user?.name || '—'}
                 </div>
-                <div style={{ fontSize:11, color:'#9CA3AF' }}>{p.feeType} · {p.paidOn ? new Date(p.paidOn).toLocaleDateString('en-IN') : '—'}</div>
+                <div style={{ fontSize:11, color:'#9CA3AF' }}>
+                  {p.className ? `${p.className} · ` : ''}{p.month || p.feeType || 'Payment'} · {p.paidOn ? new Date(p.paidOn).toLocaleDateString('en-IN') : '—'}
+                </div>
               </div>
-              <div style={{ fontWeight:800, fontSize:14, color:'#16A34A', flexShrink:0 }}>{fmt(p.amount)}</div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div style={{ fontWeight:800, fontSize:14, color:'#16A34A' }}>{fmt(p.amount)}</div>
+                {p.receiptNumber && <div style={{ fontSize:10, color:'#9CA3AF' }}>#{p.receiptNumber}</div>}
+              </div>
             </div>
           ))}
         </div>

@@ -4,18 +4,113 @@ import { teacherAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, Badge, Avatar, ActionBtn, SearchBox, LoadingState, EmptyState } from '../components/ui';
 
-const COLS = '40px 2fr 1fr 1fr 1fr 80px';
+const COLS = '40px 2fr 1fr 1fr 1fr 100px';
 const FORM_EMPTY = { name: '', email: '', phone: '', employeeId: '', qualification: '', experience: '', designation: '' };
+
+// ── Teacher Detail Drawer ─────────────────────────────────────────────────────
+function TeacherDrawer({ teacher: t, onClose, onEdit, canEdit }) {
+  if (!t) return null;
+  const initials = (t.user?.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  const colors = ['#D4522A','#185FA5','#534AB7','#0F6E56','#993556'];
+  const bg = colors[(t.user?.name||'').charCodeAt(0) % colors.length];
+
+  const InfoRow = ({ icon, label, value }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'0.5px solid #F3F4F6' }}>
+      <span style={{ fontSize:18, width:24, textAlign:'center' }}>{icon}</span>
+      <div>
+        <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</div>
+        <div style={{ fontSize:13, fontWeight:600, color:'#111827', marginTop:1 }}>{value || '—'}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:300, display:'flex' }}>
+      <div style={{ flex:1, background:'rgba(0,0,0,0.4)' }} onClick={onClose}/>
+      <div style={{ width:'100%', maxWidth:420, background:'#fff', height:'100%', overflowY:'auto', boxShadow:'-8px 0 32px rgba(0,0,0,0.12)', display:'flex', flexDirection:'column' }}>
+        {/* Header */}
+        <div style={{ background:'#0B1F4A', padding:'28px 24px 24px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+            <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:18, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+            {canEdit && (
+              <button onClick={onEdit} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid rgba(255,255,255,0.3)', background:'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:700 }}>✎ Edit</button>
+            )}
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <div style={{ width:64, height:64, borderRadius:18, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <span style={{ fontSize:24, fontWeight:700, color:'#fff' }}>{initials}</span>
+            </div>
+            <div>
+              <div style={{ fontSize:20, fontWeight:700, color:'#fff' }}>{t.user?.name}</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:3 }}>{t.designation || 'Teacher'}</div>
+              <div style={{ marginTop:6 }}>
+                <span style={{ fontSize:11, fontWeight:700, color: t.isActive ? '#4ADE80' : '#F87171', background: t.isActive ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)', padding:'3px 10px', borderRadius:20 }}>
+                  {t.isActive ? '● Active' : '● Inactive'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Details */}
+        <div style={{ padding:'20px 24px', flex:1 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Contact Information</div>
+          <InfoRow icon="📧" label="Email" value={t.user?.email} />
+          <InfoRow icon="📞" label="Phone" value={t.user?.phone} />
+
+          <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', margin:'20px 0 8px' }}>Professional Details</div>
+          <InfoRow icon="🪪" label="Employee ID" value={t.employeeId} />
+          <InfoRow icon="🏷️" label="Designation" value={t.designation} />
+          <InfoRow icon="🎓" label="Qualification" value={t.qualification} />
+          <InfoRow icon="📅" label="Experience" value={t.experience ? `${t.experience} years` : null} />
+
+          {t.subjects?.length > 0 && (
+            <>
+              <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', margin:'20px 0 10px' }}>Subjects</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {t.subjects.map(s => (
+                  <span key={s._id} style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'4px 12px', borderRadius:20 }}>
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+
+          {t.classes?.length > 0 && (
+            <>
+              <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', margin:'20px 0 10px' }}>Classes</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {t.classes.map(c => (
+                  <span key={c._id} style={{ fontSize:12, fontWeight:700, color:'#059669', background:'#ECFDF5', border:'1px solid #A7F3D0', padding:'4px 12px', borderRadius:20 }}>
+                    {c.name} {c.section||''}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+
+          <div style={{ marginTop:24, padding:'14px 16px', background:'#F8FAFC', borderRadius:12, border:'1px solid #E5E7EB' }}>
+            <div style={{ fontSize:11, color:'#9CA3AF', fontWeight:600 }}>Login Email</div>
+            <div style={{ fontFamily:'monospace', fontSize:12, color:'#1D4ED8', marginTop:4 }}>{t.user?.email}</div>
+            <div style={{ fontSize:11, color:'#9CA3AF', marginTop:6 }}>Default password: <strong>Teacher@123</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Teachers() {
   const { isAdmin } = useAuth();
-  const [teachers, setTeachers] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState('');
-  const [modal,    setModal]    = useState({ open: false, data: null });
-  const [form,     setForm]     = useState(FORM_EMPTY);
-  const [saving,   setSaving]   = useState(false);
+  const [teachers,    setTeachers]    = useState([]);
+  const [subjects,    setSubjects]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState('');
+  const [modal,       setModal]       = useState({ open: false, data: null });
+  const [form,        setForm]        = useState(FORM_EMPTY);
+  const [saving,      setSaving]      = useState(false);
+  const [viewTeacher, setViewTeacher] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -93,34 +188,65 @@ export default function Teachers() {
 
       {loading ? <LoadingState /> : (
         <div className="card overflow-hidden">
-          <div className="bg-warm dark:bg-gray-800 px-5 py-3 grid gap-4 border-b border-border" style={{ gridTemplateColumns: COLS }}>
-            {['#', 'Teacher', 'Employee ID', 'Subjects', 'Status', 'Actions'].map(h => (
-              <div key={h} className="table-th">{h}</div>
-            ))}
+          {/* Table header */}
+          <div style={{ background:'#0B1F4A' }}>
+            <div className="grid gap-4 px-5 py-3" style={{ gridTemplateColumns: COLS }}>
+              {['#', 'Teacher', 'Employee ID', 'Subjects', 'Status', 'Actions'].map(h => (
+                <div key={h} style={{ fontSize:10, fontWeight:700, color:'#94afd4', textTransform:'uppercase', letterSpacing:'0.05em' }}>{h}</div>
+              ))}
+            </div>
           </div>
+
           {!filtered.length ? <EmptyState icon="🎓" title="No teachers found" /> : (
-            filtered.map((t, i) => (
-              <div key={t._id} className="grid gap-4 px-5 py-3 border-t border-border items-center hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors" style={{ gridTemplateColumns: COLS }}>
-                <div className="text-muted text-sm">{i + 1}</div>
-                <div className="flex items-center gap-2.5">
-                  <Avatar name={t.user?.name} size="sm" />
-                  <div>
-                    <div className="font-medium text-sm text-ink dark:text-white">{t.user?.name}</div>
-                    <div className="text-xs text-muted">{t.user?.email}</div>
+            filtered.map((t, i) => {
+              const initials = (t.user?.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+              const colors = ['#D4522A','#185FA5','#534AB7','#0F6E56','#993556'];
+              const bg = colors[(t.user?.name||'').charCodeAt(0) % colors.length];
+              return (
+                <div key={t._id}
+                  className="grid gap-4 px-5 py-3 border-t border-border items-center transition-colors"
+                  style={{ gridTemplateColumns: COLS, cursor:'pointer' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                  onMouseLeave={e=>e.currentTarget.style.background=''}
+                  onClick={() => setViewTeacher(t)}>
+                  <div className="text-muted text-sm">{i + 1}</div>
+                  <div className="flex items-center gap-2.5">
+                    <div style={{ width:36, height:36, borderRadius:10, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{initials}</span>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{t.user?.name}</div>
+                      <div style={{ fontSize:11, color:'#9CA3AF' }}>{t.user?.email}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate font-mono">{t.employeeId || '—'}</div>
+                  <div className="text-sm text-slate truncate">{t.subjects?.map(s => s.name).join(', ') || '—'}</div>
+                  <Badge status={t.isActive ? 'active' : 'inactive'} />
+                  <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setViewTeacher(t)}
+                      style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+                      👁 View
+                    </button>
+                    {isAdmin && <ActionBtn icon="✎" title="Edit" onClick={() => openEdit(t)} />}
                   </div>
                 </div>
-                <div className="text-sm text-slate dark:text-gray-300 font-mono text-xs">{t.employeeId || '—'}</div>
-                <div className="text-sm text-slate dark:text-gray-300 truncate">{t.subjects?.map(s => s.name).join(', ') || '—'}</div>
-                <Badge status={t.isActive ? 'active' : 'inactive'} />
-                <div className="flex gap-1.5">
-                  {isAdmin && <ActionBtn icon="✎" title="Edit" onClick={() => openEdit(t)} />}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
 
+      {/* Teacher Detail Drawer */}
+      {viewTeacher && (
+        <TeacherDrawer
+          teacher={viewTeacher}
+          onClose={() => setViewTeacher(null)}
+          canEdit={isAdmin}
+          onEdit={() => { openEdit(viewTeacher); setViewTeacher(null); }}
+        />
+      )}
+
+      {/* Add/Edit Modal */}
       <Modal
         isOpen={modal.open}
         onClose={() => { setModal({ open: false, data: null }); setForm(FORM_EMPTY); }}
