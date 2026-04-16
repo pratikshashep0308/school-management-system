@@ -527,44 +527,50 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
   return (
     <div className="fixed inset-0 z-[300] flex">
       {/* Backdrop */}
-      <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div style={{ flex:1, background:"rgba(0,0,0,0.5)" }} onClick={onClose} />
       {/* Drawer */}
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 h-full overflow-y-auto shadow-2xl">
+      <div style={{ width:"100%", maxWidth:860, background:"#fff", height:"100%", overflowY:"auto", boxShadow:"-8px 0 40px rgba(0,0,0,0.15)" }}>
         {/* Drawer header */}
-        <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-border dark:border-gray-700 px-6 py-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-2xl">
-              {s.user?.name?.charAt(0)}
+        <div style={{ position:"sticky", top:0, zIndex:10, background:"#fff", borderBottom:"1px solid #E5E7EB", padding:"20px 28px 0" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
+            <div style={{ width:60, height:60, borderRadius:18, background:"#0B1F4A", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <span style={{ fontSize:22, fontWeight:700, color:"#fff" }}>{(s.user?.name||"?").charAt(0).toUpperCase()}</span>
             </div>
-            <div className="flex-1">
-              <h2 className="font-bold text-xl text-ink dark:text-white">{s.user?.name}</h2>
-              <p className="text-sm text-muted">{s.admissionNumber} · {s.class?.name} {s.class?.section}</p>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:20, fontWeight:700, color:"#111827" }}>{s.user?.name}</div>
+              <div style={{ fontSize:13, color:"#6B7280", marginTop:2 }}>{s.admissionNumber} · {s.class?.name} {s.class?.section||""}</div>
+              <div style={{ marginTop:6, display:"flex", gap:8 }}>
+                <span style={{ fontSize:11, fontWeight:700, color: s.isActive?"#059669":"#DC2626", background: s.isActive?"#D1FAE5":"#FEE2E2", padding:"3px 10px", borderRadius:20 }}>
+                  {s.isActive ? "● Active" : "● Inactive"}
+                </span>
+                {s.rollNumber && <span style={{ fontSize:11, fontWeight:700, color:"#374151", background:"#F3F4F6", padding:"3px 10px", borderRadius:20 }}>Roll: {s.rollNumber}</span>}
+              </div>
             </div>
-            <QRPlaceholder value={s.admissionNumber || s._id} size={52} />
-            <div className="flex gap-2">
-              {canManage && <button onClick={onEdit} className="text-xs border border-border px-3 py-1.5 rounded-lg hover:border-accent hover:text-accent transition-all">✎ Edit</button>}
-              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted hover:border-accent hover:text-accent text-lg">×</button>
+            <div style={{ display:"flex", gap:8 }}>
+              {canManage && <button onClick={onEdit} style={{ padding:"7px 16px", borderRadius:8, fontSize:12, fontWeight:700, color:"#374151", background:"#F3F4F6", border:"1px solid #E5E7EB", cursor:"pointer" }}>✎ Edit</button>}
+              <button onClick={onClose} style={{ width:34, height:34, borderRadius:8, border:"1px solid #E5E7EB", background:"#fff", cursor:"pointer", fontSize:18, color:"#6B7280", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
             </div>
           </div>
 
           {/* Profile tabs */}
-          <div className="flex gap-1 mt-4 overflow-x-auto pb-1">
+          <div style={{ display:"flex", gap:0, overflowX:"auto", borderTop:"1px solid #F3F4F6" }}>
             {PROFILE_TABS.map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id)}
-                className={'flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ' +
-                  (activeTab === t.id ? 'bg-accent text-white' : 'text-muted hover:text-ink dark:hover:text-white hover:bg-warm dark:hover:bg-gray-800')}>
+                style={{ padding:"10px 18px", fontSize:12, fontWeight:700, border:"none", cursor:"pointer", whiteSpace:"nowrap", transition:"all 0.15s", background:"transparent",
+                  color: activeTab===t.id ? "#1D4ED8" : "#6B7280",
+                  borderBottom: activeTab===t.id ? "2.5px solid #1D4ED8" : "2.5px solid transparent" }}>
                 {t.icon} {t.label}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div style={{ padding:"24px 28px", display:"flex", flexDirection:"column", gap:20 }}>
           {loadingData && <LoadingState />}
 
           {/* ── OVERVIEW ── */}
           {activeTab === 'overview' && (
-            <div className="space-y-5">
+            <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
               {/* Quick stats */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="card p-4 text-center">
@@ -626,7 +632,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
           {/* ── ACADEMIC ── */}
           {activeTab === 'academic' && (
-            <div className="space-y-4">
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               {/* GPA card */}
               <div className="card p-5 flex items-center gap-5">
                 <Ring pct={avgPct} size={72} stroke={8} />
@@ -685,7 +691,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
           {/* ── ATTENDANCE ── */}
           {activeTab === 'attendance' && (
-            <div className="space-y-4">
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               <div className="grid grid-cols-3 gap-3">
                 <div className="card p-4 text-center">
                   <div className="text-2xl font-display text-green-600">{presentDays}</div>
@@ -728,7 +734,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
           {/* ── FEES ── */}
           {activeTab === 'fees' && (
-            <div className="space-y-4">
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               {fees.length === 0 ? <EmptyState icon="💰" title="No fee records found" /> : (
                 <>
                   <div className="grid grid-cols-2 gap-3">
@@ -762,7 +768,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
           {/* ── ASSIGNMENTS ── */}
           {activeTab === 'assignments' && (
-            <div className="space-y-3">
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               {assignments.length === 0 ? <EmptyState icon="📚" title="No assignments" /> :
                 assignments.slice(0, 10).map(a => {
                   const isOverdue = new Date(a.dueDate) < new Date();
@@ -787,7 +793,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
           {/* ── HEALTH ── */}
           {activeTab === 'health' && (
-            <div className="space-y-4">
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               <Section title="Medical Information">
                 <InfoGrid items={[
                   { label: 'Blood Group',     value: s.bloodGroup || '—' },

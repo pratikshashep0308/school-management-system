@@ -15,46 +15,54 @@ function TeacherDrawer({ teacher: t, onClose, onEdit, canEdit }) {
   const bg = colors[(t.user?.name||'').charCodeAt(0) % colors.length];
 
   const InfoRow = ({ icon, label, value }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'0.5px solid #F3F4F6' }}>
-      <span style={{ fontSize:18, width:24, textAlign:'center' }}>{icon}</span>
+    <div style={{ display:'flex', alignItems:'center', gap:14, padding:'12px 0', borderBottom:'0.5px solid #F3F4F6' }}>
+      <div style={{ width:38, height:38, borderRadius:10, background:'#F3F4F6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{icon}</div>
       <div>
-        <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</div>
-        <div style={{ fontSize:13, fontWeight:600, color:'#111827', marginTop:1 }}>{value || '—'}</div>
+        <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
+        <div style={{ fontSize:14, fontWeight:600, color:'#111827', marginTop:2 }}>{value || '—'}</div>
       </div>
     </div>
   );
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:300, display:'flex' }}>
-      <div style={{ flex:1, background:'rgba(0,0,0,0.4)' }} onClick={onClose}/>
-      <div style={{ width:'100%', maxWidth:420, background:'#fff', height:'100%', overflowY:'auto', boxShadow:'-8px 0 32px rgba(0,0,0,0.12)', display:'flex', flexDirection:'column' }}>
+      <div style={{ flex:1, background:'rgba(0,0,0,0.5)' }} onClick={onClose}/>
+      <div style={{ width:'100%', maxWidth:600, background:'#fff', height:'100%', overflowY:'auto', boxShadow:'-8px 0 40px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column' }}>
         {/* Header */}
-        <div style={{ background:'#0B1F4A', padding:'28px 24px 24px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
-            <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:18, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
-            {canEdit && (
-              <button onClick={onEdit} style={{ padding:'6px 16px', borderRadius:8, border:'1px solid rgba(255,255,255,0.3)', background:'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:700 }}>✎ Edit</button>
-            )}
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            <div style={{ width:64, height:64, borderRadius:18, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <span style={{ fontSize:24, fontWeight:700, color:'#fff' }}>{initials}</span>
+        <div style={{ background:'#0B1F4A', padding:'24px 28px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.08em' }}>Teacher Profile</div>
+            <div style={{ display:'flex', gap:8 }}>
+              {canEdit && (
+                <button onClick={onEdit} style={{ padding:'7px 18px', borderRadius:8, border:'1px solid rgba(255,255,255,0.25)', background:'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:12, fontWeight:700, color:'#fff' }}>✎ Edit</button>
+              )}
+              <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.08)', cursor:'pointer', fontSize:18, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
             </div>
-            <div>
-              <div style={{ fontSize:20, fontWeight:700, color:'#fff' }}>{t.user?.name}</div>
-              <div style={{ fontSize:13, color:'rgba(255,255,255,0.6)', marginTop:3 }}>{t.designation || 'Teacher'}</div>
-              <div style={{ marginTop:6 }}>
-                <span style={{ fontSize:11, fontWeight:700, color: t.isActive ? '#4ADE80' : '#F87171', background: t.isActive ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)', padding:'3px 10px', borderRadius:20 }}>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:20 }}>
+            <div style={{ width:72, height:72, borderRadius:20, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:28, fontWeight:700, color:'#fff' }}>
+              {initials}
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:22, fontWeight:700, color:'#fff', marginBottom:4 }}>{t.user?.name}</div>
+              <div style={{ fontSize:13, color:'rgba(255,255,255,0.55)' }}>{t.designation || 'Teacher'} · {t.employeeId || '—'}</div>
+              <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                <span style={{ fontSize:11, fontWeight:700, color: t.isActive ? '#4ADE80' : '#F87171', background: t.isActive ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)', padding:'4px 12px', borderRadius:20 }}>
                   {t.isActive ? '● Active' : '● Inactive'}
                 </span>
+                {t.subjects?.length > 0 && (
+                  <span style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.6)', background:'rgba(255,255,255,0.1)', padding:'4px 12px', borderRadius:20 }}>
+                    {t.subjects.map(s=>s.name).join(', ')}
+                  </span>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         {/* Details */}
-        <div style={{ padding:'20px 24px', flex:1 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Contact Information</div>
+        <div style={{ padding:'24px 28px', flex:1 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:12 }}>Contact Information</div>
           <InfoRow icon="📧" label="Email" value={t.user?.email} />
           <InfoRow icon="📞" label="Phone" value={t.user?.phone} />
 

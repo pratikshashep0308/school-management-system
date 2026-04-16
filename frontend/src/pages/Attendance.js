@@ -55,6 +55,7 @@ function MarkAttendance({ classes }) {
   const [attendance,    setAttendance]    = useState({});
   const [loading,       setLoading]       = useState(false);
   const [saving,        setSaving]        = useState(false);
+  const [search,        setSearch]        = useState('');
 
   useEffect(() => {
     if (classes.length && !selectedClass) setSelectedClass(classes[0]._id);
@@ -95,6 +96,10 @@ function MarkAttendance({ classes }) {
     counts[st] = (counts[st]||0) + 1;
   });
 
+  const filteredStudents = search
+    ? students.filter(s => s.user?.name?.toLowerCase().includes(search.toLowerCase()) || s.rollNumber?.toString().includes(search))
+    : students;
+
   const pct = students.length > 0 ? Math.round((counts.present / students.length) * 100) : 0;
   const canEdit = isAdmin || isTeacher;
   const SEL = { padding:'8px 12px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, background:'#fff', outline:'none' };
@@ -111,6 +116,15 @@ function MarkAttendance({ classes }) {
         {date === TODAY
           ? <span style={{ fontSize:11, fontWeight:700, color:'#16A34A', background:'#F0FDF4', border:'1px solid #22C55E', padding:'4px 10px', borderRadius:20 }}>📅 Today</span>
           : <span style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FFFBEB', border:'1px solid #F59E0B', padding:'4px 10px', borderRadius:20 }}>📅 Past Date</span>}
+        <input
+          placeholder="🔍 Search student..."
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          style={{ padding:'8px 12px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, background:'#fff', outline:'none', minWidth:180 }}
+        />
+        {search && (
+          <button onClick={()=>setSearch('')} style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>✕</button>
+        )}
         {canEdit && (
           <div style={{ display:'flex', gap:8, marginLeft:'auto', flexWrap:'wrap' }}>
             {['present','absent','late','excused'].map(st => {
@@ -151,43 +165,73 @@ function MarkAttendance({ classes }) {
 
       {loading ? <LoadingState /> : !students.length ? (
         <EmptyState icon="✓" title="No students in this class" />
+      ) : !filteredStudents.length ? (
+        <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>No students match "{search}"</div>
       ) : (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12 }}>
-          {students.map(s => {
-            const status = attendance[s._id] || 'unmarked';
-            const cfg    = STATUS_CONFIG[status];
-            return (
-              <div key={s._id} style={{
-                background:cfg.bg, border:`2px solid ${cfg.border}`,
-                borderRadius:14, padding:'16px 12px', textAlign:'center',
-                transition:'all 0.15s',
-              }}>
-                <Avatar name={s.user?.name} size="md" />
-                <div style={{ fontWeight:700, fontSize:13, color:'#111827', marginTop:8, lineHeight:1.3 }}>{s.user?.name}</div>
-                <div style={{ fontSize:11, color:'#9CA3AF', marginBottom:10 }}>Roll {s.rollNumber||'—'}</div>
-                <div style={{ display:'flex', gap:4 }}>
-                  {['present','absent','late','excused'].map(st => {
-                    const c = STATUS_CONFIG[st];
-                    const isActive = status === st;
-                    return (
-                      <button key={st} onClick={() => canEdit && mark(s._id, st)}
-                        title={c.label}
-                        style={{
-                          flex:1, padding:'5px 0', borderRadius:7, fontSize:11, fontWeight:800,
-                          border:`1.5px solid ${c.border}`,
-                          background: isActive ? c.color : 'transparent',
-                          color: isActive ? '#fff' : c.color,
-                          cursor: canEdit ? 'pointer' : 'default',
-                          transition:'all 0.12s',
-                        }}>
-                        {c.short}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ background:'#0B1F4A' }}>
+                <th style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', width:40 }}>#</th>
+                <th style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase' }}>Student</th>
+                <th style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', width:80 }}>Roll</th>
+                <th style={{ padding:'11px 16px', textAlign:'center', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase' }}>Status</th>
+                <th style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', width:120 }}>Mark</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.map((s, i) => {
+                const status = attendance[s._id] || 'unmarked';
+                const cfg    = STATUS_CONFIG[status];
+                const initials = (s.user?.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+                const colors = ['#D4522A','#185FA5','#534AB7','#0F6E56','#993556'];
+                const bg = colors[(s.user?.name||'').charCodeAt(0) % colors.length];
+                return (
+                  <tr key={s._id} style={{ borderBottom:'0.5px solid #F3F4F6', background: i%2 ? '#FAFAFA' : '#fff', transition:'background 0.1s' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                    onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}>
+                    <td style={{ padding:'10px 16px', color:'#9CA3AF', fontSize:12 }}>{i+1}</td>
+                    <td style={{ padding:'10px 16px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <div style={{ width:36, height:36, borderRadius:10, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{initials}</span>
+                        </div>
+                        <div style={{ fontWeight:600, fontSize:13, color:'#111827' }}>{s.user?.name}</div>
+                      </div>
+                    </td>
+                    <td style={{ padding:'10px 16px', color:'#6B7280', fontWeight:600 }}>{s.rollNumber||'—'}</td>
+                    <td style={{ padding:'10px 16px', textAlign:'center' }}>
+                      <span style={{ fontSize:11, fontWeight:700, color:cfg.color, background:cfg.bg, border:`1px solid ${cfg.border}`, padding:'3px 12px', borderRadius:20 }}>
+                        {cfg.label}
+                      </span>
+                    </td>
+                    <td style={{ padding:'10px 16px' }}>
+                      <div style={{ display:'flex', gap:4 }}>
+                        {['present','absent','late','excused'].map(st => {
+                          const c = STATUS_CONFIG[st];
+                          const isActive = status === st;
+                          return (
+                            <button key={st} onClick={() => canEdit && mark(s._id, st)}
+                              title={c.label}
+                              style={{
+                                width:28, height:28, borderRadius:7, fontSize:11, fontWeight:800,
+                                border:`1.5px solid ${c.border}`,
+                                background: isActive ? c.color : 'transparent',
+                                color: isActive ? '#fff' : c.color,
+                                cursor: canEdit ? 'pointer' : 'default',
+                                transition:'all 0.12s',
+                              }}>
+                              {c.short}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
