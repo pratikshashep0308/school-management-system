@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import api, { timetableAPI, classAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
+import DateRangePicker from './Attendance/DateRangePicker';
+import { studentPortalAPI } from '../utils/studentPortalAPI';
 
 // ─── Ring chart ─────────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -290,6 +292,176 @@ function ParentAssignmentsSection({ assignments, dueAssignments, childName }) {
   );
 }
 
+
+
+// ─── Parent Attendance View with DateRangePicker ─────────────────────────────
+function ParentAttendanceView({ attendance, attPct, childName }) {
+  const now   = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const [dateFrom, setDateFrom] = useState(first);
+  const [dateTo,   setDateTo]   = useState(now);
+  const [records,  setRecords]  = useState(null);
+  const [summary,  setSummary]  = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [search,   setSearch]   = useState('');
+
+  const STATUS = {
+    present: { color:'#166534', bg:'#DCFCE7', label:'Present' },
+    absent:  { color:'#991B1B', bg:'#FEE2E2', label:'Absent'  },
+    late:    { color:'#92400E', bg:'#FEF3C7', label:'Late'     },
+    excused: { color:'#5B21B6', bg:'#EDE9FE', label:'Excused'  },
+  };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r   = await studentPortalAPI.getAttendance(null, null);
+      const all = r.data.data?.records || [];
+      const from = new Date(dateFrom); from.setHours(0,0,0,0);
+      const to   = new Date(dateTo);   to.setHours(23,59,59,999);
+      const filtered = all.filter(rec => {
+        const d = new Date(rec.date);
+        return d >= from && d <= to;
+      }).sort((a,b) => new Date(b.date) - new Date(a.date));
+      setRecords(filtered);
+      const present = filtered.filter(r=>r.status==='present').length;
+      const absent  = filtered.filter(r=>r.status==='absent').length;
+      const late    = filtered.filter(r=>r.status==='late').length;
+      const total   = filtered.length;
+      const pct     = total > 0 ? Math.round(((present+late)/total)*100) : 0;
+      setSummary({ present, absent, late, total, pct });
+    } catch {
+      // fallback to dashboard data
+      const recs = attendance?.records || [];
+      setRecords(recs);
+      setSummary({ present: attendance?.present||0, absent: attendance?.absent||0, late:0, total: attendance?.total||0, pct: attPct });
+    }
+    finally { setLoading(false); }
+  };
+
+  const filtered = (records||[]).filter(r => {
+    const name = r.student?.user?.name || r.student?.name || '';
+    return !search || name.toLowerCase().includes(search.toLowerCase()) ||
+           (r.status||'').toLowerCase().includes(search.toLowerCase());
+  });
+
+  const BTN = { padding:'5px 14px', borderRadius:6, border:'1px solid #D1D5DB', background:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', color:'#374151' };
+
+  const copyTable = () => {
+    const txt = filtered.map(r => {
+      const d = new Date(r.date);
+      return `${d.toLocaleDateString('en-IN')}	${d.toLocaleDateString('en-IN',{weekday:'long'})}	${r.student?.rollNumber||'—'}	${r.student?.user?.name||'—'}	${r.status}`;
+    }).join('\n');
+    navigator.clipboard.writeText(txt).then(() => {});
+  };
+
+  const toCSV = () => {
+    const rows = filtered.map(r => {
+      const d = new Date(r.date);
+      return `${d.toLocaleDateString('en-IN')},${d.toLocaleDateString('en-IN',{weekday:'long'})},${r.student?.rollNumber||'—'},${r.student?.user?.name||childName||'—'},${r.status}`;
+    });
+    const blob = new Blob(['DATE,DAY,ROLL,NAME,STATUS\n'+rows.join('\n')],{type:'text/csv'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='attendance.csv'; a.click();
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Summary cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:12 }}>
+        {[
+          { label:'Present', val: summary?.present ?? attendance?.present ?? 0, color:'#166534', bg:'#DCFCE7' },
+          { label:'Absent',  val: summary?.absent  ?? attendance?.absent  ?? 0, color:'#991B1B', bg:'#FEE2E2' },
+          { label:'Late',    val: summary?.late    ?? 0,                         color:'#92400E', bg:'#FEF3C7' },
+          { label:'Total',   val: summary?.total   ?? attendance?.total   ?? 0, color:'#374151', bg:'#F3F4F6' },
+        ].map(s => (
+          <div key={s.label} style={{ background:s.bg, borderRadius:12, padding:'14px 16px', textAlign:'center' }}>
+            <div style={{ fontSize:28, fontWeight:800, color:s.color }}>{s.val}</div>
+            <div style={{ fontSize:11, color:s.color, fontWeight:600, marginTop:2 }}>{s.label}</div>
+          </div>
+        ))}
+        <div style={{ background: (summary?.pct??attPct)>=75?'#F0FDF4':'#FEF2F2', borderRadius:12, padding:'14px 16px', textAlign:'center' }}>
+          <div style={{ fontSize:28, fontWeight:800, color:(summary?.pct??attPct)>=75?'#166534':'#991B1B' }}>{summary?.pct??attPct}%</div>
+          <div style={{ fontSize:11, fontWeight:600, color:'#6B7280', marginTop:2 }}>Rate</div>
+        </div>
+      </div>
+
+      {attPct < 75 && (
+        <div style={{ padding:14, borderRadius:10, background:'#FEF2F2', border:'1px solid #FECACA' }}>
+          <div style={{ fontWeight:700, color:'#991B1B', fontSize:13 }}>⚠️ Attendance Warning</div>
+          <div style={{ fontSize:12, color:'#DC2626', marginTop:4 }}>
+            {childName}'s attendance is {attPct}%. Minimum 75% required. Please ensure regular attendance.
+          </div>
+        </div>
+      )}
+
+      {/* Date range picker + search */}
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+        <DateRangePicker
+          from={dateFrom} to={dateTo}
+          onChange={(f,t) => { setDateFrom(f); setDateTo(t); }}
+        />
+        <button onClick={load} disabled={loading}
+          style={{ padding:'10px 20px', borderRadius:9, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
+          {loading ? '⏳' : '⚙ Generate'}
+        </button>
+      </div>
+
+      {/* Table */}
+      {records !== null && (
+        <div style={{ background:'#fff', borderRadius:12, border:'1px solid #E5E7EB', overflow:'hidden' }}>
+          <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, borderBottom:'1px solid #F3F4F6' }}>
+            <div style={{ display:'flex', gap:6 }}>
+              <button style={BTN} onClick={copyTable}>Copy</button>
+              <button style={BTN} onClick={toCSV}>CSV</button>
+              <button style={{ ...BTN, background:'#DC2626', color:'#fff', border:'none' }} onClick={()=>window.print()}>PDF</button>
+              <button style={BTN} onClick={()=>window.print()}>Print</button>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontSize:12, color:'#6B7280' }}>Search:</span>
+              <input value={search} onChange={e=>setSearch(e.target.value)}
+                style={{ padding:'5px 10px', border:'1px solid #D1D5DB', borderRadius:6, fontSize:12, outline:'none', width:160 }}
+                placeholder="Status, name…" />
+            </div>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#F9FAFB', borderBottom:'2px solid #E5E7EB' }}>
+                  {['DATE','DAY','NAME','STATUS'].map(h => (
+                    <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={4} style={{ textAlign:'center', padding:32, color:'#9CA3AF' }}>No records in this date range</td></tr>
+                ) : filtered.map((r, i) => {
+                  const d  = new Date(r.date);
+                  const sc = STATUS[r.status] || { color:'#374151', bg:'#F3F4F6', label: r.status };
+                  return (
+                    <tr key={r._id||i} style={{ borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                      onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}>
+                      <td style={{ padding:'9px 14px', fontWeight:500, color:'#374151' }}>{d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                      <td style={{ padding:'9px 14px', color:'#6B7280' }}>{d.toLocaleDateString('en-IN',{weekday:'long'})}</td>
+                      <td style={{ padding:'9px 14px', fontWeight:600, color:'#111827' }}>{r.student?.user?.name || childName || '—'}</td>
+                      <td style={{ padding:'9px 14px' }}>
+                        <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:sc.bg, color:sc.color }}>{sc.label}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding:'8px 14px', borderTop:'1px solid #F3F4F6', fontSize:12, color:'#6B7280' }}>
+            Showing {filtered.length} of {records.length} entries
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ParentDashboard() {
   const { user } = useAuth();
@@ -669,57 +841,7 @@ export default function ParentDashboard() {
 
           {/* ════════════════════ ATTENDANCE ════════════════════ */}
           {tab === 'attendance' && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="card p-5 text-center">
-                  <div className="font-display text-4xl text-sage mb-1">{attendance.present}</div>
-                  <div className="text-xs text-muted">✅ Present</div>
-                </div>
-                <div className="card p-5 text-center">
-                  <div className="font-display text-4xl text-accent mb-1">{attendance.absent}</div>
-                  <div className="text-xs text-muted">❌ Absent</div>
-                </div>
-                <div className="card p-5 flex flex-col items-center gap-1">
-                  <Ring pct={attPct} size={64} stroke={6} />
-                  <div className="text-xs text-muted">Percentage</div>
-                </div>
-              </div>
-
-              {attPct < 75 && (
-                <div className="card p-4 bg-red-50 dark:bg-red-900/20 border border-red-200">
-                  <p className="font-semibold text-red-700 dark:text-red-300">⚠️ Attendance Warning</p>
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                    {childName}'s attendance is {attPct}%. Minimum 75% is required. Please ensure regular attendance.
-                  </p>
-                </div>
-              )}
-
-              {attendance.records?.length > 0 && (
-                <div className="card p-6">
-                  <h3 className="font-semibold text-ink dark:text-white mb-4">Monthly Calendar</h3>
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {['S','M','T','W','T','F','S'].map((d,i) => (
-                      <div key={i} className="text-center text-[10px] text-muted font-bold py-1">{d}</div>
-                    ))}
-                    {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_,i) => (
-                      <div key={'e'+i} />
-                    ))}
-                    {attendance.records.map((r, i) => (
-                      <div key={i} className={'w-8 h-8 rounded-lg mx-auto flex items-center justify-center text-[11px] font-bold ' +
-                        (r.status === 'present' ? 'bg-green-100 dark:bg-green-900/40 text-green-700' :
-                         r.status === 'absent'  ? 'bg-red-100 dark:bg-red-900/40 text-red-600' :
-                                                  'bg-gray-100 dark:bg-gray-700 text-muted')}>
-                        {r.day || i+1}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-5 mt-4">
-                    <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-green-200 inline-block" /> Present</span>
-                    <span className="flex items-center gap-1.5 text-xs text-muted"><span className="w-3 h-3 rounded bg-red-200 inline-block" /> Absent</span>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ParentAttendanceView attendance={attendance} attPct={attPct} childName={childName} />
           )}
 
           {/* ════════════════════ TIMETABLE ════════════════════ */}

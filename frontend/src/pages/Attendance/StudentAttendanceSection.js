@@ -3,6 +3,7 @@
 // Shows: summary ring, monthly calendar heatmap, record list, month switcher
 import React, { useEffect, useState, useCallback } from 'react';
 import { studentPortalAPI } from '../../utils/studentPortalAPI';
+import DateRangePicker from './DateRangePicker';
 import { attendanceAPI } from '../../utils/api';
 import { LoadingState } from '../../components/ui';
 import toast from 'react-hot-toast';
@@ -179,17 +180,17 @@ function DateWiseHistory({ studentId, dashboardAttendance }) {
 
   return (
     <div>
-      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end', marginBottom:16 }}>
-        <div>
-          <div style={{ fontSize:10, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase' }}>From Date</div>
-          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} max={dateTo} style={SEL} />
-        </div>
-        <div>
-          <div style={{ fontSize:10, fontWeight:700, color:'#6B7280', marginBottom:4, textTransform:'uppercase' }}>To Date</div>
-          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} max={now.toISOString().split('T')[0]} style={SEL} />
-        </div>
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
+        <DateRangePicker
+          from={dateFrom ? new Date(dateFrom) : null}
+          to={dateTo   ? new Date(dateTo)   : null}
+          onChange={(f, t) => {
+            setDateFrom(f.toISOString().split('T')[0]);
+            setDateTo(t.toISOString().split('T')[0]);
+          }}
+        />
         <button onClick={load} disabled={loading} style={{
-          padding:'8px 18px', borderRadius:8, fontSize:12, fontWeight:700,
+          padding:'10px 20px', borderRadius:9, fontSize:12, fontWeight:700,
           background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer', opacity:loading?0.6:1,
         }}>
           {loading ? '⏳' : '🔍'} Search
