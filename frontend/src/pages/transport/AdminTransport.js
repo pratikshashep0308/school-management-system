@@ -382,7 +382,7 @@ export default function AdminTransport() {
                   const bus   = a.busId   || a.bus;
                   return (
                     <tr key={a._id} style={{ borderBottom:"0.5px solid #F3F4F6" }}>
-                      <td style={{ padding:"10px 16px", fontWeight:600, color:"#111827" }}>{a.student?.name || "—"}</td>
+                      <td style={{ padding:"10px 16px", fontWeight:600, color:"#111827" }}>{a.student?.user?.name || a.student?.name || "—"}</td>
                       <td style={{ padding:"10px 16px" }}>
                         {route && (
                           <span style={{ padding:"2px 8px", borderRadius:6, fontSize:11, fontWeight:700, color:"#fff", background: route.color || '#3B82F6' }}>
@@ -393,12 +393,12 @@ export default function AdminTransport() {
                       </td>
                       <td style={{ padding:"10px 16px", fontFamily:"monospace", fontSize:12 }}>{bus?.busNumber || "—"}</td>
                       <td style={{ padding:"10px 16px" }}>
-                        <span style={{ color:"#374151" }}>{a.pickupStop?.name || "—"}</span>
-                        {a.pickupStop?.time && <span style={{ color:"#9CA3AF", fontSize:11, marginLeft:4 }}>({a.pickupStop.time})</span>}
+                        <span style={{ color:"#374151" }}>{a.pickupStopId?.name || a.pickupStop?.name || "—"}</span>
+                        {(a.pickupStopId?.morningArrivalTime || a.pickupStop?.time) && <span style={{ color:"#9CA3AF", fontSize:11, marginLeft:4 }}>({a.pickupStopId?.morningArrivalTime || a.pickupStop?.time})</span>}
                       </td>
                       <td style={{ padding:"10px 16px" }}>
-                        <span style={{ color:"#374151" }}>{a.dropStop?.name || "—"}</span>
-                        {a.dropStop?.time && <span style={{ color:"#9CA3AF", fontSize:11, marginLeft:4 }}>({a.dropStop.time})</span>}
+                        <span style={{ color:"#374151" }}>{a.dropStopId?.name || a.dropStop?.name || "—"}</span>
+                        {(a.dropStopId?.eveningArrivalTime || a.dropStop?.time) && <span style={{ color:"#9CA3AF", fontSize:11, marginLeft:4 }}>({a.dropStopId?.eveningArrivalTime || a.dropStop?.time})</span>}
                       </td>
                       <td style={{ padding:"10px 16px", fontWeight:600 }}>₹{a.monthlyFee?.toLocaleString("en-IN")}</td>
                       <td style={{ padding:"10px 16px" }}>
