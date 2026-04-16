@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import StudentAttendance       from './StudentAttendance';
 import EmployeeAttendance      from './EmployeeAttendance';
 import ClasswiseReport         from './ClasswiseReport';
-import StudentAttendanceReport from './StudentAttendanceReport';
+import StudentAttendanceReport from './StudentAttendance';
 import EmployeeAttendanceReport from './EmployeeAttendanceReport';
 
 const TABS = [

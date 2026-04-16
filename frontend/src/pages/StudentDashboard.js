@@ -2,7 +2,7 @@
 // Student Portal — admin-dashboard style, shows only the student's own data
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
+import StudentAttendanceSection from './Attendance/StudentAttendanceReport';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api, { timetableAPI, classAPI } from '../utils/api';
