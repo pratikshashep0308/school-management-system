@@ -18,13 +18,13 @@ function Month({ y, m, from, to, hover, onDay, onHover }) {
   for (let d=1;d<=dim;d++) cells.push(strip(new Date(y,m,d)));
 
   return (
-    <div style={{width:210}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,30px)',marginBottom:6}}>
+    <div style={{width:220}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,32px)',marginBottom:6}}>
         {WDAYS.map(w=><div key={w} style={{textAlign:'center',fontSize:11,fontWeight:700,color:'#9CA3AF',lineHeight:'20px'}}>{w}</div>)}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,30px)',rowGap:1}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,32px)',rowGap:1}}>
         {cells.map((date,i)=>{
-          if(!date) return <div key={'e'+i} style={{height:30}}/>;
+          if(!date) return <div key={'e'+i} style={{height:32}}/>;
           const isFuture = date > today;
           const isFrom   = same(date, from);
           const isTo     = same(date, to);
@@ -57,7 +57,7 @@ function Month({ y, m, from, to, hover, onDay, onHover }) {
                 cursor:isFuture?'not-allowed':'pointer',opacity:isFuture?0.3:1}}
               onClick={()=>!isFuture&&onDay(date)}
               onMouseEnter={()=>!isFuture&&onHover(date)}>
-              <div style={{width:26,height:26,display:'flex',alignItems:'center',justifyContent:'center',
+              <div style={{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',
                 borderRadius:'50%',background:numBg,
                 fontSize:12,fontWeight:numW,color:numColor}}>
                 {date.getDate()}
@@ -159,7 +159,7 @@ export default function DateRangePicker({ from, to, onChange }) {
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,
           background:'#fff',borderRadius:12,
           boxShadow:'0 10px 40px rgba(0,0,0,.18)',border:'1px solid #E5E7EB',
-          display:'flex',overflow:'visible',width:550}}>
+          display:'flex',overflow:'visible',width:600}}>
 
           {/* Presets */}
           <div style={{width:130,borderRight:'1px solid #F3F4F6',padding:'10px 0',flexShrink:0}}>
@@ -181,7 +181,7 @@ export default function DateRangePicker({ from, to, onChange }) {
           </div>
 
           {/* Calendars */}
-          <div style={{flex:1,padding:'14px 16px',display:'flex',flexDirection:'column',gap:10}}
+          <div style={{flex:1,padding:'14px 18px',display:'flex',flexDirection:'column',gap:10}}
             onMouseLeave={()=>!tTo&&setHover(null)}>
 
             {/* Month nav */}
