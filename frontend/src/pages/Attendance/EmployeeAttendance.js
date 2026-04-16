@@ -1,8 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { teacherAPI } from '../../utils/api';
-import api from '../../utils/api';
+import api, { teacherAPI } from '../../utils/api';
 
 const TODAY = new Date().toISOString().split('T')[0];
 const STATUS_STYLE = {
