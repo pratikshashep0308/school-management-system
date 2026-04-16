@@ -19,7 +19,7 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
-import Attendance   from './pages/Attendance';
+import Attendance   from './pages/Attendance/Index';
 import Exams        from './pages/Exams';
 import Fees         from './pages/Fees';
 import Library      from './pages/Library';
