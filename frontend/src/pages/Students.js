@@ -1,5 +1,6 @@
 // frontend/src/pages/Students.js
 // Advanced Student Module — Full digital student lifecycle
+/* eslint-disable no-unused-vars */
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
@@ -36,14 +37,14 @@ function Ring({ pct, size = 56, stroke = 6, color }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r;
   const col = color || (pct >= 75 ? '#4a7c59' : pct >= 50 ? '#c9a84c' : '#d4522a');
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg className="-rotate-90" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div style={{ position:"relative", width: size, height: size }}>
+      <svg style={{ transform:"rotate(-90deg)" }} width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e5e7eb" strokeWidth={stroke} />
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={col} strokeWidth={stroke}
           strokeDasharray={`${(pct/100)*c} ${c}`} strokeLinecap="round" />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xs font-bold" style={{ color: col }}>{pct}%</span>
+      <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <span style={{ fontSize:11, fontWeight:700, color: col }}>{pct}%</span>
       </div>
     </div>
   );
@@ -133,29 +134,29 @@ export default function Students() {
   };
 
   return (
-    <div className="animate-fade-in space-y-5">
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       {/* Header */}
-      <div className="page-header">
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 className="font-display text-2xl text-ink dark:text-white">Students</h2>
-          <p className="text-sm text-muted">{total} enrolled · {active} active</p>
+          <h2 style={{ fontSize:24, fontWeight:800, color:"#111827", margin:0 }}>Students</h2>
+          <p style={{ fontSize:13, color:"#6B7280", marginTop:4 }}>{total} enrolled · {active} active</p>
         </div>
 
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:12 }}>
         {[
-          { label: 'Total Students', value: total,  icon: '👥', color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600' },
-          { label: 'Active',         value: active, icon: '✅', color: 'bg-green-50 dark:bg-green-900/20 text-green-600' },
-          { label: 'Boys',           value: boys,   icon: '👦', color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600' },
-          { label: 'Girls',          value: girls,  icon: '👧', color: 'bg-pink-50 dark:bg-pink-900/20 text-pink-600' },
+          { label: 'Total Students', value: total,  icon: '👥', bg: '#EFF6FF', clr: '#1D4ED8' },
+          { label: 'Active',         value: active, icon: '✅', bg: '#F0FDF4', clr: '#166534' },
+          { label: 'Boys',           value: boys,   icon: '👦', bg: '#EEF2FF', clr: '#3730A3' },
+          { label: 'Girls',          value: girls,  icon: '👧', bg: '#FDF2F8', clr: '#9D174D' },
         ].map(s => (
-          <div key={s.label} className="card p-4 flex items-center gap-3">
-            <div className={'w-11 h-11 rounded-xl flex items-center justify-center text-xl ' + s.color}>{s.icon}</div>
+          <div key={s.label} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:16, display:"flex", alignItems:"center", gap:12, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div style={{ width:44, height:44, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, background: s.bg, color: s.clr }}>{s.icon}</div>
             <div>
-              <div className="text-2xl font-display text-ink dark:text-white">{s.value}</div>
-              <div className="text-xs text-muted">{s.label}</div>
+              <div style={{ fontSize:24, fontWeight:800, color:"#111827" }}>{s.value}</div>
+              <div style={{ fontSize:12, color:"#6B7280" }}>{s.label}</div>
             </div>
           </div>
         ))}
@@ -213,7 +214,7 @@ export default function Students() {
           )}
         </div>
       ) : (
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+        <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:0, overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
               <thead>
@@ -295,7 +296,7 @@ export default function Students() {
 
       {/* Manage Login Tab */}
       {tab === 'managelogin' && (
-        <div className="card overflow-hidden" style={{ padding:0 }}>
+        <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, overflow:"hidden", padding:0, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
           <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:'#111827' }}>🔑 Manage Student Login</div>
@@ -437,36 +438,35 @@ export default function Students() {
 function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
   const genderColor = s.gender === 'female' ? '#ec4899' : s.gender === 'male' ? '#3b82f6' : '#8b5cf6';
   return (
-    <div className="card p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer" onClick={onView}>
-      <div className="flex items-start gap-3 mb-3">
+    <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }} onClick={onView} onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)"} onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
         {/* Avatar */}
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0"
-          style={{ background: `linear-gradient(135deg, ${genderColor}cc, ${genderColor}88)` }}>
+        <div style={{ width:56, height:56, borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:20, flexShrink:0, background: `linear-gradient(135deg, ${genderColor}cc, ${genderColor}88)` }}>
           {s.user?.name?.charAt(0)?.toUpperCase()}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-ink dark:text-white truncate">{s.user?.name}</p>
-          <p className="text-xs text-muted">{s.admissionNumber}</p>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {s.class && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600">{s.class.name} {s.class.section}</span>}
-            <span className={'text-[10px] font-semibold px-2 py-0.5 rounded-full ' + (s.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>{s.isActive ? 'Active' : 'Inactive'}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ fontWeight:700, color:"#111827", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", margin:0 }}>{s.user?.name}</p>
+          <p style={{ fontSize:11, color:"#9CA3AF", margin:"2px 0 0" }}>{s.admissionNumber}</p>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:4, flexWrap:"wrap" }}>
+            {s.class && <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:999, background:"#EFF6FF", color:"#1D4ED8" }}>{s.class.name} {s.class.section}</span>}
+            <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999, background:s.isActive?'#D1FAE5':'#F3F4F6', color:s.isActive?'#065F46':'#6B7280' }}>{s.isActive ? 'Active' : 'Inactive'}</span>
           </div>
         </div>
         <QRPlaceholder value={s.admissionNumber || s._id} size={40} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-xs text-muted mb-3">
-        {s.rollNumber && <span>🔢 Roll: <span className="text-ink dark:text-gray-200 font-medium">{s.rollNumber}</span></span>}
-        {s.gender    && <span>👤 <span className="capitalize text-ink dark:text-gray-200 font-medium">{s.gender}</span></span>}
-        {s.bloodGroup && <span>🩸 <span className="text-ink dark:text-gray-200 font-medium">{s.bloodGroup}</span></span>}
-        {s.parentName && <span>👨‍👩‍👧 <span className="text-ink dark:text-gray-200 font-medium truncate">{s.parentName}</span></span>}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, fontSize:12, color:"#6B7280", marginBottom:12 }}>
+        {s.rollNumber && <span>🔢 Roll: <span style={{ color:"#111827", fontWeight:600 }}>{s.rollNumber}</span></span>}
+        {s.gender    && <span>👤 <span style={{ color:"#111827", fontWeight:600, textTransform:"capitalize" }}>{s.gender}</span></span>}
+        {s.bloodGroup && <span>🩸 <span style={{ color:"#111827", fontWeight:600 }}>{s.bloodGroup}</span></span>}
+        {s.parentName && <span>👨‍👩‍👧 <span style={{ color:"#111827", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis" }}>{s.parentName}</span></span>}
       </div>
 
       {canManage && (
-        <div className="flex gap-2 pt-3 border-t border-border dark:border-gray-700" onClick={e => e.stopPropagation()}>
-          <button onClick={onView}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-accent hover:text-accent transition-all">👁 View</button>
-          <button onClick={onEdit}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-blue-400 hover:text-blue-600 transition-all">✎ Edit</button>
-          <button onClick={onDelete} className="text-xs border border-red-200 rounded-lg px-2.5 py-1.5 text-red-400 hover:border-red-400 hover:text-red-600 transition-all">✕</button>
+        <div style={{ display:"flex", gap:8, paddingTop:12, borderTop:"1px solid #F3F4F6" }} onClick={e => e.stopPropagation()}>
+          <button onClick={onView} style={{ flex:1, fontSize:11, border:"1px solid #E5E7EB", borderRadius:8, padding:"6px", cursor:"pointer", color:"#374151", background:"#fff", fontWeight:600 }}>👁 View</button>
+          <button onClick={onEdit} style={{ flex:1, fontSize:11, border:"1px solid #E5E7EB", borderRadius:8, padding:"6px", cursor:"pointer", color:"#1D4ED8", background:"#EFF6FF", fontWeight:600 }}>✎ Edit</button>
+          <button onClick={onDelete} style={{ fontSize:11, border:"1px solid #FECACA", borderRadius:8, padding:"6px 10px", cursor:"pointer", color:"#DC2626", background:"#FEF2F2", fontWeight:600 }}>✕</button>
         </div>
       )}
     </div>
@@ -525,7 +525,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
   const weakSub = examResults.filter(e => e.pct < 50);
 
   return (
-    <div className="fixed inset-0 z-[300] flex">
+    <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex" }}>
       {/* Backdrop */}
       <div style={{ flex:1, background:"rgba(0,0,0,0.5)" }} onClick={onClose} />
       {/* Drawer */}
@@ -572,18 +572,18 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
           {activeTab === 'overview' && (
             <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
               {/* Quick stats */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="card p-4 text-center">
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
                   <Ring pct={attPct} size={60} />
-                  <p className="text-xs text-muted mt-2">Attendance</p>
+                  <p style={{ fontSize:11, color:"#9CA3AF", marginTop:8 }}>Attendance</p>
                 </div>
-                <div className="card p-4 text-center">
+                <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
                   <Ring pct={avgPct} size={60} color="#7c6af5" />
-                  <p className="text-xs text-muted mt-2">Avg Score</p>
+                  <p style={{ fontSize:11, color:"#9CA3AF", marginTop:8 }}>Avg Score</p>
                 </div>
-                <div className="card p-4 text-center flex flex-col items-center justify-center">
-                  <div className="text-2xl font-display text-ink dark:text-white">{fees.filter(f => f.status === 'pending').length}</div>
-                  <p className="text-xs text-muted mt-1">Pending Fees</p>
+                <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
+                  <div style={{ fontSize:24, fontWeight:800, color:"#111827" }}>{fees.filter(f => f.status === 'pending').length}</div>
+                  <p style={{ fontSize:11, color:"#9CA3AF", marginTop:4 }}>Pending Fees</p>
                 </div>
               </div>
 
@@ -606,7 +606,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
               {/* Address */}
               {(s.address?.city || s.address?.street) && (
                 <Section title="Address">
-                  <p className="text-sm text-slate dark:text-gray-300">
+                  <p style={{ fontSize:13, color:"#374151" }}>
                     {[s.address.street, s.address.city, s.address.state, s.address.pincode].filter(Boolean).join(', ')}
                   </p>
                 </Section>
@@ -624,7 +624,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
               {/* Transport */}
               {s.transportRoute && (
                 <Section title="Transport">
-                  <p className="text-sm text-slate dark:text-gray-300">🚌 Route: {s.transportRoute?.routeName || s.transportRoute}</p>
+                  <p style={{ fontSize:13, color:"#374151" }}>🚌 Route: {s.transportRoute?.routeName || s.transportRoute}</p>
                 </Section>
               )}
             </div>
@@ -634,12 +634,12 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
           {activeTab === 'academic' && (
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               {/* GPA card */}
-              <div className="card p-5 flex items-center gap-5">
+              <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:20, display:"flex", alignItems:"center", gap:20, boxShadow:"0 1px 3px rgba(0,0,0,0.05)" }}>
                 <Ring pct={avgPct} size={72} stroke={8} />
                 <div>
-                  <p className="text-3xl font-display text-ink dark:text-white">{avgPct}%</p>
-                  <p className="text-sm text-muted">Overall Average</p>
-                  <p className="text-xs font-semibold mt-1">
+                  <p style={{ fontSize:30, fontWeight:800, color:"#111827", margin:0 }}>{avgPct}%</p>
+                  <p style={{ fontSize:13, color:"#9CA3AF", margin:"4px 0 0" }}>Overall Average</p>
+                  <p style={{ fontSize:11, fontWeight:700, marginTop:4 }}>
                     Grade: {avgPct >= 90 ? 'A+' : avgPct >= 80 ? 'A' : avgPct >= 70 ? 'B' : avgPct >= 60 ? 'C' : avgPct >= 50 ? 'D' : 'F'}
                   </p>
                 </div>
@@ -647,10 +647,10 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
               {/* Weak subjects alert */}
               {weakSub.length > 0 && (
-                <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                  <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">⚠️ Needs Attention</p>
+                <div style={{ padding:16, borderRadius:12, background:"#FEF2F2", border:"1px solid #FECACA" }}>
+                  <p style={{ fontSize:13, fontWeight:700, color:"#991B1B", marginBottom:8 }}>⚠️ Needs Attention</p>
                   {weakSub.map((w, i) => (
-                    <p key={i} className="text-xs text-red-600 dark:text-red-400">📌 {w.subject} — {w.pct}% (below 50%)</p>
+                    <p key={i} style={{ fontSize:11, color:"#DC2626", margin:"3px 0" }}>📌 {w.subject} — {w.pct}% (below 50%)</p>
                   ))}
                 </div>
               )}
@@ -659,13 +659,13 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
               {examResults.length > 0 ? (
                 <Section title="Subject Performance">
                   {examResults.map((e, i) => (
-                    <div key={i} className="mb-3">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="font-medium text-ink dark:text-white">{e.subject}</span>
-                        <span className="text-muted">{e.marks}/{e.total} ({e.pct}%)</span>
+                    <div key={i} style={{ marginBottom:12 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginBottom:4 }}>
+                        <span style={{ fontWeight:600, color:"#111827" }}>{e.subject}</span>
+                        <span style={{ color:"#9CA3AF" }}>{e.marks}/{e.total} ({e.pct}%)</span>
                       </div>
-                      <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: e.pct + '%', background: e.pct >= 75 ? '#4a7c59' : e.pct >= 50 ? '#c9a84c' : '#d4522a' }} />
+                      <div style={{ height:8, background:"#F3F4F6", borderRadius:4, overflow:"hidden" }}>
+                        <div style={{ height:"100%", borderRadius:4, transition:"width 1s", width: e.pct + '%', background: e.pct >= 75 ? '#4a7c59' : e.pct >= 50 ? '#c9a84c' : '#d4522a' }} />
                       </div>
                     </div>
                   ))}
@@ -676,12 +676,12 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
               {exams.length > 0 && (
                 <Section title="Upcoming Exams">
                   {exams.filter(e => new Date(e.date) >= new Date()).slice(0, 5).map(e => (
-                    <div key={e._id} className="flex items-center justify-between py-2 border-b border-border dark:border-gray-700 last:border-0">
+                    <div key={e._id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid #F3F4F6" }}>
                       <div>
-                        <p className="text-sm font-medium text-ink dark:text-white">{e.name}</p>
-                        <p className="text-xs text-muted">{e.subject?.name}</p>
+                        <p style={{ fontSize:13, fontWeight:600, color:"#111827", margin:0 }}>{e.name}</p>
+                        <p style={{ fontSize:11, color:"#9CA3AF", margin:"2px 0 0" }}>{e.subject?.name}</p>
                       </div>
-                      <span className="text-xs font-semibold text-accent">{new Date(e.date).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}</span>
+                      <span style={{ fontSize:11, fontWeight:700, color:"#2563EB" }}>{new Date(e.date).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}</span>
                     </div>
                   ))}
                 </Section>
@@ -692,38 +692,37 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
           {/* ── ATTENDANCE ── */}
           {activeTab === 'attendance' && (
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="card p-4 text-center">
-                  <div className="text-2xl font-display text-green-600">{presentDays}</div>
-                  <div className="text-xs text-muted">Present</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
+                <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
+                  <div style={{ fontSize:24, fontWeight:800, color:"#166534" }}>{presentDays}</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF" }}>Present</div>
                 </div>
-                <div className="card p-4 text-center">
-                  <div className="text-2xl font-display text-red-500">{attendance.length - presentDays}</div>
-                  <div className="text-xs text-muted">Absent</div>
+                <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
+                  <div style={{ fontSize:24, fontWeight:800, color:"#DC2626" }}>{attendance.length - presentDays}</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF" }}>Absent</div>
                 </div>
-                <div className="card p-4 text-center">
-                  <div className={'text-2xl font-display ' + (attPct >= 75 ? 'text-green-600' : attPct >= 50 ? 'text-amber-500' : 'text-red-500')}>{attPct}%</div>
-                  <div className="text-xs text-muted">Percentage</div>
+                <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
+                  <div style={{ fontSize:24, fontWeight:800, color: attPct >= 75 ? '#166534' : attPct >= 50 ? '#B45309' : '#DC2626' }}>{attPct}%</div>
+                  <div style={{ fontSize:11, color:"#9CA3AF" }}>Percentage</div>
                 </div>
               </div>
 
               {attPct < 75 && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700 dark:text-amber-300">
+                <div style={{ padding:12, borderRadius:10, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:11, color:"#B45309" }}>
                   ⚠️ Attendance below 75%. Minimum required: 75% for exam eligibility.
                 </div>
               )}
 
               {/* Calendar heat-map simulation */}
               <Section title="This Month — Attendance Calendar">
-                <div className="grid grid-cols-7 gap-1.5">
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:6 }}>
                   {['S','M','T','W','T','F','S'].map(d => (
-                    <div key={d} className="text-center text-[10px] text-muted font-bold">{d}</div>
+                    <div key={d} style={{ textAlign:"center", fontSize:10, color:"#9CA3AF", fontWeight:700 }}>{d}</div>
                   ))}
                   {Array.from({ length: 2 }, (_, i) => <div key={'pad-'+i} />)}
                   {attendance.map((a, i) => (
                     <div key={i} title={'Day ' + a.day + ': ' + a.status}
-                      className={'w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold cursor-default ' +
-                        (a.status === 'present' ? 'bg-green-100 text-green-700 dark:bg-green-900/40' : 'bg-red-100 text-red-600 dark:bg-red-900/40')}>
+                      style={{ width:28, height:28, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, cursor:'default', background: a.status === 'present' ? '#D1FAE5' : '#FEE2E2', color: a.status === 'present' ? '#065F46' : '#DC2626' }}>
                       {a.day}
                     </div>
                   ))}
@@ -737,25 +736,25 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
               {fees.length === 0 ? <EmptyState icon="💰" title="No fee records found" /> : (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="card p-4 text-center">
-                      <div className="text-xl font-display text-green-600">₹{fees.filter(f => f.status === 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
-                      <div className="text-xs text-muted">Paid</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
+                      <div style={{ fontSize:20, fontWeight:800, color:"#166534" }}>₹{fees.filter(f => f.status === 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
+                      <div style={{ fontSize:11, color:"#9CA3AF" }}>Paid</div>
                     </div>
-                    <div className="card p-4 text-center">
-                      <div className="text-xl font-display text-amber-500">₹{fees.filter(f => f.status !== 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
-                      <div className="text-xs text-muted">Pending</div>
+                    <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, boxShadow:"0 1px 3px rgba(0,0,0,0.05)", textAlign:"center" }}>
+                      <div style={{ fontSize:20, fontWeight:800, color:"#B45309" }}>₹{fees.filter(f => f.status !== 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
+                      <div style={{ fontSize:11, color:"#9CA3AF" }}>Pending</div>
                     </div>
                   </div>
                   {fees.map(f => (
-                    <div key={f._id} className="card p-4 flex items-center justify-between">
+                    <div key={f._id} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div>
-                        <p className="font-medium text-sm text-ink dark:text-white">{f.feeType || 'Fee'}</p>
-                        <p className="text-xs text-muted">{f.dueDate ? new Date(f.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                        <p style={{ fontWeight:600, fontSize:13, color:"#111827", margin:0 }}>{f.feeType || 'Fee'}</p>
+                        <p style={{ fontSize:11, color:"#9CA3AF", margin:"2px 0 0" }}>{f.dueDate ? new Date(f.dueDate).toLocaleDateString('en-IN') : '—'}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-ink dark:text-white">₹{(f.amount || 0).toLocaleString('en-IN')}</p>
-                        <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (f.status === 'paid' ? 'bg-green-100 text-green-700' : f.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                      <div style={{ textAlign:"right" }}>
+                        <p style={{ fontWeight:700, color:"#111827", margin:0 }}>₹{(f.amount || 0).toLocaleString('en-IN')}</p>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999, background: f.status === 'paid' ? '#D1FAE5' : f.status === 'overdue' ? '#FEE2E2' : '#FEF3C7', color: f.status === 'paid' ? '#065F46' : f.status === 'overdue' ? '#991B1B' : '#92400E' }}>
                           {f.status}
                         </span>
                       </div>
@@ -773,17 +772,17 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                 assignments.slice(0, 10).map(a => {
                   const isOverdue = new Date(a.dueDate) < new Date();
                   return (
-                    <div key={a._id} className="card p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm text-ink dark:text-white">{a.title}</p>
-                          <p className="text-xs text-muted">{a.subject?.name} · {a.class?.name}</p>
+                    <div key={a._id} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16 }}>
+                      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+                        <div style={{ flex:1 }}>
+                          <p style={{ fontWeight:600, fontSize:13, color:"#111827", margin:0 }}>{a.title}</p>
+                          <p style={{ fontSize:11, color:"#9CA3AF", margin:"2px 0 0" }}>{a.subject?.name} · {a.class?.name}</p>
                         </div>
-                        <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (isOverdue ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700')}>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999, background: isOverdue ? '#FEE2E2' : '#D1FAE5', color: isOverdue ? '#991B1B' : '#065F46' }}>
                           {isOverdue ? 'Overdue' : 'Active'}
                         </span>
                       </div>
-                      <p className="text-xs text-muted mt-2">📅 Due: {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                      <p style={{ fontSize:11, color:"#9CA3AF", marginTop:8 }}>📅 Due: {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</p>
                     </div>
                   );
                 })
@@ -801,7 +800,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                   { label: 'Emergency Contact', value: s.parentName ? `${s.parentName} (${s.parentPhone})` : '—' },
                 ]} />
               </Section>
-              <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 text-sm text-blue-700 dark:text-blue-300">
+              <div style={{ padding:16, borderRadius:12, background:"#EFF6FF", border:"1px solid #BFDBFE", fontSize:13, color:"#1D4ED8" }}>
                 💡 To add detailed health records, update the student profile with medical information.
               </div>
             </div>
@@ -871,55 +870,57 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={form._id ? 'Edit Student Profile' : 'Add New Student'} size="xl"
       footer={<>
-        <button className="btn-secondary" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" onClick={() => onSave(form)} disabled={saving}>{saving ? 'Saving…' : form._id ? 'Save Changes' : 'Add Student'}</button>
+        <button style={{ flex:1, padding:"10px", borderRadius:9, fontSize:13, fontWeight:700, background:"#F3F4F6", border:"none", cursor:"pointer", color:"#374151" }} onClick={onClose}>Cancel</button>
+        <button style={{ flex:1, padding:"10px", borderRadius:9, fontSize:13, fontWeight:700, background:"#2563EB", border:"none", cursor:"pointer", color:"#fff", opacity: saving ? 0.7 : 1 }} onClick={() => onSave(form)} disabled={saving}>{saving ? 'Saving…' : form._id ? 'Save Changes' : 'Add Student'}</button>
       </>}>
 
       {/* Section tabs inside modal */}
-      <div className="flex gap-1 mb-5 p-1 rounded-xl bg-warm dark:bg-gray-800 border border-border">
+      <div style={{ display:"flex", gap:4, marginBottom:20, padding:4, borderRadius:12, background:"#F3F4F6", border:"1px solid #E5E7EB" }}>
         {sections.map(s => (
           <button key={s.id} onClick={() => setActiveSection(s.id)}
-            className={'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ' +
-              (activeSection === s.id ? 'bg-white dark:bg-gray-700 shadow text-accent' : 'text-muted hover:text-ink dark:hover:text-white')}>
+            style={{ flex:1, padding:'6px', borderRadius:8, fontSize:12, fontWeight:700, border:'none', cursor:'pointer',
+              background: activeSection === s.id ? '#fff' : 'transparent',
+              color: activeSection === s.id ? '#1D4ED8' : '#6B7280',
+              boxShadow: activeSection === s.id ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
             {s.label}
           </button>
         ))}
       </div>
 
       {activeSection === 'basic' && (
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Full Name *" className="col-span-2"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Arjun Sharma" /></FormGroup>
-          <FormGroup label="Email *"><input type="email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@school.com" /></FormGroup>
-          <FormGroup label="Phone"><input className="form-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" /></FormGroup>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          <FormGroup label="Full Name *" style={{ gridColumn:"1/-1" }}><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Arjun Sharma" /></FormGroup>
+          <FormGroup label="Email *"><input type="email" style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@school.com" /></FormGroup>
+          <FormGroup label="Phone"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" /></FormGroup>
           <FormGroup label="Gender">
-            <select className="form-input" value={form.gender} onChange={e => set('gender', e.target.value)}>
+            <select style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.gender} onChange={e => set('gender', e.target.value)}>
               <option value="">Select gender</option>
               <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
             </select>
           </FormGroup>
-          <FormGroup label="Date of Birth"><input type="date" className="form-input" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} /></FormGroup>
+          <FormGroup label="Date of Birth"><input type="date" style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} /></FormGroup>
           <FormGroup label="Blood Group">
-            <select className="form-input" value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}>
+            <select style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}>
               <option value="">Select</option>
               {BLOOD_GROUPS.map(b => <option key={b}>{b}</option>)}
             </select>
           </FormGroup>
-          <FormGroup label="Hobbies"><input className="form-input" value={form.hobbies} onChange={e => set('hobbies', e.target.value)} placeholder="Cricket, Drawing…" /></FormGroup>
+          <FormGroup label="Hobbies"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.hobbies} onChange={e => set('hobbies', e.target.value)} placeholder="Cricket, Drawing…" /></FormGroup>
         </div>
       )}
 
       {activeSection === 'academic' && (
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Admission Number *"><input className="form-input" value={form.admissionNumber} onChange={e => set('admissionNumber', e.target.value)} placeholder="STU-2024-001" /></FormGroup>
-          <FormGroup label="Roll Number"><input className="form-input" value={form.rollNumber} onChange={e => set('rollNumber', e.target.value)} placeholder="01" /></FormGroup>
-          <FormGroup label="Class" className="col-span-2">
-            <select className="form-input" value={form.classId} onChange={e => set('classId', e.target.value)}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          <FormGroup label="Admission Number *"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.admissionNumber} onChange={e => set('admissionNumber', e.target.value)} placeholder="STU-2024-001" /></FormGroup>
+          <FormGroup label="Roll Number"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.rollNumber} onChange={e => set('rollNumber', e.target.value)} placeholder="01" /></FormGroup>
+          <FormGroup label="Class" style={{ gridColumn:"1/-1" }}>
+            <select style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.classId} onChange={e => set('classId', e.target.value)}>
               <option value="">Select class</option>
               {classes.map(c => <option key={c._id} value={c._id}>{c.name} — {c.section}</option>)}
             </select>
           </FormGroup>
           {!form._id && (
-            <div className="col-span-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 text-xs text-blue-700 dark:text-blue-300">
+            <div style={{ gridColumn:"1/-1", padding:12, borderRadius:10, background:"#EFF6FF", border:"1px solid #BFDBFE", fontSize:11, color:"#1D4ED8" }}>
               💡 Default password: <strong>Student@123</strong> — student can change after first login.
             </div>
           )}
@@ -927,28 +928,28 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       )}
 
       {activeSection === 'guardian' && (
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Parent / Guardian Name" className="col-span-2"><input className="form-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" /></FormGroup>
-          <FormGroup label="Parent Phone"><input className="form-input" value={form.parentPhone} onChange={e => set('parentPhone', e.target.value)} placeholder="9876543210" /></FormGroup>
-          <FormGroup label="Parent Email"><input type="email" className="form-input" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} placeholder="parent@email.com" /></FormGroup>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          <FormGroup label="Parent / Guardian Name" style={{ gridColumn:"1/-1" }}><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" /></FormGroup>
+          <FormGroup label="Parent Phone"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.parentPhone} onChange={e => set('parentPhone', e.target.value)} placeholder="9876543210" /></FormGroup>
+          <FormGroup label="Parent Email"><input type="email" style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} placeholder="parent@email.com" /></FormGroup>
         </div>
       )}
 
       {activeSection === 'address' && (
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Street / House No" className="col-span-2"><input className="form-input" value={form.address?.street} onChange={e => setA('street', e.target.value)} placeholder="123 Main Street" /></FormGroup>
-          <FormGroup label="City"><input className="form-input" value={form.address?.city} onChange={e => setA('city', e.target.value)} placeholder="Pune" /></FormGroup>
-          <FormGroup label="State"><input className="form-input" value={form.address?.state} onChange={e => setA('state', e.target.value)} placeholder="Maharashtra" /></FormGroup>
-          <FormGroup label="Pincode"><input className="form-input" value={form.address?.pincode} onChange={e => setA('pincode', e.target.value)} placeholder="411001" /></FormGroup>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          <FormGroup label="Street / House No" style={{ gridColumn:"1/-1" }}><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.address?.street} onChange={e => setA('street', e.target.value)} placeholder="123 Main Street" /></FormGroup>
+          <FormGroup label="City"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.address?.city} onChange={e => setA('city', e.target.value)} placeholder="Pune" /></FormGroup>
+          <FormGroup label="State"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.address?.state} onChange={e => setA('state', e.target.value)} placeholder="Maharashtra" /></FormGroup>
+          <FormGroup label="Pincode"><input style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} value={form.address?.pincode} onChange={e => setA('pincode', e.target.value)} placeholder="411001" /></FormGroup>
         </div>
       )}
 
       {activeSection === 'medical' && (
-        <div className="space-y-4">
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <FormGroup label="Medical Conditions / Allergies">
-            <textarea className="form-input" rows={4} value={form.medicalInfo} onChange={e => set('medicalInfo', e.target.value)} placeholder="Any known allergies, chronic conditions, medications…" style={{ resize: 'vertical' }} />
+            <textarea style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"7px 10px", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} rows={4} value={form.medicalInfo} onChange={e => set('medicalInfo', e.target.value)} placeholder="Any known allergies, chronic conditions, medications…" />
           </FormGroup>
-          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700">
+          <div style={{ padding:12, borderRadius:10, background:"#FFFBEB", border:"1px solid #FDE68A", fontSize:11, color:"#B45309" }}>
             ⚕️ This information is confidential and only visible to school administration.
           </div>
         </div>
@@ -961,19 +962,19 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
 function Section({ title, children }) {
   return (
     <div>
-      <h4 className="text-xs font-bold text-muted uppercase tracking-wide mb-3">{title}</h4>
-      <div className="card p-4">{children}</div>
+      <h4 style={{ fontSize:11, fontWeight:700, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:12 }}>{title}</h4>
+      <div style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, padding:16 }}>{children}</div>
     </div>
   );
 }
 
 function InfoGrid({ items }) {
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px 16px" }}>
       {items.map(({ label, value }) => (
         <div key={label}>
-          <p className="text-[10px] text-muted uppercase tracking-wide">{label}</p>
-          <p className="text-sm font-medium text-ink dark:text-white">{value || '—'}</p>
+          <p style={{ fontSize:10, color:"#9CA3AF", textTransform:"uppercase", letterSpacing:"0.05em", margin:0 }}>{label}</p>
+          <p style={{ fontSize:13, fontWeight:500, color:"#111827", margin:"2px 0 0" }}>{value || '—'}</p>
         </div>
       ))}
     </div>
