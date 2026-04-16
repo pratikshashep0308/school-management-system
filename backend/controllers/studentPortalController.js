@@ -181,7 +181,7 @@ exports.getTimetable = async (req, res) => {
   const student = await resolveStudent(req);
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
-  const timetable = await Timetable.find({ class: student.class })
+  const timetable = await Timetable.find({ class: student.class?._id || student.class })
     .populate('subject', 'name code')
     .populate('teacher', 'name')
     .sort({ day: 1, startTime: 1 });
@@ -195,7 +195,7 @@ exports.getAssignments = async (req, res) => {
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
   // Note: no isPublished field in schema — fetch all assignments for the student's class
-  const assignments = await Assignment.find({ class: student.class })
+  const assignments = await Assignment.find({ class: student.class?._id || student.class })
     .populate('subject', 'name code')
     .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } })
     .sort({ dueDate: 1 });
@@ -277,7 +277,7 @@ exports.getDashboard = async (req, res) => {
     StudentFee.findOne({ student: student._id })
       .populate('class', 'name grade section'),
     // Note: no isPublished field in schema — fetch all assignments for the student's class
-    Assignment.find({ class: student.class, school: student.school }).sort({ dueDate: 1 })
+    Assignment.find({ class: student.class?._id || student.class, school: student.school }).sort({ dueDate: 1 })
       .populate('subject', 'name code')
       .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } }),
     Notification.find({
