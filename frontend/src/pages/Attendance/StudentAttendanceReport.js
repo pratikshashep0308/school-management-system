@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { attendanceAPI, classAPI } from '../../utils/api';
+import DateRangePicker from './DateRangePicker';
 
 const NOW = new Date();
 const FIRST = new Date(NOW.getFullYear(), NOW.getMonth(), 1).toISOString().split('T')[0];
@@ -97,17 +98,19 @@ export default function StudentAttendanceReport() {
     <div>
       <h2 style={{ fontSize:20, fontWeight:800, color:'#111827', margin:'0 0 20px' }}>Students Attendance Record</h2>
 
-      {/* Blue date-range bar */}
-      <div style={{ background:'#3B5BDB', borderRadius:10, padding:'12px 18px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:20 }}>
-        <span style={{ color:'#fff', fontSize:16 }}>📅</span>
-        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{ ...SEL, minWidth:140 }}/>
-        <span style={{ color:'#fff', fontWeight:700 }}>→</span>
-        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{ ...SEL, minWidth:140 }}/>
-        <select value={classId} onChange={e=>setClassId(e.target.value)} style={{ ...SEL, minWidth:160 }}>
+      {/* eSkooly-style date range picker + class select + generate */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:20 }}>
+        <DateRangePicker
+          from={dateFrom ? new Date(dateFrom) : null}
+          to={dateTo   ? new Date(dateTo)   : null}
+          onChange={(f, t) => { setDateFrom(f.toISOString().split('T')[0]); setDateTo(t.toISOString().split('T')[0]); }}
+        />
+        <select value={classId} onChange={e=>setClassId(e.target.value)}
+          style={{ padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, background:'#fff', outline:'none', minWidth:160 }}>
           {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
         <button onClick={generate} disabled={loading}
-          style={{ padding:'7px 22px', borderRadius:8, background:'#fff', color:'#3B5BDB', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+          style={{ padding:'10px 22px', borderRadius:9, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
           {loading?'⏳ Loading…':'⚙ Generate'}
         </button>
       </div>

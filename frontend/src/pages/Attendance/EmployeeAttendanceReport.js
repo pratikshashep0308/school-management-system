@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { teacherAPI } from '../../utils/api';
+import DateRangePicker from './DateRangePicker';
 
 const NOW = new Date();
 const FIRST = new Date(NOW.getFullYear(), NOW.getMonth(), 1).toISOString().split('T')[0];
@@ -68,7 +69,6 @@ export default function EmployeeAttendanceReport() {
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='employee-attendance.csv'; a.click();
   };
 
-  const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, background:'#fff', outline:'none' };
   const BTN = { padding:'5px 14px', borderRadius:6, border:'1px solid #D1D5DB', background:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', color:'#374151' };
   const SC  = { present:{ color:'#166534', bg:'#DCFCE7' }, absent:{ color:'#991B1B', bg:'#FEE2E2' }, leave:{ color:'#92400E', bg:'#FEF3C7' } };
 
@@ -76,13 +76,14 @@ export default function EmployeeAttendanceReport() {
     <div>
       <h2 style={{ fontSize:20, fontWeight:800, color:'#111827', margin:'0 0 20px' }}>Employees Attendance Record</h2>
 
-      <div style={{ background:'#3B5BDB', borderRadius:10, padding:'12px 18px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:20 }}>
-        <span style={{ color:'#fff', fontSize:16 }}>📅</span>
-        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{ ...SEL, minWidth:140 }}/>
-        <span style={{ color:'#fff', fontWeight:700 }}>→</span>
-        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{ ...SEL, minWidth:140 }}/>
+      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:20 }}>
+        <DateRangePicker
+          from={dateFrom ? new Date(dateFrom) : null}
+          to={dateTo   ? new Date(dateTo)   : null}
+          onChange={(f, t) => { setDateFrom(f.toISOString().split('T')[0]); setDateTo(t.toISOString().split('T')[0]); }}
+        />
         <button onClick={generate} disabled={loading}
-          style={{ padding:'7px 22px', borderRadius:8, background:'#fff', color:'#3B5BDB', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+          style={{ padding:'10px 22px', borderRadius:9, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
           {loading?'⏳ Loading…':'⚙ Generate'}
         </button>
       </div>

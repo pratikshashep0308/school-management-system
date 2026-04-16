@@ -13,6 +13,12 @@ async function resolveStudent(req) {
   if (req.studentDoc) return req.studentDoc;
 
   if (req.user.role === 'student') {
+    // Try by user._id first, then by school + user combination
+    const student = await Student.findOne({ user: req.user._id, isActive: true })
+      .populate('user', 'name email phone profileImage')
+      .populate('class', 'name grade section');
+    if (student) return student;
+    // Fallback without isActive filter (in case isActive not set)
     return await Student.findOne({ user: req.user._id })
       .populate('user', 'name email phone profileImage')
       .populate('class', 'name grade section');
