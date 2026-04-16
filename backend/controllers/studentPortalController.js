@@ -259,7 +259,7 @@ exports.getDashboard = async (req, res) => {
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
   // Fetch all data in parallel for performance
-  const [attendance, results, feeRecord, assignments, notifications, allocation] = await Promise.all([
+  const [attendance, results, feeRecord, assignments, notifications, allocation, timetableDoc] = await Promise.all([
     (async () => {
       const recs = await Attendance.find({ student: student._id }).sort({ date: -1 }).limit(60);
       const present = recs.filter(r => r.status === 'present').length;
@@ -284,6 +284,15 @@ exports.getDashboard = async (req, res) => {
       school: student.school,
       audience: { $in: [req.user.role === 'parent' ? 'parents' : 'students', 'all'] }
     }).sort({ createdAt: -1 }).limit(5),
+    // ← Fetch timetable for student's class
+    (async () => {
+      try {
+        const { Timetable } = require('../models/index');
+        return await Timetable.findOne({ class: student.class?._id || student.class, isActive: true })
+          .populate({ path: 'schedule.periods.subject', select: 'name code color' })
+          .populate({ path: 'schedule.periods.teacher', populate: { path: 'user', select: 'name' } });
+      } catch(e) { return null; }
+    })(),
     // ← Fetch student's transport assignment (new TransportAssignment model)
     (async () => {
       try {
@@ -401,6 +410,7 @@ exports.getDashboard = async (req, res) => {
       upcomingAssignments: assignmentsWithStatus,   // alias
       notifications,
       transport:           allocation,              // student's own route info
+      timetable:           timetableDoc,            // student's class timetable
     },
   });
 };
