@@ -357,222 +357,231 @@ function ClassDailyView({ classes }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB 3 — MONTHLY REPORT (calendar heatmap + student-wise breakdown)
+// TAB 3 — MONTHLY REPORT (eSkooly-style date range table)
 // ══════════════════════════════════════════════════════════════════════════════
 function MonthlyReport({ classes }) {
   const now = new Date();
+
+  // Default date range: 1st of current month → today
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const todayStr     = now.toISOString().split('T')[0];
+
   const [selectedClass, setSelectedClass] = useState('');
-  const [month,         setMonth]         = useState(now.getMonth() + 1);
-  const [year,          setYear]          = useState(now.getFullYear());
-  const [data,          setData]          = useState(null);
+  const [dateFrom,      setDateFrom]      = useState(firstOfMonth);
+  const [dateTo,        setDateTo]        = useState(todayStr);
+  const [rows,          setRows]          = useState([]);        // flat list: { date, day, id, name, class, status }
   const [loading,       setLoading]       = useState(false);
-  const [activeFilter,  setActiveFilter]  = useState('all'); // 'all'|'low'|'top'|'good'
+  const [search,        setSearch]        = useState('');
+  const [sortCol,       setSortCol]       = useState('date');
+  const [sortDir,       setSortDir]       = useState('asc');
+  const [generated,     setGenerated]     = useState(false);
 
   useEffect(() => {
     if (classes.length && !selectedClass) setSelectedClass(classes[0]._id);
   }, [classes]);
 
-  const load = async () => {
-    if (!selectedClass) return;
+  const generate = async () => {
+    if (!selectedClass) return toast.error('Select a class first');
     setLoading(true);
+    setGenerated(false);
     try {
-      // Use analytics endpoint — returns summary + breakdown + dailyTrend together
-      const r = await attendanceAPI.getClassAnalytics(selectedClass, month, year);
-      setData(r.data.data || r.data);
-    } catch { toast.error('Failed to load monthly report'); }
+      // Derive month/year from dateFrom for the analytics endpoint
+      const from  = new Date(dateFrom);
+      const month = from.getMonth() + 1;
+      const year  = from.getFullYear();
+      const r     = await attendanceAPI.getClassAnalytics(selectedClass, month, year);
+      const data  = r.data.data || r.data;
+
+      // Build flat rows from breakdown + days map
+      const flatRows = [];
+      const fromD = new Date(dateFrom);
+      const toD   = new Date(dateTo);
+
+      (data.breakdown || []).forEach(entry => {
+        const studentName = entry.student?.name || '—';
+        const rollNo      = entry.student?.rollNumber || entry.student?.admissionNumber || '—';
+        const cls         = classes.find(c => c._id === selectedClass);
+        const className   = cls ? `${cls.name} ${cls.section || ''}`.trim() : '—';
+
+        Object.entries(entry.days || {}).forEach(([day, status]) => {
+          const date = new Date(year, month - 1, parseInt(day));
+          if (date >= fromD && date <= toD) {
+            flatRows.push({
+              date,
+              dateStr: date.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
+              day:     date.toLocaleDateString('en-IN', { weekday:'long' }),
+              id:      rollNo,
+              name:    studentName,
+              class:   className,
+              status:  status.charAt(0).toUpperCase() + status.slice(1),
+            });
+          }
+        });
+      });
+
+      // Sort by date then name by default
+      flatRows.sort((a, b) => a.date - b.date || a.name.localeCompare(b.name));
+      setRows(flatRows);
+      setGenerated(true);
+    } catch { toast.error('Failed to load attendance report'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (selectedClass) load(); }, [selectedClass, month, year]);
-
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-  const SEL = { padding:'8px 12px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, background:'#fff', outline:'none' };
-
-  const dayColor = (pct) => {
-    if (pct === undefined || pct === null) return '#F3F4F6';
-    if (pct >= 90) return '#16A34A';
-    if (pct >= 75) return '#22C55E';
-    if (pct >= 50) return '#F59E0B';
-    if (pct > 0)  return '#EF4444';
-    return '#FEE2E2';
+  // Sorting
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
   };
 
+  // Filter + sort
+  const filtered = rows
+    .filter(r => {
+      const q = search.toLowerCase();
+      return !q || r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q) || r.status.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      let av, bv;
+      if (sortCol === 'date')   { av = a.date;   bv = b.date; }
+      else if (sortCol === 'day')    { av = a.day;    bv = b.day; }
+      else if (sortCol === 'id')     { av = a.id;     bv = b.id; }
+      else if (sortCol === 'name')   { av = a.name;   bv = b.name; }
+      else if (sortCol === 'class')  { av = a.class;  bv = b.class; }
+      else if (sortCol === 'status') { av = a.status; bv = b.status; }
+      else return 0;
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ?  1 : -1;
+      return 0;
+    });
+
+  // Export helpers
+  const toCSV = () => {
+    const header = 'DATE,DAY,ID,NAME,CLASS,STATUS\n';
+    const body   = filtered.map(r => `${r.dateStr},${r.day},${r.id},${r.name},${r.class},${r.status}`).join('\n');
+    const blob   = new Blob([header + body], { type:'text/csv' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a'); a.href = url; a.download = 'attendance-report.csv'; a.click();
+  };
+
+  const copyTable = () => {
+    const text = filtered.map(r => `${r.dateStr}\t${r.day}\t${r.id}\t${r.name}\t${r.class}\t${r.status}`).join('\n');
+    navigator.clipboard.writeText(text).then(() => toast.success('Copied to clipboard'));
+  };
+
+  const printTable = () => window.print();
+
+  const statusColor = (s) => {
+    const sl = s.toLowerCase();
+    if (sl === 'present') return { color:'#166534', bg:'#DCFCE7' };
+    if (sl === 'absent')  return { color:'#991B1B', bg:'#FEE2E2' };
+    if (sl === 'late')    return { color:'#92400E', bg:'#FEF3C7' };
+    return { color:'#374151', bg:'#F3F4F6' };
+  };
+
+  const SortIcon = ({ col }) => (
+    <span style={{ marginLeft:4, opacity: sortCol===col ? 1 : 0.35, fontSize:10 }}>
+      {sortCol===col ? (sortDir==='asc' ? '↑' : '↓') : '↕'}
+    </span>
+  );
+
+  const SEL = { padding:'7px 10px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, background:'#fff', outline:'none' };
+  const BTN = { padding:'5px 14px', borderRadius:6, border:'1px solid #D1D5DB', background:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', color:'#374151' };
+
   return (
-    <div>
-      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
-        <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} style={SEL}>
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* Date range bar — eSkooly style */}
+      <div style={{ background:'#3B5BDB', borderRadius:10, padding:'10px 16px', display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        <span style={{ color:'#fff', fontSize:14 }}>📅</span>
+        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+          style={{ ...SEL, minWidth:140 }} />
+        <span style={{ color:'#fff', fontWeight:600 }}>→</span>
+        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+          style={{ ...SEL, minWidth:140 }} />
+        <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)} style={{ ...SEL, minWidth:140 }}>
           {classes.map(c=><option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
-        <select value={month} onChange={e=>setMonth(Number(e.target.value))} style={SEL}>
-          {MONTHS.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-        </select>
-        <select value={year} onChange={e=>setYear(Number(e.target.value))} style={SEL}>
-          {[2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}
-        </select>
-        <button onClick={load} disabled={loading}
-          style={{ padding:'8px 16px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer', opacity:loading?0.6:1 }}>
-          {loading ? '⏳' : '🔍'} Generate
+        <button onClick={generate} disabled={loading}
+          style={{ padding:'7px 20px', borderRadius:8, background:'#fff', color:'#3B5BDB', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
+          {loading ? '⏳ Loading…' : '⚙ Generate'}
         </button>
       </div>
 
-      {loading ? <LoadingState /> : !data ? (
-        <EmptyState icon="📊" title="Select class and month" subtitle="Click Generate to load the monthly attendance report" />
+      {!generated ? (
+        <div style={{ textAlign:'center', padding:'60px 20px', color:'#9CA3AF', background:'#fff', borderRadius:12, border:'1px solid #E5E7EB' }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>📊</div>
+          <div style={{ fontWeight:600, fontSize:16, color:'#374151' }}>Select class and date range</div>
+          <div style={{ fontSize:13, marginTop:6 }}>Click Generate to load the attendance report</div>
+        </div>
       ) : (
-        <div>
-          {/* Monthly summary */}
-          {data.summary && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:20 }}>
-              {[
-                { icon:'📅', label:'Working Days',   val:data.summary.workingDays||0,                                              color:'#1D4ED8', bg:'#EFF6FF', border:'#3B82F6', filter:null },
-                { icon:'👥', label:'All Students',   val:data.summary.totalStudents||0,                                            color:'#7C3AED', bg:'#F5F3FF', border:'#8B5CF6', filter:'all' },
-                { icon:'✅', label:'Good (≥75%)',     val:(data.breakdown||[]).filter(s=>s.percentage>=75).length,                  color:'#16A34A', bg:'#F0FDF4', border:'#22C55E', filter:'good' },
-                { icon:'⚠️', label:'Low (<75%)',     val:(data.lowStudents||data.breakdown?.filter(s=>s.percentage<75&&s.total>0)||[]).length, color:'#D97706', bg:'#FFFBEB', border:'#F59E0B', filter:'low' },
-                { icon:'🏆', label:'Top (≥90%)',     val:(data.breakdown||[]).filter(s=>s.percentage>=90).length,                  color:'#059669', bg:'#ECFDF5', border:'#10B981', filter:'top' },
-              ].map(c=>(
-                <div key={c.label}
-                  onClick={() => c.filter !== null && setActiveFilter(f => f===c.filter ? 'all' : c.filter)}
-                  style={{
-                    background: activeFilter===c.filter ? c.border+'22' : c.bg,
-                    border: `1.5px solid ${activeFilter===c.filter ? c.border : c.border+'80'}`,
-                    borderRadius:12, padding:'14px 16px',
-                    cursor: c.filter !== null ? 'pointer' : 'default',
-                    transition:'all 0.18s',
-                    transform: activeFilter===c.filter ? 'translateY(-2px)' : '',
-                    boxShadow: activeFilter===c.filter ? `0 4px 16px ${c.border}40` : '',
-                  }}
-                  onMouseEnter={e=>{ if(c.filter!==null){ e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 4px 16px ${c.border}40`; }}}
-                  onMouseLeave={e=>{ if(activeFilter!==c.filter){ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; }}}
-                >
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
-                    <div style={{ fontSize:20 }}>{c.icon}</div>
-                    {c.filter !== null && <span style={{ fontSize:9, color:c.color, fontWeight:700, opacity:0.6 }}>{activeFilter===c.filter?'✓ Active':'Click'}</span>}
-                  </div>
-                  <div style={{ fontSize:22, fontWeight:900, color:c.color }}>{c.val}</div>
-                  <div style={{ fontSize:11, fontWeight:700, color:'#374151', marginTop:3 }}>{c.label}</div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div style={{ background:'#fff', borderRadius:12, border:'1px solid #E5E7EB', overflow:'hidden' }}>
 
-          {/* Calendar heatmap */}
-          <div className="card" style={{ padding:20, marginBottom:20 }}>
-            <div style={{ fontWeight:700, fontSize:14, marginBottom:16, display:'flex', justifyContent:'space-between' }}>
-              <span>📅 Daily Attendance Heatmap — {MONTHS[month-1]} {year}</span>
-              <div style={{ display:'flex', gap:8, alignItems:'center', fontSize:11 }}>
-                {[['#16A34A','≥90%'],['#22C55E','≥75%'],['#F59E0B','≥50%'],['#EF4444','<50%'],['#F3F4F6','No data']].map(([c,l])=>(
-                  <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                    <div style={{ width:12, height:12, borderRadius:3, background:c }}/>
-                    <span style={{ color:'#6B7280' }}>{l}</span>
-                  </div>
-                ))}
-              </div>
+          {/* Toolbar: Copy CSV Excel PDF Print | Search */}
+          <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, borderBottom:'1px solid #F3F4F6' }}>
+            <div style={{ display:'flex', gap:6 }}>
+              <button style={BTN} onClick={copyTable}>Copy</button>
+              <button style={BTN} onClick={toCSV}>CSV</button>
+              <button style={BTN} onClick={toCSV}>Excel</button>
+              <button style={{ ...BTN, background:'#DC2626', color:'#fff', border:'none' }} onClick={printTable}>PDF</button>
+              <button style={BTN} onClick={printTable}>Print</button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:6 }}>
-              {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>(
-                <div key={d} style={{ textAlign:'center', fontSize:10, fontWeight:700, color:'#9CA3AF', paddingBottom:4 }}>{d}</div>
-              ))}
-              {/* Empty cells for first day of month */}
-              {Array.from({ length: (new Date(year, month-1, 1).getDay() + 6) % 7 }).map((_,i)=>(
-                <div key={`e${i}`}/>
-              ))}
-              {days.map(d => {
-                // dailyTrend has date strings like '2026-04-09'
-              const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-              const dayData = (data.dailyTrend||[]).find(x => x.date === dateStr);
-                const pctVal  = dayData?.percentage ?? null;
-                const col     = dayColor(pctVal);
-                const isToday = d === now.getDate() && month === now.getMonth()+1 && year === now.getFullYear();
-                return (
-                  <div key={d} title={pctVal !== null ? `Day ${d}: ${pctVal}% attendance` : `Day ${d}: No data`}
-                    style={{
-                      aspectRatio:'1', borderRadius:8, background:col,
-                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                      fontSize:10, fontWeight:700, color: col==='#F3F4F6'?'#9CA3AF':'#fff',
-                      border: isToday ? '2px solid #1D4ED8' : '1px solid transparent',
-                      cursor:'default',
-                    }}>
-                    {d}
-                    {pctVal !== null && <div style={{ fontSize:8, opacity:0.85 }}>{Math.round(pctVal)}%</div>}
-                  </div>
-                );
-              })}
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:13, color:'#6B7280' }}>Search:</span>
+              <input value={search} onChange={e=>setSearch(e.target.value)}
+                style={{ padding:'5px 10px', border:'1px solid #D1D5DB', borderRadius:6, fontSize:13, outline:'none', width:180 }}
+                placeholder="Name, ID, status…" />
             </div>
           </div>
 
-          {/* Student-wise monthly breakdown */}
-          {(data.breakdown || data.data || []).length > 0 && (
-            <div className="card" style={{ padding:0, overflow:'hidden' }}>
-              <div style={{ padding:'14px 18px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <div style={{ fontWeight:700, fontSize:14 }}>
-                  Student-wise Breakdown
-                  {activeFilter && activeFilter !== 'all' && (
-                    <span style={{ marginLeft:8, fontSize:12, color:'#1D4ED8', fontWeight:600 }}>({activeFilter})</span>
-                  )}
-                </div>
-                {activeFilter && activeFilter !== 'all' && (
-                  <button onClick={()=>setActiveFilter('all')} style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 10px', borderRadius:6, cursor:'pointer', fontWeight:700 }}>
-                    ✕ Clear Filter
-                  </button>
-                )}
-              </div>
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
-                  <thead>
-                    <tr style={{ background:'#0B1F4A' }}>
-                      {['Roll','Student','Present','Absent','Late','Excused','Attendance %','Status'].map(h=>(
-                        <th key={h} style={{ padding:'10px 14px', textAlign:'left', color:'#E2E8F0', fontSize:11, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
-                      ))}
+          {/* Table */}
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#F9FAFB', borderBottom:'2px solid #E5E7EB' }}>
+                  {[
+                    { key:'date',   label:'DATE'   },
+                    { key:'day',    label:'DAY'    },
+                    { key:'id',     label:'ID'     },
+                    { key:'name',   label:'NAME'   },
+                    { key:'class',  label:'CLASS'  },
+                    { key:'status', label:'STATUS' },
+                  ].map(({ key, label }) => (
+                    <th key={key} onClick={() => handleSort(key)}
+                      style={{ padding:'11px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', whiteSpace:'nowrap', cursor:'pointer', userSelect:'none' }}>
+                      {label}<SortIcon col={key} />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={6} style={{ textAlign:'center', padding:'40px', color:'#9CA3AF', fontSize:13 }}>No data available in table</td></tr>
+                ) : filtered.map((r, i) => {
+                  const sc = statusColor(r.status);
+                  return (
+                    <tr key={i} style={{ borderBottom:'1px solid #F3F4F6', background: i%2 ? '#FAFAFA' : '#fff' }}
+                      onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
+                      onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}>
+                      <td style={{ padding:'10px 14px', color:'#374151', fontWeight:500 }}>{r.dateStr}</td>
+                      <td style={{ padding:'10px 14px', color:'#6B7280' }}>{r.day}</td>
+                      <td style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:12, color:'#374151' }}>{r.id}</td>
+                      <td style={{ padding:'10px 14px', fontWeight:600, color:'#111827' }}>{r.name}</td>
+                      <td style={{ padding:'10px 14px', color:'#374151' }}>{r.class}</td>
+                      <td style={{ padding:'10px 14px' }}>
+                        <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:sc.bg, color:sc.color }}>
+                          {r.status}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(data.breakdown || []).filter(r => {
-                    if (activeFilter === 'all' || !activeFilter) return true;
-                    if (activeFilter === 'low')  return r.percentage < 75 && r.total > 0;
-                    if (activeFilter === 'good') return r.percentage >= 75;
-                    if (activeFilter === 'top')  return r.percentage >= 90;
-                    return true;
-                  }).map((r, i) => {
-                      const pct  = r.percentage ?? 0;
-                      const rc   = pct >= 75 ? '#16A34A' : pct >= 50 ? '#D97706' : '#DC2626';
-                      const name = r.student?.name || '—';
-                      const roll = r.student?.rollNumber || '—';
-                      return (
-                        <tr key={i} style={{ borderBottom:'1px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
-                          <td style={{ padding:'10px 14px', color:'#6B7280', fontWeight:600 }}>{roll}</td>
-                          <td style={{ padding:'10px 14px', fontWeight:700 }}>{name}</td>
-                          <td style={{ padding:'10px 14px', color:'#16A34A', fontWeight:700 }}>{r.present??0}</td>
-                          <td style={{ padding:'10px 14px', color:'#DC2626', fontWeight:700 }}>{r.absent??0}</td>
-                          <td style={{ padding:'10px 14px', color:'#D97706', fontWeight:700 }}>{r.late??0}</td>
-                          <td style={{ padding:'10px 14px', color:'#7C3AED', fontWeight:700 }}>{r.excused??0}</td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                              <div style={{ flex:1, height:6, background:'#F3F4F6', borderRadius:3, overflow:'hidden', minWidth:60 }}>
-                                <div style={{ height:'100%', width:`${Math.min(100,pct)}%`, background:rc, borderRadius:3 }}/>
-                              </div>
-                              <span style={{ fontSize:12, fontWeight:800, color:rc, minWidth:36 }}>{pct}%</span>
-                            </div>
-                          </td>
-                          <td style={{ padding:'10px 14px' }}>
-                            <span style={{
-                              fontSize:11, fontWeight:700,
-                              color: pct>=75?'#16A34A':'#DC2626',
-                              background: pct>=75?'#F0FDF4':'#FEF2F2',
-                              border: `1px solid ${pct>=75?'#22C55E':'#EF4444'}40`,
-                              padding:'2px 8px', borderRadius:10,
-                            }}>
-                              {pct>=75 ? '✅ Good' : pct>=50 ? '⚠️ Low' : '🔴 Critical'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding:'10px 16px', borderTop:'1px solid #F3F4F6', fontSize:12, color:'#6B7280' }}>
+            Showing {filtered.length} of {rows.length} entries
+          </div>
         </div>
       )}
     </div>
@@ -580,7 +589,6 @@ function MonthlyReport({ classes }) {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════════
 // TAB 4 — STUDENT DATE-WISE HISTORY (admin: search any student, see all records)
 // ══════════════════════════════════════════════════════════════════════════════
 function StudentHistory({ classes }) {
