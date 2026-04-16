@@ -240,7 +240,9 @@ export default function AdminTransport() {
             const secAgo = lastUpdate ? (Date.now() - new Date(lastUpdate)) / 1000 : Infinity;
             const isLive = secAgo < 120;
             return (
-              <div key={bus._id} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div key={bus._id} onClick={() => openBusModal(bus)} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(0,0,0,0.06)", cursor:"pointer", transition:"box-shadow 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)"}
+                onMouseLeave={e => e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}>
                 <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:12 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                     <div style={{ width:44, height:44, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:20, background: bus.color || '#3B82F6' }}>🚌</div>
@@ -274,11 +276,11 @@ export default function AdminTransport() {
                 </div>
 
                 <div style={{ display:"flex", gap:8, marginTop:16 }}>
-                  <button onClick={() => openBusModal(bus)}
+                  <button onClick={(e) => { e.stopPropagation(); openBusModal(bus); }}
                     style={{ flex:1, fontSize:12, padding:"6px", borderRadius:8, background:"#EFF6FF", color:"#1D4ED8", border:"none", cursor:"pointer", fontWeight:600 }}>
                     Edit
                   </button>
-                  <button onClick={() => deleteBus(bus._id)}
+                  <button onClick={(e) => { e.stopPropagation(); deleteBus(bus._id); }}
                     style={{ fontSize:12, padding:"6px 12px", borderRadius:8, background:"#FEF2F2", color:"#EF4444", border:"none", cursor:"pointer", fontWeight:600 }}>
                     Remove
                   </button>
@@ -299,7 +301,9 @@ export default function AdminTransport() {
       {tab === 'Routes' && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           {routes.map((route) => (
-            <div key={route._id} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+            <div key={route._id} onClick={() => openRouteModal(route)} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(0,0,0,0.06)", cursor:"pointer" }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.12)"}
+              onMouseLeave={e => e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"}>
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <div style={{ width:6, height:56, borderRadius:3, flexShrink:0, background: route.color || "#3B82F6" }} />
@@ -313,9 +317,9 @@ export default function AdminTransport() {
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
-                  <button onClick={() => openRouteModal(route)}
+                  <button onClick={(e) => { e.stopPropagation(); openRouteModal(route); }}
                     style={{ fontSize:12, padding:"6px 12px", borderRadius:8, background:"#EFF6FF", color:"#1D4ED8", border:"none", cursor:"pointer", fontWeight:600 }}>Edit</button>
-                  <button onClick={() => deleteRoute(route._id)}
+                  <button onClick={(e) => { e.stopPropagation(); deleteRoute(route._id); }}
                     style={{ fontSize:12, padding:"6px 12px", borderRadius:8, background:"#FEF2F2", color:"#EF4444", border:"none", cursor:"pointer", fontWeight:600 }}>Delete</button>
                 </div>
               </div>
@@ -381,7 +385,24 @@ export default function AdminTransport() {
                   const route = a.routeId || a.route;
                   const bus   = a.busId   || a.bus;
                   return (
-                    <tr key={a._id} style={{ borderBottom:"0.5px solid #F3F4F6" }}>
+                    <tr key={a._id}
+                      onClick={() => {
+                        const route = a.routeId || a.route;
+                        const bus   = a.busId   || a.bus;
+                        setAssignForm({
+                          studentId:    a.student?._id || '',
+                          routeId:      route?._id     || '',
+                          busId:        bus?._id       || '',
+                          pickupStopId: a.pickupStopId?._id || '',
+                          dropStopId:   a.dropStopId?._id   || '',
+                          monthlyFee:   a.monthlyFee  || 1200,
+                          passType:     a.passType    || 'both',
+                        });
+                        setShowAssignModal(true);
+                      }}
+                      style={{ borderBottom:"0.5px solid #F3F4F6", cursor:"pointer" }}
+                      onMouseEnter={e => e.currentTarget.style.background="#F9FAFB"}
+                      onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                       <td style={{ padding:"10px 16px", fontWeight:600, color:"#111827" }}>{a.student?.user?.name || a.student?.name || "—"}</td>
                       <td style={{ padding:"10px 16px" }}>
                         {route && (
@@ -407,7 +428,7 @@ export default function AdminTransport() {
                         </span>
                       </td>
                       <td style={{ padding:"10px 16px" }}>
-                        <button onClick={() => removeAssignment(a._id)}
+                        <button onClick={(e) => { e.stopPropagation(); removeAssignment(a._id); }}
                           style={{ fontSize:12, padding:"4px 10px", borderRadius:7, background:"#FEF2F2", color:"#EF4444", border:"none", cursor:"pointer", fontWeight:600 }}>
                           Remove
                         </button>
