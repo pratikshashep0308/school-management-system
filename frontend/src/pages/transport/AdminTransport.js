@@ -207,16 +207,16 @@ export default function AdminTransport() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div style={{ padding:"0", display:"flex", flexDirection:"column", gap:20 }}>
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">🚌 Transport Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 style={{ fontSize:24, fontWeight:700, color:"#111827" }}>🚌 Transport Management</h1>
+          <p style={{ fontSize:13, color:"#6B7280", marginTop:4 }}>
             {buses.length} buses · {routes.length} routes · {assignments.length} students assigned
           </p>
         </div>
-        <div className="flex gap-2">
+        <div style={{ display:"flex", gap:8 }}>
           {tab === 'Buses'       && <ActionBtn onClick={() => openBusModal()}>+ Add Bus</ActionBtn>}
           {tab === 'Routes'      && <ActionBtn onClick={() => openRouteModal()}>+ Add Route</ActionBtn>}
           {tab === 'Assignments' && <ActionBtn onClick={() => setShowAssignModal(true)}>+ Assign Student</ActionBtn>}
@@ -224,12 +224,14 @@ export default function AdminTransport() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+      <div style={{ display:'flex', gap:4, background:'#F3F4F6', borderRadius:12, padding:4, width:'fit-content' }}>
         {TABS.map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === t ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-800'
-            }`}>
+            style={{ padding:'8px 20px', borderRadius:9, fontSize:13, fontWeight:700, border:'none', cursor:'pointer', transition:'all 0.15s',
+              background: tab===t ? '#fff' : 'transparent',
+              color:      tab===t ? '#1D4ED8' : '#6B7280',
+              boxShadow:  tab===t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+            }}>
             {t}
           </button>
         ))}
@@ -237,7 +239,7 @@ export default function AdminTransport() {
 
       {/* ── BUSES ─────────────────────────────────────────────────────────── */}
       {tab === 'Buses' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16 }}>
           {buses.map((bus) => {
             const lastUpdate = bus.currentLocation?.updatedAt;
             const secAgo = lastUpdate ? (Date.now() - new Date(lastUpdate)) / 1000 : Infinity;
@@ -303,7 +305,7 @@ export default function AdminTransport() {
 
       {/* ── ROUTES ────────────────────────────────────────────────────────── */}
       {tab === 'Routes' && (
-        <div className="space-y-4">
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           {routes.map((route) => (
             <div key={route._id} className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
@@ -318,7 +320,7 @@ export default function AdminTransport() {
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display:"flex", gap:8 }}>
                   <button onClick={() => openRouteModal(route)}
                     className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold">Edit</button>
                   <button onClick={() => deleteRoute(route._id)}
@@ -374,7 +376,7 @@ export default function AdminTransport() {
       {tab === 'Assignments' && (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   {['Student','Route','Bus','Pickup Stop','Drop Stop','Fee/Month','Pass','Actions'].map((h) => (
@@ -535,7 +537,7 @@ export default function AdminTransport() {
       {/* ─── ASSIGN STUDENT MODAL ─────────────────────────────────────────── */}
       {showAssignModal && (
         <Modal title="Assign Student to Transport" onClose={() => { setShowAssignModal(false); setAssignForm(emptyAssign()); }}>
-          <div className="space-y-4">
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {/* Student */}
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Student *</label>
