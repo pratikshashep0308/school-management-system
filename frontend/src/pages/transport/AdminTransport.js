@@ -7,7 +7,9 @@
 //   4. Added live GPS status indicator on bus cards
 //   5. Assignments table shows routeId/busId populated fields
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable no-unused-vars */
+import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { busAPI, routeAPI, assignmentAPI, stopAPI } from '../../utils/transportAPI';
 import api from '../../utils/api';
@@ -195,14 +197,7 @@ export default function AdminTransport() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-10 bg-gray-200 rounded-xl w-1/3" />
-          <div className="grid grid-cols-3 gap-4">
-            {[1,2,3].map((i) => <div key={i} className="h-40 bg-gray-200 rounded-2xl" />)}
-          </div>
-        </div>
-      </div>
+      <div style={{ padding:32, textAlign:"center", color:"#9CA3AF" }}>⏳ Loading transport data...</div>
     );
   }
 
@@ -245,49 +240,46 @@ export default function AdminTransport() {
             const secAgo = lastUpdate ? (Date.now() - new Date(lastUpdate)) / 1000 : Infinity;
             const isLive = secAgo < 120;
             return (
-              <div key={bus._id} className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-xl"
-                      style={{ background: bus.color || '#3B82F6' }}>🚌</div>
+              <div key={bus._id} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:12 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:44, height:44, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:20, background: bus.color || '#3B82F6' }}>🚌</div>
                     <div>
-                      <p className="font-bold text-gray-900">{bus.busNumber}</p>
-                      <p className="text-xs text-gray-500 font-mono">{bus.registrationNo}</p>
+                      <p style={{ fontWeight:700, color:"#111827", margin:0 }}>{bus.busNumber}</p>
+                      <p style={{ fontSize:11, color:"#6B7280", fontFamily:"monospace", margin:0 }}>{bus.registrationNo}</p>
                     </div>
                   </div>
                   <StatusBadge status={bus.status} />
                 </div>
 
-                <div className="space-y-1.5 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <span>👨‍✈️</span><span className="font-medium">{bus.driver?.name || '—'}</span>
-                    {bus.driver?.phone && <span className="text-gray-400 text-xs">· {bus.driver.phone}</span>}
+                <div style={{ display:"flex", flexDirection:"column", gap:6, fontSize:13, color:"#4B5563" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <span>👨‍✈️</span><span style={{ fontWeight:500 }}>{bus.driver?.name || "—"}</span>
+                    {bus.driver?.phone && <span style={{ color:"#9CA3AF", fontSize:11 }}>· {bus.driver.phone}</span>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <span>🛣️</span><span>{bus.assignedRoute?.name || 'No route assigned'}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <span>💺</span><span>Cap: {bus.capacity} · {bus.type}</span>
                   </div>
                 </div>
 
                 {/* GPS badge */}
-                <div className={`flex items-center gap-1.5 mt-3 text-xs font-medium px-2.5 py-1.5 rounded-lg w-fit ${
-                  isLive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full inline-block ${isLive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:12, fontSize:11, fontWeight:500, padding:"5px 10px", borderRadius:8, width:"fit-content", background:isLive?"#F0FDF4":"#F3F4F6", color:isLive?"#15803D":"#6B7280" }}>
+                  <span style={{ width:8, height:8, borderRadius:"50%", display:"inline-block", background:isLive?"#22C55E":"#9CA3AF" }} />
                   {isLive
                     ? `GPS Live · ${Math.round(bus.currentLocation.speed || 0)} km/h`
                     : lastUpdate ? `GPS: ${timeSince(lastUpdate)}` : 'GPS: No data'}
                 </div>
 
-                <div className="flex gap-2 mt-4">
+                <div style={{ display:"flex", gap:8, marginTop:16 }}>
                   <button onClick={() => openBusModal(bus)}
-                    className="flex-1 text-xs py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold">
+                    style={{ flex:1, fontSize:12, padding:"6px", borderRadius:8, background:"#EFF6FF", color:"#1D4ED8", border:"none", cursor:"pointer", fontWeight:600 }}>
                     Edit
                   </button>
                   <button onClick={() => deleteBus(bus._id)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-semibold">
+                    style={{ fontSize:12, padding:"6px 12px", borderRadius:8, background:"#FEF2F2", color:"#EF4444", border:"none", cursor:"pointer", fontWeight:600 }}>
                     Remove
                   </button>
                 </div>
@@ -295,9 +287,9 @@ export default function AdminTransport() {
             );
           })}
           {buses.length === 0 && (
-            <div className="col-span-3 text-center py-16 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-300">
-              <div className="text-5xl mb-3">🚌</div>
-              <p className="font-medium">No buses yet. Add your first bus.</p>
+            <div style={{ gridColumn:"1/-1", textAlign:"center", padding:"64px 16px", color:"#9CA3AF", background:"#fff", borderRadius:16, border:"2px dashed #E5E7EB" }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>🚌</div>
+              <p style={{ fontWeight:500 }}>No buses yet. Add your first bus.</p>
             </div>
           )}
         </div>
@@ -307,66 +299,65 @@ export default function AdminTransport() {
       {tab === 'Routes' && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           {routes.map((route) => (
-            <div key={route._id} className="bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-14 rounded-full flex-shrink-0" style={{ background: route.color || '#3B82F6' }} />
+            <div key={route._id} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:16, padding:20, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ width:6, height:56, borderRadius:3, flexShrink:0, background: route.color || "#3B82F6" }} />
                   <div>
-                    <p className="font-bold text-gray-900 text-lg">{route.name}</p>
-                    <p className="text-sm text-gray-500">
-                      Code: <span className="font-mono font-semibold">{route.code}</span>
+                    <p style={{ fontWeight:700, color:"#111827", fontSize:16, margin:0 }}>{route.name}</p>
+                    <p style={{ fontSize:13, color:"#6B7280", margin:"4px 0 0" }}>
+                      Code: <span style={{ fontFamily:"monospace", fontWeight:600 }}>{route.code}</span>
                       &nbsp;·&nbsp;{route.stops?.length || 0} stops
-                      &nbsp;·&nbsp;<span className="font-semibold text-blue-600">{route.totalStudents || 0} students</span>
+                      &nbsp;·&nbsp;<span style={{ fontWeight:600, color:"#1D4ED8" }}>{route.totalStudents || 0} students</span>
                     </p>
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={() => openRouteModal(route)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold">Edit</button>
+                    style={{ fontSize:12, padding:"6px 12px", borderRadius:8, background:"#EFF6FF", color:"#1D4ED8", border:"none", cursor:"pointer", fontWeight:600 }}>Edit</button>
                   <button onClick={() => deleteRoute(route._id)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-semibold">Delete</button>
+                    style={{ fontSize:12, padding:"6px 12px", borderRadius:8, background:"#FEF2F2", color:"#EF4444", border:"none", cursor:"pointer", fontWeight:600 }}>Delete</button>
                 </div>
               </div>
 
               {/* Stop timeline */}
-              <div className="mt-4 flex items-center gap-1.5 overflow-x-auto pb-2 pt-1">
+              <div style={{ marginTop:16, display:"flex", alignItems:"center", gap:6, overflowX:"auto", paddingBottom:8 }}>
                 {(route.stops || []).map((stop, i) => (
                   <React.Fragment key={i}>
-                    <div className="flex-shrink-0 text-center min-w-[72px]">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold mx-auto shadow-sm"
-                        style={{ background: route.color || '#3B82F6' }}>
+                    <div style={{ flexShrink:0, textAlign:"center", minWidth:72 }}>
+                      <div style={{ width:32, height:32, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:700, margin:"0 auto", background: route.color || '#3B82F6' }}>
                         {stop.sequence || i + 1}
                       </div>
-                      <p className="text-xs text-gray-700 mt-1 max-w-[72px] truncate font-medium">{stop.name}</p>
-                      <p className="text-xs text-gray-400">{stop.morningTime}</p>
+                      <p style={{ fontSize:11, color:"#374151", marginTop:4, maxWidth:72, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight:500, margin:"4px 0 0" }}>{stop.name}</p>
+                      <p style={{ fontSize:10, color:"#9CA3AF", margin:"2px 0 0" }}>{stop.morningTime}</p>
                       {stop.studentCount > 0 && (
-                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded-md font-semibold">
+                        <span style={{ fontSize:10, background:"#DBEAFE", color:"#1D4ED8", padding:"1px 6px", borderRadius:4, fontWeight:600 }}>
                           {stop.studentCount}👦
                         </span>
                       )}
                     </div>
                     {i < route.stops.length - 1 && (
-                      <div className="h-0.5 flex-1 min-w-[16px] rounded-full" style={{ background: route.color || '#3B82F6', opacity: 0.35 }} />
+                      <div style={{ height:2, flex:1, minWidth:16, borderRadius:2, background: route.color || "#3B82F6", opacity:0.35 }} />
                     )}
                   </React.Fragment>
                 ))}
               </div>
 
               {route.assignedBus && (
-                <div className="mt-3 px-3 py-2 bg-gray-50 rounded-xl text-sm flex items-center gap-3">
+                <div style={{ marginTop:12, padding:"8px 12px", background:"#F9FAFB", borderRadius:10, fontSize:13, display:"flex", alignItems:"center", gap:12 }}>
                   <span>🚌</span>
-                  <span className="font-semibold">{route.assignedBus.busNumber}</span>
-                  <span className="text-gray-500">{route.assignedBus.driver?.name}</span>
-                  <span className="text-gray-400">·</span>
-                  <span className="text-gray-500">📞 {route.assignedBus.driver?.phone}</span>
+                  <span style={{ fontWeight:600 }}>{route.assignedBus.busNumber}</span>
+                  <span style={{ color:"#6B7280" }}>{route.assignedBus.driver?.name}</span>
+                  <span style={{ color:"#9CA3AF" }}>·</span>
+                  <span style={{ color:"#6B7280" }}>📞 {route.assignedBus.driver?.phone}</span>
                 </div>
               )}
             </div>
           ))}
           {routes.length === 0 && (
-            <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-300">
-              <div className="text-5xl mb-3">🛣️</div>
-              <p className="font-medium">No routes yet. Create your first route.</p>
+            <div style={{ textAlign:"center", padding:"64px 16px", color:"#9CA3AF", background:"#fff", borderRadius:16, border:"2px dashed #E5E7EB" }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>🛣️</div>
+              <p style={{ fontWeight:500 }}>No routes yet. Create your first route.</p>
             </div>
           )}
         </div>
@@ -374,55 +365,50 @@ export default function AdminTransport() {
 
       {/* ── ASSIGNMENTS ───────────────────────────────────────────────────── */}
       {tab === 'Assignments' && (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div style={{ background:"#fff", borderRadius:16, border:"1px solid #E5E7EB", overflow:"hidden" }}>
+          <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ background:"#0B1F4A" }}>
                 <tr>
                   {['Student','Route','Bus','Pickup Stop','Drop Stop','Fee/Month','Pass','Actions'].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">{h}</th>
+                    <th key={h} style={{ textAlign:"left", padding:"11px 16px", fontSize:10, fontWeight:700, color:"#E2E8F0", textTransform:"uppercase", whiteSpace:"nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {assignments.map((a) => {
                   // ✅ FIX: use routeId/busId populated fields
                   const route = a.routeId || a.route;
                   const bus   = a.busId   || a.bus;
                   return (
-                    <tr key={a._id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{a.student?.name || '—'}</td>
-                      <td className="px-4 py-3">
+                    <tr key={a._id} style={{ borderBottom:"0.5px solid #F3F4F6" }}>
+                      <td style={{ padding:"10px 16px", fontWeight:600, color:"#111827" }}>{a.student?.name || "—"}</td>
+                      <td style={{ padding:"10px 16px" }}>
                         {route && (
-                          <span className="px-2 py-0.5 rounded-lg text-xs font-semibold text-white"
-                            style={{ background: route.color || '#3B82F6' }}>
+                          <span style={{ padding:"2px 8px", borderRadius:6, fontSize:11, fontWeight:700, color:"#fff", background: route.color || '#3B82F6' }}>
                             {route.code}
                           </span>
                         )}
-                        <span className="ml-2 text-gray-600">{route?.name || '—'}</span>
+                        <span style={{ marginLeft:8, color:"#4B5563" }}>{route?.name || "—"}</span>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">{bus?.busNumber || '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-700">{a.pickupStop?.name || '—'}</span>
-                        {a.pickupStop?.time && <span className="text-gray-400 text-xs ml-1">({a.pickupStop.time})</span>}
+                      <td style={{ padding:"10px 16px", fontFamily:"monospace", fontSize:12 }}>{bus?.busNumber || "—"}</td>
+                      <td style={{ padding:"10px 16px" }}>
+                        <span style={{ color:"#374151" }}>{a.pickupStop?.name || "—"}</span>
+                        {a.pickupStop?.time && <span style={{ color:"#9CA3AF", fontSize:11, marginLeft:4 }}>({a.pickupStop.time})</span>}
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="text-gray-700">{a.dropStop?.name || '—'}</span>
-                        {a.dropStop?.time && <span className="text-gray-400 text-xs ml-1">({a.dropStop.time})</span>}
+                      <td style={{ padding:"10px 16px" }}>
+                        <span style={{ color:"#374151" }}>{a.dropStop?.name || "—"}</span>
+                        {a.dropStop?.time && <span style={{ color:"#9CA3AF", fontSize:11, marginLeft:4 }}>({a.dropStop.time})</span>}
                       </td>
-                      <td className="px-4 py-3 font-semibold">₹{a.monthlyFee?.toLocaleString('en-IN')}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-lg font-semibold ${
-                          a.passType === 'both'    ? 'bg-blue-100 text-blue-700' :
-                          a.passType === 'morning' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-purple-100 text-purple-700'
-                        }`}>
+                      <td style={{ padding:"10px 16px", fontWeight:600 }}>₹{a.monthlyFee?.toLocaleString("en-IN")}</td>
+                      <td style={{ padding:"10px 16px" }}>
+                        <span style={{ fontSize:11, padding:"2px 8px", borderRadius:6, fontWeight:700, background: a.passType==='both'?'#DBEAFE':a.passType==='morning'?'#FEF3C7':'#EDE9FE', color: a.passType==='both'?'#1D4ED8':a.passType==='morning'?'#92400E':'#5B21B6' }}>
                           {a.passType || 'both'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td style={{ padding:"10px 16px" }}>
                         <button onClick={() => removeAssignment(a._id)}
-                          className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-semibold">
+                          style={{ fontSize:12, padding:"4px 10px", borderRadius:7, background:"#FEF2F2", color:"#EF4444", border:"none", cursor:"pointer", fontWeight:600 }}>
                           Remove
                         </button>
                       </td>
@@ -430,7 +416,7 @@ export default function AdminTransport() {
                   );
                 })}
                 {assignments.length === 0 && (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">
+                  <tr><td colSpan={8} style={{ textAlign:"center", padding:"48px 16px", color:"#9CA3AF" }}>
                     No assignments yet. Click &quot;+ Assign Student&quot; to get started.
                   </td></tr>
                 )}
@@ -443,7 +429,7 @@ export default function AdminTransport() {
       {/* ─── BUS MODAL ───────────────────────────────────────────────────── */}
       {showBusModal && (
         <Modal title={editingBus ? 'Edit Bus' : 'Add Bus'} onClose={() => setShowBusModal(false)}>
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
             <Field label="Bus Number *"      value={busForm.busNumber}      onChange={(v) => setBusForm({...busForm, busNumber: v})}      placeholder="BUS-01" />
             <Field label="Registration No *" value={busForm.registrationNo} onChange={(v) => setBusForm({...busForm, registrationNo: v})} placeholder="MH12AB1234" />
             <Field label="Type" type="select" value={busForm.type} options={['bus','van','minibus','auto']} onChange={(v) => setBusForm({...busForm, type: v})} />
@@ -459,13 +445,12 @@ export default function AdminTransport() {
             <Field label="Status" type="select" value={busForm.status} options={['active','maintenance','inactive','breakdown']}
               onChange={(v) => setBusForm({...busForm, status: v})} />
           </div>
-          <div className="mt-4">
-            <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">Bus Color</label>
-            <div className="flex gap-2 flex-wrap">
+          <div style={{ marginTop:16 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:8 }}>Bus Color</label>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {BUS_COLORS.map((c) => (
                 <button key={c} onClick={() => setBusForm({...busForm, color: c})}
-                  className="w-8 h-8 rounded-full border-2 transition-all"
-                  style={{ background: c, borderColor: busForm.color === c ? '#111' : 'transparent', transform: busForm.color === c ? 'scale(1.15)' : 'scale(1)' }} />
+                  style={{ width:32, height:32, borderRadius:"50%", border:"2px solid transparent", cursor:"pointer", background: c, borderColor: busForm.color === c ? '#111' : 'transparent', transform: busForm.color === c ? 'scale(1.15)' : 'scale(1)' }} />
               ))}
             </div>
           </div>
@@ -476,55 +461,54 @@ export default function AdminTransport() {
       {/* ─── ROUTE MODAL ─────────────────────────────────────────────────── */}
       {showRouteModal && (
         <Modal title={editingRoute ? 'Edit Route' : 'Create Route'} onClose={() => setShowRouteModal(false)} wide>
-          <div className="grid grid-cols-2 gap-4">
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
             <Field label="Route Name *" value={routeForm.name} onChange={(v) => setRouteForm({...routeForm, name: v})} placeholder="Route A — Hinjewadi" />
             <Field label="Route Code *" value={routeForm.code} onChange={(v) => setRouteForm({...routeForm, code: v})} placeholder="RT-A" />
             <Field label="Morning Departure" type="time" value={routeForm.morningDepartureTime} onChange={(v) => setRouteForm({...routeForm, morningDepartureTime: v})} />
             <Field label="Evening Departure" type="time" value={routeForm.eveningDepartureTime} onChange={(v) => setRouteForm({...routeForm, eveningDepartureTime: v})} />
-            <div className="col-span-2">
+            <div style={{ gridColumn:"1/-1" }}>
               <Field label="Assign Bus" type="select" value={routeForm.assignedBus || ''}
                 options={[{label:'— No bus —',value:''}, ...buses.map((b) => ({label:`${b.busNumber} — ${b.driver?.name||'No driver'}`, value: b._id}))]}
                 onChange={(v) => setRouteForm({...routeForm, assignedBus: v})} />
             </div>
           </div>
 
-          <div className="mt-4">
-            <label className="text-xs font-semibold text-gray-600 uppercase block mb-2">Route Color</label>
-            <div className="flex gap-2 flex-wrap">
+          <div style={{ marginTop:16 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:8 }}>Route Color</label>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               {BUS_COLORS.map((c) => (
                 <button key={c} onClick={() => setRouteForm({...routeForm, color: c})}
-                  className="w-8 h-8 rounded-full border-2 transition-all"
-                  style={{ background: c, borderColor: routeForm.color === c ? '#111' : 'transparent' }} />
+                  style={{ width:32, height:32, borderRadius:"50%", border:"2px solid transparent", cursor:"pointer", background: c, borderColor: routeForm.color === c ? '#111' : 'transparent' }} />
               ))}
             </div>
           </div>
 
-          <div className="mt-5">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-xs font-semibold text-gray-600 uppercase">Stops ({routeForm.stops.length})</label>
-              <button onClick={addStop} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-semibold">+ Add Stop</button>
+          <div style={{ marginTop:20 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase" }}>Stops ({routeForm.stops.length})</label>
+              <button onClick={addStop} style={{ fontSize:12, padding:"4px 12px", background:"#EFF6FF", color:"#1D4ED8", borderRadius:8, border:"none", cursor:"pointer", fontWeight:600 }}>+ Add Stop</button>
             </div>
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+            <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:288, overflowY:"auto" }}>
               {routeForm.stops.map((stop, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-xl p-3 grid grid-cols-5 gap-2 items-end">
-                  <div className="col-span-2">
-                    <label className="text-xs text-gray-500 mb-1 block">Stop Name *</label>
+                <div key={idx} style={{ background:"#F9FAFB", borderRadius:10, padding:12, display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr auto", gap:8, alignItems:"end" }}>
+                  <div style={{ gridColumn:"1/-1" }}>
+                    <label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:4 }}>Stop Name *</label>
                     <input value={stop.name} onChange={(e) => updateStop(idx, 'name', e.target.value)}
-                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", boxSizing:"border-box" }}
                       placeholder="e.g. Hinjewadi Phase 1" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Morning</label>
+                    <label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:4 }}>Morning</label>
                     <input type="time" value={stop.morningArrivalTime} onChange={(e) => updateStop(idx, 'morningArrivalTime', e.target.value)}
-                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                      style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", boxSizing:"border-box" }} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Evening</label>
+                    <label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:4 }}>Evening</label>
                     <input type="time" value={stop.eveningArrivalTime} onChange={(e) => updateStop(idx, 'eveningArrivalTime', e.target.value)}
-                      className="w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                      style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", boxSizing:"border-box" }} />
                   </div>
                   <button onClick={() => removeStop(idx)} disabled={routeForm.stops.length === 1}
-                    className="py-1.5 border border-red-200 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg text-xs disabled:opacity-30">✕</button>
+                    style={{ padding:"6px 10px", border:"1px solid #FECACA", color:"#EF4444", background:"#FEF2F2", borderRadius:7, fontSize:12, cursor:"pointer" }}>✕</button>
                 </div>
               ))}
             </div>
@@ -540,14 +524,14 @@ export default function AdminTransport() {
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {/* Student */}
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Student *</label>
+              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Student *</label>
               {students.length === 0 ? (
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-700">
+                <div style={{ padding:12, background:"#FFFBEB", border:"1px solid #FDE68A", borderRadius:10, fontSize:13, color:"#92400E" }}>
                   ⚠️ No students loaded. Check permissions or add students first.
                 </div>
               ) : (
                 <select value={assignForm.studentId} onChange={(e) => setAssignForm({...assignForm, studentId: e.target.value})}
-                  className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
                   <option value="">— Select student —</option>
                   {students.map((s) => (
                     <option key={s._id} value={s._id}>
@@ -560,13 +544,13 @@ export default function AdminTransport() {
 
             {/* Route — auto-fills bus */}
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Route *</label>
+              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Route *</label>
               <select value={assignForm.routeId}
                 onChange={(e) => {
                   const r = routes.find((rt) => rt._id === e.target.value);
                   setAssignForm({ ...assignForm, routeId: e.target.value, busId: r?.assignedBus?._id || '', pickupStopId: '', dropStopId: '' });
                 }}
-                className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
                 <option value="">— Select route —</option>
                 {routes.map((r) => (
                   <option key={r._id} value={r._id}>{r.name} ({r.code}) · {r.stops?.length || 0} stops</option>
@@ -576,11 +560,11 @@ export default function AdminTransport() {
 
             {/* Bus (auto-filled, can override) */}
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">
-                Bus * {assignForm.busId && <span className="text-green-600 font-normal">(auto-filled from route)</span>}
+              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>
+                Bus * {assignForm.busId && <span style={{ color:"#16A34A", fontWeight:400 }}>(auto-filled from route)</span>}
               </label>
               <select value={assignForm.busId} onChange={(e) => setAssignForm({...assignForm, busId: e.target.value})}
-                className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
                 <option value="">— Select bus —</option>
                 {buses.map((b) => (
                   <option key={b._id} value={b._id}>{b.busNumber} — {b.driver?.name || 'No driver'} ({b.type})</option>
@@ -592,9 +576,9 @@ export default function AdminTransport() {
             {routeStops.length > 0 ? (
               <>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Pickup Stop *</label>
+                  <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Pickup Stop *</label>
                   <select value={assignForm.pickupStopId} onChange={(e) => setAssignForm({...assignForm, pickupStopId: e.target.value})}
-                    className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
                     <option value="">— Select pickup stop —</option>
                     {routeStops.map((s) => (
                       <option key={s._id || s.stop} value={s._id || s.stop}>
@@ -605,9 +589,9 @@ export default function AdminTransport() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Drop Stop *</label>
+                  <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Drop Stop *</label>
                   <select value={assignForm.dropStopId} onChange={(e) => setAssignForm({...assignForm, dropStopId: e.target.value})}
-                    className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
                     <option value="">— Select drop stop —</option>
                     {routeStops.map((s) => (
                       <option key={s._id || s.stop} value={s._id || s.stop}>
@@ -618,27 +602,27 @@ export default function AdminTransport() {
                 </div>
               </>
             ) : assignForm.routeId ? (
-              <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-orange-700">
+              <div style={{ padding:12, background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, fontSize:13, color:"#9A3412" }}>
                 ⚠️ This route has no stops. Please edit the route and add stops first.
               </div>
             ) : null}
 
             {/* Pass type & fee */}
-            <div className="grid grid-cols-2 gap-4">
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
               <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Pass Type</label>
+                <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Pass Type</label>
                 <select value={assignForm.passType} onChange={(e) => setAssignForm({...assignForm, passType: e.target.value})}
-                  className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
                   <option value="both">Both (Morning + Evening)</option>
                   <option value="morning">Morning Only</option>
                   <option value="evening">Evening Only</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">Monthly Fee (₹) *</label>
+                <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Monthly Fee (₹) *</label>
                 <input type="number" value={assignForm.monthlyFee} min="0"
                   onChange={(e) => setAssignForm({...assignForm, monthlyFee: e.target.value})}
-                  className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}
                   placeholder="1200" />
               </div>
             </div>
@@ -655,7 +639,7 @@ export default function AdminTransport() {
 // ── Sub-components ────────────────────────────────────────────────────────────
 function ActionBtn({ children, onClick }) {
   return (
-    <button onClick={onClick} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+    <button onClick={onClick} style={{ padding:"8px 18px", fontSize:13, background:"#1D4ED8", color:"#fff", borderRadius:10, fontWeight:700, border:"none", cursor:"pointer" }}>
       {children}
     </button>
   );
@@ -669,16 +653,16 @@ function StatusBadge({ status }) {
     breakdown:   { bg: '#FEE2E2', text: '#991B1B', label: 'Breakdown' },
   };
   const s = map[status] || map.inactive;
-  return <span style={{ background: s.bg, color: s.text }} className="text-xs px-2 py-0.5 rounded-lg font-semibold">{s.label}</span>;
+  return <span style={{ background: s.bg, color: s.text, fontSize:11, padding:"2px 8px", borderRadius:6, fontWeight:700 }}>{s.label}</span>;
 }
 
 function Field({ label, value, onChange, type = 'text', options, placeholder }) {
+  const INP = { width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box", background:"#fff" };
   return (
     <div>
-      <label className="text-xs font-semibold text-gray-600 uppercase block mb-1">{label}</label>
+      <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>{label}</label>
       {type === 'select' ? (
-        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)}
-          className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+        <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} style={INP}>
           {options?.map((o) => typeof o === 'string'
             ? <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>
             : <option key={o.value} value={o.value}>{o.label}</option>
@@ -686,8 +670,7 @@ function Field({ label, value, onChange, type = 'text', options, placeholder }) 
         </select>
       ) : (
         <input type={type} value={value ?? ''} placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" />
+          onChange={(e) => onChange(e.target.value)} style={INP} />
       )}
     </div>
   );
@@ -695,24 +678,24 @@ function Field({ label, value, onChange, type = 'text', options, placeholder }) 
 
 function Modal({ title, onClose, children, wide = false }) {
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto`}>
-        <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white rounded-t-2xl z-10">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:500, padding:16 }}>
+      <div style={{ background:"#fff", borderRadius:18, boxShadow:"0 20px 60px rgba(0,0,0,0.2)", width:"100%", maxWidth:wide?780:520, maxHeight:"90vh", overflowY:"auto" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"18px 24px", borderBottom:"1px solid #E5E7EB", position:"sticky", top:0, background:"#fff", zIndex:10, borderRadius:"18px 18px 0 0" }}>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"#111827", margin:0 }}>{title}</h2>
+          <button onClick={onClose} style={{ background:"none", border:"none", fontSize:20, color:"#9CA3AF", cursor:"pointer", lineHeight:1 }}>✕</button>
         </div>
-        <div className="p-6">{children}</div>
+        <div style={{ padding:24 }}>{children}</div>
       </div>
     </div>
   );
 }
 
 function ModalFooter({ onCancel, onSave, saveLabel, saveColor = 'blue' }) {
-  const colors = { blue: 'bg-blue-600 hover:bg-blue-700', green: 'bg-green-600 hover:bg-green-700' };
+  const bg = saveColor === 'green' ? '#16A34A' : '#1D4ED8';
   return (
-    <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-      <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
-      <button onClick={onSave} className={`px-5 py-2 text-sm text-white rounded-xl font-semibold transition-colors ${colors[saveColor]}`}>{saveLabel}</button>
+    <div style={{ display:"flex", justifyContent:"flex-end", gap:10, marginTop:24, paddingTop:16, borderTop:"1px solid #F3F4F6" }}>
+      <button onClick={onCancel} style={{ padding:"8px 18px", fontSize:13, color:"#6B7280", background:"#F3F4F6", border:"none", borderRadius:10, cursor:"pointer" }}>Cancel</button>
+      <button onClick={onSave} style={{ padding:"8px 22px", fontSize:13, color:"#fff", background:bg, border:"none", borderRadius:10, fontWeight:700, cursor:"pointer" }}>{saveLabel}</button>
     </div>
   );
 }
