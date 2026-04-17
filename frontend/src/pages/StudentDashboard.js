@@ -580,9 +580,13 @@ export default function StudentDashboard() {
       )}
       {tab === 'timetable' && (
         <div>
-          {!timetable.length ? (
+          <StudentTimetableView
+            classId={student?.class?._id}
+            className={`${student?.class?.name || ''} ${student?.class?.section || ''}`.trim()}
+          />
+          {false && !timetable.length ? (
             <EmptyState icon="🗓" title="No timetable set" subtitle="Admin hasn't configured the timetable for your class yet" />
-          ) : (
+          ) : false && (
             <div className="card overflow-x-auto" style={{ padding:0 }}>
               <div style={{ background:'#0B1F4A', padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <div style={{ fontWeight:700, fontSize:15, color:'#fff' }}>🗓 Weekly Timetable</div>
