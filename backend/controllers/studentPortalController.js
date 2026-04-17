@@ -265,7 +265,7 @@ exports.getDashboard = async (req, res) => {
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
 
   // Fetch all data in parallel for performance
-  const [attendance, results, feeRecord, assignments, notifications, allocation, timetableDoc] = await Promise.all([
+  const [attendance, results, feeRecord, assignments, notifications, timetableDoc, allocation] = await Promise.all([
     (async () => {
       const recs = await Attendance.find({ student: student._id }).sort({ date: -1 }).limit(60);
       const present = recs.filter(r => r.status === 'present').length;
