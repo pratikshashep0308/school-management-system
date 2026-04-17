@@ -87,7 +87,7 @@ function StudentTimetableView({ classId, className }) {
   }, [classId]);
 
   const ttMap = {};
-  ttData.forEach(ds => { ttMap[ds.day] = {}; ds.periods?.forEach(p => { ttMap[ds.day][p.period] = p; }); });
+  ttData.forEach(ds => { ttMap[ds.day] = {}; ds.periods?.forEach(p => { ttMap[ds.day][p.periodNumber] = p; }); });
 
   if (loading) return <div style={{ textAlign:'center', padding:32, color:'#9CA3AF' }}>Loading timetable…</div>;
 
@@ -106,12 +106,18 @@ function StudentTimetableView({ classId, className }) {
           <thead>
             <tr style={{ background:'#F8FAFC', borderBottom:'2px solid #E5E7EB' }}>
               <th style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', width:100, position:'sticky', left:0, background:'#F8FAFC', zIndex:2 }}>Day</th>
-              {[1,2,3,4,5,6,7,8].map((p,i) => (
-                <th key={p} style={{ padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', minWidth:110 }}>
-                  <div>P{p}</div>
-                  <div style={{ fontSize:9, fontWeight:400, color:'#9CA3AF', marginTop:2 }}>{TIMES[i]}</div>
-                </th>
-              ))}
+              {[1,2,3,4,5,6,7,8].map((p) => {
+                // Get time from first day that has this period
+                const sampleDay = ttData.find(ds => ds.periods?.find(pr => pr.periodNumber === p));
+                const sampleP   = sampleDay?.periods?.find(pr => pr.periodNumber === p);
+                const timeStr   = sampleP ? `${sampleP.startTime}–${sampleP.endTime}` : '';
+                return (
+                  <th key={p} style={{ padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', minWidth:110 }}>
+                    <div>P{p}</div>
+                    <div style={{ fontSize:9, fontWeight:400, color:'#9CA3AF', marginTop:2 }}>{timeStr}</div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -121,12 +127,12 @@ function StudentTimetableView({ classId, className }) {
                   <div style={{ fontWeight:800, fontSize:12, color:DAY_COLORS[day]||'#374151', textTransform:'uppercase' }}>{day.slice(0,3)}</div>
                   <div style={{ fontSize:10, color:'#9CA3AF' }}>{day}</div>
                 </td>
-                {[1,2,3,4,5,6,7,8].map(p => {
+                {[1,2,3,4,5,6,7,8].filter(p => ttData.some(ds => ds.periods?.some(pr => pr.periodNumber === p))).map(p => {
                   const period = ttMap[day]?.[p];
                   const subColor = period?.subject?._id ? (colorMap[period.subject._id]||'#6B7280') : null;
                   return (
                     <td key={p} style={{ padding:'8px 10px', textAlign:'center', borderLeft:'1px solid #F3F4F6' }}>
-                      {period?.subject ? (
+                      {period?.subject?.name ? (
                         <div style={{ background:`${subColor}15`, border:`1px solid ${subColor}40`, borderRadius:8, padding:'6px 8px' }}>
                           <div style={{ fontSize:12, fontWeight:700, color:subColor, lineHeight:1.2 }}>{period.subject.name}</div>
                           {period.teacher?.user?.name && (
