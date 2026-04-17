@@ -1094,19 +1094,19 @@ export default function ParentDashboard() {
           {tab === 'fees' && (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
-                <div className="card p-5 text-center">
+                <div className="card p-5 text-center" style={{cursor:'pointer',transition:'all 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
                   <div className="font-display text-2xl text-sage">
                     ₹{fees.filter(f=>f.status==='paid').reduce((s,f)=>s+(f.paidAmount||f.totalAmount||0),0).toLocaleString('en-IN')}
                   </div>
                   <div className="text-xs text-muted mt-1">✅ Paid</div>
                 </div>
-                <div className="card p-5 text-center">
+                <div className="card p-5 text-center" style={{cursor:'pointer',transition:'all 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
                   <div className="font-display text-2xl text-amber-500">
                     ₹{pendingFees.reduce((s,f)=>s+(f.dueAmount||f.totalAmount||0),0).toLocaleString('en-IN')}
                   </div>
                   <div className="text-xs text-muted mt-1">⏳ Pending</div>
                 </div>
-                <div className="card p-5 text-center">
+                <div className="card p-5 text-center" style={{cursor:'pointer',transition:'all 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
                   <div className="font-display text-2xl text-ink dark:text-white">{fees.length}</div>
                   <div className="text-xs text-muted mt-1">📋 Records</div>
                 </div>
@@ -1131,7 +1131,9 @@ export default function ParentDashboard() {
                 {!fees.length ? <EmptyState icon="💰" title="No fee records" /> : (
                   <div className="divide-y divide-border dark:divide-gray-700">
                     {fees.map((f, i) => (
-                      <div key={f._id || i} className="px-6 py-4 flex items-center gap-4 hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors">
+                      <div key={f._id || i} className="px-6 py-4 flex items-center gap-4 hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors" style={{cursor:'pointer'}}
+                        onMouseEnter={e=>e.currentTarget.style.background='#EFF6FF'}
+                        onMouseLeave={e=>e.currentTarget.style.background=''}>
                         <div className={'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ' +
                           (f.status === 'paid' ? 'bg-green-100 dark:bg-green-900/30' :
                            f.status === 'partial' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30')}>
