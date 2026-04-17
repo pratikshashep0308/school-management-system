@@ -2,7 +2,7 @@
 // Student Portal — admin-dashboard style, shows only the student's own data
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import StudentAttendanceSection from './Attendance/StudentAttendanceReport';
+import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api, { timetableAPI, classAPI } from '../utils/api';
@@ -417,7 +417,7 @@ export default function StudentDashboard() {
         <div className="grid xl:grid-cols-3 gap-5">
 
           {/* Attendance */}
-          <div className="card p-6">
+          <div className="card p-6" onClick={()=>setTab('attendance')} style={{cursor:'pointer',transition:'box-shadow 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
             <h3 className="font-semibold text-ink dark:text-white mb-4">📅 Attendance This Month</h3>
             <div className="flex items-center gap-5">
               <Ring pct={attPct} size={90} stroke={9} />
@@ -439,7 +439,7 @@ export default function StudentDashboard() {
           </div>
 
           {/* Upcoming exams */}
-          <div className="card overflow-hidden">
+          <div className="card overflow-hidden" onClick={()=>setTab('exams')} style={{cursor:'pointer',transition:'box-shadow 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
             <CardHeader title="Upcoming Exams" subtitle={`${upcoming.length} scheduled`}
               action="All exams" onAction={() => setTab('exams')} />
             {!upcoming.length ? <EmptyState icon="📝" title="No upcoming exams" /> : (
@@ -486,7 +486,7 @@ export default function StudentDashboard() {
           </div>
 
           {/* Pending assignments */}
-          <div className="card overflow-hidden">
+          <div className="card overflow-hidden" onClick={()=>setTab('assignments')} style={{cursor:'pointer',transition:'box-shadow 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
             <CardHeader title="Pending Assignments" subtitle={`${dueAssignments.length} due`}
               action="All assignments" onAction={() => setTab('assignments')} />
             {!dueAssignments.length ? (
@@ -538,14 +538,14 @@ export default function StudentDashboard() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => setTab('transport')} className="mt-3 w-full text-xs font-semibold text-accent hover:underline text-left">
+              <button onClick={(e)=>{e.stopPropagation();setTab('transport');}} className="mt-3 w-full text-xs font-semibold text-accent hover:underline text-left">
                 Full details →
               </button>
             </div>
           )}
 
           {/* Fee summary */}
-          <div className="card p-6">
+          <div className="card p-6" onClick={()=>setTab('fees')} style={{cursor:'pointer',transition:'box-shadow 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
             <h3 className="font-semibold text-ink dark:text-white mb-4">💰 Fee Summary</h3>
             <div className="space-y-0">
               <div className="flex justify-between py-2 border-b border-border dark:border-gray-700">
