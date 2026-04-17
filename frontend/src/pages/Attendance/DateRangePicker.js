@@ -18,13 +18,13 @@ function Month({ y, m, from, to, hover, onDay, onHover }) {
   for (let d=1;d<=dim;d++) cells.push(strip(new Date(y,m,d)));
 
   return (
-    <div style={{width:220}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,32px)',marginBottom:6}}>
+    <div style={{width:240}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,34px)',marginBottom:6}}>
         {WDAYS.map(w=><div key={w} style={{textAlign:'center',fontSize:11,fontWeight:700,color:'#9CA3AF',lineHeight:'20px'}}>{w}</div>)}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,32px)',rowGap:1}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,34px)',rowGap:1}}>
         {cells.map((date,i)=>{
-          if(!date) return <div key={'e'+i} style={{height:32}}/>;
+          if(!date) return <div key={'e'+i} style={{height:34}}/>;
           const isFuture = date > today;
           const isFrom   = same(date, from);
           const isTo     = same(date, to);
@@ -159,7 +159,7 @@ export default function DateRangePicker({ from, to, onChange }) {
         <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,
           background:'#fff',borderRadius:12,
           boxShadow:'0 10px 40px rgba(0,0,0,.18)',border:'1px solid #E5E7EB',
-          display:'flex',overflow:'visible',width:600}}>
+          display:'flex',overflow:'visible',width:680}}>
 
           {/* Presets */}
           <div style={{width:130,borderRight:'1px solid #F3F4F6',padding:'10px 0',flexShrink:0}}>
@@ -181,7 +181,7 @@ export default function DateRangePicker({ from, to, onChange }) {
           </div>
 
           {/* Calendars */}
-          <div style={{flex:1,padding:'14px 18px',display:'flex',flexDirection:'column',gap:10}}
+          <div style={{flex:1,padding:'14px 20px',display:'flex',flexDirection:'column',gap:10}}
             onMouseLeave={()=>!tTo&&setHover(null)}>
 
             {/* Month nav */}
@@ -190,7 +190,7 @@ export default function DateRangePicker({ from, to, onChange }) {
                 style={{width:26,height:26,borderRadius:6,border:'1px solid #E5E7EB',
                   background:'#fff',cursor:'pointer',fontSize:15,lineHeight:'1',color:'#374151',
                   display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
-              <div style={{display:'flex',gap:60}}>
+              <div style={{display:'flex',gap:80}}>
                 <span style={{fontWeight:700,fontSize:13,color:'#111827',width:90,textAlign:'center'}}>
                   {MONTHS[lM]} {lY}
                 </span>
