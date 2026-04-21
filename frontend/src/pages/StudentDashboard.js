@@ -191,13 +191,13 @@ function AssignmentsSection({ assignments, dueAssignments }) {
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label:'Total',     val:assignments.length,                          color:'#1D4ED8', bg:'#EFF6FF', onClick:()=>setFilter('all') },
-          { label:'Pending',   val:dueAssignments.length,                       color:'#D97706', bg:'#FFFBEB', onClick:()=>setFilter('pending') },
-          { label:'Submitted', val:assignments.filter(a=>a.submitted).length,   color:'#16A34A', bg:'#F0FDF4', onClick:()=>setFilter('submitted') },
-          { label:'Overdue',   val:overdue.length,                              color:'#DC2626', bg:'#FEF2F2', onClick:()=>setFilter('overdue') },
+          { key:'all',       label:'Total',     val:assignments.length,                        color:'#1D4ED8', bg:'#EFF6FF', onClick:()=>setFilter('all') },
+          { key:'pending',   label:'Pending',   val:dueAssignments.length,                     color:'#D97706', bg:'#FFFBEB', onClick:()=>setFilter('pending') },
+          { key:'submitted', label:'Submitted', val:assignments.filter(a=>a.submitted).length, color:'#16A34A', bg:'#F0FDF4', onClick:()=>setFilter('submitted') },
+          { key:'overdue',   label:'Overdue',   val:overdue.length,                            color:'#DC2626', bg:'#FEF2F2', onClick:()=>setFilter('overdue') },
         ].map(c => (
           <div key={c.label} onClick={c.onClick}
-            style={{ background:filter===c.key.toLowerCase()||filter==='all'?c.bg:'#fff', border:`1.5px solid ${c.color}30`, borderRadius:12, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s' }}
+            style={{ background:filter===c.key?c.bg:'#fff', border:`1.5px solid ${c.color}30`, borderRadius:12, padding:'12px 14px', cursor:'pointer', transition:'all 0.15s' }}
             className="hover:-translate-y-0.5 hover:shadow-sm">
             <div style={{ fontSize:20, fontWeight:900, color:c.color }}>{c.val}</div>
             <div style={{ fontSize:11, fontWeight:700, color:'#374151', marginTop:3 }}>{c.label}</div>
@@ -970,7 +970,7 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                   <span style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
-                    🟢 Live  
+                    🟢 Live
                   </span>
                 </div>
                 {transport.currentLocation?.lat && transport.currentLocation?.lng ? (
