@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState } from '../components/ui';
+import PhoneInput from '../components/ui/PhoneInput';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -893,7 +894,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         <div className="grid grid-cols-2 gap-4">
           <FormGroup label="Full Name *" className="col-span-2"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Arjun Sharma" /></FormGroup>
           <FormGroup label="Email *"><input type="email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@school.com" /></FormGroup>
-          <FormGroup label="Phone"><input className="form-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" /></FormGroup>
+          <FormGroup label="Phone"><PhoneInput value={form.phone} onChange={v => set('phone', v)} /></FormGroup>
           <FormGroup label="Gender">
             <select className="form-input" value={form.gender} onChange={e => set('gender', e.target.value)}>
               <option value="">Select gender</option>
@@ -932,7 +933,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       {activeSection === 'guardian' && (
         <div className="grid grid-cols-2 gap-4">
           <FormGroup label="Parent / Guardian Name" className="col-span-2"><input className="form-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" /></FormGroup>
-          <FormGroup label="Parent Phone"><input className="form-input" value={form.parentPhone} onChange={e => set('parentPhone', e.target.value)} placeholder="9876543210" /></FormGroup>
+          <FormGroup label="Parent Phone"><PhoneInput value={form.parentPhone} onChange={v => set('parentPhone', v)} /></FormGroup>
           <FormGroup label="Parent Email"><input type="email" className="form-input" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} placeholder="parent@email.com" /></FormGroup>
         </div>
       )}

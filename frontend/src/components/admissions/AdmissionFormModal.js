@@ -1,6 +1,7 @@
 // frontend/src/components/admissions/AdmissionFormModal.js
 // eSkooly-style admission form: numbered sections, floating labels, 3-col grid
 
+import PhoneInput from '../ui/PhoneInput';
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { admissionAPI } from '../../utils/admissionUtils';
@@ -346,7 +347,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               <input type="number" style={INP} value={form.discountInFee} onChange={e=>set('discountInFee',e.target.value)} placeholder="In %"/>
             </FloatInput>
             <FloatInput label="Mobile No. for SMS/WhatsApp">
-              <input style={INP} value={form.mobileForSMS} onChange={e=>set('mobileForSMS',e.target.value)} placeholder="+91XXXXXXXXXX"/>
+              <PhoneInput value={form.mobileForSMS} onChange={v=>set('mobileForSMS',v)} style={{padding:'8px 0'}} />
             </FloatInput>
             <FloatInput label="Academic Year">
               <input style={INP} value={form.academicYear} onChange={e=>set('academicYear',e.target.value)} placeholder="2026-27"/>
@@ -436,7 +437,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               <input style={INP} value={form.fatherOccupation} onChange={e=>set('fatherOccupation',e.target.value)} placeholder="Occupation"/>
             </FloatInput>
             <FloatInput label="Father's Phone">
-              <input style={INP} value={form.fatherPhone} onChange={e=>set('fatherPhone',e.target.value)} placeholder="Phone Number"/>
+              <PhoneInput value={form.fatherPhone} onChange={v=>set('fatherPhone',v)} style={{padding:'8px 0'}} />
             </FloatInput>
             <FloatInput label="Mother's Name">
               <input style={INP} value={form.motherName} onChange={e=>set('motherName',e.target.value)} placeholder="Mother's Full Name"/>
@@ -445,13 +446,13 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               <input style={INP} value={form.motherOccupation} onChange={e=>set('motherOccupation',e.target.value)} placeholder="Occupation"/>
             </FloatInput>
             <FloatInput label="Mother's Phone">
-              <input style={INP} value={form.motherPhone} onChange={e=>set('motherPhone',e.target.value)} placeholder="Phone Number"/>
+              <PhoneInput value={form.motherPhone} onChange={v=>set('motherPhone',v)} style={{padding:'8px 0'}} />
             </FloatInput>
             <FloatInput label="Primary Contact Name" required>
               <input style={INP} value={form.parentName} onChange={e=>set('parentName',e.target.value)} placeholder="Guardian / Parent Name"/>
             </FloatInput>
             <FloatInput label="Primary Contact Phone" required>
-              <input style={INP} value={form.parentPhone} onChange={e=>set('parentPhone',e.target.value)} placeholder="Mobile Number"/>
+              <PhoneInput value={form.parentPhone} onChange={v=>set('parentPhone',v)} required style={{padding:'8px 0'}} />
             </FloatInput>
             <FloatInput label="Email">
               <input type="email" style={INP} value={form.parentEmail} onChange={e=>set('parentEmail',e.target.value)} placeholder="Email Address"/>

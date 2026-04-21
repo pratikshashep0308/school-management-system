@@ -970,7 +970,7 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                   <span style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
-                    🟢 Live
+                    🟢 Live  
                   </span>
                 </div>
                 {transport.currentLocation?.lat && transport.currentLocation?.lng ? (

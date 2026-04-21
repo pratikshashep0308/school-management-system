@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { teacherAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, Badge, Avatar, ActionBtn, SearchBox, LoadingState, EmptyState } from '../components/ui';
+import PhoneInput from '../components/ui/PhoneInput';
 
 const COLS = '40px 2fr 1fr 1fr 1fr 100px';
 const FORM_EMPTY = { name: '', email: '', phone: '', employeeId: '', qualification: '', experience: '', designation: '' };
@@ -274,7 +275,7 @@ export default function Teachers() {
             <input type="email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="teacher@school.com" />
           </FormGroup>
           <FormGroup label="Phone">
-            <input className="form-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" />
+            <PhoneInput value={form.phone} onChange={v => set('phone', v)} />
           </FormGroup>
           <FormGroup label="Employee ID">
             <input className="form-input" value={form.employeeId} onChange={e => set('employeeId', e.target.value)} placeholder="EMP-042" />

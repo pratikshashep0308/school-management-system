@@ -1,4 +1,5 @@
 // frontend/src/pages/Profile.js
+import PhoneInput from '../components/ui/PhoneInput';
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -227,11 +228,9 @@ export default function Profile() {
               <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Email cannot be changed</p>
             </FormGroup>
             <FormGroup label="Phone Number">
-              <input
-                className="form-input"
+              <PhoneInput
                 value={profileForm.phone}
-                onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))}
-                placeholder="Your phone number"
+                onChange={v => setProfileForm(p => ({ ...p, phone: v }))}
               />
             </FormGroup>
             <FormGroup label="Role">
