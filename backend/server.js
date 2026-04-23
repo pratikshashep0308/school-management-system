@@ -83,6 +83,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Pre-load models so mongoose.model() works in all controllers
+require('./models/Salary');
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 📁 Routes — load safely (won't crash server if one file has an error)
 // ─────────────────────────────────────────────────────────────────────────────
