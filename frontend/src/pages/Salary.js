@@ -564,14 +564,16 @@ function SalarySheetTab() {
 function SalaryReportTab() {
   const [month,   setMonth]   = useState(NOW.getMonth()+1);
   const [year,    setYear]    = useState(NOW.getFullYear());
-  const [sheet,   setSheet]   = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [sheet,     setSheet]     = useState([]);
+  const [loading,   setLoading]   = useState(false);
+  const [cardFilter, setCardFilter] = useState('all'); // 'all' | 'paid' | 'pending'
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await salaryAPI.getSheet({ month, year });
       setSheet(r.data.data || []);
+      setCardFilter('all');
     } catch { toast.error('Failed to load report'); }
     finally { setLoading(false); }
   }, [month, year]);
@@ -582,6 +584,7 @@ function SalaryReportTab() {
   const paid    = sheet.filter(r=>r.status==='paid');
   const pending = sheet.filter(r=>r.status!=='paid');
   const totalPaidAmt = paid.reduce((a,r)=>a+(r.slip?.netSalary||0),0);
+  const filteredSheet = cardFilter==='paid' ? paid : cardFilter==='pending' ? pending : sheet;
 
   return (
     <div>
@@ -604,12 +607,19 @@ function SalaryReportTab() {
       {/* Summary Cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:14, marginBottom:24 }}>
         {[
-          { label:'Total Employees', val:sheet.length,     color:'#1D4ED8', bg:'#EFF6FF', icon:'👥' },
-          { label:'Salaries Paid',   val:paid.length,      color:'#166534', bg:'#DCFCE7', icon:'✅' },
-          { label:'Pending',         val:pending.length,   color:'#92400E', bg:'#FEF9C3', icon:'⏳' },
-          { label:'Total Disbursed', val:`₹${totalPaidAmt.toLocaleString('en-IN')}`, color:'#7C3AED', bg:'#EDE9FE', icon:'💰' },
+          { label:'Total Employees', val:sheet.length,     color:'#1D4ED8', bg:'#EFF6FF', icon:'👥', filter:'all'     },
+          { label:'Salaries Paid',   val:paid.length,      color:'#166534', bg:'#DCFCE7', icon:'✅', filter:'paid'    },
+          { label:'Pending',         val:pending.length,   color:'#92400E', bg:'#FEF9C3', icon:'⏳', filter:'pending' },
+          { label:'Total Disbursed', val:`₹${totalPaidAmt.toLocaleString('en-IN')}`, color:'#7C3AED', bg:'#EDE9FE', icon:'💰', filter:'all' },
         ].map(s=>(
-          <div key={s.label} style={{ background:s.bg, borderRadius:14, padding:'16px 18px', display:'flex', alignItems:'center', gap:12 }}>
+          <div key={s.label} onClick={()=>setCardFilter(f=>f===s.filter&&s.filter!=='all'?'all':s.filter)}
+            style={{ background:s.bg, borderRadius:14, padding:'16px 18px', display:'flex', alignItems:'center', gap:12,
+              cursor:'pointer', transition:'all 0.15s',
+              outline: cardFilter===s.filter && s.filter!=='all' ? `2px solid ${s.color}` : 'none',
+              transform: cardFilter===s.filter && s.filter!=='all' ? 'translateY(-3px)' : 'none',
+              boxShadow: cardFilter===s.filter && s.filter!=='all' ? `0 6px 16px ${s.color}30` : 'none' }}
+            onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 6px 16px ${s.color}30`; }}
+            onMouseLeave={e=>{ if(cardFilter!==s.filter||s.filter==='all'){ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; } }}>
             <span style={{ fontSize:28 }}>{s.icon}</span>
             <div>
               <div style={{ fontSize:22, fontWeight:900, color:s.color }}>{s.val}</div>
@@ -621,8 +631,17 @@ function SalaryReportTab() {
 
       {loading ? <div style={{ textAlign:'center', padding:60, color:'#9CA3AF' }}>⏳ Loading…</div> : (
         <div style={{ background:'#fff', borderRadius:14, border:'1px solid #E5E7EB', overflow:'hidden' }}>
-          <div style={{ background:'#0B1F4A', padding:'12px 18px' }}>
-            <span style={{ color:'#fff', fontWeight:700 }}>📊 Salary Report — {MONTHS[month-1]} {year}</span>
+          <div style={{ background:'#0B1F4A', padding:'12px 18px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ color:'#fff', fontWeight:700 }}>
+              📊 Salary Report — {MONTHS[month-1]} {year}
+              {cardFilter!=='all' && <span style={{ fontSize:11, background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:20, marginLeft:10, textTransform:'capitalize' }}>{cardFilter}</span>}
+            </span>
+            {cardFilter!=='all' && (
+              <button onClick={()=>setCardFilter('all')}
+                style={{ fontSize:11, color:'#fff', background:'rgba(255,255,255,0.15)', border:'none', padding:'4px 12px', borderRadius:20, cursor:'pointer', fontWeight:700 }}>
+                ✕ Clear filter
+              </button>
+            )}
           </div>
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
@@ -633,7 +652,7 @@ function SalaryReportTab() {
               </tr>
             </thead>
             <tbody>
-              {sheet.map((row,i)=>{
+              {filteredSheet.map((row,i)=>{
                 const s=row.slip, t=row.teacher;
                 const bonus  = s?.allowances?.other||0;
                 const deduct = s?Object.values(s.deductions||{}).reduce((a,b)=>a+b,0):0;
