@@ -988,7 +988,7 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ background:'#F8FAFC', borderRadius:12, padding:'32px 16px', textAlign:'center' }}>
+                  <div style={{ background:'#F8FAFC', borderRadius:12, padding:'32px 16px', textAlign:'center' }}>                                                                                                                                                                      
                     <div style={{ fontSize:36, marginBottom:8 }}>🗺️</div>
                     <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:4 }}>GPS location not available</div>
                     <div style={{ fontSize:12, color:'#9CA3AF' }}>Location will appear here once the bus device is active</div>
@@ -1008,4 +1008,4 @@ export default function StudentDashboard() {
 
     </div>
   );
-}
+}                                                     
