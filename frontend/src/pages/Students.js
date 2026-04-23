@@ -60,6 +60,7 @@ export default function Students() {
   const [loading,      setLoading]     = useState(true);
   const [search,       setSearch]      = useState('');
   const [filterClass,  setFilterClass] = useState('');
+  const [filterGender, setFilterGender] = useState('');
   const [tab,          setTab]         = useState('all');
   const [viewStudent,  setViewStudent] = useState(null);  // student profile drawer
   const [addModal,     setAddModal]    = useState({ open: false, data: null });
@@ -89,6 +90,7 @@ export default function Students() {
     const matchSearch = !q || s.user?.name?.toLowerCase().includes(q) || s.admissionNumber?.toLowerCase().includes(q) || s.class?.name?.toLowerCase().includes(q);
     const matchClass  = !filterClass || s.class?._id === filterClass;
     const matchTab    = tab === 'all' || tab === 'managelogin' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
+    const matchGender = !filterGender || (s.gender||'').toLowerCase() === filterGender;
     return matchSearch && matchClass && matchTab;
   });
 
@@ -147,13 +149,13 @@ export default function Students() {
       {/* Stats row */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12 }}>
         {[
-          { label: 'Total Students', value: total,  icon: '👥', bg: '#EFF6FF', clr: '#1D4ED8', onClick: () => setTab('all')      },
-          { label: 'Active',         value: active, icon: '✅', bg: '#F0FDF4', clr: '#166534', onClick: () => setTab('active')   },
-          { label: 'Boys',           value: boys,   icon: '👦', bg: '#EEF2FF', clr: '#3730A3', onClick: () => {} },
-          { label: 'Girls',          value: girls,  icon: '👧', bg: '#FDF2F8', clr: '#9D174D', onClick: () => {} },
+          { label: 'Total Students', value: total,  icon: '👥', bg: '#EFF6FF', clr: '#1D4ED8', onClick: () => { setTab('all'); setFilterGender(''); } },
+          { label: 'Active',         value: active, icon: '✅', bg: '#F0FDF4', clr: '#166534', onClick: () => { setTab('active'); setFilterGender(''); } },
+          { label: 'Boys',           value: boys,   icon: '👦', bg: '#EEF2FF', clr: '#3730A3', onClick: () => { setFilterGender(g=>g==='male'?'':'male'); setTab('all'); } },
+          { label: 'Girls',          value: girls,  icon: '👧', bg: '#FDF2F8', clr: '#9D174D', onClick: () => { setFilterGender(g=>g==='female'?'':'female'); setTab('all'); } },
         ].map(s => (
           <div key={s.label} onClick={s.onClick}
-            style={{ background:'#fff', border:'1px solid #E5E7EB', borderRadius:16, padding:16, display:'flex', alignItems:'center', gap:12, boxShadow:'0 1px 4px rgba(0,0,0,0.06)', cursor:'pointer', transition:'box-shadow 0.15s, transform 0.15s' }}
+            style={{ background: (s.label==='Boys'&&filterGender==='male')||(s.label==='Girls'&&filterGender==='female') ? s.bg : '#fff', border: (s.label==='Boys'&&filterGender==='male')||(s.label==='Girls'&&filterGender==='female') ? `2px solid ${s.clr}` : '1px solid #E5E7EB', borderRadius:16, padding:16, display:'flex', alignItems:'center', gap:12, boxShadow:'0 1px 4px rgba(0,0,0,0.06)', cursor:'pointer', transition:'box-shadow 0.15s, transform 0.15s' }}
             onMouseEnter={e=>{ e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)'; e.currentTarget.style.transform='translateY(-2px)'; }}
             onMouseLeave={e=>{ e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,0.06)'; e.currentTarget.style.transform='translateY(0)'; }}>
             <div style={{ width:44, height:44, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, background:s.bg, color:s.clr }}>{s.icon}</div>
@@ -193,7 +195,7 @@ export default function Students() {
           {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
         {(search || filterClass) && (
-          <button onClick={()=>{setSearch('');setFilterClass('');}}
+          <button onClick={()=>{setSearch('');setFilterClass('');setFilterGender('');}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
             ✕ Clear
           </button>
@@ -210,7 +212,7 @@ export default function Students() {
             {filterClass || search ? 'Try clearing the filters above' : 'Enroll students from the Admissions module to see them here'}
           </div>
           {(filterClass || search) && (
-            <button onClick={()=>{setSearch('');setFilterClass('');}}
+            <button onClick={()=>{setSearch('');setFilterClass('');setFilterGender('');}}
               style={{ marginTop:16, padding:'8px 20px', borderRadius:8, background:'#6366F1', color:'#fff', border:'none', fontSize:13, cursor:'pointer' }}>
               Clear Filters
             </button>
