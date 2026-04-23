@@ -8,7 +8,7 @@ import { FormGroup } from '../components/ui';
 
 const ROLE_LABELS = {
   superAdmin: 'Super Administrator', schoolAdmin: 'School Administrator',
-  teacher: 'Teacher', student: 'Student', parent: 'Parent',
+  teacher: 'Employee', student: 'Student', parent: 'Parent',
   accountant: 'Accountant', librarian: 'Librarian', transportManager: 'Transport Manager',
 };
 

@@ -199,7 +199,7 @@ export default function Login() {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 28 }}>
             {[
               { icon: '👥', val: '500+', label: 'Students' },
-              { icon: '🎓', val: '30+',  label: 'Teachers' },
+              { icon: '🎓', val: '30+',  label: 'Employees' },
               { icon: '📊', val: '95%',  label: 'Pass Rate' },
             ].map((b, i) => (
               <div key={b.label} className="floating-badge" style={{

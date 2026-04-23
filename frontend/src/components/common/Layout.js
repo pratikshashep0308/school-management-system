@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
 const PAGE_TITLES = {
-  '/dashboard': 'Dashboard', '/students': 'Students', '/teachers': 'Teachers',
+  '/dashboard': 'Dashboard', '/students': 'Students', '/teachers': 'Employees',
   '/classes': 'Classes', '/attendance': 'Attendance', '/exams': 'Exams & Results',
   '/fees': 'Fee Management', '/timetable': 'Timetable', '/assignments': 'Assignments',
   '/library': 'Library', '/transport': 'Transport', '/notifications': 'Notifications',
