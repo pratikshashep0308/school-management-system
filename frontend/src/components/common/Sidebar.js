@@ -1,296 +1,296 @@
-// frontend/src/pages/Profile.js
-import PhoneInput from '../components/ui/PhoneInput';
-import React, { useState } from 'react';
-import toast from 'react-hot-toast';
-import { useAuth } from '../context/AuthContext';
-import { authAPI } from '../utils/api';
-import { FormGroup } from '../components/ui';
+// frontend/src/components/common/Sidebar.js
+import React from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
-const ROLE_LABELS = {
-  superAdmin: 'Super Administrator', schoolAdmin: 'School Administrator',
-  teacher: 'Employee', student: 'Student', parent: 'Parent',
-  accountant: 'Accountant', librarian: 'Librarian', transportManager: 'Transport Manager',
+const ADMIN_ROLES = ['superAdmin', 'schoolAdmin'];
+const STAFF_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'librarian', 'transportManager'];
+
+const MENU_ITEMS = [
+  { path: '/dashboard',     icon: '⊞',  label: 'Dashboard',     roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
+  { path: '/students',      icon: '👥', label: 'Students',      roles: ['superAdmin','schoolAdmin','teacher','accountant'] },
+  { path: '/teachers',      icon: '👤', label: 'Employees',      roles: ADMIN_ROLES },
+  { path: '/classes',       icon: '🏛',  label: 'Classes',       roles: STAFF_ROLES },
+  { path: '/salary',        icon: '💰', label: 'Salary',         roles: ['superAdmin','schoolAdmin','accountant'] },
+  { path: '/attendance',    icon: '📅', label: 'Attendance',    roles: ['superAdmin','schoolAdmin','teacher'] },
+  { path: '/exams',         icon: '📝', label: 'Exams',         roles: STAFF_ROLES },
+  { path: '/assignments',   icon: '📋', label: 'Assignments',   roles: ['superAdmin','schoolAdmin','teacher'] },
+  { path: '/fees',          icon: '💳', label: 'Fees',          roles: ['superAdmin','schoolAdmin','accountant'] },
+  { path: '/expenses',      icon: '💸', label: 'Expenses',      roles: ['superAdmin','schoolAdmin','accountant'] },
+  { path: '/library',       icon: '📚', label: 'Library',       roles: ['superAdmin','schoolAdmin','librarian'] },
+  { path: '/transport',     icon: '🚌', label: 'Transport',     roles: ['superAdmin','schoolAdmin','transportManager'] },
+  { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },
+  { path: '/notifications', icon: '🔔', label: 'Notifications', roles: ADMIN_ROLES },
+  { path: '/admissions',    icon: '📄', label: 'Admissions',    roles: ADMIN_ROLES },
+  { path: '/reports',       icon: '📊', label: 'Reports',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager'] },
+  { path: '/profile',       icon: '👤', label: 'My Profile',    roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
+];
+
+const PORTAL_SECTIONS = [
+  {
+    group: 'ACADEMICS',
+    items: [
+      { id: 'overview',    icon: '⊞',  label: 'Overview' },
+      { id: 'attendance',  icon: '📅', label: 'Attendance' },
+      { id: 'timetable',   icon: '🗓',  label: 'Timetable' },
+      { id: 'exams',       icon: '📝', label: 'Exams' },
+      { id: 'assignments', icon: '📋', label: 'Assignments' },
+    ],
+  },
+  {
+    group: 'FINANCE & SERVICES',
+    items: [
+      { id: 'fees',      icon: '💳', label: 'Fees' },
+      { id: 'transport', icon: '🚌', label: 'Transport' },
+    ],
+  },
+];
+
+const ROLE_META = {
+  superAdmin:       { label: 'Super Admin',       emoji: '👑', color: '#e87722' },
+  schoolAdmin:      { label: 'School Admin',      emoji: '🏫', color: '#3b82f6' },
+  teacher:          { label: 'Employee',           emoji: '🎓', color: '#16a34a' },
+  accountant:       { label: 'Accountant',        emoji: '💼', color: '#dc2626' },
+  librarian:        { label: 'Librarian',         emoji: '📚', color: '#9333ea' },
+  transportManager: { label: 'Transport Manager', emoji: '🚌', color: '#0284c7' },
+  student:          { label: 'Student',           emoji: '🎒', color: '#2563eb' },
+  parent:           { label: 'Parent',            emoji: '👨‍👩‍👧', color: '#7c3aed' },
 };
 
-const ROLE_COLORS = {
-  superAdmin: '#7c6af5', schoolAdmin: '#d4522a', teacher: '#4a7c59',
-  student: '#2d9cdb', parent: '#c9a84c', accountant: '#f2994a',
-  librarian: '#e91e8c', transportManager: '#00bcd4',
-};
-
-const ROLE_ICONS = {
-  superAdmin: '👑', schoolAdmin: '🏫', teacher: '🎓',
-  student: '🎒', parent: '👨‍👩‍👧', accountant: '💼',
-  librarian: '📚', transportManager: '🚌',
-};
-
-// ── Shared branding sub-components ────────────────────────────────────────────
-
-function SchoolLogoSmall() {
+// ── Sidebar rainbow name — compact version ────────────────────────────────────
+function SidebarSchoolName() {
   return (
-    <div style={{
-      width: 28, height: 28, borderRadius: '50%',
-      padding: 2, flexShrink: 0,
-      background: 'linear-gradient(135deg, #5C6BC0, #3949AB)',
-      boxShadow: '0 2px 8px rgba(57,73,171,0.3)',
-    }}>
-      <img src="/school-logo.jpeg" alt="School"
-        style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-        onError={e => { e.target.style.display='none'; e.target.parentElement.innerHTML='💎'; e.target.parentElement.style.display='flex'; e.target.parentElement.style.alignItems='center'; e.target.parentElement.style.justifyContent='center'; e.target.parentElement.style.fontSize='14px'; }}
-      />
+    <div style={{ lineHeight: 1.15 }}>
+      <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontWeight: 900, fontSize: 13.5, display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+        <span style={{ color: '#EF5350' }}>The&nbsp;</span>
+        <span style={{ color: '#66BB6A' }}>Future&nbsp;</span>
+        <span style={{ color: '#AB47BC' }}>Step&nbsp;</span>
+        <span style={{ color: '#FFA726' }}>School</span>
+      </div>
+      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.28)', marginTop: 2, letterSpacing: '0.04em', fontWeight: 600 }}>
+        Management Portal
+      </div>
     </div>
   );
 }
 
-function SchoolBrandBadge() {
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 7,
-      padding: '6px 14px', borderRadius: 30,
-      background: 'linear-gradient(135deg, #f0f4ff, #e8eeff)',
-      border: '1.5px solid #c7d3f7',
-      boxShadow: '0 1px 6px rgba(57,73,171,0.1)',
-    }}>
-      <SchoolLogoSmall />
-      <span style={{
-        fontSize: 12, fontWeight: 800,
-        fontFamily: "'Merriweather', Georgia, serif",
-        display: 'flex', gap: 4,
-      }}>
-        <span style={{ color: '#E53935' }}>The</span>
-        <span style={{ color: '#43A047' }}>Future</span>
-        <span style={{ color: '#7B1FA2' }}>Step</span>
-        <span style={{ color: '#F57C00' }}>School</span>
-      </span>
-    </div>
-  );
-}
+export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabChange }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const meta = ROLE_META[user?.role] || { label: user?.role, emoji: '👤', color: '#64748b' };
+  const isPortalUser = user?.role === 'student' || user?.role === 'parent';
+  const visibleItems = MENU_ITEMS.filter(item => item.roles.includes(user?.role));
+  const handleLogout = () => { logout(); navigate('/login'); };
 
-// ── Avatar: uses school logo as fallback when no profile image ────────────────
-function ProfileAvatar({ name, color, size = 80 }) {
-  const [imgError, setImgError] = useState(false);
-  const initials = name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+  const portalSections = user?.role === 'parent'
+    ? PORTAL_SECTIONS.map((s, i) =>
+        i === 1 ? { ...s, items: [...s.items, { id: 'contact', icon: '📞', label: 'Contact' }] } : s
+      )
+    : PORTAL_SECTIONS;
 
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }}>
-      {/* Main avatar circle */}
-      <div style={{
-        width: size, height: size, borderRadius: 20,
-        background: color,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: size * 0.32, fontWeight: 900, color: '#fff',
-        border: `3px solid ${color}40`,
-        boxShadow: `0 6px 20px ${color}35`,
-        position: 'relative', overflow: 'hidden',
+    <>
+      {isOpen && (
+        <div onClick={onClose}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }}
+          className="lg:hidden"
+        />
+      )}
+
+      <aside style={{
+        width: 240,
+        height: '100vh',
+        background: 'linear-gradient(180deg, #07101f 0%, #0a1628 60%, #0c1c34 100%)',
+        position: 'fixed',
+        left: 0, top: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 50,
+        fontFamily: "'Nunito', sans-serif",
+        transform: isOpen === false ? 'translateX(-100%)' : 'translateX(0)',
+        transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+        overflowY: 'auto',
+        boxShadow: '4px 0 40px rgba(0,0,0,0.5)',
       }}>
-        {initials}
-        {/* Subtle diamond watermark in corner */}
+
+        {/* ── School Logo + Name ── */}
         <div style={{
-          position: 'absolute', bottom: -4, right: -4,
-          width: 28, height: 28, borderRadius: '50%',
-          padding: 2,
-          background: 'linear-gradient(135deg, #5C6BC0, #3949AB)',
-          border: '2px solid #fff',
-          boxShadow: '0 2px 8px rgba(57,73,171,0.4)',
+          padding: '18px 16px 14px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.02)',
         }}>
-          <img src="/school-logo.jpeg" alt=""
-            style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-            onError={e => { e.target.style.display='none'; e.target.parentElement.innerHTML='💎'; e.target.parentElement.style.display='flex'; e.target.parentElement.style.alignItems='center'; e.target.parentElement.style.justifyContent='center'; e.target.parentElement.style.fontSize='11px'; }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function Profile() {
-  const { user, updateUser } = useAuth();
-  const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '' });
-  const [pwdForm,     setPwdForm]     = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [savingPwd,     setSavingPwd]     = useState(false);
-  const [activeTab, setActiveTab] = useState('profile');
-
-  const handleProfileSave = async (e) => {
-    e.preventDefault();
-    if (!profileForm.name.trim()) { toast.error('Name is required'); return; }
-    setSavingProfile(true);
-    try {
-      const res = await authAPI.updateProfile(profileForm);
-      updateUser(res.data.data);
-      toast.success('Profile updated successfully');
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to update profile'); }
-    finally { setSavingProfile(false); }
-  };
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    if (!pwdForm.currentPassword || !pwdForm.newPassword) { toast.error('All fields are required'); return; }
-    if (pwdForm.newPassword !== pwdForm.confirmPassword) { toast.error('New passwords do not match'); return; }
-    if (pwdForm.newPassword.length < 6) { toast.error('Password must be at least 6 characters'); return; }
-    setSavingPwd(true);
-    try {
-      await authAPI.changePassword(pwdForm);
-      toast.success('Password changed successfully');
-      setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to change password'); }
-    finally { setSavingPwd(false); }
-  };
-
-  const avatarColor = ROLE_COLORS[user?.role] || '#d4522a';
-  const roleIcon    = ROLE_ICONS[user?.role]  || '👤';
-
-  return (
-    <div className="animate-fade-in" style={{ maxWidth: 680 }}>
-      <div className="page-header">
-        <div>
-          <h2 className="font-display text-2xl text-ink">My Profile</h2>
-          <p className="text-sm text-muted mt-0.5">Manage your personal information and security settings</p>
-        </div>
-      </div>
-
-      {/* ── Profile Header Card ── */}
-      <div className="card p-6 mb-5" style={{ position: 'relative', overflow: 'hidden' }}>
-        {/* Decorative background stripe */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, height: 5,
-          background: 'linear-gradient(90deg, #E53935, #43A047, #7B1FA2, #F57C00, #1565C0, #E53935)',
-          backgroundSize: '300% 100%',
-        }} />
-
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, paddingTop: 4, flexWrap: 'wrap' }}>
-          {/* Avatar */}
-          <ProfileAvatar name={user?.name} color={avatarColor} size={80} />
-
-          {/* Info */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontSize: 22, fontWeight: 900, color: '#111827', lineHeight: 1.2, marginBottom: 4 }}>
-              {user?.name}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Real school logo with indigo ring */}
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              padding: 2.5,
+              background: 'linear-gradient(135deg, #5C6BC0, #3949AB, #283593)',
+              flexShrink: 0,
+              boxShadow: '0 4px 18px rgba(57,73,171,0.5)',
+            }}>
+              <img
+                src="/school-logo.jpeg"
+                alt="The Future Step School"
+                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                onError={e => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.style.display = 'flex';
+                  e.target.parentElement.style.alignItems = 'center';
+                  e.target.parentElement.style.justifyContent = 'center';
+                  e.target.parentElement.style.fontSize = '20px';
+                  e.target.parentElement.innerHTML = '💎';
+                }}
+              />
             </div>
-            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 10 }}>{user?.email}</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '4px 12px', borderRadius: 20,
-                background: `${avatarColor}18`, border: `1.5px solid ${avatarColor}35`,
-                fontSize: 11.5, fontWeight: 800, color: avatarColor,
-              }}>
-                {roleIcon} {ROLE_LABELS[user?.role] || user?.role}
-              </span>
-            </div>
+            <SidebarSchoolName />
           </div>
+        </div>
 
-          {/* Right: School brand + member since */}
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <SchoolBrandBadge />
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 10, color: '#9CA3AF', marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Member since</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>
-                {user?.createdAt
-                  ? new Date(user.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-                  : '2024'}
+        {/* ── User Profile Badge ── */}
+        <div style={{
+          padding: '12px 14px',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 11px', borderRadius: 11,
+            background: `${meta.color}12`,
+            border: `1px solid ${meta.color}25`,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: `${meta.color}20`,
+              border: `2px solid ${meta.color}50`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, flexShrink: 0,
+            }}>
+              {meta.emoji}
+            </div>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
+              <div style={{
+                fontSize: 12.5, fontWeight: 800, color: '#fff',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {user?.name}
+              </div>
+              <div style={{
+                fontSize: 9.5, fontWeight: 800, color: meta.color,
+                textTransform: 'uppercase', letterSpacing: '0.7px', marginTop: 1,
+              }}>
+                {meta.label}
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── Tabs ── */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, padding: 4, background: '#F3F4F6', borderRadius: 12, width: 'fit-content' }}>
-        {['profile', 'password'].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '8px 22px', borderRadius: 9, fontSize: 13, fontWeight: 700,
-            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-            background: activeTab === tab ? '#fff' : 'transparent',
-            color: activeTab === tab ? '#111827' : '#6B7280',
-            boxShadow: activeTab === tab ? '0 1px 6px rgba(0,0,0,0.1)' : 'none',
-          }}>
-            {tab === 'profile' ? 'Personal Info' : 'Change Password'}
+        {/* ── Navigation ── */}
+        <nav style={{ flex: 1, padding: '8px 8px 4px', overflowY: 'auto' }}>
+          {isPortalUser ? (
+            <>
+              <NavLink
+                to="/profile"
+                onClick={onClose}
+                style={({ isActive }) => ({
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 11px', borderRadius: 9, marginBottom: 6,
+                  textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
+                  transition: 'all 0.15s',
+                  background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
+                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.45)',
+                  borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
+                })}
+              >
+                <span style={{ fontSize: 14 }}>👤</span>
+                My Profile
+              </NavLink>
+
+              {portalSections.map(section => (
+                <div key={section.group} style={{ marginBottom: 4 }}>
+                  <div style={{
+                    fontSize: 8.5, fontWeight: 900, color: 'rgba(255,255,255,0.2)',
+                    letterSpacing: '1.5px', textTransform: 'uppercase',
+                    padding: '5px 14px 3px',
+                  }}>
+                    {section.group}
+                  </div>
+                  {section.items.map(item => {
+                    const isActive = activePortalTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          if (onPortalTabChange) onPortalTabChange(item.id);
+                          if (onClose) onClose();
+                          navigate('/dashboard');
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          width: '100%', padding: '8px 11px', borderRadius: 9, marginBottom: 1,
+                          border: 'none', cursor: 'pointer', textAlign: 'left',
+                          fontSize: 12.5, fontWeight: 700, transition: 'all 0.15s',
+                          background: isActive ? `${meta.color}18` : 'transparent',
+                          color: isActive ? meta.color : 'rgba(255,255,255,0.45)',
+                          borderLeft: isActive ? `3px solid ${meta.color}` : '3px solid transparent',
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>{item.icon}</span>
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {isActive && (
+                          <span style={{
+                            width: 5, height: 5, borderRadius: '50%',
+                            background: meta.color,
+                            boxShadow: `0 0 8px ${meta.color}`,
+                            flexShrink: 0,
+                          }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </>
+          ) : (
+            visibleItems.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={onClose}
+                style={({ isActive }) => ({
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 11px', borderRadius: 9, marginBottom: 1,
+                  textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
+                  transition: 'all 0.15s',
+                  background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
+                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.45)',
+                  borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
+                })}
+              >
+                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))
+          )}
+        </nav>
+
+        {/* ── Logout ── */}
+        <div style={{ padding: '8px 8px 14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <button
+            onClick={handleLogout}
+            style={{
+              width: '100%', padding: '9px 11px', borderRadius: 9,
+              border: '1px solid rgba(239,68,68,0.15)', cursor: 'pointer',
+              background: 'rgba(239,68,68,0.07)', color: '#f87171',
+              fontSize: 12.5, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 10,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.07)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.15)'; }}
+          >
+            <span>🚪</span> Logout
           </button>
-        ))}
-      </div>
-
-      {/* ── Personal Info Tab ── */}
-      {activeTab === 'profile' && (
-        <div className="card p-6">
-          <form onSubmit={handleProfileSave}>
-            <FormGroup label="Full Name">
-              <input
-                className="form-input"
-                value={profileForm.name}
-                onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))}
-                placeholder="Your full name"
-              />
-            </FormGroup>
-            <FormGroup label="Email Address">
-              <input className="form-input" value={user?.email || ''} disabled
-                style={{ opacity: 0.6, cursor: 'not-allowed' }} />
-              <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Email cannot be changed</p>
-            </FormGroup>
-            <FormGroup label="Phone Number">
-              <PhoneInput
-                value={profileForm.phone}
-                onChange={v => setProfileForm(p => ({ ...p, phone: v }))}
-              />
-            </FormGroup>
-            <FormGroup label="Role">
-              <input className="form-input" value={ROLE_LABELS[user?.role] || user?.role || ''} disabled
-                style={{ opacity: 0.6, cursor: 'not-allowed' }} />
-            </FormGroup>
-            <button type="submit" disabled={savingProfile} className="btn-primary">
-              {savingProfile ? 'Saving…' : 'Save Changes'}
-            </button>
-          </form>
         </div>
-      )}
-
-      {/* ── Password Tab ── */}
-      {activeTab === 'password' && (
-        <div className="card p-6">
-          <form onSubmit={handlePasswordChange}>
-            <FormGroup label="Current Password">
-              <input
-                type="password"
-                className="form-input"
-                value={pwdForm.currentPassword}
-                onChange={e => setPwdForm(p => ({ ...p, currentPassword: e.target.value }))}
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-            </FormGroup>
-            <FormGroup label="New Password">
-              <input
-                type="password"
-                className="form-input"
-                value={pwdForm.newPassword}
-                onChange={e => setPwdForm(p => ({ ...p, newPassword: e.target.value }))}
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-            </FormGroup>
-            <FormGroup label="Confirm New Password">
-              <input
-                type="password"
-                className="form-input"
-                value={pwdForm.confirmPassword}
-                onChange={e => setPwdForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-            </FormGroup>
-            <div style={{
-              padding: '12px 14px', borderRadius: 10,
-              background: '#FFF8F1', border: '1px solid #FED7AA',
-              fontSize: 12, color: '#92400E', marginBottom: 16, lineHeight: 1.5,
-            }}>
-              🔒 Password must be at least 6 characters. Use a mix of letters, numbers and symbols for security.
-            </div>
-            <button type="submit" disabled={savingPwd} className="btn-primary">
-              {savingPwd ? 'Changing…' : 'Change Password'}
-            </button>
-          </form>
-        </div>
-      )}
-    </div>
+      </aside>
+    </>
   );
 }
