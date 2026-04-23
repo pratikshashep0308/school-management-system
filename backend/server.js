@@ -97,6 +97,7 @@ const routes = [
   ['/api/exams',          './routes/examRoutes'],
   ['/api/fees',           './routes/feeRoutes'],
   ['/api/expenses',       './routes/expenseRoutes'],
+  ['/api/salary',          './routes/salaryRoutes'],
   ['/api/timetable',      './routes/timetableRoutes'],
   ['/api/assignments',    './routes/assignmentRoutes'],
   ['/api/library',        './routes/libraryRoutes'],
@@ -175,3 +176,16 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 connectDB()
   .then(() => dropTransportIndexes())
   .catch(err => console.error('❌ MongoDB connection error:', err.message));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🛡️  Global error handlers — prevent server crash on unhandled rejections
+// ─────────────────────────────────────────────────────────────────────────────
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️  Unhandled Rejection:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err.message);
+  // Give time to log then exit gracefully (render.com will restart)
+  setTimeout(() => process.exit(1), 1000);
+});

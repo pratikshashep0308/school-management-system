@@ -19,7 +19,8 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
-import Attendance   from './pages/Attendance/Index';
+import Attendance   from './pages/Attendance';
+import Salary from './pages/Salary';
 import Exams        from './pages/Exams';
 import Fees         from './pages/Fees';
 import Library      from './pages/Library';
@@ -109,6 +110,7 @@ export default function App() {
               <Route path="teachers"      element={<AdminRoute><Teachers /></AdminRoute>} />
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
+              <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />
               <Route path="fees"          element={<AdminRoute><Fees /></AdminRoute>} />
               <Route path="library"       element={<AdminRoute><Library /></AdminRoute>} />
