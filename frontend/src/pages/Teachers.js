@@ -451,6 +451,44 @@ function ManageLoginTab({ teachers }) {
   const [role,   setRole]     = useState('');
   const [show,   setShow]     = useState({});
 
+  const printTable = (rows) => {
+    const html = `<html><head><title>Staff Login — The Future Step School</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;padding:24px;color:#111}
+      h2{font-size:20px;margin-bottom:4px;color:#0B1F4A}
+      p{font-size:12px;color:#666;margin-bottom:16px}
+      table{width:100%;border-collapse:collapse;font-size:13px}
+      th{background:#0B1F4A;color:#fff;padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase}
+      td{padding:8px 12px;border-bottom:1px solid #eee}
+      tr:nth-child(even) td{background:#f9f9f9}
+      .footer{margin-top:24px;display:flex;justify-content:space-between;font-size:11px;color:#999}
+    </style></head><body>
+    <h2>The Future Step School</h2>
+    <p>Staff Login Details — ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</p>
+    <table>
+      <thead><tr><th>ID</th><th>Staff Name</th><th>Role</th><th>Username</th><th>Password</th></tr></thead>
+      <tbody>
+        ${rows.map(t=>`<tr>
+          <td style="font-family:monospace;font-size:12px">${t.employeeId||'—'}</td>
+          <td style="font-weight:bold">${t.user?.name||'—'}</td>
+          <td>${t.designation||'Teacher'}</td>
+          <td style="font-size:12px">${t.user?.email||'—'}</td>
+          <td style="font-family:monospace;font-size:12px">Teacher@123</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="footer">
+      <span>Total: ${rows.length} staff members</span>
+      <span>Printed: ${new Date().toLocaleString('en-IN')}</span>
+    </div>
+    </body></html>`;
+    const w = window.open('','_blank','width=900,height=600');
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  };
+
   const filtered = teachers.filter(t => {
     const name = t.user?.name||'';
     const q    = search.toLowerCase();
@@ -489,8 +527,8 @@ function ManageLoginTab({ teachers }) {
               { label:'Copy',  fn:()=>{ copy(filtered.map(t=>`${t.employeeId}\t${t.user?.name}\t${t.designation||''}\t${t.user?.email||''}`).join('\n')); }},
               { label:'CSV',   fn:()=>{ const blob=new Blob(['ID,Name,Role,Username\n'+filtered.map(t=>`${t.employeeId||''},${t.user?.name||''},${t.designation||''},${t.user?.email||''}`).join('\n')],{type:'text/csv'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='employees.csv';a.click(); }},
               { label:'Excel', fn:()=>{ const blob=new Blob(['ID,Name,Role,Username\n'+filtered.map(t=>`${t.employeeId||''},${t.user?.name||''},${t.designation||''},${t.user?.email||''}`).join('\n')],{type:'text/csv'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='employees.xls';a.click(); }},
-              { label:'PDF',   fn:()=>window.print() },
-              { label:'Print', fn:()=>window.print() },
+              { label:'PDF',   fn:()=>printTable(filtered) },
+              { label:'Print', fn:()=>printTable(filtered) },
             ].map(b=>(
               <button key={b.label} style={BTN} onClick={()=>b.fn()}>
                 {b.label}
