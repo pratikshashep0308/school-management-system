@@ -16,8 +16,12 @@ const INP = { width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', b
   fontSize:13, outline:'none', background:'#fff', color:'#111827', boxSizing:'border-box' };
 const LBL = { fontSize:11, color:'#6B7280', marginBottom:4, display:'block', fontWeight:600 };
 
-const AVATAR_COLORS = ['#D4522A','#185FA5','#534AB7','#0F6E56','#993556','#B45309','#0369A1'];
-function avatarBg(name) { return AVATAR_COLORS[(name||'').charCodeAt(0) % AVATAR_COLORS.length]; }
+const AVATAR_COLORS = ['#185FA5','#534AB7','#0F6E56','#D4522A','#993556','#B45309','#0369A1','#1D6F42','#7C3AED'];
+function avatarBg(name) {
+  let hash = 0;
+  for (let i=0; i<(name||'').length; i++) hash = (name||'').charCodeAt(i) + ((hash<<5)-hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 function initials(name) { return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
 
 // ── Employee Card ─────────────────────────────────────────────────────────────
@@ -481,9 +485,15 @@ function ManageLoginTab({ teachers }) {
         {/* Table */}
         <div style={{ flex:1, background:'#fff', border:'1px solid #E5E7EB', borderRadius:12, overflow:'hidden' }}>
           <div style={{ padding:'10px 14px', borderBottom:'1px solid #F3F4F6', display:'flex', gap:6, flexWrap:'wrap' }}>
-            {['Copy','CSV','Excel','PDF','Print'].map(b=>(
-              <button key={b} style={BTN} onClick={()=>{ if(b==='Copy') copy(filtered.map(t=>`${t.employeeId}\t${t.user?.name}\t${t.designation}\t${t.user?.email}`).join('\n')); }}>
-                {b}
+            {[
+              { label:'Copy',  fn:()=>{ copy(filtered.map(t=>`${t.employeeId}\t${t.user?.name}\t${t.designation||''}\t${t.user?.email||''}`).join('\n')); }},
+              { label:'CSV',   fn:()=>{ const blob=new Blob(['ID,Name,Role,Username\n'+filtered.map(t=>`${t.employeeId||''},${t.user?.name||''},${t.designation||''},${t.user?.email||''}`).join('\n')],{type:'text/csv'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='employees.csv';a.click(); }},
+              { label:'Excel', fn:()=>{ const blob=new Blob(['ID,Name,Role,Username\n'+filtered.map(t=>`${t.employeeId||''},${t.user?.name||''},${t.designation||''},${t.user?.email||''}`).join('\n')],{type:'text/csv'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='employees.xls';a.click(); }},
+              { label:'PDF',   fn:()=>window.print() },
+              { label:'Print', fn:()=>window.print() },
+            ].map(b=>(
+              <button key={b.label} style={BTN} onClick={()=>b.fn()}>
+                {b.label}
               </button>
             ))}
             <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
@@ -660,7 +670,7 @@ export default function Teachers() {
                 style={{ flex:1, padding:'9px 14px', border:'none', outline:'none', fontSize:13 }}/>
               <div style={{ padding:'0 12px', display:'flex', alignItems:'center', color:'#9CA3AF' }}>🔍</div>
             </div>
-            <button style={{ padding:'9px 20px', borderRadius:10, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            <button onClick={()=>setSearch('')} style={{ padding:'9px 20px', borderRadius:10, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>
               ↻ All
             </button>
           </div>
