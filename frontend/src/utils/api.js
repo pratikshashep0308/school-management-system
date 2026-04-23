@@ -294,4 +294,14 @@ export const expenseAPI = {
   export: (params)                 => api.get('/expenses/export', { params, responseType: 'blob' }),
 };
 
+//salary API
+export const salaryAPI = {
+  getAll:   (params)   => api.get('/salary', { params }),
+  getSheet: (params)   => api.get('/salary/sheet', { params }),
+  getOne:   (id)       => api.get(`/salary/${id}`),
+  pay:      (data)     => api.post('/salary', data),
+  update:   (id, data) => api.put(`/salary/${id}`, data),
+  remove:   (id)       => api.delete(`/salary/${id}`),
+};
+
 export default api;
