@@ -1,12 +1,15 @@
-const SalarySlip = require('../models/Salary');
-const Teacher    = require('../models/Teacher');
+// Models loaded lazily to avoid circular require issues
+function getSalarySlip() { return require('../models/Salary'); }
+function getTeacher()    { return require('../models/Teacher'); }
 
 // GET all slips for month/year
 exports.getAll = async (req, res) => {
   try {
     const filter = { school: req.user.school };
-    if (req.query.month) filter.month = Number(req.query.month);
-    if (req.query.year)  filter.year  = Number(req.query.year);
+    if (req.query.month)  filter.month  = Number(req.query.month);
+    if (req.query.year)   filter.year   = Number(req.query.year);
+    if (req.query.status) filter.status = req.query.status;
+    const SalarySlip = getSalarySlip();
     const slips = await SalarySlip.find(filter)
       .populate({ path: 'teacher', populate: { path: 'user', select: 'name email phone profileImage' }, select: 'user employeeId designation salary' })
       .sort({ createdAt: -1 });
@@ -17,6 +20,7 @@ exports.getAll = async (req, res) => {
 // GET one slip
 exports.getOne = async (req, res) => {
   try {
+    const SalarySlip = getSalarySlip();
     const slip = await SalarySlip.findOne({ _id: req.params.id, school: req.user.school })
       .populate({ path: 'teacher', populate: { path: 'user', select: 'name email phone profileImage' }, select: 'user employeeId designation salary bankAccount' })
       .populate('paidBy', 'name');
@@ -36,6 +40,7 @@ exports.pay = async (req, res) => {
     const grossSalary = (basicSalary||0) + totalAllow;
     const netSalary   = grossSalary - totalDeduct;
 
+    const SalarySlip = getSalarySlip();
     const slip = await SalarySlip.findOneAndUpdate(
       { school: req.user.school, teacher: teacherId, month: Number(month), year: Number(year) },
       {
@@ -64,6 +69,7 @@ exports.update = async (req, res) => {
     const totalDeduct = (deduct.pf||0)+(deduct.tax||0)+(deduct.loan||0)+(deduct.other||0);
     const grossSalary = (basicSalary||0) + totalAllow;
     const netSalary   = grossSalary - totalDeduct;
+    const SalarySlip = getSalarySlip();
     const slip = await SalarySlip.findOneAndUpdate(
       { _id: req.params.id, school: req.user.school },
       { ...rest, basicSalary, allowances: allow, deductions: deduct, grossSalary, netSalary },
@@ -77,6 +83,7 @@ exports.update = async (req, res) => {
 // DELETE
 exports.remove = async (req, res) => {
   try {
+    const SalarySlip = getSalarySlip();
     await SalarySlip.findOneAndDelete({ _id: req.params.id, school: req.user.school });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
@@ -88,10 +95,13 @@ exports.getSalarySheet = async (req, res) => {
     const now = new Date();
     const month = Number(req.query.month) || (now.getMonth() + 1);
     const year  = Number(req.query.year)  || now.getFullYear();
+    const Teacher = getTeacher();
     const teachers = await Teacher.find({ school: req.user.school, isActive: true })
       .populate('user', 'name email phone')
       .select('user employeeId designation salary');
-    const slips = await SalarySlip.find({ school: req.user.school, month, year });
+    const SalarySlip = getSalarySlip();
+    const SalarySlip2 = getSalarySlip();
+    const slips = await SalarySlip2.find({ school: req.user.school, month, year });
     const slipMap = {};
     slips.forEach(s => { slipMap[s.teacher.toString()] = s; });
     const sheet = teachers.map(t => ({
