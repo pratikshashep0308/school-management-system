@@ -57,7 +57,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="grid xl:grid-cols-5 gap-5 mb-5">
-            <div className="xl:col-span-3 card dark:bg-gray-800 dark:border-gray-700 p-0 overflow-hidden">
+            <div className="xl:col-span-3 card dark:bg-gray-800 dark:border-gray-700 p-0 overflow-hidden" onClick={()=>navigate('/attendance')} style={{cursor:'pointer',transition:'box-shadow 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.1)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-border dark:border-gray-700">
                 <div className="font-semibold text-ink dark:text-white">Weekly Attendance Overview</div>
                 <div className="text-xs text-muted">Mon – Fri this week</div>
@@ -85,10 +85,10 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="xl:col-span-2 card dark:bg-gray-800 dark:border-gray-700 p-0 overflow-hidden">
+            <div className="xl:col-span-2 card dark:bg-gray-800 dark:border-gray-700 p-0 overflow-hidden" onClick={()=>navigate('/exams')} style={{cursor:'pointer',transition:'box-shadow 0.15s'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.1)'} onMouseLeave={e=>e.currentTarget.style.boxShadow=''}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-border dark:border-gray-700">
                 <div className="font-semibold text-ink dark:text-white">Upcoming Exams</div>
-                <button onClick={()=>navigate('/exams')} className="text-xs text-accent hover:underline">View all</button>
+                <button onClick={(e)=>{e.stopPropagation();navigate('/exams');}} className="text-xs text-accent hover:underline">View all</button>
               </div>
               <div className="divide-y divide-border dark:divide-gray-700">
                 {!stats?.upcomingExams?.length ? (
