@@ -41,6 +41,27 @@ export default function AdminDashboard() {
         <p className="text-sm text-muted mt-1">Here's what's happening at school today.</p>
       </div>
 
+      {/* ── Quick Actions ── */}
+      <div style={{ display:'flex', gap:10, marginBottom:22, flexWrap:'wrap' }}>
+        {[
+          { icon:'✅', label:'Mark Attendance', color:'#166534', bg:'#DCFCE7', path:'/attendance'    },
+          { icon:'💳', label:'Collect Fee',      color:'#1D4ED8', bg:'#EFF6FF', path:'/fees'          },
+          { icon:'👤', label:'Add Student',      color:'#7C3AED', bg:'#EDE9FE', path:'/students'      },
+          { icon:'👥', label:'Add Employee',     color:'#0369A1', bg:'#E0F2FE', path:'/teachers'      },
+          { icon:'🔔', label:'Send Notice',      color:'#D97706', bg:'#FFFBEB', path:'/notifications' },
+          { icon:'📊', label:'View Reports',     color:'#DC2626', bg:'#FEF2F2', path:'/reports'       },
+        ].map(a=>(
+          <button key={a.label} onClick={()=>navigate(a.path)}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:10,
+              background:a.bg, border:`1.5px solid ${a.color}30`, cursor:'pointer',
+              fontSize:13, fontWeight:700, color:a.color, transition:'all 0.15s', flexShrink:0 }}
+            onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 4px 14px ${a.color}30`; }}
+            onMouseLeave={e=>{ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; }}>
+            <span style={{ fontSize:16 }}>{a.icon}</span>{a.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? <LoadingState /> : (
         <>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">

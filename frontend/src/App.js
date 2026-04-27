@@ -18,6 +18,7 @@ import ParentDashboard  from './pages/ParentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 
 // Pages — Admin modules
+import Settings      from './pages/Settings';
 import StudentIDCards    from './pages/StudentIDCards';
 import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';

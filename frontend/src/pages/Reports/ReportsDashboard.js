@@ -34,6 +34,45 @@ const CATEGORY_COLORS = {
   Teachers: '#EC4899', Classes: '#6366F1',
 };
 
+
+// ── PDF Export helper ─────────────────────────────────────────────────────────
+async function exportToPDF(title, headers, rows, filename) {
+  try {
+    if (!window.jspdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(18); doc.setFont(undefined, 'bold');
+    doc.text('The Future Step School', 14, 16);
+    doc.setFontSize(12); doc.setFont(undefined, 'normal');
+    doc.text(title, 14, 24);
+    doc.setFontSize(9); doc.setTextColor(150);
+    doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, 14, 30);
+    doc.autoTable({ head:[headers], body:rows, startY:35, styles:{ fontSize:9 }, headStyles:{ fillColor:[11,31,74] } });
+    doc.save(filename);
+  } catch (e) { alert('PDF export failed: ' + e.message); }
+}
+
+function exportToCSV(headers, rows, filename) {
+  const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename;
+  a.click();
+}
+
 export default function ReportsDashboard() {
   const navigate = useNavigate();
   const [summary,    setSummary]    = useState(null);
@@ -109,6 +148,20 @@ export default function ReportsDashboard() {
         >
           + Build Report
         </button>
+        <div style={{ display:'flex', gap:8, marginLeft:8 }}>
+          <button onClick={()=>window.print()}
+            style={{ background:'#F3F4F6', color:'#374151', border:'1px solid #E5E7EB', borderRadius:10, padding:'10px 16px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+            🖨️ Print
+          </button>
+          <button onClick={()=>exportToCSV(['Report','Value'],[],'school-report.csv')}
+            style={{ background:'#F0FDF4', color:'#166534', border:'1px solid #86EFAC', borderRadius:10, padding:'10px 16px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+            📊 CSV
+          </button>
+          <button onClick={()=>exportToPDF('School Report',['Metric','Value'],[],'school-report.pdf')}
+            style={{ background:'#FEF2F2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:10, padding:'10px 16px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+            📄 PDF
+          </button>
+        </div>
       </div>
 
       {/* Smart Search */}

@@ -1,7 +1,7 @@
 // frontend/src/pages/Exams.js
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { examAPI, classAPI, subjectAPI } from '../utils/api';
+import { examAPI, classAPI, subjectAPI, studentAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 
@@ -427,7 +427,7 @@ export default function Exams() {
       </div>
 
       <div style={{ display:'flex', gap:4, background:'#F3F4F6', borderRadius:10, padding:4, marginBottom:22, flexWrap:'wrap' }}>
-        {[{ key:'all', label:'📝 All Exams' },{ key:'recent', label:'🕐 Recent / Upcoming' },{ key:'timetable', label:'🗓 Exam Timetable' }].map(t=>(
+        {[{ key:'all', label:'📝 All Exams' },{ key:'recent', label:'🕐 Recent / Upcoming' },{ key:'timetable', label:'🗓 Exam Timetable' },{ key:'results', label:'📊 Result Entry' }].map(t=>(
           <button key={t.key} onClick={()=>setTab(t.key)} style={{ padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:700, border:'none', cursor:'pointer', transition:'all 0.15s', background:tab===t.key?'#1D4ED8':'transparent', color:tab===t.key?'#fff':'#6B7280' }}>{t.label}</button>
         ))}
       </div>

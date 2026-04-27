@@ -10,6 +10,7 @@ const SchoolSchema = new mongoose.Schema({
   principalName: String,
   establishedYear: Number,
   board: { type: String, enum: ['CBSE', 'ICSE', 'State Board', 'IB', 'Other'], default: 'CBSE' },
+  academicYear: { type: String, default: '2025-26' },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });

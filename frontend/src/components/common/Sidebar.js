@@ -8,6 +8,7 @@ const STAFF_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'libr
 
 const MENU_ITEMS = [
   { path: '/dashboard',     icon: '⊞',  label: 'Dashboard',     roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
+  { path: '/settings',      icon: '⚙️', label: 'Settings',          roles: ['superAdmin','schoolAdmin'] },
   { path: '/id-cards',       icon: '🪪', label: 'ID Cards',         roles: ['superAdmin','schoolAdmin'] },
   { path: '/student-id-cards',   icon: '🪪', label: 'ID Cards',       roles: ['superAdmin','schoolAdmin'] },
   { path: '/students',      icon: '👥', label: 'Students',      roles: ['superAdmin','schoolAdmin','teacher','accountant'] },
