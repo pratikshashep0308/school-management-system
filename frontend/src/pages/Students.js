@@ -472,6 +472,7 @@ function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
         <div className="flex gap-2 pt-3 border-t border-border dark:border-gray-700" onClick={e => e.stopPropagation()}>
           <button onClick={onView}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-accent hover:text-accent transition-all">👁 View</button>
           <button onClick={onEdit}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-blue-400 hover:text-blue-600 transition-all">✎ Edit</button>
+          {s.parentPhone && <button onClick={()=>{ const ph=(s.parentPhone||'').replace(/\D/g,'').replace(/^0/,'91'); window.open(`https://wa.me/${ph}?text=${encodeURIComponent('Dear Parent, this is a message from The Future Step School regarding '+s.user?.name+'.')}`, '_blank'); }} className="text-xs border border-green-200 rounded-lg px-2.5 py-1.5 text-green-600 hover:border-green-400 hover:bg-green-50 transition-all">💬</button>}
           <button onClick={onDelete} className="text-xs border border-red-200 rounded-lg px-2.5 py-1.5 text-red-400 hover:border-red-400 hover:text-red-600 transition-all">✕</button>
         </div>
       )}

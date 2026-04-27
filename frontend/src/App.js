@@ -18,6 +18,8 @@ import ParentDashboard  from './pages/ParentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 
 // Pages — Admin modules
+import QRAttendance  from './pages/QRAttendance';
+import Homework      from './pages/Homework';
 import Settings      from './pages/Settings';
 import StudentIDCards    from './pages/StudentIDCards';
 import Students     from './pages/Students';
@@ -127,6 +129,8 @@ export default function App() {
               <Route path="admissions"    element={<AdminRoute><Admissions /></AdminRoute>} />
               <Route path="expenses"     element={<AdminRoute><Expenses /></AdminRoute>} />
 
+              <Route path="qr-attendance" element={<AdminRoute><QRAttendance /></AdminRoute>} />
+              <Route path="homework"      element={<ProtectedRoute><Homework /></ProtectedRoute>} />
               <Route path="settings"   element={<AdminRoute><Settings /></AdminRoute>} />
               <Route path="id-cards"   element={<AdminRoute><StudentIDCards /></AdminRoute>} />
 

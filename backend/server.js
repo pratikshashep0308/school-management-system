@@ -100,6 +100,7 @@ const routes = [
   ['/api/exams',          './routes/examRoutes'],
   ['/api/fees',           './routes/feeRoutes'],
   ['/api/expenses',       './routes/expenseRoutes'],
+  ['/api/homework',        './routes/homeworkRoutes'],
   ['/api/school',           './routes/schoolRoutes'],
   ['/api/salary',          './routes/salaryRoutes'],
   ['/api/timetable',      './routes/timetableRoutes'],
