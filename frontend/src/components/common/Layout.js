@@ -18,37 +18,33 @@ export const usePortalTab = () => useContext(PortalTabContext);
 
 // ── Rainbow school name — matches the colorful script in SchoolName.jpeg ──────
 function RainbowSchoolName({ size = 'md' }) {
-  // Each character group gets a color matching the image
-  const words = [
-    { text: 'The',    color: '#E53935' },   // red
-    { text: ' ' },
-    { text: 'Future', color: '#388E3C' },   // green
-    { text: ' ' },
-    { text: 'Step',   color: '#7B1FA2' },   // purple
-    { text: ' ' },
-    { text: 'School', color: '#F57C00' },   // orange
-  ];
+  // Letter-by-letter colors cycling through the rainbow like the image
+  const COLORS = ['#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0'];
+  const text = 'The Future Step School';
 
   const sizes = {
-    sm:  { fontSize: 13, fontWeight: 900, letterSpacing: '-0.2px' },
-    md:  { fontSize: 16, fontWeight: 900, letterSpacing: '-0.3px' },
-    lg:  { fontSize: 22, fontWeight: 900, letterSpacing: '-0.5px' },
-    xl:  { fontSize: 30, fontWeight: 900, letterSpacing: '-0.8px' },
+    sm:  { fontSize: 13, fontWeight: 900, letterSpacing: '0px'   },
+    md:  { fontSize: 16, fontWeight: 900, letterSpacing: '0px'   },
+    lg:  { fontSize: 22, fontWeight: 900, letterSpacing: '0px'   },
+    xl:  { fontSize: 30, fontWeight: 900, letterSpacing: '0px'   },
   };
 
   const style = sizes[size] || sizes.md;
+  let colorIdx = 0;
 
   return (
     <span style={{
       ...style,
-      fontFamily: "'Merriweather', 'Georgia', serif",
+      fontFamily: "'Georgia', 'Times New Roman', serif",
+      fontStyle: 'italic',
       lineHeight: 1.1,
     }}>
-      {words.map((w, i) =>
-        w.color
-          ? <span key={i} style={{ color: w.color }}>{w.text}</span>
-          : <span key={i}>&nbsp;</span>
-      )}
+      {text.split('').map((ch, i) => {
+        if (ch === ' ') return <span key={i}>&nbsp;</span>;
+        const color = COLORS[colorIdx % COLORS.length];
+        colorIdx++;
+        return <span key={i} style={{ color }}>{ch}</span>;
+      })}
     </span>
   );
 }

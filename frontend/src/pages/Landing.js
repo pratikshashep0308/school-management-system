@@ -287,11 +287,16 @@ export default function Landing() {
               <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
             </div>
             <div>
-              <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontWeight: 900, fontSize: 13.5, lineHeight: 1.15, display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                <span style={{ color: '#EF5350' }}>The</span>
-                <span style={{ color: '#66BB6A' }}>Future</span>
-                <span style={{ color: '#CE93D8' }}>Step</span>
-                <span style={{ color: '#FFB74D' }}>School</span>
+              <div style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontWeight: 900, fontSize: 13.5, fontStyle: 'italic', lineHeight: 1.15, display: 'flex', flexWrap: 'wrap' }}>
+                {(() => {
+                  const COLORS = ['#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F'];
+                  let ci = 0;
+                  return 'The Future Step School'.split('').map((ch, i) => {
+                    if (ch === ' ') return <span key={i} style={{ width:4 }}>&nbsp;</span>;
+                    const color = COLORS[ci % COLORS.length]; ci++;
+                    return <span key={i} style={{ color }}>{ch}</span>;
+                  });
+                })()}
               </div>
               <div className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.4)', marginTop: 1, letterSpacing: '0.04em' }}>K V P S Sanstha Bhaler</div>
             </div>

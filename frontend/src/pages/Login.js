@@ -22,36 +22,31 @@ const FEATURES = [
   { icon: '🔔', text: 'Instant Notifications' },
 ];
 
-// ── Rainbow school name — styled like SchoolName.jpeg ─────────────────────────
+// ── Rainbow school name — letter-by-letter like SchoolName.jpeg ──────────────
 function RainbowName({ size = 'md' }) {
-  const configs = {
-    sm:   { fontSizes: [13, 13, 13, 13], spacing: 3 },
-    md:   { fontSizes: [18, 18, 18, 18], spacing: 4 },
-    lg:   { fontSizes: [26, 26, 26, 26], spacing: 5 },
-    hero: { fontSizes: [32, 32, 32, 32], spacing: 6 },
-  };
-  const cfg = configs[size] || configs.md;
-  const words = [
-    { text: 'The',    color: '#E53935' },
-    { text: 'Future', color: '#43A047' },
-    { text: 'Step',   color: '#7B1FA2' },
-    { text: 'School', color: '#F57C00' },
-  ];
+  const COLORS = ['#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0'];
+  const text = 'The Future Step School';
+  const fontSizes = { sm:13, md:18, lg:26, hero:32 };
+  const fs = fontSizes[size] || 18;
+  let colorIdx = 0;
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: cfg.spacing, alignItems: 'baseline' }}>
-      {words.map((w, i) => (
-        <span key={i} style={{
-          fontSize: cfg.fontSizes[i],
-          fontWeight: 900,
-          color: w.color,
-          fontFamily: "'Merriweather', Georgia, serif",
-          lineHeight: 1.1,
-          letterSpacing: '-0.5px',
-        }}>
-          {w.text}
-        </span>
-      ))}
+    <div style={{ display:'flex', flexWrap:'wrap', alignItems:'baseline', lineHeight:1.1 }}>
+      {text.split('').map((ch, i) => {
+        if (ch === ' ') return <span key={i} style={{ width: fs * 0.3 }}>&nbsp;</span>;
+        const color = COLORS[colorIdx % COLORS.length];
+        colorIdx++;
+        return (
+          <span key={i} style={{
+            fontSize: fs,
+            fontWeight: 900,
+            color,
+            fontFamily: "'Georgia', 'Times New Roman', serif",
+            fontStyle: 'italic',
+            lineHeight: 1.1,
+          }}>{ch}</span>
+        );
+      })}
     </div>
   );
 }
