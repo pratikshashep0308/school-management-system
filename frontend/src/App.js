@@ -116,7 +116,6 @@ export default function App() {
               <Route path="teachers"      element={<AdminRoute><Teachers /></AdminRoute>} />
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
-              <Route path="student-id-cards" element={<AdminRoute><StudentIDCards /></AdminRoute>} />
               <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />
               <Route path="fees"          element={<AdminRoute><Fees /></AdminRoute>} />
@@ -127,6 +126,9 @@ export default function App() {
               <Route path="notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
               <Route path="admissions"    element={<AdminRoute><Admissions /></AdminRoute>} />
               <Route path="expenses"     element={<AdminRoute><Expenses /></AdminRoute>} />
+
+              <Route path="settings"   element={<AdminRoute><Settings /></AdminRoute>} />
+              <Route path="id-cards"   element={<AdminRoute><StudentIDCards /></AdminRoute>} />
 
               {/* ── Report Module routes ── */}
               <Route path="reports"          element={<ReportRoute><ReportsDashboard /></ReportRoute>} />
