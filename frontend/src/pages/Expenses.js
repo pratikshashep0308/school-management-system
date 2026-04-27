@@ -32,7 +32,7 @@ export default function Expenses() {
         ))}
       </div>
 
-      {tab === 'dashboard' && <ExpensesDashboard onAdd={() => setTab('add')} onNavigate={(t,f)=>{ setListFilter(f); setTab(t); }} />}
+      {tab === 'dashboard' && <ExpensesDashboard onAdd={() => setTab('add')} onNavigate={(t,f)=>{ setListFilter(f||'all'); setTab(t==='report'?'report':t); }} />}
       {tab === 'list'      && <ExpenseList onAdd={() => setTab('add')} initialFilter={listFilter} />}
       {tab === 'add'       && <AddExpense onSaved={() => setTab('list')} />}
       {tab === 'reports'   && <ExpenseReports />}

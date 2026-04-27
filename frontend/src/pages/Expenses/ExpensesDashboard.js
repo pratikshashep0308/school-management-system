@@ -142,13 +142,13 @@ export default function ExpensesDashboard({ onAdd, onNavigate }) {
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
         {/* Income vs Expense P&L */}
-        <div className="card" style={{ padding:20 }}>
+        <div className="card" onClick={()=>onNavigate('report','all')} style={{ padding:20, cursor:'pointer', transition:'all 0.15s' }} onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-2px)';}} onMouseLeave={e=>{e.currentTarget.style.boxShadow='';e.currentTarget.style.transform='';}}>
           <div style={{ fontWeight:700, fontSize:14, marginBottom:14 }}>📊 Income vs Expenses</div>
           <PLCard income={iv?.totalIncome || 0} expenses={iv?.totalExpenses || 0} />
         </div>
 
         {/* Monthly trend */}
-        <div className="card" style={{ padding:20 }}>
+        <div className="card" onClick={()=>onNavigate('report','all')} style={{ padding:20, cursor:'pointer', transition:'all 0.15s' }} onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-2px)';}} onMouseLeave={e=>{e.currentTarget.style.boxShadow='';e.currentTarget.style.transform='';}}>
           <div style={{ fontWeight:700, fontSize:14, marginBottom:14 }}>📈 Monthly Trend</div>
           <BarChart data={data?.monthlyTrend || []} />
         </div>
@@ -156,7 +156,7 @@ export default function ExpensesDashboard({ onAdd, onNavigate }) {
 
       <div style={{ display:'grid', gridTemplateColumns:'200px 1fr', gap:16, marginBottom:20 }}>
         {/* Category donut */}
-        <div className="card" style={{ padding:20, display:'flex', flexDirection:'column', alignItems:'center' }}>
+        <div className="card" onClick={()=>onNavigate('list','all')} style={{ padding:20, display:'flex', flexDirection:'column', alignItems:'center', cursor:'pointer', transition:'all 0.15s' }} onMouseEnter={e=>{e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.1)';e.currentTarget.style.transform='translateY(-2px)';}} onMouseLeave={e=>{e.currentTarget.style.boxShadow='';e.currentTarget.style.transform='';}}>
           <div style={{ fontWeight:700, fontSize:13, marginBottom:10 }}>By Category</div>
           <DonutChart
             segments={(data?.categoryBreakdown || []).slice(0,6).map((c, i) => ({
@@ -169,13 +169,13 @@ export default function ExpensesDashboard({ onAdd, onNavigate }) {
 
         {/* Category breakdown table */}
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ padding:'12px 16px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:13 }}>Category Breakdown</div>
+          <div style={{ padding:'12px 16px', borderBottom:'1px solid #E5E7EB', fontWeight:700, fontSize:13, display:'flex', justifyContent:'space-between', alignItems:'center' }}>Category Breakdown <span style={{fontSize:11,color:'#3B5BDB',cursor:'pointer'}} onClick={()=>onNavigate('list','all')}>View all →</span></div>
           {data?.categoryBreakdown?.length ? (
             <div>
               {data.categoryBreakdown.map((c, i) => {
                 const pct = t?.allTime?.amount > 0 ? Math.round((c.total / t.allTime.amount) * 100) : 0;
                 return (
-                  <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', borderBottom:'1px solid #F3F4F6' }}>
+                  <div key={i} onClick={()=>onNavigate('list','all')} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', borderBottom:'1px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }} onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'} onMouseLeave={e=>e.currentTarget.style.background=''}>
                     <span style={{ fontSize:16 }}>{c.icon || '💰'}</span>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:12, fontWeight:700 }}>{c.name}</div>
