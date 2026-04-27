@@ -65,6 +65,32 @@ exports.markAttendance = async (req, res) => {
   const late     = attendanceData.filter(a => a.status === 'late').length;
   const excused  = attendanceData.filter(a => a.status === 'excused').length;
 
+  // ── Auto-notify parents of absent students ────────────────────────────────
+  try {
+    const absentRecords = attendanceData.filter(a => a.status === 'absent');
+    if (absentRecords.length > 0) {
+      const { Notification } = require('../models/index');
+      const Student = require('../models/Student');
+      const absentStudentIds = absentRecords.map(a => a.student);
+      const absentStudents = await Student.find({ _id: { $in: absentStudentIds } })
+        .populate('user', 'name')
+        .select('user class');
+      const classDoc = await require('../models/Class').findById(classId).select('name section');
+      const className = classDoc ? `${classDoc.name} ${classDoc.section||''}`.trim() : 'your class';
+      for (const student of absentStudents) {
+        const name = student.user?.name || 'Your child';
+        await Notification.create({
+          school:    req.user.school,
+          title:     `Attendance Alert: ${name} Absent Today`,
+          message:   `${name} (${className}) was marked absent on ${new Date(date).toLocaleDateString('en-IN')}. Please contact the school if this is unexpected.`,
+          type:      'attendance',
+          audience:  'parents',
+          createdBy: req.user._id,
+        });
+      }
+    }
+  } catch (notifErr) { console.error('Auto-notification error:', notifErr.message); }
+
   // Fire-and-forget: send alerts (low attendance, consecutive absences, daily absent)
   checkAndSendAlerts(classId, normalizedDate, attendanceData, req.user.school, req.user._id)
     .catch(err => console.error('Alert error:', err.message));

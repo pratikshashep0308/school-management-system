@@ -1,6 +1,6 @@
 // frontend/src/pages/Login.js
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -290,6 +290,11 @@ export default function Login() {
                 <><div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> Signing in…</>
               ) : '🔐 Sign In to Portal'}
             </button>
+            <div style={{ textAlign:'center', marginTop:12 }}>
+              <a href="/forgot-password" style={{ fontSize:13, color:'#6366F1', textDecoration:'none', fontWeight:600 }}>
+                🔑 Forgot password?
+              </a>
+            </div>
           </form>
 
           {/* Quick accounts */}

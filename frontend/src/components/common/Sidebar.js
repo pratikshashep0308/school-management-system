@@ -8,6 +8,8 @@ const STAFF_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'libr
 
 const MENU_ITEMS = [
   { path: '/dashboard',     icon: '⊞',  label: 'Dashboard',     roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
+  { path: '/id-cards',       icon: '🪪', label: 'ID Cards',         roles: ['superAdmin','schoolAdmin'] },
+  { path: '/student-id-cards',   icon: '🪪', label: 'ID Cards',       roles: ['superAdmin','schoolAdmin'] },
   { path: '/students',      icon: '👥', label: 'Students',      roles: ['superAdmin','schoolAdmin','teacher','accountant'] },
   { path: '/teachers',      icon: '👤', label: 'Employees',      roles: ADMIN_ROLES },
   { path: '/classes',       icon: '🏛',  label: 'Classes',       roles: STAFF_ROLES },
@@ -20,6 +22,7 @@ const MENU_ITEMS = [
   { path: '/library',       icon: '📚', label: 'Library',       roles: ['superAdmin','schoolAdmin','librarian'] },
   { path: '/transport',     icon: '🚌', label: 'Transport',     roles: ['superAdmin','schoolAdmin','transportManager'] },
   { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },
+  { path: '/auto-notifications', icon: '⚙️', label: 'Auto Notify',    roles: ['superAdmin','schoolAdmin'] },
   { path: '/notifications', icon: '🔔', label: 'Notifications', roles: ADMIN_ROLES },
   { path: '/admissions',    icon: '📄', label: 'Admissions',    roles: ADMIN_ROLES },
   { path: '/reports',       icon: '📊', label: 'Reports',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager'] },

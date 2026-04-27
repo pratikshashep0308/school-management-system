@@ -6,6 +6,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
 // Pages — Auth & Landing
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword  from './pages/ResetPassword';
 import Login            from './pages/Login';
 import Landing          from './pages/Landing';
 
@@ -16,6 +18,8 @@ import ParentDashboard  from './pages/ParentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 
 // Pages — Admin modules
+import StudentIDCards    from './pages/StudentIDCards';
+import AutoNotifications from './pages/AutoNotifications';
 import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
@@ -94,7 +98,9 @@ export default function App() {
           <Routes>
             {/* Public */}
             <Route path="/"      element={<Landing />} />
-            <Route path="/login" element={<Login />}   />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/login" element={<Login />}   />
 
             {/* Protected — all authenticated roles */}
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
@@ -110,6 +116,8 @@ export default function App() {
               <Route path="teachers"      element={<AdminRoute><Teachers /></AdminRoute>} />
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
+              <Route path="student-id-cards" element={<AdminRoute><StudentIDCards /></AdminRoute>} />
+              <Route path="auto-notifications" element={<AdminRoute><AutoNotifications /></AdminRoute>} />
               <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />
               <Route path="fees"          element={<AdminRoute><Fees /></AdminRoute>} />
