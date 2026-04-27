@@ -19,7 +19,6 @@ import TeacherDashboard from './pages/TeacherDashboard';
 
 // Pages — Admin modules
 import StudentIDCards    from './pages/StudentIDCards';
-import AutoNotifications from './pages/AutoNotifications';
 import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
@@ -117,7 +116,6 @@ export default function App() {
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
               <Route path="student-id-cards" element={<AdminRoute><StudentIDCards /></AdminRoute>} />
-              <Route path="auto-notifications" element={<AdminRoute><AutoNotifications /></AdminRoute>} />
               <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />
               <Route path="fees"          element={<AdminRoute><Fees /></AdminRoute>} />
