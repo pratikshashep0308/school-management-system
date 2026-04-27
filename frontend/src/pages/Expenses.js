@@ -10,6 +10,7 @@ export default function Expenses() {
   const { user } = useAuth();
   const isAdmin = ['superAdmin', 'schoolAdmin', 'accountant'].includes(user?.role);
   const [tab, setTab] = useState('dashboard');
+  const [listFilter, setListFilter] = useState('all');
 
   const tabs = [
     { key: 'dashboard', label: '📊 Dashboard', show: true },
@@ -31,8 +32,8 @@ export default function Expenses() {
         ))}
       </div>
 
-      {tab === 'dashboard' && <ExpensesDashboard onAdd={() => setTab('add')} />}
-      {tab === 'list'      && <ExpenseList onAdd={() => setTab('add')} />}
+      {tab === 'dashboard' && <ExpensesDashboard onAdd={() => setTab('add')} onNavigate={(t,f)=>{ setListFilter(f); setTab(t); }} />}
+      {tab === 'list'      && <ExpenseList onAdd={() => setTab('add')} initialFilter={listFilter} />}
       {tab === 'add'       && <AddExpense onSaved={() => setTab('list')} />}
       {tab === 'reports'   && <ExpenseReports />}
     </div>

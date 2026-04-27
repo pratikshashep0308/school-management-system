@@ -90,7 +90,7 @@ function PLCard({ income, expenses }) {
   );
 }
 
-export default function ExpensesDashboard({ onAdd }) {
+export default function ExpensesDashboard({ onAdd, onNavigate }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -107,10 +107,10 @@ export default function ExpensesDashboard({ onAdd }) {
   const iv = data?.incomeVsExpense;
 
   const STAT_CARDS = [
-    { icon: '💸', label: 'Total Expenses',  val: fmt(t?.allTime?.amount),   sub: `${t?.allTime?.count || 0} entries`,  color: '#DC2626', bg: '#FEF2F2' },
-    { icon: '📅', label: 'This Month',       val: fmt(t?.thisMonth?.amount), sub: `${t?.thisMonth?.count || 0} entries`, color: '#D97706', bg: '#FFFBEB' },
-    { icon: '🗓',  label: 'Today',            val: fmt(t?.today?.amount),     sub: `${t?.today?.count || 0} today`,      color: '#7C3AED', bg: '#F5F3FF' },
-    { icon: '📆', label: 'This Year',        val: fmt(t?.thisYear?.amount),  sub: `${t?.thisYear?.count || 0} entries`, color: '#0891B2', bg: '#F0F9FF' },
+    { icon: '💸', label: 'Total Expenses',  val: fmt(t?.allTime?.amount),   sub: `${t?.allTime?.count || 0} entries`,  color: '#DC2626', bg: '#FEF2F2', onClick: ()=>onNavigate('list','all')    },
+    { icon: '📅', label: 'This Month',       val: fmt(t?.thisMonth?.amount), sub: `${t?.thisMonth?.count || 0} entries`, color: '#D97706', bg: '#FFFBEB', onClick: ()=>onNavigate('list','month') },
+    { icon: '🗓',  label: 'Today',            val: fmt(t?.today?.amount),     sub: `${t?.today?.count || 0} today`,      color: '#7C3AED', bg: '#F5F3FF', onClick: ()=>onNavigate('list','today') },
+    { icon: '📆', label: 'This Year',        val: fmt(t?.thisYear?.amount),  sub: `${t?.thisYear?.count || 0} entries`, color: '#0891B2', bg: '#F0F9FF', onClick: ()=>onNavigate('list','year')  },
   ];
 
   return (
@@ -128,7 +128,10 @@ export default function ExpensesDashboard({ onAdd }) {
       {/* Stat cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12, marginBottom:20 }}>
         {STAT_CARDS.map(c => (
-          <div key={c.label} className="card" style={{ padding:'16px 18px', borderLeft:`4px solid ${c.color}` }}>
+          <div key={c.label} className="card" onClick={c.onClick}
+            style={{ padding:'16px 18px', borderLeft:`4px solid ${c.color}`, cursor:'pointer', transition:'all 0.15s' }}
+            onMouseEnter={e=>{ e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 6px 20px ${c.color}30`; }}
+            onMouseLeave={e=>{ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; }}>
             <div style={{ fontSize:22, marginBottom:8 }}>{c.icon}</div>
             <div style={{ fontSize:22, fontWeight:900, color:c.color }}>{c.val}</div>
             <div style={{ fontSize:11, color:'#6B7280', marginTop:3, fontWeight:600 }}>{c.label}</div>

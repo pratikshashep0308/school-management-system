@@ -10,7 +10,7 @@ const PAYMENT_COLORS = { cash:'#16A34A', upi:'#7C3AED', bank:'#2563EB', cheque:'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-export default function ExpenseList({ onAdd }) {
+export default function ExpenseList({ onAdd, initialFilter = 'all' }) {
   const [expenses,    setExpenses]    = useState([]);
   const [categories,  setCategories]  = useState([]);
   const [loading,     setLoading]     = useState(false);
@@ -21,10 +21,18 @@ export default function ExpenseList({ onAdd }) {
   const [deleting,    setDeleting]    = useState(null);
   const [viewAtt,     setViewAtt]     = useState(null); // attachment preview
 
+  // Apply initialFilter from dashboard card click
+  const getInitialDates = () => {
+    const now = new Date();
+    if (initialFilter === 'today') return { month: now.getMonth()+1, year: now.getFullYear() };
+    if (initialFilter === 'month') return { month: now.getMonth()+1, year: now.getFullYear() };
+    if (initialFilter === 'year')  return { month: '',                year: now.getFullYear() };
+    return { month: now.getMonth()+1, year: now.getFullYear() };
+  };
+
   const [filters, setFilters] = useState({
     category: '', paymentMethod: '',
-    month: new Date().getMonth() + 1,
-    year:  new Date().getFullYear(),
+    ...getInitialDates(),
     search: '',
   });
 
