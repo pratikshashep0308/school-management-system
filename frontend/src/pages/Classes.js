@@ -169,7 +169,7 @@ export default function Classes() {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.grade || !form.section) return toast.error('Class name, grade and section are required');
+    if (!form.name) return toast.error('Class name is required');
     setSaving(true);
     try {
       if (form._id) { await classAPI.update(form._id, form); toast.success('Class updated'); }
@@ -264,9 +264,9 @@ export default function Classes() {
           <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Class'}</button>
         </>}>
         <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Class Name *"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Class X" /></FormGroup>
-          <FormGroup label="Grade *"><input type="number" className="form-input" value={form.grade} onChange={e => set('grade', e.target.value)} placeholder="10" /></FormGroup>
-          <FormGroup label="Section *"><input className="form-input" value={form.section} onChange={e => set('section', e.target.value)} placeholder="A" /></FormGroup>
+          <FormGroup label="Class Name"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Class X" /></FormGroup>
+          <FormGroup label="Grade"><input type="number" className="form-input" value={form.grade} onChange={e => set('grade', e.target.value)} placeholder="10" /></FormGroup>
+          <FormGroup label="Section"><input className="form-input" value={form.section} onChange={e => set('section', e.target.value)} placeholder="A" /></FormGroup>
           <FormGroup label="Room"><input className="form-input" value={form.room} onChange={e => set('room', e.target.value)} placeholder="101" /></FormGroup>
           <FormGroup label="Capacity"><input type="number" className="form-input" value={form.capacity} onChange={e => set('capacity', e.target.value)} placeholder="40" /></FormGroup>
           <FormGroup label="Class Teacher">
