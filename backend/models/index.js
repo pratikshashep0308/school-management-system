@@ -6,8 +6,8 @@ require('./Timetable'); // ← NEW: standalone Timetable model (replaces old Tim
 // ── CLASS ──
 const ClassSchema = new mongoose.Schema({
   name: { type: String, required: true }, // e.g. "Class X"
-  grade: { type: Number, required: true }, // e.g. 10
-  section: { type: String, required: true }, // e.g. "A"
+  grade: { type: Number, default: 0 }, // e.g. 10
+  section: { type: String, default: 'A' }, // e.g. "A"
   classTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
   subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
@@ -16,7 +16,7 @@ const ClassSchema = new mongoose.Schema({
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt: { type: Date, default: Date.now }
 });
-ClassSchema.index({ grade: 1, section: 1, school: 1 }, { unique: true });
+ClassSchema.index({ name: 1, section: 1, school: 1 }, { unique: true, sparse: true });
 
 // ── SUBJECT ──
 const SubjectSchema = new mongoose.Schema({
