@@ -5,6 +5,7 @@ import PhoneInput from '../ui/PhoneInput';
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { admissionAPI } from '../../utils/admissionUtils';
+import { classAPI } from '../../utils/api';
 
 const EMPTY = {
   // Section 1 - Student Info
@@ -125,6 +126,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   const [form,   setForm]   = useState(initial ? mergeDeep(EMPTY, initial) : EMPTY);
   const [saving,    setSaving]    = useState(false);
   const [submitted, setSubmitted] = useState(null); // holds saved application data for receipt
+  const [classes,   setClasses]   = useState([]);
+
+  useEffect(() => {
+    classAPI.getAll().then(r => setClasses(r.data.data || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setForm(initial ? mergeDeep(EMPTY, initial) : EMPTY);
@@ -337,7 +343,10 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Select Class" required>
               <select style={SEL} value={form.applyingForClass} onChange={e=>set('applyingForClass',e.target.value)}>
                 <option value="">Select Class</option>
-                {[{v:1,l:'Grade 1 / Class I'},{v:2,l:'Grade 2 / Class II'},{v:3,l:'Grade 3 / Class III'},{v:4,l:'Grade 4 / Class IV'},{v:5,l:'Grade 5 / Class V'},{v:6,l:'Grade 6 / Class VI'},{v:7,l:'Grade 7 / Class VII'},{v:8,l:'Grade 8 / Class VIII'},{v:9,l:'Grade 9 / Class IX'},{v:10,l:'Grade 10 / Class X'},{v:11,l:'Grade 11 / Class XI'},{v:12,l:'Grade 12 / Class XII'}].map(c=><option key={c.v} value={c.v}>{c.l}</option>)}
+                {classes.length > 0
+                  ? classes.map(c => <option key={c._id} value={c._id}>{c.name}{c.section ? ` ${c.section}` : ''}</option>)
+                  : [{v:1,l:'Class I'},{v:2,l:'Class II'},{v:3,l:'Class III'},{v:4,l:'Class IV'},{v:5,l:'Class V'},{v:6,l:'Class VI'},{v:7,l:'Class VII'},{v:8,l:'Class VIII'},{v:9,l:'Class IX'},{v:10,l:'Class X'}].map(c=><option key={c.v} value={c.v}>{c.l}</option>)
+                }
               </select>
             </FloatInput>
             <FloatInput label="Date of Admission" required>
