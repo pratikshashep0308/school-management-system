@@ -361,11 +361,8 @@ export default function Landing() {
               <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
               Admissions Open 2025–26
             </div>
-            <h1 className="tfs-serif text-4xl md:text-6xl leading-tight mb-5 font-bold">
-              <span style={{ color: '#EF5350' }}>The </span>
-              <span style={{ color: '#66BB6A' }}>Future </span>
-              <span style={{ color: '#CE93D8' }}>Step</span><br />
-              <span style={{ color: '#FFB74D' }}>School</span>
+            <h1 className="tfs-serif text-4xl md:text-6xl leading-tight mb-5 font-bold" style={{display:'flex',flexWrap:'wrap',alignItems:'baseline',fontStyle:'italic'}}>
+              {['#E53935','#F57C00','#43A047',null,'#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,'#43A047','#E53935','#7B1FA2','#F57C00',null,'#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0'].map((clr,i)=>{ const ch='The Future Step School'[i]; if(!ch)return null; if(ch===' ')return <span key={i} style={{display:'inline-block',width:'0.25em'}}>&nbsp;</span>; return <span key={i} style={{color:clr}}>{ch}</span>; })}
             </h1>
             <p className="text-white/75 text-lg leading-relaxed max-w-xl mb-8">
               Nurturing young minds with quality education, digital classrooms, and a safe environment. Shaping the responsible citizens of tomorrow.
@@ -463,11 +460,8 @@ export default function Landing() {
               <div className="rounded-3xl overflow-hidden aspect-[4/3] flex items-center justify-center relative dot-pattern" style={{ background: 'var(--tfs-navy)' }}>
                 <div className="relative z-10 text-center text-white p-8">
                   <div className="text-8xl mb-4 tfs-float">🏫</div>
-                  <div className="tfs-serif text-2xl font-bold" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    <span style={{ color: '#E53935' }}>The</span>
-                    <span style={{ color: '#388E3C' }}>Future</span>
-                    <span style={{ color: '#7B1FA2' }}>Step</span>
-                    <span style={{ color: '#F57C00' }}>School</span>
+                  <div className="tfs-serif text-2xl font-bold" style={{display:'flex',flexWrap:'wrap',fontStyle:'italic'}}>
+                    {['#E53935','#F57C00','#43A047',null,'#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,'#43A047','#E53935','#7B1FA2','#F57C00',null,'#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0'].map((clr,i)=>{ const ch='The Future Step School'[i]; if(!ch)return null; if(ch===' ')return <span key={i} style={{display:'inline-block',width:'0.25em'}}>&nbsp;</span>; return <span key={i} style={{color:clr}}>{ch}</span>; })}
                   </div>
                   <div className="text-white/60 mt-2 text-sm">Smt. K.P. Patil School Compound<br />Shindgavhan Road, Bhaler</div>
                   <div className="mt-5 flex flex-wrap gap-2 justify-center">

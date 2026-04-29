@@ -61,14 +61,22 @@ const ROLE_META = {
 };
 
 // ── Sidebar rainbow name — compact version ────────────────────────────────────
+// Exact letter colors from SchoolName.jpeg
+const SIDEBAR_LETTER_COLORS = [
+  '#E53935','#F57C00','#43A047',null,
+  '#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,
+  '#43A047','#E53935','#7B1FA2','#F57C00',null,
+  '#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0',
+];
+
 function SidebarSchoolName() {
   return (
     <div style={{ lineHeight: 1.15 }}>
-      <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontWeight: 900, fontSize: 13.5, display: 'flex', flexWrap: 'wrap', gap: 0 }}>
-        <span style={{ color: '#EF5350' }}>The&nbsp;</span>
-        <span style={{ color: '#66BB6A' }}>Future&nbsp;</span>
-        <span style={{ color: '#AB47BC' }}>Step&nbsp;</span>
-        <span style={{ color: '#FFA726' }}>School</span>
+      <div style={{ fontFamily: "'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight: 900, fontSize: 13.5, display: 'flex', flexWrap: 'wrap' }}>
+        {'The Future Step School'.split('').map((ch, i) => {
+          if (ch === ' ') return <span key={i} style={{ display:'inline-block', width: 4 }}>&nbsp;</span>;
+          return <span key={i} style={{ color: SIDEBAR_LETTER_COLORS[i] }}>{ch}</span>;
+        })}
       </div>
       <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.28)', marginTop: 2, letterSpacing: '0.04em', fontWeight: 600 }}>
         Management Portal
