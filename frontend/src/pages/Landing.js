@@ -288,15 +288,12 @@ export default function Landing() {
             </div>
             <div>
               <div style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontWeight: 900, fontSize: 13.5, fontStyle: 'italic', lineHeight: 1.15, display: 'flex', flexWrap: 'wrap' }}>
-                {(() => {
-                  const COLORS = ['#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F'];
-                  let ci = 0;
-                  return 'The Future Step School'.split('').map((ch, i) => {
-                    if (ch === ' ') return <span key={i} style={{ width:4 }}>&nbsp;</span>;
-                    const color = COLORS[ci % COLORS.length]; ci++;
-                    return <span key={i} style={{ color }}>{ch}</span>;
-                  });
-                })()}
+                {['#E53935','#F57C00','#43A047',null,'#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,'#43A047','#E53935','#7B1FA2','#F57C00',null,'#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0'].map((color, i) => {
+                  const ch = 'The Future Step School'[i];
+                  if (!ch) return null;
+                  if (ch === ' ') return <span key={i} style={{ width:4 }}>&nbsp;</span>;
+                  return <span key={i} style={{ color }}>{ch}</span>;
+                })}
               </div>
               <div className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.4)', marginTop: 1, letterSpacing: '0.04em' }}>K V P S Sanstha Bhaler</div>
             </div>

@@ -22,30 +22,23 @@ const FEATURES = [
   { icon: '🔔', text: 'Instant Notifications' },
 ];
 
-// ── Rainbow school name — letter-by-letter like SchoolName.jpeg ──────────────
-function RainbowName({ size = 'md' }) {
-  const COLORS = ['#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0'];
-  const text = 'The Future Step School';
-  const fontSizes = { sm:13, md:18, lg:26, hero:32 };
-  const fs = fontSizes[size] || 18;
-  let colorIdx = 0;
+// ── Exact letter colors from SchoolName.jpeg ────────────────────────────────
+const SCHOOL_LETTER_COLORS = [
+  '#E53935','#F57C00','#43A047',null,
+  '#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,
+  '#43A047','#E53935','#7B1FA2','#F57C00',null,
+  '#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0',
+];
+const SCHOOL_NAME_TEXT = 'The Future Step School';
 
+function RainbowName({ size = 'md' }) {
+  const sizes = { sm:13, md:18, lg:26, hero:32 };
+  const fs = sizes[size] || 18;
   return (
-    <div style={{ display:'flex', flexWrap:'wrap', alignItems:'baseline', lineHeight:1.1 }}>
-      {text.split('').map((ch, i) => {
-        if (ch === ' ') return <span key={i} style={{ width: fs * 0.3 }}>&nbsp;</span>;
-        const color = COLORS[colorIdx % COLORS.length];
-        colorIdx++;
-        return (
-          <span key={i} style={{
-            fontSize: fs,
-            fontWeight: 900,
-            color,
-            fontFamily: "'Georgia', 'Times New Roman', serif",
-            fontStyle: 'italic',
-            lineHeight: 1.1,
-          }}>{ch}</span>
-        );
+    <div style={{ display:'flex', flexWrap:'wrap', alignItems:'baseline' }}>
+      {SCHOOL_NAME_TEXT.split('').map((ch, i) => {
+        if (ch === ' ') return <span key={i} style={{ display:'inline-block', width: fs*0.28 }}>&nbsp;</span>;
+        return <span key={i} style={{ color: SCHOOL_LETTER_COLORS[i], fontSize: fs, fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, lineHeight:1.1 }}>{ch}</span>;
       })}
     </div>
   );

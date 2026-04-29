@@ -16,34 +16,23 @@ const PAGE_TITLES = {
 export const PortalTabContext = createContext({ activeTab: 'overview', setTab: () => {} });
 export const usePortalTab = () => useContext(PortalTabContext);
 
-// ── Rainbow school name — matches the colorful script in SchoolName.jpeg ──────
+// ── Exact letter colors from SchoolName.jpeg ────────────────────────────────
+const SCHOOL_LETTER_COLORS = [
+  '#E53935','#F57C00','#43A047',null,
+  '#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,
+  '#43A047','#E53935','#7B1FA2','#F57C00',null,
+  '#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0',
+];
+const SCHOOL_NAME_TEXT = 'The Future Step School';
+
 function RainbowSchoolName({ size = 'md' }) {
-  // Letter-by-letter colors cycling through the rainbow like the image
-  const COLORS = ['#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0','#7B1FA2','#00838F','#E53935','#F57C00','#388E3C','#1565C0'];
-  const text = 'The Future Step School';
-
-  const sizes = {
-    sm:  { fontSize: 13, fontWeight: 900, letterSpacing: '0px'   },
-    md:  { fontSize: 16, fontWeight: 900, letterSpacing: '0px'   },
-    lg:  { fontSize: 22, fontWeight: 900, letterSpacing: '0px'   },
-    xl:  { fontSize: 30, fontWeight: 900, letterSpacing: '0px'   },
-  };
-
-  const style = sizes[size] || sizes.md;
-  let colorIdx = 0;
-
+  const sizes = { sm:13, md:16, lg:22, xl:30, hero:42 };
+  const fs = sizes[size] || 16;
   return (
-    <span style={{
-      ...style,
-      fontFamily: "'Georgia', 'Times New Roman', serif",
-      fontStyle: 'italic',
-      lineHeight: 1.1,
-    }}>
-      {text.split('').map((ch, i) => {
-        if (ch === ' ') return <span key={i}>&nbsp;</span>;
-        const color = COLORS[colorIdx % COLORS.length];
-        colorIdx++;
-        return <span key={i} style={{ color }}>{ch}</span>;
+    <span style={{ fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, lineHeight:1.1 }}>
+      {SCHOOL_NAME_TEXT.split('').map((ch, i) => {
+        if (ch === ' ') return <span key={i} style={{ display:'inline-block', width: fs*0.28 }}>&nbsp;</span>;
+        return <span key={i} style={{ color: SCHOOL_LETTER_COLORS[i], fontSize: fs }}>{ch}</span>;
       })}
     </span>
   );
