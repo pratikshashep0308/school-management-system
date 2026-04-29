@@ -145,9 +145,6 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
   const handleSubmit = async () => {
     if (!form.studentName)    return toast.error('Student name is required');
-    if (!form.applyingForClass) return toast.error('Class is required');
-    if (!form.parentName)     return toast.error('Parent/Guardian name is required');
-    if (!form.parentPhone)    return toast.error('Parent phone is required');
 
     // Map fields for backend compatibility
     const classNum = parseInt(form.applyingForClass) || 1;
@@ -334,13 +331,13 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
           {/* Section 1 - Student Information */}
           <Section number="1" title="Student Information">
-            <FloatInput label="Student Name" required>
+            <FloatInput label="Student Name">
               <input style={INP} value={form.studentName} onChange={e=>set('studentName',e.target.value)} placeholder="Name of Student"/>
             </FloatInput>
             <FloatInput label="Registration No">
               <input style={INP} value={form.registrationNo} onChange={e=>set('registrationNo',e.target.value)} placeholder="Registration No"/>
             </FloatInput>
-            <FloatInput label="Select Class" required>
+            <FloatInput label="Select Class">
               <select style={SEL} value={form.applyingForClass} onChange={e=>set('applyingForClass',e.target.value)}>
                 <option value="">Select Class</option>
                 {classes.length > 0
@@ -349,7 +346,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 }
               </select>
             </FloatInput>
-            <FloatInput label="Date of Admission" required>
+            <FloatInput label="Date of Admission">
               <input type="date" style={INP} value={form.dateOfAdmission} onChange={e=>set('dateOfAdmission',e.target.value)}/>
             </FloatInput>
             <FloatInput label="Discount in Fee (%)">
@@ -457,11 +454,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Mother's Phone">
               <PhoneInput value={form.motherPhone} onChange={v=>set('motherPhone',v)} style={{padding:'8px 0'}} />
             </FloatInput>
-            <FloatInput label="Primary Contact Name" required>
+            <FloatInput label="Primary Contact Name">
               <input style={INP} value={form.parentName} onChange={e=>set('parentName',e.target.value)} placeholder="Guardian / Parent Name"/>
             </FloatInput>
-            <FloatInput label="Primary Contact Phone" required>
-              <PhoneInput value={form.parentPhone} onChange={v=>set('parentPhone',v)} required style={{padding:'8px 0'}} />
+            <FloatInput label="Primary Contact Phone">
+              <PhoneInput value={form.parentPhone} onChange={v=>set('parentPhone',v)} style={{padding:'8px 0'}} />
             </FloatInput>
             <FloatInput label="Email">
               <input type="email" style={INP} value={form.parentEmail} onChange={e=>set('parentEmail',e.target.value)} placeholder="Email Address"/>
@@ -524,11 +521,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
             <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 }}>
               {[
-                ['birthCertificate',    'Birth Certificate',          '📋', true],
-                ['aadhaarStudent',      'Aadhaar Card (Student)',      '🪪', true],
-                ['aadhaarParent',       'Aadhaar Card (Parent)',       '🪪', true],
-                ['photos',             'Passport Photos (2–4)',        '📷', true],
-                ['addressProof',       'Address Proof',               '🏠', true],
+                ['birthCertificate',    'Birth Certificate',          '📋', false],
+                ['aadhaarStudent',      'Aadhaar Card (Student)',      '🪪', false],
+                ['aadhaarParent',       'Aadhaar Card (Parent)',       '🪪', false],
+                ['photos',             'Passport Photos (2–4)',        '📷', false],
+                ['addressProof',       'Address Proof',               '🏠', false],
                 ['apaarId',            'APAAR ID',                    '🆔', false],
                 ['leavingCertificate', 'Leaving Certificate (LC)',    '📄', false],
                 ['transferCertificate','Transfer Certificate (TC)',   '📄', false],

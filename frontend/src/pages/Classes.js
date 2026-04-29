@@ -208,10 +208,16 @@ export default function Classes() {
                 {/* Section badge */}
                 <div style={{ position:'absolute', top:16, right:16, background:'#F3F4F6', borderRadius:8, padding:'3px 10px', fontSize:12, fontWeight:700, color:'#374151' }}>{cls.section}</div>
 
-                {/* Edit button */}
+                {/* Edit + Delete buttons */}
                 {isAdmin && (
-                  <button onClick={e=>{ e.stopPropagation(); openEdit(cls); }}
-                    style={{ position:'absolute', top:16, left:16, width:28, height:28, borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:13, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}>✎</button>
+                  <div style={{ position:'absolute', top:16, left:16, display:'flex', gap:6 }} onClick={e=>e.stopPropagation()}>
+                    <button onClick={e=>{ e.stopPropagation(); openEdit(cls); }}
+                      style={{ width:28, height:28, borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:13, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}
+                      title="Edit class">✎</button>
+                    <button onClick={async e=>{ e.stopPropagation(); if(!window.confirm(`Delete ${cls.name} ${cls.section||''}? This cannot be undone.`)) return; try{ await classAPI.delete(cls._id); toast.success('Class deleted'); load(); }catch(err){ toast.error(err?.response?.data?.message||'Failed to delete'); } }}
+                      style={{ width:28, height:28, borderRadius:8, border:'1px solid #FECACA', background:'#FEF2F2', cursor:'pointer', fontSize:13, color:'#DC2626', display:'flex', alignItems:'center', justifyContent:'center' }}
+                      title="Delete class">🗑</button>
+                  </div>
                 )}
 
                 {/* Grade */}
