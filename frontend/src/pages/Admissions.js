@@ -85,7 +85,7 @@ function EnrollModal({ app, onClose, onSuccess }) {
         <div style={{ padding:'20px 24px' }}>
           <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px', marginBottom:16, fontSize:12, color:'#374151' }}>
             <div><strong>Application:</strong> {app.applicationNumber}</div>
-            <div><strong>Class Applied:</strong> Class {app.applyingForClass}</div>
+            <div><strong>Class Applied:</strong> {(() => { const cls = classes.find(c => c._id === app.applyingForClass); return cls ? `${cls.name}${cls.section ? ' '+cls.section : ''}` : (app.applyingForClass || '—'); })()}</div>
             <div><strong>Parent:</strong> {app.parentName} · {app.parentPhone}</div>
           </div>
           <div style={{ marginBottom:12 }}>
@@ -146,7 +146,12 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
       </td>
       <td style={{ padding:'12px 16px' }}>
         <span style={{ fontWeight:700, fontSize:13, color:'#374151' }}>
-          {app.applyingForClass ? (isNaN(app.applyingForClass) ? app.applyingForClass : `Class ${app.applyingForClass}`) : '—'}
+          {(() => {
+            const cls = classes.find(c => c._id === app.applyingForClass);
+            if (cls) return `${cls.name}${cls.section ? ' ' + cls.section : ''}`;
+            if (app.applyingForClass) return app.applyingForClass;
+            return '—';
+          })()}
         </span>
         {app.applyingForSection && <span style={{ color:'#9CA3AF' }}> – {app.applyingForSection}</span>}
       </td>

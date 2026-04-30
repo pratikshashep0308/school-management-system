@@ -80,6 +80,12 @@ exports.getStats = async (req, res) => {
     ])
   ]);
 
+  // Resolve class IDs to names
+  const ClassModel = mongoose.model('Class');
+  const allClasses = await ClassModel.find({ school: req.user.school }).select('name section').lean().catch(()=>[]);
+  const classNameMap = {};
+  allClasses.forEach(c => { classNameMap[c._id.toString()] = `${c.name}${c.section?' '+c.section:''}`.trim(); });
+
   const statusResult = {
     total: 0, pending: 0, under_review: 0, interview_scheduled: 0,
     approved: 0, rejected: 0, enrolled: 0, waitlisted: 0
@@ -98,7 +104,7 @@ exports.getStats = async (req, res) => {
     success: true,
     data: {
       status:  statusResult,
-      byClass: classStats.map(c => ({ class: c._id, count: c.count })),
+      byClass: classStats.map(c => ({ class: classNameMap[c._id] || c._id || '—', count: c.count })),
       bySource: sourceStats.map(s => ({ source: s._id || 'unknown', count: s.count })),
       monthly: monthlyStats.map(m => ({
         label: new Date(m._id.year, m._id.month - 1).toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
