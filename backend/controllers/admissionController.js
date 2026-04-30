@@ -136,20 +136,31 @@ exports.createAdmission = async (req, res) => {
 // POST /api/admissions/public  (no auth)
 // ─────────────────────────────────────────────
 exports.publicSubmit = async (req, res) => {
-  const { studentName } = req.body;
-  if (!studentName) {
-    return res.status(400).json({ success: false, message: 'Required fields missing' });
+  try {
+    const { name, studentName, grade, parentName, phone, email, dob } = req.body;
+    const finalName = studentName || name;
+    if (!finalName) {
+      return res.status(400).json({ success: false, message: 'Student name is required' });
+    }
+    const School = require('../models/School');
+    const school = await School.findOne();
+    const admission = await Admission.create({
+      ...req.body,
+      studentName:      finalName,
+      applyingForClass: grade || req.body.applyingForClass || '',
+      parentName:       parentName || '',
+      parentPhone:      phone || req.body.parentPhone || '',
+      parentEmail:      email || req.body.parentEmail || '',
+      dateOfBirth:      dob  || req.body.dateOfBirth  || '',
+      school:  school?._id,
+      status:  'pending',
+      source:  'online',
+      timeline: [{ action: 'Application submitted online', byName: parentName || finalName, at: new Date() }]
+    });
+    res.status(201).json({ success: true, data: { applicationNumber: admission.applicationNumber } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
   }
-  const School = require('../models/School');
-  const school = await School.findOne();
-  const admission = await Admission.create({
-    ...req.body,
-    school: school?._id,
-    status: 'pending',
-    source: 'online',
-    timeline: [{ action: 'Application submitted online', byName: parentName, at: new Date() }]
-  });
-  res.status(201).json({ success: true, data: { applicationNumber: admission.applicationNumber } });
 };
 
 // ─────────────────────────────────────────────

@@ -41,7 +41,7 @@ function AdmissionForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.parentName || !form.phone || !form.email || !form.grade) return;
+    if (!form.name) return;
     setLoading(true);
     try {
       const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/admissions/public`, {
