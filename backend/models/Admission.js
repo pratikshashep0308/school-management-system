@@ -24,7 +24,7 @@ const AdmissionSchema = new mongoose.Schema({
   },
 
   // ── ACADEMIC ─────────────────────────────────────────────────
-  applyingForClass:   { type: Number, required: [true, 'Class is required'], min: 1, max: 12 },
+  applyingForClass:   { type: String, default: '' },
   applyingForSection: { type: String },
   academicYear:       { type: String },
   previousSchool:     { type: String },
