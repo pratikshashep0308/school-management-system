@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { classAPI } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
 
 // ── Scroll-triggered counter animation ──
@@ -30,6 +31,10 @@ function CountUp({ end, suffix = '', duration = 2000 }) {
 // ── Admission public form ──
 function AdmissionForm() {
   const [form, setForm] = useState({ name: '', dob: '', grade: '', parentName: '', phone: '', email: '', prevSchool: '' });
+  const [classes, setClasses] = useState([]);
+  useEffect(() => {
+    classAPI.getAll().then(r => setClasses(r.data.data || [])).catch(() => {});
+  }, []);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -66,38 +71,36 @@ function AdmissionForm() {
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div className="md:col-span-2">
-        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Student's Full Name *</label>
-        <input className="tfs-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Rahul Patil" required />
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Student's Full Name</label>
+        <input className="tfs-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Rahul Patil" />
       </div>
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Date of Birth</label>
         <input type="date" className="tfs-input" value={form.dob} onChange={e => set('dob', e.target.value)} />
       </div>
       <div>
-        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Applying for Class *</label>
-        <select className="tfs-input" value={form.grade} onChange={e => set('grade', e.target.value)} required>
-          <option value="">Select Grade</option>
-          <option value="LKG">LKG</option>
-          <option value="UKG">UKG</option>
-          {[1,2,3,4,5,6,7,8,9,10].map(g => <option key={g} value={g}>Grade {g}</option>)}
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Applying for Class</label>
+        <select className="tfs-input" value={form.grade} onChange={e => set('grade', e.target.value)}>
+          <option value="">Select Class</option>
+          {classes.length > 0
+            ? classes.map(c => <option key={c._id} value={c._id}>{c.name}{c.section ? ' ' + c.section : ''}</option>)
+            : [{ v:'LKG', l:'LKG' },{ v:'UKG', l:'UKG' },{ v:'1', l:'Grade 1' },{ v:'2', l:'Grade 2' },{ v:'3', l:'Grade 3' },{ v:'4', l:'Grade 4' },{ v:'5', l:'Grade 5' }].map(c => <option key={c.v} value={c.v}>{c.l}</option>)
+          }
         </select>
       </div>
       <div>
-        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Parent / Guardian Name *</label>
-        <input className="tfs-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Suresh Patil" required />
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Parent / Guardian Name</label>
+        <input className="tfs-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Suresh Patil" />
       </div>
       <div>
-        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Phone Number *</label>
-        <input className="tfs-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" required />
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Phone Number</label>
+        <input className="tfs-input" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="9876543210" />
       </div>
       <div className="md:col-span-2">
-        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Email Address *</label>
-        <input type="email" className="tfs-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="parent@email.com" required />
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Email Address</label>
+        <input type="email" className="tfs-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="parent@email.com" />
       </div>
-      <div className="md:col-span-2">
-        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Previous School (if any)</label>
-        <input className="tfs-input" value={form.prevSchool} onChange={e => set('prevSchool', e.target.value)} placeholder="Previous school name" />
-      </div>
+
       <div className="md:col-span-2">
         <button type="submit" disabled={loading} className="w-full py-4 text-white font-bold rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2 text-base" style={{ background: 'var(--tfs-navy)' }}>
           {loading ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full inline-block animate-spin" />Submitting…</> : 'Submit Application →'}

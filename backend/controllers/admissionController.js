@@ -10,7 +10,7 @@ const bcrypt    = require('bcryptjs');
 exports.getAdmissions = async (req, res) => {
   const filter = { school: req.user.school };
   if (req.query.status)           filter.status = req.query.status;
-  if (req.query.applyingForClass) filter.applyingForClass = Number(req.query.applyingForClass);
+  if (req.query.applyingForClass) filter.applyingForClass = req.query.applyingForClass;
   if (req.query.priority)         filter.priority = req.query.priority;
   if (req.query.source)           filter.source = req.query.source;
   if (req.query.academicYear)     filter.academicYear = req.query.academicYear;
@@ -136,8 +136,8 @@ exports.createAdmission = async (req, res) => {
 // POST /api/admissions/public  (no auth)
 // ─────────────────────────────────────────────
 exports.publicSubmit = async (req, res) => {
-  const { studentName, parentName, parentEmail, parentPhone, applyingForClass } = req.body;
-  if (!studentName || !parentName || !parentEmail || !parentPhone || !applyingForClass) {
+  const { studentName } = req.body;
+  if (!studentName) {
     return res.status(400).json({ success: false, message: 'Required fields missing' });
   }
   const School = require('../models/School');
