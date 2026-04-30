@@ -221,6 +221,7 @@ export default function Admissions() {
   const [detailId,     setDetailId]     = useState(null);
   const [formModal,    setFormModal]    = useState({ open:false, data:null });
   const [enrollModal,  setEnrollModal]  = useState({ open:false, data:null });
+  const [classes,      setClasses]      = useState([]);
   const limit = 20;
 
   const downloadReceipt = (app) => {
@@ -327,6 +328,7 @@ export default function Admissions() {
     finally { setLoading(false); }
   }, [search, statusFilter, classFilter, priorityFilter, page]);
 
+  useEffect(() => { classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter]);
 
