@@ -33,49 +33,45 @@ function KPICard({ label, value, sub, color, bg, onClick, active }) {
 }
 
 function EnrollModal({ app, onClose, onSuccess }) {
-  const [classes,     setClasses]    = React.useState([]);
-  const [enrollClass, setEnrollClass]= React.useState('');
-  const [enrollRoll,  setEnrollRoll] = React.useState('');
-  const [enrolling,   setEnrolling]  = React.useState(false);
+  const [classes,   setClasses]  = React.useState([]);
+  const [enrolling, setEnrolling]= React.useState(false);
 
   React.useEffect(()=>{
     classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{});
   },[]);
 
+  // Resolve class name from classes list
+  const resolveClass = () => {
+    if (!app.applyingForClass) return '—';
+    const cls = classes.find(c => c._id === app.applyingForClass);
+    return cls ? `${cls.name}${cls.section ? ' '+cls.section : ''}` : app.applyingForClass;
+  };
+
   const handleEnroll = async () => {
-    if (!enrollClass) return toast.error('Please select a class');
     setEnrolling(true);
     try {
-      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
-      const suffix = Date.now().toString().slice(-4);
-      const email = nameParts.join('') + '.' + suffix + '@futurestepschool.in';
-      await studentAPI.create({
-        name:            app.studentName,
-        email:           email,
-        phone:           app.parentPhone || '',
-        password:        'Student@123',
-        classId:         enrollClass,
-        rollNumber:      enrollRoll || '',
-        gender:          app.gender || 'other',
-        parentName:      app.parentName || '',
-        parentPhone:     app.parentPhone || '',
-        admissionNumber: (app.applicationNumber||'ADM') + '-' + Date.now().toString().slice(-4),
-        status:          'active',
-        isActive:        true,
+      const cleanName = (app.studentName||'student').toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'');
+      const email = cleanName + '@futurestepschool.in';
+      // Check uniqueness
+      const existing = await api.get('/students').catch(()=>({ data:{ data:[] } }));
+      const emailExists = (existing.data.data||[]).some(s => s.user?.email === email);
+      const finalEmail = emailExists ? `${cleanName}.${Date.now().toString().slice(-4)}@futurestepschool.in` : email;
+
+      await api.post(`/admissions/${app._id}/enroll`, {
+        classId:    app.applyingForClass || '',
+        rollNumber: '',
       });
-      await admissionAPI.updateStatus(app._id, { status: 'enrolled' });
-      toast.success('✅ ' + app.studentName + ' enrolled! Email: ' + email + ' | Password: Student@123');
+      toast.success(`✅ ${app.studentName} enrolled successfully!`);
       onSuccess();
     } catch(err) {
-      const msg = err.response?.data?.message || err.message || 'Enrollment failed';
-      console.error('Enroll error:', err.response?.data || err);
-      toast.error(msg);
+      toast.error(err.response?.data?.message || 'Enrollment failed');
     } finally { setEnrolling(false); }
   };
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.5)', padding:16 }}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:440, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:420, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+        {/* Header */}
         <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F0FDF4' }}>
           <div>
             <div style={{ fontWeight:700, fontSize:16, color:'#065F46' }}>🎓 Enroll as Student</div>
@@ -83,36 +79,37 @@ function EnrollModal({ app, onClose, onSuccess }) {
           </div>
           <button onClick={onClose} style={{ width:30, height:30, borderRadius:8, border:'1px solid #D1FAE5', background:'#fff', cursor:'pointer', fontSize:18, color:'#6B7280' }}>×</button>
         </div>
+
+        {/* Info */}
         <div style={{ padding:'20px 24px' }}>
-          <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px', marginBottom:16, fontSize:12, color:'#374151' }}>
-            <div><strong>Application:</strong> {app.applicationNumber}</div>
-            <div><strong>Class Applied:</strong> {app.applyingForClass || '—'}</div>
-            <div><strong>Parent:</strong> {app.parentName} · {app.parentPhone}</div>
+          <div style={{ background:'#F8FAFC', borderRadius:12, padding:16, marginBottom:16, fontSize:13 }}>
+            {[
+              { label:'Student',     val: app.studentName || '—' },
+              { label:'Application', val: app.applicationNumber || '—' },
+              { label:'Class',       val: resolveClass() },
+              { label:'Parent',      val: `${app.parentName||'—'} · ${app.parentPhone||'—'}` },
+              { label:'Login Email', val: `${(app.studentName||'student').toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'')}@futurestepschool.in` },
+              { label:'Password',    val: 'Student@123' },
+            ].map(r=>(
+              <div key={r.label} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start' }}>
+                <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', minWidth:90, paddingTop:1 }}>{r.label}</span>
+                <span style={{ fontSize:13, color:'#111827', fontWeight: r.label==='Password'||r.label==='Login Email' ? 700 : 400 }}>{r.val}</span>
+              </div>
+            ))}
           </div>
-          <div style={{ marginBottom:12 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', display:'block', marginBottom:5 }}>Assign to Class *</label>
-            <select value={enrollClass} onChange={e=>setEnrollClass(e.target.value)}
-              style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none', background:'#fff' }}>
-              <option value="">Select Class</option>
-              {classes.map(cl=><option key={cl._id} value={cl._id}>{cl.name} {cl.section||''}</option>)}
-            </select>
-          </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:'#374151', textTransform:'uppercase', display:'block', marginBottom:5 }}>Roll Number</label>
-            <input value={enrollRoll} onChange={e=>setEnrollRoll(e.target.value)} placeholder="e.g. 01"
-              style={{ width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:14, outline:'none' }}/>
-          </div>
-          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'10px 12px', fontSize:12, color:'#92400E', marginBottom:16 }}>
-            Default password: <strong>Student@123</strong> — student can change after first login
+          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'10px 14px', fontSize:12, color:'#92400E' }}>
+            ℹ️ Student will be enrolled in the class they applied for. Login credentials shown above.
           </div>
         </div>
+
+        {/* Actions */}
         <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10 }}>
           <button onClick={onClose}
             style={{ flex:1, padding:'11px', borderRadius:9, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', color:'#6B7280' }}>
             Cancel
           </button>
           <button onClick={handleEnroll} disabled={enrolling}
-            style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:enrolling?'#9CA3AF':'#059669', color:'#fff', fontSize:13, fontWeight:700, cursor:enrolling?'not-allowed':'pointer' }}>
+            style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:enrolling?'#9CA3AF':'#059669', color:'#fff', fontSize:14, fontWeight:700, cursor:enrolling?'not-allowed':'pointer' }}>
             {enrolling ? '⏳ Enrolling...' : '✓ Confirm Enrollment'}
           </button>
         </div>
