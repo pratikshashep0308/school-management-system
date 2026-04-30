@@ -27,7 +27,6 @@ const EMPTY = {
   previousSchool:     '',
   religion:           '',
   bloodGroup:         '',
-  previousBoardRollNo:'',
   totalSiblings:      '',
   disease:            '',
   additionalNote:     '',
@@ -89,7 +88,7 @@ function FloatInput({ label, required, children, span }) {
       <div style={{ position:'absolute', top:-9, left:12, zIndex:1, fontSize:11, fontWeight:700,
         background:'linear-gradient(to bottom, #fff 60%, transparent)', padding:'0 4px',
         color: required ? '#6366F1' : '#6B7280', whiteSpace:'nowrap' }}>
-        {label}{required && '*'}
+        {label}
       </div>
       {children}
     </div>
@@ -147,10 +146,9 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     if (!form.studentName)    return toast.error('Student name is required');
 
     // Map fields for backend compatibility
-    const classNum = parseInt(form.applyingForClass) || 1;
     const payload = {
       ...form,
-      applyingForClass: classNum,
+      applyingForClass: form.applyingForClass || '',
       parentEmail: form.parentEmail || `${form.parentPhone}@school.local`,
       father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone },
       mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone },
@@ -257,14 +255,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         </table>
       </div>
 
-      <div class="section">
-        <div class="section-title">3. Previous School Details</div>
-        <table>
-          <tr><td>School Name</td><td>${app.previousSchoolName||app.previousSchool||'—'}</td><td>Board</td><td>${app.previousBoard||'—'}</td></tr>
-          <tr><td>Previous Class</td><td>${app.previousClass||'—'}</td><td>Grade / CGPA</td><td>${app.previousGrade||'—'}</td></tr>
-          <tr><td>TC Number</td><td>${app.tcNumber||'—'}</td><td>LC Number</td><td>${app.lcNumber||'—'}</td></tr>
-        </table>
-      </div>
+
 
       <div class="section">
         <div class="section-title">4. Documents Submitted (${docsSubmitted.length} / 14)</div>
@@ -313,16 +304,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         {/* Header */}
         <div style={{ background:'#fff', padding:'20px 28px', borderBottom:'1px solid #E5E7EB', flexShrink:0, textAlign:'center' }}>
           <h2 style={{ fontSize:22, fontWeight:800, color:'#1F2937', margin:0 }}>Admission Form</h2>
-          <div style={{ display:'flex', justifyContent:'center', gap:16, marginTop:8, fontSize:12 }}>
-            <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ width:24, height:6, borderRadius:3, background:'#6366F1', display:'inline-block' }}/>
-              Required*
-            </span>
-            <span style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ width:24, height:6, borderRadius:3, background:'#D1D5DB', display:'inline-block' }}/>
-              Optional
-            </span>
-          </div>
+
           <button onClick={onClose} style={{ position:'absolute', top:20, right:24, width:32, height:32, borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:18, color:'#6B7280', display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
         </div>
 
@@ -408,18 +390,14 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Any Identification Mark?">
               <input style={INP} value={form.identificationMark} onChange={e=>set('identificationMark',e.target.value)} placeholder="Any Identification Mark?"/>
             </FloatInput>
-            <FloatInput label="Previous School">
-              <input style={INP} value={form.previousSchool} onChange={e=>set('previousSchool',e.target.value)} placeholder="Previous School"/>
-            </FloatInput>
+
             <FloatInput label="Blood Group">
               <select style={SEL} value={form.bloodGroup} onChange={e=>set('bloodGroup',e.target.value)}>
                 <option value="">Blood Group</option>
                 {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b=><option key={b}>{b}</option>)}
               </select>
             </FloatInput>
-            <FloatInput label="Previous ID / Board Roll No">
-              <input style={INP} value={form.previousBoardRollNo} onChange={e=>set('previousBoardRollNo',e.target.value)} placeholder="Previous ID / Board Roll No"/>
-            </FloatInput>
+
             <FloatInput label="Total Siblings">
               <input type="number" style={INP} value={form.totalSiblings} onChange={e=>set('totalSiblings',e.target.value)} placeholder="Total Siblings"/>
             </FloatInput>
@@ -477,36 +455,13 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             </FloatInput>
           </Section>
 
-          {/* Section 4 - Previous School Details */}
-          <Section number="4" title="Previous School Details">
-            <FloatInput label="Previous School Name">
-              <input style={INP} value={form.previousSchoolName} onChange={e=>set('previousSchoolName',e.target.value)} placeholder="School Name"/>
-            </FloatInput>
-            <FloatInput label="Previous Class">
-              <input style={INP} value={form.previousClass} onChange={e=>set('previousClass',e.target.value)} placeholder="e.g. Class 5"/>
-            </FloatInput>
-            <FloatInput label="Board">
-              <select style={SEL} value={form.previousBoard} onChange={e=>set('previousBoard',e.target.value)}>
-                <option value="">Select Board</option>
-                {['CBSE','ICSE','State Board','IB','IGCSE','Other'].map(b=><option key={b}>{b}</option>)}
-              </select>
-            </FloatInput>
-            <FloatInput label="Transfer Certificate (TC) No">
-              <input style={INP} value={form.tcNumber} onChange={e=>set('tcNumber',e.target.value)} placeholder="TC Number"/>
-            </FloatInput>
-            <FloatInput label="Leaving Certificate (LC) No">
-              <input style={INP} value={form.lcNumber} onChange={e=>set('lcNumber',e.target.value)} placeholder="LC Number"/>
-            </FloatInput>
-            <FloatInput label="Previous Grade / CGPA">
-              <input style={INP} value={form.previousGrade} onChange={e=>set('previousGrade',e.target.value)} placeholder="e.g. A+ / 9.5"/>
-            </FloatInput>
-          </Section>
+
 
           {/* Section 5 - Documents Checklist */}
           <div style={{ marginBottom:28 }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16, paddingBottom:10, borderBottom:'1.5px solid #E5E7EB' }}>
               <div style={{ width:28, height:28, borderRadius:'50%', background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>5</span>
+                <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>4</span>
               </div>
               <h3 style={{ fontSize:15, fontWeight:700, color:'#1F2937', margin:0, flex:1 }}>Document Upload</h3>
               <div style={{ fontSize:13, fontWeight:700, color:'#10B981' }}>{docsChecked}/{docsTotal} uploaded</div>
@@ -574,7 +529,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           </div>
 
           {/* Section 6 - Additional */}
-          <Section number="6" title="Additional Information">
+          <Section number="4" title="Additional Information">
             <FloatInput label="Priority">
               <select style={SEL} value={form.priority} onChange={e=>set('priority',e.target.value)}>
                 <option value="normal">⚪ Normal</option>
