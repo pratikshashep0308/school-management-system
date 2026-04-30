@@ -149,7 +149,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     const payload = {
       ...form,
       applyingForClass: form.applyingForClass || '',
-      parentEmail: form.parentEmail || `${form.parentPhone}@school.local`,
+      parentEmail: form.parentEmail || '',
       father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone },
       mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone },
       address: { street: form.address, city: form.city, state: form.state, pincode: form.pincode },
@@ -341,7 +341,9 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               <input style={INP} value={form.academicYear} onChange={e=>set('academicYear',e.target.value)} placeholder="2026-27"/>
             </FloatInput>
             <FloatInput label="Aadhaar Number">
-              <input style={INP} value={form.aadhaarNumber} onChange={e=>set('aadhaarNumber',e.target.value)} placeholder="XXXX XXXX XXXX"/>
+              <input style={INP} value={form.aadhaarNumber}
+                onChange={e=>{ const v=e.target.value.replace(/\D/g,'').slice(0,12); const f=v.replace(/(\d{4})(\d{4})?(\d{4})?/,(_,a,b,c)=>[a,b,c].filter(Boolean).join(' ')); set('aadhaarNumber',f); }}
+                placeholder="XXXX XXXX XXXX" maxLength={14}/>
             </FloatInput>
             <FloatInput label="Category">
               <select style={SEL} value={form.category} onChange={e=>set('category',e.target.value)}>
@@ -432,12 +434,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Mother's Phone">
               <PhoneInput value={form.motherPhone} onChange={v=>set('motherPhone',v)} style={{padding:'8px 0'}} />
             </FloatInput>
-            <FloatInput label="Primary Contact Name">
-              <input style={INP} value={form.parentName} onChange={e=>set('parentName',e.target.value)} placeholder="Guardian / Parent Name"/>
-            </FloatInput>
-            <FloatInput label="Primary Contact Phone">
-              <PhoneInput value={form.parentPhone} onChange={v=>set('parentPhone',v)} style={{padding:'8px 0'}} />
-            </FloatInput>
+
             <FloatInput label="Email">
               <input type="email" style={INP} value={form.parentEmail} onChange={e=>set('parentEmail',e.target.value)} placeholder="Email Address"/>
             </FloatInput>
@@ -451,7 +448,9 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               <input style={INP} value={form.state} onChange={e=>set('state',e.target.value)} placeholder="State"/>
             </FloatInput>
             <FloatInput label="Pincode">
-              <input style={INP} value={form.pincode} onChange={e=>set('pincode',e.target.value)} placeholder="Pincode"/>
+              <input style={INP} value={form.pincode}
+                onChange={e=>set('pincode', e.target.value.replace(/\D/g,'').slice(0,6))}
+                placeholder="6-digit pincode" maxLength={6} inputMode="numeric"/>
             </FloatInput>
           </Section>
 
