@@ -47,7 +47,8 @@ function EnrollModal({ app, onClose, onSuccess }) {
     setEnrolling(true);
     try {
       const nameParts = (app.studentName||'student').toLowerCase().split(' ');
-      const email = nameParts.join('') + Date.now() + '@student.local';
+      const suffix = Date.now().toString().slice(-4);
+      const email = nameParts.join('') + '.' + suffix + '@futurestepschool.in';
       await studentAPI.create({
         name:            app.studentName,
         email:           email,
@@ -481,7 +482,7 @@ export default function Admissions() {
           style={{ ...SEL, minWidth:260 }}/>
         <select value={classFilter} onChange={e=>setClass(e.target.value)} style={SEL}>
           <option value="">All Classes</option>
-          {Array.from({length:12},(_,i)=>i+1).map(n=><option key={n} value={n}>Class {n}</option>)}
+          {classes.map(c=><option key={c._id} value={c._id}>{c.name}{c.section ? ' '+c.section : ''}</option>)}
         </select>
         <select value={priorityFilter} onChange={e=>setPriority(e.target.value)} style={SEL}>
           <option value="">All Priority</option>
