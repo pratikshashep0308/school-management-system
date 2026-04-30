@@ -555,7 +555,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
   const weakSub = examResults.filter(e => e.pct < 50);
 
   return (
-    <div className="fixed inset-0 z-[300] flex">
+    <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex" }}>
       {/* Backdrop */}
       <div style={{ flex:1, background:"rgba(0,0,0,0.5)" }} onClick={onClose} />
       {/* Drawer */}

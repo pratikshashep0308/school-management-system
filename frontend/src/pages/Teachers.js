@@ -490,10 +490,13 @@ function ManageLoginTab({ teachers }) {
   };
 
   const filtered = teachers.filter(t => {
-    const name = t.user?.name||'';
-    const q    = search.toLowerCase();
-    const matchSearch = !q || name.toLowerCase().includes(q) || (t.employeeId||'').toLowerCase().includes(q);
-    const matchRole   = !role || (t.designation||'').toLowerCase().includes(role.toLowerCase());
+    const name  = (t.user?.name||'').toLowerCase();
+    const email = (t.user?.email||'').toLowerCase();
+    const empId = (t.employeeId||'').toLowerCase();
+    const desig = (t.designation||'').toLowerCase();
+    const q     = search.toLowerCase();
+    const matchSearch = !q || name.includes(q) || email.includes(q) || empId.includes(q) || desig.includes(q);
+    const matchRole   = !role || desig.includes(role.toLowerCase()) || (role.toLowerCase() === 'teacher' && !desig);
     return matchSearch && matchRole;
   });
 
@@ -515,8 +518,8 @@ function ManageLoginTab({ teachers }) {
             {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
           </select>
           <button onClick={()=>{ setSearch(''); setRole(''); }}
-            style={{ marginTop:10, width:'100%', padding:'8px', borderRadius:8, border:'1px solid #E5E7EB', background:'#F9FAFB', cursor:'pointer', fontSize:12, color:'#6B7280' }}>
-            or, Reload All
+            style={{ marginTop:10, width:'100%', padding:'8px', borderRadius:8, border:'none', background:'#0B1F4A', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:700 }}>
+            ↺ Reload All
           </button>
         </div>
 
