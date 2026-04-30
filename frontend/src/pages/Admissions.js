@@ -418,9 +418,13 @@ export default function Admissions() {
               <div style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', padding:'16px 0' }}>No data yet</div>
             ) : (stats.byClass||[]).slice(0,5).map((c,i)=>{
               const max = Math.max(...(stats.byClass||[]).map(x=>x.count),1);
+              const matchedClass = classes.find(cl => `${cl.name}${cl.section?' '+cl.section:''}` === c.class || cl._id === c.class);
               return (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                  <span style={{ fontSize:11, color:'#6B7280', minWidth:60 }}>{isNaN(c.class)?c.class:`Class ${c.class}`}</span>
+                <div key={i} onClick={()=>{ if(matchedClass){ setClass(matchedClass._id); } }}
+                  style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, cursor:'pointer', borderRadius:6, padding:'2px 4px' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#F5F3FF'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{ fontSize:11, color:'#6B7280', minWidth:60 }}>{c.class||'—'}</span>
                   <div style={{ flex:1, height:6, background:'#F3F4F6', borderRadius:3, overflow:'hidden' }}>
                     <div style={{ height:'100%', width:`${(c.count/max)*100}%`, background:'#6366F1', borderRadius:3 }}/>
                   </div>
@@ -440,7 +444,9 @@ export default function Admissions() {
               const srcTotal = (stats.bySource||[]).reduce((a,b)=>a+b.count,0);
               const pct = srcTotal > 0 ? Math.round((src.count/srcTotal)*100) : 0;
               return (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, cursor:'pointer', borderRadius:6, padding:'2px 4px' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='#F0FDFA'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                   <span style={{ fontSize:14 }}>{icons[src.source]||'📌'}</span>
                   <span style={{ fontSize:12, color:'#6B7280', flex:1, textTransform:'capitalize' }}>{(src.source||'').replace('_',' ')}</span>
                   <div style={{ width:50, height:6, background:'#F3F4F6', borderRadius:3, overflow:'hidden' }}>
