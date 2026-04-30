@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { admissionAPI } from '../utils/admissionUtils';
-import { studentAPI, classAPI } from '../utils/api';
+import api, { studentAPI, classAPI } from '../utils/api';
 import AdmissionDetailModal from '../components/admissions/AdmissionDetailModal';
 import AdmissionFormModal   from '../components/admissions/AdmissionFormModal';
 
@@ -50,13 +50,6 @@ function EnrollModal({ app, onClose, onSuccess }) {
   const handleEnroll = async () => {
     setEnrolling(true);
     try {
-      const cleanName = (app.studentName||'student').toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'');
-      const email = cleanName + '@futurestepschool.in';
-      // Check uniqueness
-      const existing = await api.get('/students').catch(()=>({ data:{ data:[] } }));
-      const emailExists = (existing.data.data||[]).some(s => s.user?.email === email);
-      const finalEmail = emailExists ? `${cleanName}.${Date.now().toString().slice(-4)}@futurestepschool.in` : email;
-
       await api.post(`/admissions/${app._id}/enroll`, {
         classId:    app.applyingForClass || '',
         rollNumber: '',
