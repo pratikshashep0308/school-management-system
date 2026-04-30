@@ -85,7 +85,7 @@ function EnrollModal({ app, onClose, onSuccess }) {
         <div style={{ padding:'20px 24px' }}>
           <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px', marginBottom:16, fontSize:12, color:'#374151' }}>
             <div><strong>Application:</strong> {app.applicationNumber}</div>
-            <div><strong>Class Applied:</strong> {(() => { const cls = classes.find(c => c._id === app.applyingForClass); return cls ? `${cls.name}${cls.section ? ' '+cls.section : ''}` : (app.applyingForClass || '—'); })()}</div>
+            <div><strong>Class Applied:</strong> {app.applyingForClass || '—'}</div>
             <div><strong>Parent:</strong> {app.parentName} · {app.parentPhone}</div>
           </div>
           <div style={{ marginBottom:12 }}>
@@ -120,7 +120,7 @@ function EnrollModal({ app, onClose, onSuccess }) {
   );
 }
 
-function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, isAdmin }) {
+function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, isAdmin, canEdit, classes }) {
   const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
   return (
     <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
@@ -183,7 +183,7 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
               ✓ Approve
             </button>
           )}
-          {isAdmin && app.status!=='enrolled' && (
+          {canEdit && app.status!=='enrolled' && (
             <button onClick={()=>onEnroll(app)}
               style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
               🎓 Enroll
@@ -206,7 +206,9 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
 }
 
 export default function Admissions() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+  const canEdit = isAdmin || isTeacher;
   const [applications, setApplications] = useState([]);
   const [stats,        setStats]        = useState(null);
   const [loading,      setLoading]      = useState(true);
@@ -513,7 +515,7 @@ export default function Admissions() {
               </thead>
               <tbody>
                 {applications.map(app=>(
-                  <AppRow key={app._id} app={app} isAdmin={isAdmin}
+                  <AppRow key={app._id} app={app} isAdmin={isAdmin} canEdit={canEdit} classes={classes}
                     onView={()=>setDetailId(app._id)}
                     onEdit={(a)=>setFormModal({open:true,data:a})}
                     onDelete={handleDelete}
