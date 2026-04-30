@@ -3,8 +3,10 @@
 // Never trust req.params for identity — always use req.user from JWT
 
 const Student    = require('../models/Student');
-const { Attendance, Result, Exam, FeePayment, StudentFee, Timetable,
+const { Attendance, Result, Exam, FeePayment, StudentFee,
         Assignment, Notification, Class } = require('../models/index');
+// Timetable is a standalone model (not exported from models/index)
+const Timetable  = require('../models/Timetable');
 
 // ── HELPER: resolve studentDoc from token ────────────────────────────────────
 // Returns the student document for whoever is logged in (student or parent)
@@ -293,7 +295,6 @@ exports.getDashboard = async (req, res) => {
     // ← Fetch timetable for student's class
     (async () => {
       try {
-        const { Timetable } = require('../models/index');
         return await Timetable.findOne({ class: student.class?._id || student.class, isActive: true })
           .populate({ path: 'schedule.periods.subject', select: 'name code color' })
           .populate({ path: 'schedule.periods.teacher', populate: { path: 'user', select: 'name' } });
