@@ -103,9 +103,19 @@ exports.createStudent = async (req, res) => {
   const resolvedParentEmail = (parentEmail || guardianEmail || '').trim() || null;
   const resolvedParentPhone = (parentPhone || guardianPhone || '').trim() || null;
 
-  // 1. Validate student email uniqueness
-  if (email) {
-    const existing = await User.findOne({ email: email.toLowerCase() });
+  // 1. Generate email from name if not provided
+  let studentEmail = email ? email.toLowerCase().trim() : '';
+  if (!studentEmail) {
+    const cleanName = name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '');
+    studentEmail = `${cleanName}@futurestepschool.in`;
+    // Ensure uniqueness
+    const emailExists = await User.findOne({ email: studentEmail });
+    if (emailExists) {
+      const suffix = Date.now().toString().slice(-4);
+      studentEmail = `${cleanName}.${suffix}@futurestepschool.in`;
+    }
+  } else {
+    const existing = await User.findOne({ email: studentEmail });
     if (existing) {
       return res.status(400).json({ success: false, message: 'A user with this email already exists' });
     }
@@ -114,7 +124,7 @@ exports.createStudent = async (req, res) => {
   // 2. Create student User account
   const studentUser = await User.create({
     name,
-    email,
+    email:    studentEmail,
     phone,
     password: password || 'Student@123',
     role:     'student',

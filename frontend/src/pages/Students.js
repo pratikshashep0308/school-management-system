@@ -2,7 +2,7 @@
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
+import api, { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
@@ -334,9 +334,15 @@ export default function Students() {
                     </td>
                     <td style={{ padding:'11px 16px', color:'#374151' }}>{s.class?.name} {s.class?.section||''}</td>
                     <td style={{ padding:'11px 16px' }}>
-                      <div style={{ fontFamily:'monospace', fontSize:12, color:'#1D4ED8', background:'#EFF6FF', padding:'4px 10px', borderRadius:6, display:'inline-block' }}>
+                      <div style={{ fontFamily:'monospace', fontSize:12,
+                        color: s.user?.email?.includes('@student.local') ? '#DC2626' : '#1D4ED8',
+                        background: s.user?.email?.includes('@student.local') ? '#FEF2F2' : '#EFF6FF',
+                        padding:'4px 10px', borderRadius:6, display:'inline-block' }}>
                         {s.user?.email||'—'}
                       </div>
+                      {s.user?.email?.includes('@student.local') && (
+                        <div style={{ fontSize:10, color:'#DC2626', marginTop:3 }}>⚠️ Auto-generated — reset to fix</div>
+                      )}
                     </td>
                     <td style={{ padding:'11px 16px' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -355,10 +361,27 @@ export default function Students() {
                       </span>
                     </td>
                     <td style={{ padding:'11px 16px' }}>
-                      <button onClick={()=>{ setResetModal(s); setNewPassword('Student@123'); }}
-                        style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FEF3C7', border:'1px solid #FDE68A', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
-                        🔑 Reset Password
-                      </button>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                        <button onClick={()=>{ setResetModal(s); setNewPassword('Student@123'); }}
+                          style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FEF3C7', border:'1px solid #FDE68A', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
+                          🔑 Reset Password
+                        </button>
+                        {s.user?.email?.includes('@student.local') && (
+                          <button onClick={async ()=>{
+                            const name = s.user?.name||'student';
+                            const clean = name.toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'');
+                            const newEmail = `${clean}@futurestepschool.in`;
+                            try {
+                              await api.put(`/students/${s._id}`, { email: newEmail });
+                              toast.success(`Username updated to ${newEmail}`);
+                              load();
+                            } catch { toast.error('Failed to update username'); }
+                          }}
+                            style={{ fontSize:11, fontWeight:700, color:'#166534', background:'#DCFCE7', border:'1px solid #86EFAC', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
+                            ✏️ Fix Username
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
