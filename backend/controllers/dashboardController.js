@@ -27,7 +27,9 @@ exports.getDashboardStats = async (req, res) => {
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]),
     Exam.find({ school, date: { $gte: new Date() } }).limit(5).sort({ date: 1 }).populate('class subject'),
-    Notification.find({ school }).sort({ createdAt: -1 }).limit(5)
+    // Show admin only the broad/staff-relevant notifications:
+    // exclude parent-only items like per-child attendance alerts.
+    Notification.find({ school, audience: { $ne: 'parents' } }).sort({ createdAt: -1 }).limit(5)
   ]);
 
   const attendanceRate = todayTotal > 0 ? Math.round((todayPresent / todayTotal) * 100) : 0;
