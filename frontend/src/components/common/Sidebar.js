@@ -78,7 +78,7 @@ function SidebarSchoolName() {
           return <span key={i} style={{ color: SIDEBAR_LETTER_COLORS[i] }}>{ch}</span>;
         })}
       </div>
-      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.28)', marginTop: 2, letterSpacing: '0.04em', fontWeight: 600 }}>
+      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.55)', marginTop: 2, letterSpacing: '0.04em', fontWeight: 600 }}>
         Management Portal
       </div>
     </div>
@@ -207,7 +207,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
                   transition: 'all 0.15s',
                   background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.45)',
+                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.85)',
                   borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
                 })}
               >
@@ -218,7 +218,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
               {portalSections.map(section => (
                 <div key={section.group} style={{ marginBottom: 4 }}>
                   <div style={{
-                    fontSize: 8.5, fontWeight: 900, color: 'rgba(255,255,255,0.2)',
+                    fontSize: 8.5, fontWeight: 900, color: 'rgba(255,255,255,0.5)',
                     letterSpacing: '1.5px', textTransform: 'uppercase',
                     padding: '5px 14px 3px',
                   }}>
@@ -240,7 +240,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                           border: 'none', cursor: 'pointer', textAlign: 'left',
                           fontSize: 12.5, fontWeight: 700, transition: 'all 0.15s',
                           background: isActive ? `${meta.color}18` : 'transparent',
-                          color: isActive ? meta.color : 'rgba(255,255,255,0.45)',
+                          color: isActive ? meta.color : 'rgba(255,255,255,0.85)',
                           borderLeft: isActive ? `3px solid ${meta.color}` : '3px solid transparent',
                         }}
                       >
@@ -272,7 +272,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
                   transition: 'all 0.15s',
                   background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.45)',
+                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.85)',
                   borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
                 })}
               >
