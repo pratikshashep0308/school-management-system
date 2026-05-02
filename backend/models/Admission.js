@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const AdmissionSchema = new mongoose.Schema({
 
   // ── STUDENT DETAILS ──────────────────────────────────────────
-  studentName:    { type: String, required: [true, 'Student name is required'], trim: true },
+  studentName:    { type: String, trim: true },
   dateOfBirth:    { type: Date },
   gender:         { type: String, enum: ['male', 'female', 'other'] },
   bloodGroup:     { type: String, enum: ['A+','A-','B+','B-','AB+','AB-','O+','O-',''] },
@@ -57,9 +57,9 @@ const AdmissionSchema = new mongoose.Schema({
   },
 
   // Primary contact (backward compat + public form)
-  parentName:  { type: String, required: [true, 'Parent name is required'] },
-  parentEmail: { type: String, required: [true, 'Parent email is required'], lowercase: true },
-  parentPhone: { type: String, required: [true, 'Parent phone is required'] },
+  parentName:  { type: String },
+  parentEmail: { type: String, lowercase: true },
+  parentPhone: { type: String },
 
   // ── SIBLINGS ─────────────────────────────────────────────────
   siblings: [{

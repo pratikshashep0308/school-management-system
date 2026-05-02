@@ -143,13 +143,22 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }));
 
   const handleSubmit = async () => {
-    if (!form.studentName)    return toast.error('Student name is required');
+    // No fields are mandatory — submit whatever has been filled in.
+
+    // Backend still has parentName/parentPhone/parentEmail fields (now optional).
+    // Populate them from father (preferred) or mother (fallback) when available
+    // so primary-contact display elsewhere in the app still works.
+    const primaryName  = (form.parentName  || form.fatherName  || form.motherName  || '').trim();
+    const primaryPhone = (form.parentPhone || form.fatherPhone || form.motherPhone || '').trim();
+    const primaryEmail = (form.parentEmail || '').trim();
 
     // Map fields for backend compatibility
     const payload = {
       ...form,
       applyingForClass: form.applyingForClass || '',
-      parentEmail: form.parentEmail || '',
+      parentName:  primaryName,
+      parentPhone: primaryPhone,
+      parentEmail: primaryEmail,
       father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone },
       mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone },
       address: { street: form.address, city: form.city, state: form.state, pincode: form.pincode },
