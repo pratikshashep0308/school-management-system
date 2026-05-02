@@ -46,7 +46,7 @@ export default function AdminDashboard() {
         {[
           { icon:'✅', label:'Mark Attendance', color:'#166534', bg:'#DCFCE7', path:'/attendance'    },
           { icon:'💳', label:'Collect Fee',      color:'#1D4ED8', bg:'#EFF6FF', path:'/fees'          },
-          { icon:'👤', label:'Add Student',      color:'#7C3AED', bg:'#EDE9FE', path:'/students'      },
+          { icon:'👤', label:'Add Student',      color:'#7C3AED', bg:'#EDE9FE', path:'/admissions'    },
           { icon:'👥', label:'Add Employee',     color:'#0369A1', bg:'#E0F2FE', path:'/teachers'      },
           { icon:'🔔', label:'Send Notice',      color:'#D97706', bg:'#FFFBEB', path:'/notifications' },
           { icon:'📊', label:'View Reports',     color:'#DC2626', bg:'#FEF2F2', path:'/reports'       },
@@ -155,10 +155,9 @@ export default function AdminDashboard() {
           </div>
 
           {(isAdmin || isTeacher) && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {[
                 { icon: '✓', label: 'Mark Attendance', to: '/attendance', color: 'bg-sage/10 text-sage' },
-                { icon: '👤', label: 'Add Student', to: '/students', color: 'bg-accent/10 text-accent' },
                 { icon: '📋', label: 'New Admission', to: '/admissions', color: 'bg-gold/15 text-gold' },
                 { icon: '🔔', label: 'Send Notification', to: '/notifications', color: 'bg-purple-50 text-purple-600' },
               ].map(({ icon, label, to, color }) => (
