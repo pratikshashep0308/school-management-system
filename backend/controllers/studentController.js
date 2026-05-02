@@ -173,6 +173,21 @@ exports.createStudent = async (req, res) => {
     await Class.findByIdAndUpdate(classId, { $addToSet: { students: student._id } });
   }
 
+  // 6. Auto-apply class fee template (if any) — non-blocking on errors
+  if (classId) {
+    try {
+      const { applyTemplateToStudent } = require('../services/classFeeTemplateService');
+      await applyTemplateToStudent({
+        studentId: student._id,
+        classId,
+        schoolId:  req.user.school,
+        createdBy: req.user._id,
+      });
+    } catch (e) {
+      console.error('Class fee template auto-apply failed:', e.message);
+    }
+  }
+
   await student.populate([
     { path: 'user',     select: 'name email phone' },
     { path: 'parentId', select: 'name email phone' },

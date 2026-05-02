@@ -111,6 +111,7 @@ const routes = [
   ['/api/admissions',     './routes/admissionRoutes'],
   ['/api/dashboard',      './routes/dashboardRoutes'],
   ['/api/reports',        './routes/reportRoutes'],        // ← Report Module
+  ['/api/class-fee-templates', './routes/classFeeTemplateRoutes'],  // ← Class default fees
 ];
 
 routes.forEach(([path, file]) => {

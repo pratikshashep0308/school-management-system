@@ -7,7 +7,7 @@ import CollectFees    from './Fees/CollectFees';
 import FeesPaidSlip   from './Fees/FeesPaidSlip';
 import FeeReport          from './Fees/FeeReport';
 import BulkFeeCollection  from './Fees/BulkFeeCollection';
-import FeeDefaulters      from './Fees/FeeDefaulters';
+import ClassFeeDefaults   from './Fees/ClassFeeDefaults';
 
 export default function Fees() {
   const { user } = useAuth();
@@ -15,13 +15,13 @@ export default function Fees() {
   const [tab, setTab] = useState('dashboard');
 
   const tabs = [
-    { key:'dashboard', label:'📊 Dashboard',     show:true     },
-    { key:'collect',   label:'💳 Collect Fees',   show:isAdmin  },
-    { key:'slip',      label:'🧾 Fees Paid Slip', show:isAdmin  },
-    { key:'assign',    label:'📋 Assign Fees',    show:isAdmin  },
-    { key:'report',    label:'📊 Fee Report',     show:isAdmin  },
-    { key:'bulk',      label:'🏫 Bulk Collection', show:isAdmin  },
-    { key:'defaulters',label:'⚠️ Defaulters',      show:isAdmin  },
+    { key:'dashboard',  label:'📊 Dashboard',         show:true     },
+    { key:'defaults',   label:'🏷️ Class Defaults',    show:isAdmin  },
+    { key:'collect',    label:'💳 Collect Fees',       show:isAdmin  },
+    { key:'slip',       label:'🧾 Fees Paid Slip',     show:isAdmin  },
+    { key:'assign',     label:'📋 Assign Fees',        show:isAdmin  },
+    { key:'report',     label:'📊 Fee Report',         show:isAdmin  },
+    { key:'bulk',       label:'🏫 Bulk Collection',    show:isAdmin  },
   ].filter(t => t.show);
 
   return (
@@ -36,13 +36,13 @@ export default function Fees() {
           }}>{t.label}</button>
         ))}
       </div>
-      {tab==='dashboard' && <FeesDashboard onNavigate={setTab}/>}
-      {tab==='collect'   && <CollectFees />}
-      {tab==='slip'      && <FeesPaidSlip />}
-      {tab==='assign'    && <AssignFees />}
-      {tab==='report'    && <FeeReport />}
-      {tab==='bulk'      && <BulkFeeCollection />}
-      {tab==='defaulters' && <FeeDefaulters />}
+      {tab==='dashboard'  && <FeesDashboard onNavigate={setTab}/>}
+      {tab==='defaults'   && <ClassFeeDefaults />}
+      {tab==='collect'    && <CollectFees />}
+      {tab==='slip'       && <FeesPaidSlip />}
+      {tab==='assign'     && <AssignFees />}
+      {tab==='report'     && <FeeReport />}
+      {tab==='bulk'       && <BulkFeeCollection />}
     </div>
   );
 }

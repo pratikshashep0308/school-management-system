@@ -44,6 +44,13 @@ const feeAPI = {
 
   // ── Export ────────────────────────────────────────────────────────────────
   export: (params={}) => api.get('/fees/export', { params, responseType: 'blob' }),
+
+  // ── Class Fee Templates (default fees per class) ──────────────────────────
+  getClassTemplates:        ()              => api.get('/class-fee-templates'),
+  getClassTemplate:         (classId)       => api.get(`/class-fee-templates/${classId}`),
+  saveClassTemplate:        (data)          => api.post('/class-fee-templates', data),
+  deleteClassTemplate:      (classId)       => api.delete(`/class-fee-templates/${classId}`),
+  applyClassTemplate:       (classId, data) => api.post(`/class-fee-templates/${classId}/apply`, data),
 };
 
 export default feeAPI;

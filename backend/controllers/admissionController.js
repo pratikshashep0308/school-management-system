@@ -373,6 +373,19 @@ exports.enrollFromAdmission = async (req, res) => {
       $push: { timeline: { action:'enrolled', note:'Enrolled as student', byName: req.user.name, by: req.user.id, at: new Date() }}
     });
 
+    // Auto-apply class fee template (if any) — non-blocking on errors
+    try {
+      const { applyTemplateToStudent } = require('../services/classFeeTemplateService');
+      await applyTemplateToStudent({
+        studentId: student._id,
+        classId,
+        schoolId:  req.user.school,
+        createdBy: req.user._id,
+      });
+    } catch (e) {
+      console.error('Class fee template auto-apply failed:', e.message);
+    }
+
     await student.populate([
       { path:'user',  select:'name email' },
       { path:'class', select:'name section' },
