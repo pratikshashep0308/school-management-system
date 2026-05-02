@@ -24,7 +24,7 @@ const MENU_ITEMS = [
   { path: '/homework',      icon: '📚', label: 'Homework',          roles: ['superAdmin','schoolAdmin','teacher','student','parent'] },
   { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },
   { path: '/notifications', icon: '🔔', label: 'Notifications', roles: ADMIN_ROLES },
-  { path: '/admissions',    icon: '📄', label: 'Admissions',    roles: ADMIN_ROLES },
+  { path: '/admissions',    icon: '📄', label: 'Admissions',    roles: ['superAdmin','schoolAdmin','teacher'] },
   { path: '/reports',       icon: '📊', label: 'Reports',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager'] },
   { path: '/profile',       icon: '👤', label: 'My Profile',    roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
 ];
