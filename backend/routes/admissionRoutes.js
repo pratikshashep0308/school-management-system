@@ -8,7 +8,7 @@ const {
   deleteAdmission, getStats, enrollFromAdmission,
 } = require('../controllers/admissionController');
 
-const admin = ['superAdmin', 'schoolAdmin'];
+const admin = ['superAdmin', 'schoolAdmin', 'teacher'];
 
 // Public — no auth required
 router.post('/public', publicSubmit);
