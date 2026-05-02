@@ -1,113 +1,38 @@
-// backend/services/classFeeTemplateService.js
-// Helpers for the Class Fee Template system.
+// backend/models/ClassFeeTemplate.js
+// Default fee structure for a class. When a student is enrolled into a class
+// that has a template, every line in the template auto-creates a FeeAssignment
+// for that student (with a per-student override allowed at apply time).
 
-const ClassFeeTemplate = require('../models/ClassFeeTemplate');
-const FeeAssignment    = require('../models/FeeAssignment');
-const FeeType          = require('../models/FeeType');
+const mongoose = require('mongoose');
 
-// ── seedDefaultFeeTypes(schoolId) ─────────────────────────────────────────────
-// Ensures the standard fee categories exist for the school. Idempotent — safe
-// to call on every server start or before applying templates.
-const STANDARD_TYPES = [
-  { name: 'School Fee',  category: 'tuition',   isRecurring: true,  frequency: 'monthly'  },
-  { name: 'Transport',   category: 'transport', isRecurring: true,  frequency: 'monthly'  },
-  { name: 'Stationary',  category: 'other',     isRecurring: false, frequency: 'one-time' },
-  { name: 'ID Card',     category: 'other',     isRecurring: false, frequency: 'one-time' },
-];
+// ── One line in a template (e.g. "School Fee — ₹500/month, due 5th") ──────────
+const TemplateLineSchema = new mongoose.Schema({
+  feeType:        { type: mongoose.Schema.Types.ObjectId, ref: 'FeeType', required: true },
+  amount:         { type: Number, required: true, min: 0 },
+  dueDay:         { type: Number, min: 1, max: 31, default: 5 },   // day-of-month for monthly fees
+  dueDate:        { type: Date },                                  // explicit date for one-time fees
+  lateFeePerDay:  { type: Number, default: 0 },
+  notes:          { type: String, default: '' },
+}, { _id: true });
 
-async function seedDefaultFeeTypes(schoolId, createdBy) {
-  if (!schoolId) return [];
-  const out = [];
-  for (const t of STANDARD_TYPES) {
-    const existing = await FeeType.findOne({ school: schoolId, name: t.name });
-    if (existing) { out.push(existing); continue; }
-    const created = await FeeType.create({ ...t, school: schoolId, createdBy, isActive: true });
-    out.push(created);
-  }
-  return out;
-}
+const ClassFeeTemplateSchema = new mongoose.Schema({
+  class:    { type: mongoose.Schema.Types.ObjectId, ref: 'Class',  required: true },
+  school:   { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  isActive: { type: Boolean, default: true },
+  lines:    [TemplateLineSchema],
+  createdBy:{ type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  updatedBy:{ type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdAt:{ type: Date, default: Date.now },
+  updatedAt:{ type: Date, default: Date.now },
+});
 
-// ── computeDueDate(line) ──────────────────────────────────────────────────────
-// Resolves the due-date for a given template line.
-// - If line.dueDate is set (one-time fees), use it.
-// - Otherwise if line.dueDay is set (monthly), use this month's <dueDay>.
-//   If that day already passed, roll forward to next month.
-function computeDueDate(line) {
-  if (line.dueDate) return new Date(line.dueDate);
-  const now = new Date();
-  const day = Math.min(Math.max(line.dueDay || 5, 1), 28); // clamp to 1–28 to dodge Feb edge cases
-  const candidate = new Date(now.getFullYear(), now.getMonth(), day);
-  if (candidate < now) candidate.setMonth(candidate.getMonth() + 1);
-  return candidate;
-}
+// One template per class per school
+ClassFeeTemplateSchema.index({ class: 1, school: 1 }, { unique: true });
 
-// ── applyTemplateToStudent({ studentId, classId, schoolId, overrides, createdBy }) ──
-// Looks up the template for the student's class and creates one FeeAssignment
-// per template line. Skips lines that already exist for the student to avoid
-// duplicates if called twice.
-//
-// `overrides` (optional) is a map: { [feeTypeId]: { amount, dueDate, skip } }
-// — used by the admin UI to tweak amounts before applying (scholarship etc.)
-//
-// Returns { applied: [<assignment>...], skipped: [<reason>...] }
-async function applyTemplateToStudent({
-  studentId,
-  classId,
-  schoolId,
-  overrides = {},
-  createdBy = null,
-}) {
-  if (!studentId || !classId || !schoolId) {
-    return { applied: [], skipped: ['Missing studentId/classId/schoolId'] };
-  }
+ClassFeeTemplateSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
 
-  const tpl = await ClassFeeTemplate.findOne({
-    class: classId, school: schoolId, isActive: true,
-  });
-  if (!tpl || !tpl.lines.length) {
-    return { applied: [], skipped: ['No active template for this class'] };
-  }
-
-  const applied = [];
-  const skipped = [];
-
-  for (const line of tpl.lines) {
-    const ov = overrides[line.feeType.toString()] || {};
-    if (ov.skip) { skipped.push(`Skipped (admin): feeType ${line.feeType}`); continue; }
-
-    const amount   = (ov.amount  != null) ? Number(ov.amount)  : Number(line.amount);
-    const dueDate  = ov.dueDate ? new Date(ov.dueDate) : computeDueDate(line);
-
-    // Don't double-create the same line for the same student (same feeType + dueDate)
-    const dup = await FeeAssignment.findOne({
-      student: studentId,
-      feeType: line.feeType,
-      dueDate: dueDate,
-      school:  schoolId,
-    });
-    if (dup) { skipped.push(`Already exists: feeType ${line.feeType}`); continue; }
-
-    const assignment = await FeeAssignment.create({
-      student:       studentId,
-      class:         classId,
-      feeType:       line.feeType,
-      baseAmount:    amount,
-      finalAmount:   amount,                       // no discount at apply time; admin can edit later
-      dueDate,
-      lateFeePerDay: line.lateFeePerDay || 0,
-      school:        schoolId,
-      createdBy,
-      status:        'pending',
-    });
-    applied.push(assignment);
-  }
-
-  return { applied, skipped };
-}
-
-module.exports = {
-  STANDARD_TYPES,
-  seedDefaultFeeTypes,
-  computeDueDate,
-  applyTemplateToStudent,
-};
+module.exports = mongoose.models.ClassFeeTemplate
+  || mongoose.model('ClassFeeTemplate', ClassFeeTemplateSchema);
