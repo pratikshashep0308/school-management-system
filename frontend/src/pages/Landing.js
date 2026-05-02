@@ -139,10 +139,10 @@ export default function Landing() {
   const [activeSlide, setActiveSlide] = useState(0);
 
   const slides = [
-    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #0d2347 100%)', title: 'Admissions Open', sub: 'LKG, UKG & Grade 1', icon: '🎓' },
-    { bg: 'linear-gradient(135deg, #e87722 0%, #c75e0a 100%)', title: 'Digital Classrooms', sub: 'Future-Ready Learning', icon: '💻' },
-    { bg: 'linear-gradient(135deg, #2d6a4f 0%, #1b4332 100%)', title: 'Safe Campus', sub: 'CCTV Monitored 24/7', icon: '🛡' },
-    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #e87722 100%)', title: 'Sports & Activities', sub: 'Holistic Development', icon: '⚽' },
+    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #e87722 100%)', title: 'Admissions Open',     sub: 'LKG, UKG & Grade 1',         icon: '🎓' },
+    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #e87722 100%)', title: 'Digital Classrooms',  sub: 'Future-Ready Learning',      icon: '💻' },
+    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #e87722 100%)', title: 'Safe Campus',         sub: 'CCTV Monitored 24/7',        icon: '🛡' },
+    { bg: 'linear-gradient(135deg, #1a3a6b 0%, #e87722 100%)', title: 'Sports & Activities', sub: 'Holistic Development',       icon: '⚽' },
   ];
 
   useEffect(() => {
