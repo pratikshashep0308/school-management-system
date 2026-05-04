@@ -26,6 +26,14 @@ export default function ClassFeeDefaults() {
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const [typeMgrOpen, setTypeMgrOpen] = useState(false);
+
+  const reloadFeeTypes = async () => {
+    try {
+      const r = await feeAPI.getFeeTypes();
+      setFeeTypes(r.data.data || []);
+    } catch {}
+  };
 
   // ── Load classes and fee types on mount ─────────────────────────────
   useEffect(() => {
@@ -118,6 +126,9 @@ export default function ClassFeeDefaults() {
           </p>
         </div>
         <div style={{ display:'flex', gap:8 }}>
+          <button style={BTN_LIGHT} onClick={() => setTypeMgrOpen(true)}>
+            ⚙ Manage fee types
+          </button>
           {template && (
             <button style={BTN_LIGHT} onClick={() => setApplyOpen(true)}>
               ↻ Apply to existing students
@@ -246,6 +257,15 @@ export default function ClassFeeDefaults() {
           className={`${selectedClass?.name||''} ${selectedClass?.section||''}`}
           template={template}
           onClose={() => setApplyOpen(false)}
+        />
+      )}
+
+      {/* ── "Manage fee types" modal ── */}
+      {typeMgrOpen && (
+        <FeeTypeManagerModal
+          feeTypes={feeTypes}
+          onChange={reloadFeeTypes}
+          onClose={() => setTypeMgrOpen(false)}
         />
       )}
     </div>
@@ -387,6 +407,177 @@ function ApplyToStudentsModal({ classId, className, template, onClose }) {
           <button style={BTN_PRIMARY} onClick={apply} disabled={applying}>
             {applying ? 'Applying…' : 'Apply now'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-component: manage fee types (add / rename / delete) ────────────────
+function FeeTypeManagerModal({ feeTypes, onChange, onClose }) {
+  const [name,        setName]        = useState('');
+  const [category,    setCategory]    = useState('other');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [defaultAmt,  setDefaultAmt]  = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [editingId,   setEditingId]   = useState(null);
+
+  const startEdit = (t) => {
+    setEditingId(t._id);
+    setName(t.name);
+    setCategory(t.category || 'other');
+    setIsRecurring(!!t.isRecurring);
+    setDefaultAmt(t.defaultAmount || '');
+  };
+
+  const reset = () => {
+    setEditingId(null);
+    setName(''); setCategory('other'); setIsRecurring(false); setDefaultAmt('');
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) return toast.error('Name is required');
+    setSaving(true);
+    try {
+      const payload = {
+        name:          name.trim(),
+        category,
+        isRecurring,
+        frequency:     isRecurring ? 'monthly' : 'one-time',
+        defaultAmount: Number(defaultAmt) || 0,
+        isActive:      true,
+      };
+      if (editingId) {
+        await feeAPI.updateFeeType(editingId, payload);
+        toast.success('Fee type updated');
+      } else {
+        await feeAPI.createFeeType(payload);
+        toast.success('Fee type added');
+      }
+      reset();
+      await onChange();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Save failed');
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (t) => {
+    if (!window.confirm(`Delete fee type "${t.name}"? Existing fees won't be affected.`)) return;
+    try {
+      await feeAPI.deleteFeeType(t._id);
+      toast.success('Fee type removed');
+      if (editingId === t._id) reset();
+      await onChange();
+    } catch { toast.error('Delete failed'); }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:720, maxHeight:'90vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <div style={{ padding:'14px 18px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:800, color:'#111827' }}>Manage fee types</div>
+            <div style={{ fontSize:12, color:'#6B7280' }}>Add new categories, rename, or remove duplicates. Removed types stay on already-assigned fees but disappear from new dropdowns.</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#6B7280' }}>✕</button>
+        </div>
+
+        {/* Add / Edit form */}
+        <div style={{ padding:14, borderBottom:'1px solid #F3F4F6', background:'#F9FAFB' }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:8 }}>
+            {editingId ? 'Edit fee type' : 'Add new fee type'}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 1fr 1fr auto', gap:8, alignItems:'end' }}>
+            <div>
+              <div style={LBL}>Name</div>
+              <input style={INP} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sports Fee" />
+            </div>
+            <div>
+              <div style={LBL}>Category</div>
+              <select style={INP} value={category} onChange={e=>setCategory(e.target.value)}>
+                <option value="tuition">Tuition</option>
+                <option value="exam">Exam</option>
+                <option value="transport">Transport</option>
+                <option value="uniform">Uniform</option>
+                <option value="library">Library</option>
+                <option value="sports">Sports</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <div style={LBL}>Default ₹</div>
+              <input type="number" min="0" style={INP} value={defaultAmt} onChange={e=>setDefaultAmt(e.target.value)} placeholder="0" />
+            </div>
+            <div>
+              <div style={LBL}>Recurring?</div>
+              <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#374151', padding:'9px 0' }}>
+                <input type="checkbox" checked={isRecurring} onChange={e=>setIsRecurring(e.target.checked)} />
+                Monthly
+              </label>
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              {editingId && <button style={BTN_LIGHT} onClick={reset}>Cancel</button>}
+              <button style={BTN_PRIMARY} onClick={handleSave} disabled={saving}>
+                {saving ? '...' : (editingId ? 'Update' : 'Add')}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* List of existing types */}
+        <div style={{ flex:1, overflowY:'auto' }}>
+          {feeTypes.length === 0 ? (
+            <div style={{ padding:30, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>No fee types yet. Add your first one above.</div>
+          ) : (
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#F9FAFB' }}>
+                  <th style={th}>Name</th>
+                  <th style={th}>Category</th>
+                  <th style={th}>Frequency</th>
+                  <th style={th}>Default</th>
+                  <th style={{ ...th, width:120 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feeTypes.map(t => (
+                  <tr key={t._id} style={{ borderTop:'1px solid #F3F4F6' }}>
+                    <td style={td}>
+                      <div style={{ fontWeight:700, color:'#111827' }}>{t.name}</div>
+                    </td>
+                    <td style={td}>
+                      <span style={{ display:'inline-block', padding:'2px 8px', borderRadius:6, background:'#F3F4F6', fontSize:11, fontWeight:600, color:'#374151', textTransform:'capitalize' }}>
+                        {t.category || 'other'}
+                      </span>
+                    </td>
+                    <td style={td}>
+                      {t.isRecurring || t.frequency === 'monthly' ? (
+                        <span style={{ color:'#1E40AF', fontWeight:600 }}>Monthly</span>
+                      ) : (
+                        <span style={{ color:'#374151' }}>One-time</span>
+                      )}
+                    </td>
+                    <td style={td}>
+                      {t.defaultAmount ? fmt(t.defaultAmount) : <span style={{ color:'#9CA3AF' }}>—</span>}
+                    </td>
+                    <td style={td}>
+                      <div style={{ display:'flex', gap:4 }}>
+                        <button onClick={() => startEdit(t)}
+                          style={{ padding:'5px 10px', borderRadius:6, background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                          Edit
+                        </button>
+                        <button onClick={() => handleDelete(t)} style={BTN_DANGER}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={{ padding:'12px 18px', borderTop:'1px solid #E5E7EB', display:'flex', justifyContent:'flex-end' }}>
+          <button style={BTN_LIGHT} onClick={onClose}>Done</button>
         </div>
       </div>
     </div>
