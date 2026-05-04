@@ -1,5 +1,7 @@
 // backend/services/classFeeTemplateService.js
 // Helpers for the Class Fee Template system.
+// Templates store ANNUAL (12-month) amounts. Half-year = annual / 2.
+// Due dates are NOT used — fees are payable on collection.
 
 const ClassFeeTemplate = require('../models/ClassFeeTemplate');
 const FeeAssignment    = require('../models/FeeAssignment');
@@ -9,10 +11,10 @@ const FeeType          = require('../models/FeeType');
 // Ensures the standard fee categories exist for the school. Idempotent — safe
 // to call on every server start or before applying templates.
 const STANDARD_TYPES = [
-  { name: 'School Fee',  category: 'tuition',   isRecurring: true,  frequency: 'monthly'  },
-  { name: 'Transport',   category: 'transport', isRecurring: true,  frequency: 'monthly'  },
-  { name: 'Stationary',  category: 'other',     isRecurring: false, frequency: 'one-time' },
-  { name: 'ID Card',     category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'School Fee', category: 'tuition',   isRecurring: false, frequency: 'one-time' },
+  { name: 'Transport',  category: 'transport', isRecurring: false, frequency: 'one-time' },
+  { name: 'Stationary', category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'ID Card',    category: 'other',     isRecurring: false, frequency: 'one-time' },
 ];
 
 async function seedDefaultFeeTypes(schoolId, createdBy) {
@@ -27,26 +29,12 @@ async function seedDefaultFeeTypes(schoolId, createdBy) {
   return out;
 }
 
-// ── computeDueDate(line) ──────────────────────────────────────────────────────
-// Resolves the due-date for a given template line.
-// - If line.dueDate is set (one-time fees), use it.
-// - Otherwise if line.dueDay is set (monthly), use this month's <dueDay>.
-//   If that day already passed, roll forward to next month.
-function computeDueDate(line) {
-  if (line.dueDate) return new Date(line.dueDate);
-  const now = new Date();
-  const day = Math.min(Math.max(line.dueDay || 5, 1), 28); // clamp to 1–28 to dodge Feb edge cases
-  const candidate = new Date(now.getFullYear(), now.getMonth(), day);
-  if (candidate < now) candidate.setMonth(candidate.getMonth() + 1);
-  return candidate;
-}
-
 // ── applyTemplateToStudent({ studentId, classId, schoolId, overrides, createdBy }) ──
 // Looks up the template for the student's class and creates one FeeAssignment
-// per template line. Skips lines that already exist for the student to avoid
-// duplicates if called twice.
+// per template line, using the ANNUAL amount as the base.
+// Skips lines that already exist for the student to avoid duplicates.
 //
-// `overrides` (optional) is a map: { [feeTypeId]: { amount, dueDate, skip } }
+// `overrides` (optional) is a map: { [feeTypeId]: { annualAmount, skip } }
 // — used by the admin UI to tweak amounts before applying (scholarship etc.)
 //
 // Returns { applied: [<assignment>...], skipped: [<reason>...] }
@@ -75,15 +63,17 @@ async function applyTemplateToStudent({
     const ov = overrides[line.feeType.toString()] || {};
     if (ov.skip) { skipped.push(`Skipped (admin): feeType ${line.feeType}`); continue; }
 
-    const amount   = (ov.amount  != null) ? Number(ov.amount)  : Number(line.amount);
-    const dueDate  = ov.dueDate ? new Date(ov.dueDate) : computeDueDate(line);
+    // Allow override of annualAmount per student (scholarships, etc.)
+    const annualAmount = (ov.annualAmount != null)
+      ? Number(ov.annualAmount)
+      : Number(line.annualAmount);
 
-    // Don't double-create the same line for the same student (same feeType + dueDate)
+    // Skip duplicate: same student + same feeType already has an active (unpaid) assignment
     const dup = await FeeAssignment.findOne({
       student: studentId,
       feeType: line.feeType,
-      dueDate: dueDate,
       school:  schoolId,
+      status:  { $ne: 'paid' },
     });
     if (dup) { skipped.push(`Already exists: feeType ${line.feeType}`); continue; }
 
@@ -91,10 +81,8 @@ async function applyTemplateToStudent({
       student:       studentId,
       class:         classId,
       feeType:       line.feeType,
-      baseAmount:    amount,
-      finalAmount:   amount,                       // no discount at apply time; admin can edit later
-      dueDate,
-      lateFeePerDay: line.lateFeePerDay || 0,
+      baseAmount:    annualAmount,
+      finalAmount:   annualAmount,
       school:        schoolId,
       createdBy,
       status:        'pending',
@@ -108,6 +96,5 @@ async function applyTemplateToStudent({
 module.exports = {
   STANDARD_TYPES,
   seedDefaultFeeTypes,
-  computeDueDate,
   applyTemplateToStudent,
 };

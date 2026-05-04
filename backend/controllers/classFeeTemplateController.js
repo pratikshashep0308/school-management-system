@@ -36,7 +36,7 @@ exports.getTemplateByClass = async (req, res) => {
 
 // ── POST /api/class-fee-templates ────────────────────────────────────────────
 // Create OR replace the template for a class (upsert).
-// body: { classId, lines: [{ feeType, amount, dueDay?, dueDate?, lateFeePerDay?, notes? }] }
+// body: { classId, lines: [{ feeType, annualAmount, notes? }] }
 exports.upsertTemplate = async (req, res) => {
   const { classId, lines = [], isActive = true } = req.body;
   if (!classId)        return res.status(400).json({ success: false, message: 'classId is required' });
@@ -45,8 +45,8 @@ exports.upsertTemplate = async (req, res) => {
   // Basic per-line validation
   for (const l of lines) {
     if (!l.feeType)              return res.status(400).json({ success: false, message: 'Every line needs a feeType' });
-    if (l.amount == null || Number(l.amount) < 0)
-                                 return res.status(400).json({ success: false, message: 'Every line needs a non-negative amount' });
+    if (l.annualAmount == null || Number(l.annualAmount) < 0)
+                                 return res.status(400).json({ success: false, message: 'Every line needs a non-negative annual amount' });
   }
 
   const tpl = await ClassFeeTemplate.findOneAndUpdate(
@@ -56,12 +56,9 @@ exports.upsertTemplate = async (req, res) => {
       school:   req.user.school,
       isActive,
       lines:    lines.map(l => ({
-        feeType:        l.feeType,
-        amount:         Number(l.amount),
-        dueDay:         l.dueDay  != null ? Number(l.dueDay) : 5,
-        dueDate:        l.dueDate || null,
-        lateFeePerDay:  Number(l.lateFeePerDay || 0),
-        notes:          l.notes || '',
+        feeType:      l.feeType,
+        annualAmount: Number(l.annualAmount),
+        notes:        l.notes || '',
       })),
       updatedBy: req.user._id,
       $setOnInsert: { createdBy: req.user._id },

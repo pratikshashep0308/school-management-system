@@ -17,7 +17,7 @@ const BTN_LIGHT   = { padding:'9px 14px', borderRadius:8, background:'#F3F4F6', 
 const BTN_DANGER  = { padding:'7px 12px', borderRadius:8, background:'#FEF2F2', color:'#991B1B', border:'1px solid #FECACA', fontSize:12, fontWeight:600, cursor:'pointer' };
 const fmt = n => `₹${(Number(n)||0).toLocaleString('en-IN')}`;
 
-const blankLine = () => ({ feeType:'', amount:'', dueDay:5, dueDate:'', lateFeePerDay:0, notes:'' });
+const blankLine = () => ({ feeType:'', annualAmount:'', notes:'' });
 
 const SWITCH_BTN = {
   padding:'10px 18px', fontSize:13, fontWeight:700, border:'none',
@@ -103,12 +103,9 @@ function StandardClassDefaults() {
       setTemplate(tpl);
       if (tpl && tpl.lines?.length) {
         setLines(tpl.lines.map(l => ({
-          feeType:       l.feeType?._id || l.feeType,
-          amount:        l.amount,
-          dueDay:        l.dueDay || 5,
-          dueDate:       l.dueDate ? l.dueDate.split('T')[0] : '',
-          lateFeePerDay: l.lateFeePerDay || 0,
-          notes:         l.notes || '',
+          feeType:      l.feeType?._id || l.feeType,
+          annualAmount: l.annualAmount,
+          notes:        l.notes || '',
         })));
       } else {
         setLines([blankLine()]);
@@ -119,19 +116,26 @@ function StandardClassDefaults() {
     });
   }, [classId]);
 
-  const totalMonthly  = useMemo(() => lines.filter(l => isRecurring(l, feeTypes)).reduce((s,l) => s + (Number(l.amount)||0), 0), [lines, feeTypes]);
-  const totalOneTime  = useMemo(() => lines.filter(l => !isRecurring(l, feeTypes)).reduce((s,l) => s + (Number(l.amount)||0), 0), [lines, feeTypes]);
+  const totalAnnual    = useMemo(() => lines.reduce((s,l) => s + (Number(l.annualAmount)||0), 0), [lines]);
+  const totalHalfYear  = totalAnnual / 2;
 
   const setLine = (i, k, v) => setLines(prev => prev.map((l, idx) => idx===i ? { ...l, [k]: v } : l));
   const addLine = () => setLines(prev => [...prev, blankLine()]);
   const removeLine = (i) => setLines(prev => prev.filter((_, idx) => idx !== i));
 
   const handleSave = async () => {
-    const valid = lines.filter(l => l.feeType && Number(l.amount) > 0);
+    const valid = lines.filter(l => l.feeType && Number(l.annualAmount) > 0);
     if (!valid.length) return toast.error('Add at least one valid fee line');
     setSaving(true);
     try {
-      await feeAPI.saveClassTemplate({ classId, lines: valid });
+      await feeAPI.saveClassTemplate({
+        classId,
+        lines: valid.map(l => ({
+          feeType:      l.feeType,
+          annualAmount: Number(l.annualAmount),
+          notes:        l.notes || '',
+        })),
+      });
       toast.success('Class default fees saved');
       // Reload to pick up populated data
       const r = await feeAPI.getClassTemplate(classId);
@@ -202,14 +206,14 @@ function StandardClassDefaults() {
           </div>
         </div>
         <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'#1E40AF', textTransform:'uppercase' }}>Monthly Recurring</div>
-          <div style={{ fontSize:22, fontWeight:800, color:'#1E3A8A', marginTop:4 }}>{fmt(totalMonthly)}</div>
-          <div style={{ fontSize:11, color:'#3B82F6', marginTop:2 }}>Per student / month</div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#1E40AF', textTransform:'uppercase' }}>Yearly Total (12 mo)</div>
+          <div style={{ fontSize:22, fontWeight:800, color:'#1E3A8A', marginTop:4 }}>{fmt(totalAnnual)}</div>
+          <div style={{ fontSize:11, color:'#3B82F6', marginTop:2 }}>Per student / year</div>
         </div>
         <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, padding:14 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'#166534', textTransform:'uppercase' }}>One-time Fees</div>
-          <div style={{ fontSize:22, fontWeight:800, color:'#14532D', marginTop:4 }}>{fmt(totalOneTime)}</div>
-          <div style={{ fontSize:11, color:'#16A34A', marginTop:2 }}>Per student / once</div>
+          <div style={{ fontSize:11, fontWeight:700, color:'#166534', textTransform:'uppercase' }}>Half-Yearly (6 mo)</div>
+          <div style={{ fontSize:22, fontWeight:800, color:'#14532D', marginTop:4 }}>{fmt(totalHalfYear)}</div>
+          <div style={{ fontSize:11, color:'#16A34A', marginTop:2 }}>Auto = yearly ÷ 2</div>
         </div>
       </div>
 
@@ -226,24 +230,23 @@ function StandardClassDefaults() {
         </div>
 
         <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:780 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', minWidth:680 }}>
             <thead>
               <tr style={{ background:'#F9FAFB' }}>
                 <th style={th}>Fee Type</th>
-                <th style={th}>Amount (₹)</th>
-                <th style={th}>Due Day / Date</th>
-                <th style={th}>Late Fee/day</th>
+                <th style={th}>Yearly Amount (₹)</th>
+                <th style={th}>Half-Yearly (auto)</th>
                 <th style={th}>Notes</th>
                 <th style={{ ...th, width:60 }}></th>
               </tr>
             </thead>
             <tbody>
               {lines.length === 0 && (
-                <tr><td colSpan={6} style={{ padding:30, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>No fee lines. Click "Add line" to start.</td></tr>
+                <tr><td colSpan={5} style={{ padding:30, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>No fee lines. Click "Add line" to start.</td></tr>
               )}
               {lines.map((l, i) => {
-                const ft = feeTypes.find(t => t._id === l.feeType);
-                const recurring = ft?.isRecurring || ft?.frequency === 'monthly';
+                const annual = Number(l.annualAmount) || 0;
+                const halfYear = annual / 2;
                 return (
                   <tr key={i} style={{ borderTop:'1px solid #F3F4F6' }}>
                     <td style={td}>
@@ -255,21 +258,13 @@ function StandardClassDefaults() {
                       </select>
                     </td>
                     <td style={td}>
-                      <input type="number" min="0" style={INP} value={l.amount}
-                        onChange={e => setLine(i, 'amount', e.target.value)} placeholder="0" />
+                      <input type="number" min="0" style={INP} value={l.annualAmount}
+                        onChange={e => setLine(i, 'annualAmount', e.target.value)} placeholder="0" />
                     </td>
                     <td style={td}>
-                      {recurring ? (
-                        <input type="number" min="1" max="28" style={INP} value={l.dueDay}
-                          onChange={e => setLine(i, 'dueDay', e.target.value)} placeholder="5" title="Day of month" />
-                      ) : (
-                        <input type="date" style={INP} value={l.dueDate}
-                          onChange={e => setLine(i, 'dueDate', e.target.value)} />
-                      )}
-                    </td>
-                    <td style={td}>
-                      <input type="number" min="0" style={INP} value={l.lateFeePerDay}
-                        onChange={e => setLine(i, 'lateFeePerDay', e.target.value)} placeholder="0" />
+                      <div style={{ ...INP, background:'#F9FAFB', color:'#6B7280', cursor:'not-allowed' }}>
+                        {annual > 0 ? `₹${halfYear.toLocaleString('en-IN')}` : '—'}
+                      </div>
                     </td>
                     <td style={td}>
                       <input style={INP} value={l.notes}
@@ -319,11 +314,6 @@ function StandardClassDefaults() {
 }
 
 // ── Helpers ──
-function isRecurring(line, feeTypes) {
-  const ft = feeTypes.find(t => t._id === (line.feeType?._id || line.feeType));
-  return !!(ft?.isRecurring || ft?.frequency === 'monthly');
-}
-
 const th = { padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' };
 const td = { padding:'8px 10px', verticalAlign:'top' };
 
@@ -407,7 +397,7 @@ function ApplyToStudentsModal({ classId, className, template, onClose }) {
                   {template?.lines?.map((l, i) => (
                     <th key={i} style={th}>
                       {l.feeType?.name || 'Fee'}
-                      <div style={{ fontSize:9, color:'#9CA3AF', fontWeight:400 }}>Default {fmt(l.amount)}</div>
+                      <div style={{ fontSize:9, color:'#9CA3AF', fontWeight:400 }}>Yearly {fmt(l.annualAmount)}</div>
                     </th>
                   ))}
                 </tr>
@@ -429,10 +419,10 @@ function ApplyToStudentsModal({ classId, className, template, onClose }) {
                       return (
                         <td key={ftId} style={td}>
                           <input type="number" min="0" disabled={!selected[s._id] || cur.skip}
-                            placeholder={String(l.amount)}
+                            placeholder={String(l.annualAmount)}
                             style={{ ...INP, padding:'5px 8px', fontSize:12 }}
-                            value={cur.amount ?? ''}
-                            onChange={e => setOverride(s._id, ftId, 'amount', e.target.value)} />
+                            value={cur.annualAmount ?? ''}
+                            onChange={e => setOverride(s._id, ftId, 'annualAmount', e.target.value)} />
                           <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:10, color:'#9CA3AF', marginTop:3 }}>
                             <input type="checkbox" checked={!!cur.skip}
                               onChange={e => setOverride(s._id, ftId, 'skip', e.target.checked)} />

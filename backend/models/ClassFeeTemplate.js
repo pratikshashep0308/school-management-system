@@ -5,14 +5,11 @@
 
 const mongoose = require('mongoose');
 
-// ── One line in a template (e.g. "School Fee — ₹500/month, due 5th") ──────────
+// ── One line in a template: a fee category with its 12-month price ──────────
 const TemplateLineSchema = new mongoose.Schema({
-  feeType:        { type: mongoose.Schema.Types.ObjectId, ref: 'FeeType', required: true },
-  amount:         { type: Number, required: true, min: 0 },
-  dueDay:         { type: Number, min: 1, max: 31, default: 5 },   // day-of-month for monthly fees
-  dueDate:        { type: Date },                                  // explicit date for one-time fees
-  lateFeePerDay:  { type: Number, default: 0 },
-  notes:          { type: String, default: '' },
+  feeType:       { type: mongoose.Schema.Types.ObjectId, ref: 'FeeType', required: true },
+  annualAmount:  { type: Number, required: true, min: 0 }, // 12-month price; half-year = annualAmount / 2
+  notes:         { type: String, default: '' },
 }, { _id: true });
 
 const ClassFeeTemplateSchema = new mongoose.Schema({

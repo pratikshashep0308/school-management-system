@@ -200,7 +200,6 @@ export default function CollectFees() {
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   });
   const [payDate,     setPayDate]     = useState(new Date().toISOString().split('T')[0]);
-  const [deposit,         setDeposit]         = useState('');
   const [customDiscount,  setCustomDiscount]  = useState('');
   const [method,      setMethod]      = useState('cash');
   const [transId,     setTransId]     = useState('');
@@ -252,8 +251,7 @@ export default function CollectFees() {
           { key:'discount',    label:'Discount',         amount:0, isDiscount:true },
         ];
         setFeeItems([...fromAssignments, ...extras]);
-        const total = fromAssignments.reduce((s,f)=>s+f.amount, 0);
-        setDeposit(String(Math.round(total)));
+        // Per-row "Paying Now" inputs start blank automatically
       } else {
         // No assignments - show default empty items
         setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f})));
@@ -278,7 +276,9 @@ export default function CollectFees() {
   };
 
   const baseTotal = feeItems.reduce((s,f) => {
-    const v = f.total !== undefined && f.total !== '' ? +f.total : ((+f.amount||0) * pd.months);
+    // f.amount is the YEARLY amount per fee. Period total = yearly × months ÷ 12.
+    const periodTotal = (+f.amount || 0) * pd.months / 12;
+    const v = f.total !== undefined && f.total !== '' ? +f.total : periodTotal;
     return f.isDiscount ? s - v : s + v;
   }, 0);
   const subtotal = Math.max(0, baseTotal);
@@ -286,13 +286,15 @@ export default function CollectFees() {
     ? Math.round(+customDiscount) 
     : Math.round(subtotal * (pd.discount / 100));
   const totalAmount = subtotal - discAmt;
-  const dueBalance  = totalAmount - (+deposit||0);
+  // Deposit is the sum of per-row "Paying Now" inputs
+  const deposit = feeItems.reduce((s,f) => s + (+f.paid || 0), 0);
+  const dueBalance  = totalAmount - deposit;
   const months      = getMonthsCovered();
 
   const handleSubmit = async () => {
     if (!selected)               return toast.error('Please select a student');
     // feesMonth auto-set to current month
-    if (!deposit || +deposit<=0) return toast.error('Enter deposit amount');
+    if (!deposit || deposit<=0)  return toast.error('Enter "Paying Now" amount in at least one row');
     setSubmitting(true);
     try {
       const [y] = feesMonth.split('-');
@@ -327,7 +329,10 @@ export default function CollectFees() {
         deposit:        +deposit,
         balance:        dueBalance,
         date:           new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),
-        items:          feeItems.filter(f=>f.amount>0).map(f=>({ label:f.label, perMonth:f.amount, total:f.isDiscount?-f.amount*pd.months:f.amount*pd.months })),
+        items:          feeItems.filter(f=>f.amount>0).map(f=>{
+          const periodTotal = +f.amount * pd.months / 12;
+          return { label:f.label, perMonth:f.amount, total: f.isDiscount ? -periodTotal : periodTotal };
+        }),
         history: [...history.map(h=>({ date:new Date(h.paidOn).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), period:h.month||'—', total:totalAmount, deposit:h.amount, due:totalAmount-h.amount })),
           { date:new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), period:periodCovered, total:totalAmount, deposit:+deposit, due:dueBalance }],
       });
@@ -340,7 +345,7 @@ export default function CollectFees() {
   const reset = () => {
     setSelected(null); setQuery(''); setSuggestions([]); setAssignments([]);
     setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f, amount:''}))); setPeriod('halfyearly');
-    setFeesMonth(''); setDeposit(''); setTransId(''); setReceipt(null); setFeeRecord(null);
+    setFeesMonth(''); setTransId(''); setReceipt(null); setFeeRecord(null);
   };
 
   const INP = { width:'100%', padding:'9px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none', background:'#fff' };
@@ -444,7 +449,7 @@ export default function CollectFees() {
           {/* Assigned fees notice */}
           {assignments.length > 0 && (
             <div style={{ margin:'12px 24px 0', background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:9, padding:'10px 14px', fontSize:12, color:'#1E40AF' }}>
-              ℹ️ Amounts pre-filled from {assignments.length} assigned fee(s). You can edit any amount below.
+              ℹ️ Yearly amounts pre-filled from {assignments.length} assigned fee(s). Total auto-adjusts for the selected period. Enter what parent is paying today below.
             </div>
           )}
 
@@ -454,15 +459,16 @@ export default function CollectFees() {
               <tr style={{ background:'#F8FAFC' }}>
                 <th style={{ padding:'10px 14px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:40, color:'#6B7280' }}>Sr.</th>
                 <th style={{ padding:'10px 14px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', color:'#6B7280' }}>Particulars <span style={{ fontSize:10, color:'#9CA3AF', fontWeight:400 }}>(click to edit)</span></th>
-                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:150, color:'#6B7280' }}>Paid (₹)</th>
+                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:160, color:'#6B7280' }}>Yearly Amount (₹)</th>
                 <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:160, color:'#1D4ED8' }}>Total ({pd.months} mo)</th>
+                <th style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:140, color:'#16A34A' }}>Paying Now (₹)</th>
                 <th style={{ padding:'10px 14px', width:36, border:'1px solid #E5E7EB' }}></th>
               </tr>
             </thead>
             <tbody>
               {feeItems.map((item,i)=>{
                 const hasVal = item.amount !== '' && +item.amount > 0;
-                const autoTotal = hasVal ? +item.amount * pd.months : null;
+                const autoTotal = hasVal ? +item.amount * pd.months / 12 : null;
                 const rowTotal = item.total !== undefined && item.total !== '' ? +item.total : autoTotal;
                 return (
                 <tr key={item.key} style={{ borderBottom:'0.5px solid #F3F4F6', background:hasVal?'#FAFFFE':'#fff' }}>
@@ -477,12 +483,18 @@ export default function CollectFees() {
                   <td style={{ padding:'6px 10px', textAlign:'right' }}>
                     <input type="number" min="0" value={item.amount} placeholder="—"
                       onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,amount:e.target.value}:f))}
-                      style={{ width:110, padding:'6px 10px', border:`1.5px solid ${hasVal?'#10B981':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:hasVal?'#F0FDF4':'#fff', fontWeight:hasVal?700:400 }}/>
+                      style={{ width:120, padding:'6px 10px', border:`1.5px solid ${hasVal?'#10B981':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:hasVal?'#F0FDF4':'#fff', fontWeight:hasVal?700:400 }}/>
                   </td>
                   <td style={{ padding:'6px 10px', textAlign:'right' }}>
-                    <input type="number" min="0" value={item.total !== undefined ? item.total : (rowTotal !== null ? rowTotal : '')} placeholder="—"
-                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,total:e.target.value}:f))}
-                      style={{ width:120, padding:'6px 10px', border:`1.5px solid ${hasVal?'#3B82F6':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:hasVal?'#EFF6FF':'#fff', fontWeight:hasVal?700:400, color:'#1D4ED8' }}/>
+                    <div style={{ width:120, padding:'6px 10px', border:`1.5px solid ${hasVal?'#3B82F6':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', background:hasVal?'#EFF6FF':'#F9FAFB', fontWeight:hasVal?700:400, color:'#1D4ED8', display:'inline-block', minHeight:28, boxSizing:'border-box' }}>
+                      {rowTotal !== null && rowTotal !== '' ? Math.round(rowTotal).toLocaleString('en-IN') : '—'}
+                    </div>
+                  </td>
+                  <td style={{ padding:'6px 10px', textAlign:'right' }}>
+                    <input type="number" min="0" value={item.paid ?? ''} placeholder="0"
+                      onChange={e=>setFeeItems(prev=>prev.map((f,fi)=>fi===i?{...f,paid:e.target.value}:f))}
+                      disabled={item.isDiscount}
+                      style={{ width:110, padding:'6px 10px', border:`1.5px solid ${(+item.paid||0)>0?'#16A34A':'#E5E7EB'}`, borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:(+item.paid||0)>0?'#F0FDF4':'#fff', fontWeight:(+item.paid||0)>0?700:400, color:'#16A34A' }}/>
                   </td>
                   <td style={{ padding:'6px 8px', textAlign:'center', width:36 }}>
                     <button onClick={()=>setFeeItems(prev=>prev.filter((_,fi)=>fi!==i))}
@@ -493,7 +505,7 @@ export default function CollectFees() {
               })}
               {/* Add row button */}
               <tr>
-                <td colSpan={5} style={{ padding:'8px 14px' }}>
+                <td colSpan={6} style={{ padding:'8px 14px' }}>
                   <button onClick={()=>setFeeItems(prev=>[...prev, { key:'custom_'+Date.now(), label:'New Fee', amount:'', isDiscount:false }])}
                     style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px dashed #BFDBFE', padding:'6px 16px', borderRadius:8, cursor:'pointer', width:'100%' }}>
                     + Add Fee Item
@@ -503,11 +515,11 @@ export default function CollectFees() {
             </tbody>
             <tfoot>
               <tr style={{ background:'#F8FAFC' }}>
-                <td colSpan={4} style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Subtotal</td>
+                <td colSpan={5} style={{ padding:'10px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>Subtotal</td>
                 <td style={{ padding:'10px 16px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:15, color:'#0B1F4A' }}>{fmt(subtotal)}</td>
               </tr>
               <tr style={{ background:'#F0FDF4' }}>
-                  <td colSpan={4} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
+                  <td colSpan={5} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
                     Discount {pd.discount > 0 ? `(${pd.discount}% auto)` : ''}
                   </td>
                   <td style={{ padding:'5px 10px', border:'1px solid #E5E7EB' }}>
@@ -519,18 +531,21 @@ export default function CollectFees() {
                   </td>
                 </tr>
               <tr style={{ background:'#EFF6FF' }}>
-                <td colSpan={4} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#1E40AF', fontSize:14 }}>TOTAL</td>
+                <td colSpan={5} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#1E40AF', fontSize:14 }}>TOTAL</td>
                 <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:17, color:'#1E40AF' }}>{fmt(totalAmount)}</td>
               </tr>
               <tr>
-                <td colSpan={4} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>DEPOSIT</td>
+                <td colSpan={5} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB' }}>
+                  DEPOSIT <span style={{ fontSize:10, color:'#9CA3AF', fontWeight:400 }}>(sum of "Paying Now")</span>
+                </td>
                 <td style={{ padding:'5px 10px', border:'1px solid #E5E7EB' }}>
-                  <input type="number" min="0" value={deposit} onChange={e=>setDeposit(e.target.value)}
-                    style={{ width:'100%', padding:'7px 10px', border:'1.5px solid #16A34A', borderRadius:7, fontSize:14, textAlign:'right', outline:'none', color:'#16A34A', fontWeight:700 }}/>
+                  <div style={{ width:'100%', padding:'7px 10px', border:'1.5px solid #16A34A', borderRadius:7, fontSize:14, textAlign:'right', color:'#16A34A', fontWeight:700, background:'#F0FDF4', boxSizing:'border-box' }}>
+                    {fmt(deposit)}
+                  </div>
                 </td>
               </tr>
               <tr style={{ background:dueBalance>0?'#FEF2F2':'#F0FDF4' }}>
-                <td colSpan={4} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:14 }}>Due-able Balance</td>
+                <td colSpan={5} style={{ padding:'11px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', fontSize:14 }}>Due-able Balance</td>
                 <td style={{ padding:'11px 16px', textAlign:'right', fontWeight:900, border:'1px solid #E5E7EB', fontSize:16, color:dueBalance>0?'#DC2626':'#16A34A' }}>{fmt(dueBalance)}</td>
               </tr>
             </tfoot>
