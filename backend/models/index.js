@@ -150,6 +150,21 @@ const StudentFeeSchema = new mongoose.Schema({
     remarks:       { type: String },
     collectedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     feeStructure:  { type: mongoose.Schema.Types.ObjectId, ref: 'FeeStructure' },
+    // ── Receipt-rendering fields (for printable image-2-style receipts) ──
+    periodLabel:    { type: String },                                    // e.g. "Half Yearly"
+    periodMonths:   { type: Number },                                    // 6 or 12
+    periodCovered:  { type: String },                                    // "May 2026 – October 2026"
+    items: [{                                                            // line-by-line breakdown
+      label:    { type: String },
+      perMonth: { type: Number },
+      total:    { type: Number },
+    }],
+    subtotal:       { type: Number },
+    discountPct:    { type: Number },
+    discountAmt:    { type: Number },
+    totalAmount:    { type: Number },
+    balanceAfter:   { type: Number },
+    parentName:     { type: String },
   }],
 
   updatedAt: { type: Date, default: Date.now },

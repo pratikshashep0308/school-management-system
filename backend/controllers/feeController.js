@@ -96,7 +96,13 @@ exports.getStudentFee = async (req, res) => {
 };
 
 exports.recordPayment = async (req, res) => {
-  const { studentId, classId, section, totalFees, amount, method, transactionId, month, year, remarks, feeStructureId, assignmentId } = req.body;
+  const {
+    studentId, classId, section, totalFees, amount, method, transactionId,
+    month, year, remarks, feeStructureId, assignmentId,
+    // ── Receipt detail fields (optional, for rich printable receipts) ──
+    periodLabel, periodMonths, periodCovered,
+    items, subtotal, discountPct, discountAmt, totalAmount, parentName,
+  } = req.body;
   if (!studentId || !amount || amount <= 0)
     return res.status(400).json({ success: false, message: 'studentId and a positive amount are required' });
 
@@ -109,7 +115,20 @@ exports.recordPayment = async (req, res) => {
   if (totalFees) record.totalFees = totalFees;
 
   const receiptNumber = genReceipt();
-  record.paymentHistory.push({ amount: Number(amount), paidOn: new Date(), method: method || 'cash', transactionId, receiptNumber, month, year, remarks, collectedBy: req.user._id, feeStructure: feeStructureId || null });
+  // Compute balance AFTER this payment for snapshot on the receipt
+  const balanceAfter = Math.max(0, (record.totalFees || 0) - ((record.paidAmount || 0) + Number(amount)));
+
+  record.paymentHistory.push({
+    amount: Number(amount), paidOn: new Date(),
+    method: method || 'cash', transactionId, receiptNumber, month, year, remarks,
+    collectedBy: req.user._id, feeStructure: feeStructureId || null,
+    // Receipt fields
+    periodLabel, periodMonths, periodCovered,
+    items: Array.isArray(items) ? items : [],
+    subtotal, discountPct, discountAmt, totalAmount,
+    balanceAfter,
+    parentName,
+  });
   await record.save();
 
   // If tied to a FeeAssignment, update that too
@@ -146,20 +165,40 @@ exports.getReceipt = async (req, res) => {
 
   const payment = record.paymentHistory[0];
   const data = {
+    // ── Identifiers ──
     receiptNumber:  payment.receiptNumber,
     studentName:    record.student?.user?.name || 'N/A',
+    rollNumber:     record.student?.rollNumber || record.student?.admissionNumber || 'N/A',
     admissionNo:    record.student?.admissionNumber || 'N/A',
-    className:      record.class ? `${record.class.name} - ${record.class.section}` : 'N/A',
+    className:      record.class ? `${record.class.name}${record.class.section ? ' ' + record.class.section : ''}` : 'N/A',
+    parentName:     payment.parentName || record.student?.parentName || 'N/A',
+
+    // ── Payment basics ──
     amount:         payment.amount,
+    deposit:        payment.amount,                                       // alias used by the receipt UI
     method:         payment.method,
     transactionId:  payment.transactionId,
     paidOn:         payment.paidOn,
+    date:           payment.paidOn ? new Date(payment.paidOn).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '',
     month:          payment.month,
     collectedBy:    payment.collectedBy?.name || 'System',
+    remarks:        payment.remarks,
+
+    // ── Period / breakdown (newly stored fields) ──
+    periodLabel:    payment.periodLabel    || '',
+    periodMonths:   payment.periodMonths   || 1,
+    periodCovered:  payment.periodCovered  || payment.month || '',
+    items:          Array.isArray(payment.items) ? payment.items : [],
+    subtotal:       payment.subtotal      || payment.amount,
+    discountPct:    payment.discountPct   || 0,
+    discountAmt:    payment.discountAmt   || 0,
+    totalAmount:    payment.totalAmount   || payment.amount,
+    balance:        payment.balanceAfter != null ? payment.balanceAfter : record.pendingAmount,
+
+    // ── Ledger snapshot ──
     totalFees:      record.totalFees,
     paidAmount:     record.paidAmount,
     pendingAmount:  record.pendingAmount,
-    remarks:        payment.remarks,
   };
 
   if (format === 'pdf') return buildReceiptPDF(res, data);
