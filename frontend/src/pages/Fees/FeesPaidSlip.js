@@ -89,9 +89,44 @@ export default function FeesPaidSlip() {
 
       {/* Results */}
       {feeRecord && (
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+        <>
+          {/* Print-only stylesheet: when printing, show ONLY .print-area */}
+          <style>{`
+            @media print {
+              @page { size: A4; margin: 12mm; }
+              body * { visibility: hidden !important; }
+              .print-area, .print-area * { visibility: visible !important; }
+              .print-area {
+                position: absolute !important;
+                left: 0 !important; top: 0 !important;
+                width: 100% !important;
+                background: #fff !important;
+                padding: 0 !important; margin: 0 !important;
+              }
+              .no-print { display: none !important; }
+              /* Force colors / borders to render in print */
+              .print-area, .print-area * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              /* Make the dark student header readable on white paper */
+              .print-area .student-header { background: #fff !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
+              .print-area .student-header > div > div:first-child { color: #555 !important; }
+              .print-area .student-header > div > div:last-child  { color: #000 !important; }
+              /* Lighten table header */
+              .print-area thead tr { background: #f1f5f9 !important; }
+              .print-area thead th { color: #111 !important; }
+              .print-area .receipt-link { color: #111 !important; text-decoration: none !important; }
+              .print-area .method-pill { background: transparent !important; color: #000 !important; padding: 0 !important; }
+              .print-only { display: block !important; }
+            }
+          `}</style>
+
+        <div className="card print-area" style={{ padding:0, overflow:'hidden' }}>
+          {/* Print-only school name + title */}
+          <div className="print-only" style={{ display:'none', textAlign:'center', padding:'14px 0 6px', borderBottom:'1px solid #ddd' }}>
+            <div style={{ fontSize:18, fontWeight:800 }}>The Future Step School</div>
+            <div style={{ fontSize:13, color:'#374151', marginTop:2 }}>Fee Payment Slip</div>
+          </div>
           {/* Student header */}
-          <div style={{ background:'#0B1F4A', padding:'16px 24px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16 }}>
+          <div className="student-header" style={{ background:'#0B1F4A', padding:'16px 24px', display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16 }}>
             {[
               { label:'Student', value:feeRecord.student?.user?.name },
               { label:'Class', value:`${feeRecord.class?.name||''} ${feeRecord.class?.section||''}` },
@@ -110,7 +145,7 @@ export default function FeesPaidSlip() {
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:14 }}>
               <div style={{ fontWeight:700, fontSize:15 }}>Payment History {monthLabel && `— ${monthLabel}`}</div>
               {payments.length > 0 && (
-                <button onClick={()=>window.print()} style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'5px 14px', borderRadius:7, cursor:'pointer' }}>
+                <button className="no-print" onClick={()=>window.print()} style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'5px 14px', borderRadius:7, cursor:'pointer' }}>
                   🖨 Print
                 </button>
               )}
@@ -134,12 +169,12 @@ export default function FeesPaidSlip() {
                   {payments.map((p,i)=>(
                     <tr key={i} style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
                       <td style={{ padding:'10px 14px', color:'#6B7280' }}>{i+1}</td>
-                      <td style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:12, color:'#1D4ED8' }}>{p.receiptNumber}</td>
+                      <td className="receipt-link" style={{ padding:'10px 14px', fontFamily:'monospace', fontSize:12, color:'#1D4ED8' }}>{p.receiptNumber}</td>
                       <td style={{ padding:'10px 14px', color:'#374151' }}>{new Date(p.paidOn).toLocaleDateString('en-IN')}</td>
                       <td style={{ padding:'10px 14px', color:'#374151' }}>{p.month||'—'}</td>
                       <td style={{ padding:'10px 14px', fontWeight:700, color:'#16A34A' }}>{fmt(p.amount)}</td>
                       <td style={{ padding:'10px 14px' }}>
-                        <span style={{ fontSize:11, fontWeight:700, background:'#EFF6FF', color:'#1D4ED8', padding:'2px 8px', borderRadius:20, textTransform:'uppercase' }}>{p.method||'cash'}</span>
+                        <span className="method-pill" style={{ fontSize:11, fontWeight:700, background:'#EFF6FF', color:'#1D4ED8', padding:'2px 8px', borderRadius:20, textTransform:'uppercase' }}>{p.method||'cash'}</span>
                       </td>
                       <td style={{ padding:'10px 14px', fontWeight:700, color:'#DC2626' }}>
                         {fmt((feeRecord.totalFees||0) - payments.slice(0,i+1).reduce((s,x)=>s+x.amount,0))}
@@ -151,6 +186,7 @@ export default function FeesPaidSlip() {
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

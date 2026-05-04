@@ -1,14 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 // frontend/src/pages/Fees/ClassFeeDefaults.js
-// Wrapper that toggles between two modes:
-//   1. STANDARD — set per-class default fees that auto-apply on enrollment
-//   2. AD-HOC   — assign one-off fees to a class or specific students
+// Per-class default fees that auto-apply when a student is enrolled.
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
 import { classAPI, studentAPI } from '../../utils/api';
 import { LoadingState, EmptyState } from '../../components/ui';
-import AdHocFeeAssignment from './AdHocFeeAssignment';
 
 const INP = { width:'100%', padding:'8px 11px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit', background:'#fff' };
 const LBL = { fontSize:11, fontWeight:700, display:'block', marginBottom:4, color:'#374151', textTransform:'uppercase', letterSpacing:'0.04em' };
@@ -19,51 +16,7 @@ const fmt = n => `₹${(Number(n)||0).toLocaleString('en-IN')}`;
 
 const blankLine = () => ({ feeType:'', annualAmount:'', notes:'' });
 
-const SWITCH_BTN = {
-  padding:'10px 18px', fontSize:13, fontWeight:700, border:'none',
-  cursor:'pointer', transition:'all 0.15s', flex:1,
-};
-
 export default function ClassFeeDefaults() {
-  const [mode, setMode] = useState('standard');
-
-  return (
-    <div className="space-y-4">
-      {/* ── Mode switcher ── */}
-      <div style={{ display:'flex', background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, overflow:'hidden', maxWidth:680 }}>
-        <button onClick={() => setMode('standard')}
-          style={{
-            ...SWITCH_BTN,
-            background: mode==='standard' ? '#1D4ED8' : '#fff',
-            color:      mode==='standard' ? '#fff'    : '#374151',
-            borderRight:'1px solid #E5E7EB',
-          }}>
-          🏷️ Standard Defaults
-          <div style={{ fontSize:10, fontWeight:500, opacity:0.85, marginTop:2 }}>
-            Auto-apply to new students
-          </div>
-        </button>
-        <button onClick={() => setMode('adhoc')}
-          style={{
-            ...SWITCH_BTN,
-            background: mode==='adhoc' ? '#1D4ED8' : '#fff',
-            color:      mode==='adhoc' ? '#fff'    : '#374151',
-          }}>
-          ⚡ One-off Fee
-          <div style={{ fontSize:10, fontWeight:500, opacity:0.85, marginTop:2 }}>
-            Field trips, fines, special charges
-          </div>
-        </button>
-      </div>
-
-      {mode === 'standard' && <StandardClassDefaults />}
-      {mode === 'adhoc'    && <AdHocFeeAssignment />}
-    </div>
-  );
-}
-
-// ── STANDARD mode: per-class default fee templates ──────────────────────────
-function StandardClassDefaults() {
   const [classes,   setClasses]   = useState([]);
   const [feeTypes,  setFeeTypes]  = useState([]);
   const [classId,   setClassId]   = useState('');
