@@ -88,7 +88,7 @@ function FloatInput({ label, required, children, span }) {
       <div style={{ position:'absolute', top:-9, left:12, zIndex:1, fontSize:11, fontWeight:700,
         background:'linear-gradient(to bottom, #fff 60%, transparent)', padding:'0 4px',
         color: required ? '#6366F1' : '#6B7280', whiteSpace:'nowrap' }}>
-        {label}
+        {label}{required && <span style={{ color:'#DC2626', marginLeft:3 }}>*</span>}
       </div>
       {children}
     </div>
@@ -143,7 +143,18 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }));
 
   const handleSubmit = async () => {
-    // No fields are mandatory — submit whatever has been filled in.
+    // ── TC-ADM-03 — Student Name is mandatory ───────────────────────────────
+    const trimmedName = (form.studentName || '').trim();
+    if (!trimmedName) {
+      toast.error('Student Name is required');
+      // Scroll the form back to the top so the empty field is visible
+      try {
+        const el = document.querySelector('input[placeholder="Name of Student"]');
+        el?.focus();
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (_) {}
+      return;
+    }
 
     // Backend still has parentName/parentPhone/parentEmail fields (now optional).
     // Populate them from father (preferred) or mother (fallback) when available
@@ -322,8 +333,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
           {/* Section 1 - Student Information */}
           <Section number="1" title="Student Information">
-            <FloatInput label="Student Name">
-              <input style={INP} value={form.studentName} onChange={e=>set('studentName',e.target.value)} placeholder="Name of Student"/>
+            <FloatInput label="Student Name" required>
+              <input style={INP} value={form.studentName} onChange={e=>set('studentName',e.target.value)} placeholder="Name of Student" required/>
             </FloatInput>
             <FloatInput label="Registration No">
               <input style={INP} value={form.registrationNo} onChange={e=>set('registrationNo',e.target.value)} placeholder="Registration No"/>

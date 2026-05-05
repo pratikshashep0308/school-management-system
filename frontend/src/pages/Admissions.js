@@ -111,7 +111,7 @@ function EnrollModal({ app, onClose, onSuccess }) {
   );
 }
 
-function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, isAdmin, canEdit, classes }) {
+function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, onReject, isAdmin, canEdit, classes }) {
   const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
   return (
     <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
@@ -174,6 +174,12 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
               ✓ Approve
             </button>
           )}
+          {isAdmin && app.status==='pending' && (
+            <button onClick={()=>onReject(app)}
+              style={{ fontSize:11, fontWeight:700, color:'#B91C1C', background:'#FEE2E2', border:'1px solid #FCA5A5', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              🚫 Reject
+            </button>
+          )}
           {canEdit && app.status!=='enrolled' && (
             <button onClick={()=>onEnroll(app)}
               style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
@@ -212,6 +218,7 @@ export default function Admissions() {
   const [detailId,     setDetailId]     = useState(null);
   const [formModal,    setFormModal]    = useState({ open:false, data:null });
   const [enrollModal,  setEnrollModal]  = useState({ open:false, data:null });
+  const [rejectModal,  setRejectModal]  = useState({ open:false, app:null, reason:'' });
   const [classes,      setClasses]      = useState([]);
   const limit = 20;
 
@@ -331,6 +338,28 @@ export default function Admissions() {
     } catch { toast.error('Failed to update status'); }
   };
 
+  // ── TC-ADM-05 — Reject opens a modal asking for reason ────────────────────
+  const handleReject = (app) => {
+    setRejectModal({ open: true, app, reason: '' });
+  };
+
+  const confirmReject = async () => {
+    const { app, reason } = rejectModal;
+    const trimmed = (reason || '').trim();
+    if (!trimmed) {
+      toast.error('Please enter a reason for rejection');
+      return;
+    }
+    try {
+      await admissionAPI.updateStatus(app._id, { status: 'rejected', rejectionReason: trimmed });
+      toast.success(`Application rejected: ${app.studentName || app.applicationNumber}`);
+      setRejectModal({ open: false, app: null, reason: '' });
+      load();
+    } catch {
+      toast.error('Failed to reject. Please try again.');
+    }
+  };
+
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete application for ${name}?`)) return;
     try { await admissionAPI.delete(id); toast.success('Deleted'); load(); }
@@ -447,7 +476,8 @@ export default function Admissions() {
                     onDelete={handleDelete}
                     onDownload={(a)=>downloadReceipt(a)}
                     onStatusChange={handleStatusChange}
-                    onEnroll={(a)=>setEnrollModal({open:true,data:a})}/>
+                    onEnroll={(a)=>setEnrollModal({open:true,data:a})}
+                    onReject={handleReject}/>
                 ))}
               </tbody>
             </table>
@@ -492,6 +522,63 @@ export default function Admissions() {
           onClose={()=>setEnrollModal({open:false,data:null})}
           onSuccess={()=>{ setEnrollModal({open:false,data:null}); load(); }}
         />
+      )}
+
+      {/* ── TC-ADM-05 Reject Reason Modal ── */}
+      {rejectModal.open && rejectModal.app && (
+        <div onClick={()=>setRejectModal({open:false,app:null,reason:''})}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex',
+                   alignItems:'center', justifyContent:'center', zIndex:200, padding:16 }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:500,
+                     boxShadow:'0 25px 50px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+            <div style={{ padding:'18px 22px', borderBottom:'1px solid #FECACA', background:'#FEF2F2' }}>
+              <div style={{ fontSize:16, fontWeight:800, color:'#B91C1C' }}>🚫 Reject Application</div>
+              <div style={{ fontSize:12, color:'#7F1D1D', marginTop:3 }}>
+                {rejectModal.app.studentName || rejectModal.app.applicationNumber}
+              </div>
+            </div>
+            <div style={{ padding:'20px 22px' }}>
+              <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#374151',
+                              textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>
+                Reason for rejection <span style={{ color:'#DC2626' }}>*</span>
+              </label>
+              <textarea
+                autoFocus
+                value={rejectModal.reason}
+                onChange={e=>setRejectModal(prev=>({ ...prev, reason:e.target.value }))}
+                placeholder="e.g. Class quota full, Documents incomplete, Did not meet age requirement…"
+                style={{ width:'100%', minHeight:100, padding:'10px 12px',
+                         border:'1.5px solid #E5E7EB', borderRadius:10, fontSize:13,
+                         fontFamily:'inherit', resize:'vertical', boxSizing:'border-box',
+                         color:'#111827', outline:'none' }}
+                onKeyDown={(e)=>{ if (e.key === 'Escape') setRejectModal({open:false,app:null,reason:''}); }}
+              />
+              <div style={{ fontSize:11, color:'#6B7280', marginTop:6 }}>
+                The reason will be saved with the application and shown if reopened later.
+              </div>
+            </div>
+            <div style={{ padding:'14px 22px', background:'#F9FAFB', borderTop:'1px solid #E5E7EB',
+                          display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button
+                onClick={()=>setRejectModal({open:false,app:null,reason:''})}
+                style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                         background:'#F3F4F6', border:'1px solid #E5E7EB', color:'#374151',
+                         cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={confirmReject}
+                disabled={!rejectModal.reason.trim()}
+                style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                         background: rejectModal.reason.trim() ? '#DC2626' : '#FCA5A5',
+                         color:'#fff', border:'none',
+                         cursor: rejectModal.reason.trim() ? 'pointer' : 'not-allowed' }}>
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
