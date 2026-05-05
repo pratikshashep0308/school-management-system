@@ -48,6 +48,21 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
 
   useEffect(() => { load(); classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, [id]);
 
+  // Resolve applyingForClass to a friendly label.
+  // Form can store the class ID (24-hex Mongo id) OR a free-text class name.
+  const formatClass = (raw) => {
+    if (!raw) return '—';
+    const isObjectId = typeof raw === 'string' && /^[0-9a-fA-F]{24}$/.test(raw);
+    if (isObjectId) {
+      const cls = classes.find(c => c._id === raw);
+      if (cls) return `${cls.name}${cls.section ? ' ' + cls.section : ''}`;
+      // Class not found (deleted or still loading) — don't show the raw ID
+      return classes.length === 0 ? '—' : 'Unknown class';
+    }
+    // Free text — display as-is
+    return raw;
+  };
+
   const handleStatusUpdate = async () => {
     if (!newStatus) return;
     setSaving(true);
@@ -156,7 +171,23 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
               </div>
               <div className="flex items-center gap-2">
                 {!showEnroll && app.status !== 'enrolled' && (
-                  <button onClick={()=>setShowEnroll(true)}
+                  <button onClick={()=>{
+                    // Pre-fill the class with whatever the applicant applied for
+                    // (if it's a real class ID that matches our class list).
+                    const applied = app.applyingForClass || '';
+                    const isObjectId = /^[0-9a-fA-F]{24}$/.test(applied);
+                    if (isObjectId && classes.find(c => c._id === applied)) {
+                      setEnrollClass(applied);
+                    } else if (applied) {
+                      // Try matching by name (case-insensitive) for free-text values
+                      const match = classes.find(c =>
+                        (c.name || '').toLowerCase() === applied.toLowerCase() ||
+                        `${c.name} ${c.section||''}`.trim().toLowerCase() === applied.toLowerCase()
+                      );
+                      if (match) setEnrollClass(match._id);
+                    }
+                    setShowEnroll(true);
+                  }}
                     className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 flex items-center gap-1">
                     🎓 Enroll as Student
                   </button>
@@ -168,7 +199,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
             {/* Quick stats bar */}
             <div className="grid grid-cols-4 border-b border-slate-100 flex-shrink-0">
               {[
-                { label: 'Grade',     value: `Grade ${app.applyingForClass}${app.applyingForSection ? ' – ' + app.applyingForSection : ''}` },
+                { label: 'Grade',     value: formatClass(app.applyingForClass) },
                 { label: 'Applied',   value: fmt(app.createdAt) },
                 { label: 'Documents', value: `${docsSubmitted}/${DOCS.length} submitted` },
                 { label: 'Interview', value: app.interview?.completed ? `✅ Score: ${app.interview.score ?? '—'}/100` : app.interview?.scheduled ? '📅 Scheduled' : '—' },
@@ -184,6 +215,9 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
         {showEnroll && (
           <div className="mx-6 mb-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
             <div className="font-semibold text-emerald-800 text-sm mb-3">🎓 Enroll {app?.studentName} as Student</div>
+            <div className="text-xs text-emerald-700 bg-emerald-100/70 rounded-lg p-2 mb-3">
+              ℹ️ Confirm the class assignment below — pre-filled from the application. You can change it before enrolling.
+            </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Class *</label>
@@ -264,7 +298,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
 
                   <Section title="Academic Background">
                     <Grid>
-                      <Field label="Applying for Grade"   value={`Grade ${app.applyingForClass}`} />
+                      <Field label="Applying for Grade"   value={formatClass(app.applyingForClass)} />
                       <Field label="Section Preferred"    value={app.applyingForSection} />
                       <Field label="Academic Year"        value={app.academicYear} />
                       <Field label="Previous School"      value={app.previousSchool} />

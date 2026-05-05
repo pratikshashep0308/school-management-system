@@ -498,10 +498,16 @@ export default function Admissions() {
           <option value="name_asc">🔤 Name A → Z</option>
           <option value="name_desc">🔤 Name Z → A</option>
         </select>
-        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
-               style={{ ...SEL, minWidth:140 }} title="From date" placeholder="From" />
-        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
-               style={{ ...SEL, minWidth:140 }} title="To date" placeholder="To" />
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' }}>From</span>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+                 style={{ ...SEL, minWidth:130 }} title="Show admissions on or after this date" />
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' }}>To</span>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+                 style={{ ...SEL, minWidth:130 }} title="Show admissions on or before this date" />
+        </div>
         {(search||statusFilter||classFilter||priorityFilter||dateFrom||dateTo||sortBy!=='date_desc') && (
           <button onClick={()=>{setSearch('');setStatus('');setClass('');setPriority('');setDateFrom('');setDateTo('');setSortBy('date_desc');}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
