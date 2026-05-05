@@ -10,11 +10,22 @@ const FeeType          = require('../models/FeeType');
 // ── seedDefaultFeeTypes(schoolId) ─────────────────────────────────────────────
 // Ensures the standard fee categories exist for the school. Idempotent — safe
 // to call on every server start or before applying templates.
+// Mirrors the fee types available in Collect Fees so admin can use the same
+// labels in Class Defaults.
 const STANDARD_TYPES = [
-  { name: 'School Fee', category: 'tuition',   isRecurring: false, frequency: 'one-time' },
-  { name: 'Transport',  category: 'transport', isRecurring: false, frequency: 'one-time' },
-  { name: 'Stationary', category: 'other',     isRecurring: false, frequency: 'one-time' },
-  { name: 'ID Card',    category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'Tuition Fee',      category: 'tuition',   isRecurring: false, frequency: 'one-time' },
+  { name: 'Admission Fee',    category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'Registration Fee', category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'Exam Fee',         category: 'exam',      isRecurring: false, frequency: 'one-time' },
+  { name: 'Transport Fee',    category: 'transport', isRecurring: false, frequency: 'one-time' },
+  { name: 'Library Fee',      category: 'library',   isRecurring: false, frequency: 'one-time' },
+  { name: 'Sports Fee',       category: 'sports',    isRecurring: false, frequency: 'one-time' },
+  { name: 'Uniform',          category: 'uniform',   isRecurring: false, frequency: 'one-time' },
+  { name: 'Books',            category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'Art Material',     category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'Stationary',       category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'ID Card',          category: 'other',     isRecurring: false, frequency: 'one-time' },
+  { name: 'School Fee',       category: 'tuition',   isRecurring: false, frequency: 'one-time' },
 ];
 
 async function seedDefaultFeeTypes(schoolId, createdBy) {
