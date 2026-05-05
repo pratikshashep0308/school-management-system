@@ -47,10 +47,36 @@ export const AuthProvider = ({ children }) => {
     return userData;
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token');
+  const logout = useCallback(async () => {
+    // 1. Notify backend (best-effort; ignore errors so logout still completes
+    //    even if backend is unreachable or token already invalid)
+    try {
+      await api.post('/auth/logout');
+    } catch (_) { /* swallow — local cleanup is what matters */ }
+
+    // 2. Wipe all client-side session data. We clear known keys explicitly
+    //    AND wipe the rest, in case future code adds more.
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('role');
+      // Wipe everything — safest in shared-device contexts (school office)
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (_) { /* private mode etc. — swallow */ }
+
+    // 3. Drop the auth header from the axios client
     delete api.defaults.headers.common['Authorization'];
+
+    // 4. Clear React state
     setUser(null);
+
+    // 5. Hard reload to /login. Crucial for shared-device safety:
+    //    - Wipes React state in memory (no cached protected pages).
+    //    - Clears the in-memory React Router history so Back button can't
+    //      return to a previously-rendered protected page.
+    //    - Forces a fresh JS bundle so any in-memory tokens/data are gone.
+    window.location.replace('/login');
   }, []);
 
   const updateUser = useCallback((updatedUser) => {

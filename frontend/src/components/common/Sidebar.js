@@ -91,7 +91,12 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
   const meta = ROLE_META[user?.role] || { label: user?.role, emoji: '👤', color: '#64748b' };
   const isPortalUser = user?.role === 'student' || user?.role === 'parent';
   const visibleItems = MENU_ITEMS.filter(item => item.roles.includes(user?.role));
-  const handleLogout = () => { logout(); navigate('/login'); };
+  // logout() now performs a hard redirect to /login so the navigate is redundant.
+  // Still using await to make sure backend logout call completes if reachable.
+  const handleLogout = async () => {
+    if (!window.confirm('Are you sure you want to logout?')) return;
+    await logout();
+  };
 
   const portalSections = user?.role === 'parent'
     ? PORTAL_SECTIONS.map((s, i) =>
