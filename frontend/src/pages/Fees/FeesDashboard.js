@@ -23,13 +23,11 @@ export default function FeesDashboard({ onNavigate }) {
     Promise.all([
       feeAPI.getDashboard().catch(()=>({ data:{ data:{} } })),
       feeAPI.getAssignments({ status:'overdue' }).catch(()=>({ data:{ data:[] } })),
-      feeAPI.getRecentPayments(8).catch(()=>({ data:{ data:[] } })),
-    ]).then(([dRes, overdueRes, recentRes]) => {
+    ]).then(([dRes, overdueRes]) => {
       const d = dRes.data.data || {};
       setData({
         ...d,
         overdueList:    (overdueRes.data.data||[]).slice(0,5),
-        recentPayments: recentRes.data.data || [],
       });
     }).finally(() => setLoading(false));
   }, []);
@@ -41,8 +39,6 @@ export default function FeesDashboard({ onNavigate }) {
   const totalCollected = data?.totalCollected  || 0;
   const totalPending   = data?.totalPending    || 0;
   const totalOverdue   = data?.overdueCount    || data?.totalOverdue   || 0;
-  const todayCollection= data?.todayCollection || 0;
-  const recentPayments = data?.recentPayments  || [];
   const overdueList    = data?.overdueList     || [];
   const collectionRate = totalAssigned > 0 ? Math.min(100, Math.round((totalCollected/totalAssigned)*100)) : totalCollected > 0 ? 100 : 0;
 
@@ -70,10 +66,10 @@ export default function FeesDashboard({ onNavigate }) {
 
       {/* KPI Cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
-        <KPI label="Total Assigned"  value={fmt(totalAssigned)}   color="#1D4ED8" bg="#EFF6FF" sub={`${data?.totalStudents||0} students`}/>
-        <KPI label="Collected"       value={fmt(totalCollected)}  color="#16A34A" bg="#F0FDF4" sub={`${collectionRate}% collection rate`} onClick={()=>onNavigate?.('slip')}/>
-        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`} onClick={()=>onNavigate?.('report')}/>
-        <KPI label="Overdue"         value={fmt(totalOverdue)}    color="#DC2626" bg="#FEF2F2" sub={`${data?.overdueCount||0} students`} onClick={()=>onNavigate?.('report')}/>
+        <KPI label="Total Assigned"  value={fmt(totalAssigned)}   color="#1D4ED8" bg="#EFF6FF" sub={`${data?.totalStudents||0} students`}    onClick={()=>onNavigate?.('report')}/>
+        <KPI label="Collected"       value={fmt(totalCollected)}  color="#16A34A" bg="#F0FDF4" sub={`${collectionRate}% collection rate`}     onClick={()=>onNavigate?.('slip')}/>
+        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`}   onClick={()=>onNavigate?.('bulk')}/>
+        <KPI label="Overdue"         value={fmt(totalOverdue)}    color="#DC2626" bg="#FEF2F2" sub={`${data?.overdueCount||0} students`}      onClick={()=>onNavigate?.('report')}/>
       </div>
 
       {/* Collection Rate Bar */}
@@ -91,63 +87,31 @@ export default function FeesDashboard({ onNavigate }) {
         </div>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
-        {/* Recent Payments */}
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
-            <span style={{ fontWeight:700, fontSize:14 }}>Recent Payments</span>
-            <button onClick={()=>onNavigate?.('slip')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>View all →</button>
-          </div>
-          {!recentPayments.length ? (
-            <EmptyState icon="💳" title="No payments yet" subtitle="Payments will appear here"/>
-          ) : recentPayments.map((p,i) => (
-            <div key={i} onClick={()=>onNavigate?.('slip')}
-              style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
-              onMouseEnter={e=>e.currentTarget.style.background='#F8FAFF'}
-              onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-              <div style={{ width:38, height:38, borderRadius:10, background:'#D1FAE5', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>✅</div>
+      {/* Overdue / Pending */}
+      <div className="card" style={{ padding:0, overflow:'hidden' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
+          <span style={{ fontWeight:700, fontSize:14 }}>⚠️ Overdue / Pending</span>
+          <button onClick={()=>onNavigate?.('report')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Manage →</button>
+        </div>
+        {!overdueList.length ? (
+          <EmptyState icon="✅" title="No overdue fees!" subtitle="All students are up to date"/>
+        ) : overdueList.map((a,i) => {
+          const ss = STATUS_STYLE[a.status] || STATUS_STYLE.pending;
+          return (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6' }}>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:600, fontSize:13, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {p.studentName || p.student?.user?.name || '—'}
+                  {a.student?.user?.name || '—'}
                 </div>
-                <div style={{ fontSize:11, color:'#9CA3AF' }}>
-                  {p.className ? `${p.className} · ` : ''}{p.month || p.feeType || 'Payment'} · {p.paidOn ? new Date(p.paidOn).toLocaleDateString('en-IN') : '—'}
-                </div>
+                <div style={{ fontSize:11, color:'#9CA3AF' }}>{a.feeType?.name} · Due {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</div>
               </div>
               <div style={{ textAlign:'right', flexShrink:0 }}>
-                <div style={{ fontWeight:800, fontSize:14, color:'#16A34A' }}>{fmt(p.amount)}</div>
-                {p.receiptNumber && <div style={{ fontSize:10, color:'#9CA3AF' }}>#{p.receiptNumber}</div>}
+                <div style={{ fontWeight:800, fontSize:13, color:'#DC2626' }}>{fmt(a.pendingAmount || a.finalAmount)}</div>
+                <span style={{ fontSize:10, fontWeight:700, color:ss.color, background:ss.bg, padding:'2px 8px', borderRadius:20 }}>{ss.label}</span>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Overdue / Pending */}
-        <div className="card" style={{ padding:0, overflow:'hidden' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
-            <span style={{ fontWeight:700, fontSize:14 }}>⚠️ Overdue / Pending</span>
-            <button onClick={()=>onNavigate?.('report')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Manage →</button>
-          </div>
-          {!overdueList.length ? (
-            <EmptyState icon="✅" title="No overdue fees!" subtitle="All students are up to date"/>
-          ) : overdueList.map((a,i) => {
-            const ss = STATUS_STYLE[a.status] || STATUS_STYLE.pending;
-            return (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6' }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:600, fontSize:13, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {a.student?.user?.name || '—'}
-                  </div>
-                  <div style={{ fontSize:11, color:'#9CA3AF' }}>{a.feeType?.name} · Due {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</div>
-                </div>
-                <div style={{ textAlign:'right', flexShrink:0 }}>
-                  <div style={{ fontWeight:800, fontSize:13, color:'#DC2626' }}>{fmt(a.pendingAmount || a.finalAmount)}</div>
-                  <span style={{ fontSize:10, fontWeight:700, color:ss.color, background:ss.bg, padding:'2px 8px', borderRadius:20 }}>{ss.label}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          );
+        })}
       </div>
     </div>
   );
