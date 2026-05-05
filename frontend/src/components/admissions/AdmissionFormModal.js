@@ -657,10 +657,47 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                         }
                       </div>
                       {uploaded && (
-                        <button type="button" onClick={()=>setDoc(key, null)}
-                          style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
-                          ✕ Remove
-                        </button>
+                        <>
+                          {/* View button — works for newly-uploaded files (data URL)
+                              or saved ones (data URL or http URL). */}
+                          {(() => {
+                            const u = uploaded;
+                            const url = typeof u === 'object' ? (u.data || u.url) : '';
+                            const mime = typeof u === 'object' ? (u.mimeType || '') : '';
+                            const fname = typeof u === 'object' ? (u.fileName || '') : '';
+                            const viewable = url && (
+                              url.startsWith('data:') ||
+                              url.startsWith('blob:') ||
+                              /^https?:\/\//i.test(url)
+                            );
+                            if (!viewable) return null;
+                            return (
+                              <button type="button" onClick={() => {
+                                const w = window.open();
+                                if (!w) { toast.error('Please allow pop-ups to preview the file'); return; }
+                                if (url.startsWith('data:')) {
+                                  const isImage = mime.startsWith('image/');
+                                  w.document.write(
+                                    `<title>${fname || 'Preview'}</title>` +
+                                    `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                                    (isImage
+                                      ? `<img src="${url}" alt="${fname}"/>`
+                                      : `<embed src="${url}" type="${mime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                                  );
+                                } else {
+                                  w.location.href = url;
+                                }
+                              }}
+                                style={{ fontSize:11, color:'#fff', background:'#6366F1', border:'1px solid #4F46E5', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, marginRight:4 }}>
+                                👁 View
+                              </button>
+                            );
+                          })()}
+                          <button type="button" onClick={()=>setDoc(key, null)}
+                            style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                            ✕ Remove
+                          </button>
+                        </>
                       )}
                     </div>
                     <label style={{ display:'block', cursor:'pointer' }}>
