@@ -40,6 +40,7 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
         table { width:100%; border-collapse:collapse; font-size:13px; }
         td,th { border:1px solid #ccc; padding:7px 10px; }
         th { background:#f3f4f6; font-weight:700; }
+        .receipt-actions { display: none !important; }
         @page { margin: 15mm; size: A4; }
         @media print { body { margin:0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style></head><body>${content}</body></html>
@@ -79,6 +80,15 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
         </div>
 
         <div id="printable-receipt" style={{ overflowY:'auto', flex:1, padding:'24px', fontFamily:'Arial, sans-serif' }}>
+          {/* Action toolbar — always visible at the top of the receipt scroll area.
+              Hidden on print via the @media rule injected by handlePrint. */}
+          <div className="receipt-actions" style={{ display:'flex', gap:10, justifyContent:'flex-end', marginBottom:16, paddingBottom:12, borderBottom:'1px dashed #E5E7EB' }}>
+            <button onClick={handlePrint}
+              style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>🖨 Print</button>
+            <button onClick={onClose}
+              style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700, background:'#DC2626', color:'#fff', border:'none', cursor:'pointer' }}>✕ Close</button>
+          </div>
+
           <div style={{ textAlign:'center', marginBottom:16 }}>
             <div style={{ fontSize:20, fontWeight:900, color:'#0B1F4A' }}>The Future Step School</div>
             <div style={{ fontSize:12, color:'#6B7280' }}>Securing Future By Adaptive Learning</div>
