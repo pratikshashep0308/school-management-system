@@ -65,7 +65,7 @@ exports.getStudentsFees = async (req, res) => {
   if (section) filter.section = section;
   if (status)  filter.paymentStatus = status;
 
-  const [records, total] = await Promise.all([
+  const [allRecords, total] = await Promise.all([
     StudentFee.find(filter)
       .populate({ path: 'student', populate: { path: 'user', select: 'name email profileImage' } })
       .populate('class', 'name grade section')
@@ -74,6 +74,14 @@ exports.getStudentsFees = async (req, res) => {
       .limit(Number(limit)),
     StudentFee.countDocuments(filter)
   ]);
+
+  // ── Drop orphan ledgers where the linked Student document is gone ──
+  // These show up as "—" in the UI and break "View" because student._id is null.
+  const records = allRecords.filter(r => r.student && r.student._id);
+  const orphanCount = allRecords.length - records.length;
+  if (orphanCount > 0) {
+    console.warn(`[fees] Skipped ${orphanCount} orphan StudentFee record(s) with deleted students.`);
+  }
 
   // ── Self-healing: fix any student whose linked User has a blank name ─
   // (Side effect of optional admission fields — old records may have empty names.)
@@ -92,7 +100,7 @@ exports.getStudentsFees = async (req, res) => {
     }
   }
 
-  res.json({ success: true, data: records, total, page: Number(page), pages: Math.ceil(total / limit) });
+  res.json({ success: true, data: records, total: total - orphanCount, page: Number(page), pages: Math.ceil(total / limit), orphanCount });
 };
 
 exports.getStudentFee = async (req, res) => {

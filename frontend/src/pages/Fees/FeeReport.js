@@ -407,10 +407,14 @@ export default function FeeReport() {
                         <span style={{ fontSize:11, fontWeight:700, color:ss.color, background:ss.bg, padding:'3px 10px', borderRadius:20, whiteSpace:'nowrap' }}>{ss.label}</span>
                       </td>
                       <td style={{ padding:'11px 14px' }}>
-                        <button onClick={()=>setPanelStudent(s)}
-                          style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'5px 12px', borderRadius:7, cursor:'pointer', whiteSpace:'nowrap' }}>
-                          View →
-                        </button>
+                        {s.student?._id ? (
+                          <button onClick={()=>setPanelStudent(s)}
+                            style={{ fontSize:12, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'5px 12px', borderRadius:7, cursor:'pointer', whiteSpace:'nowrap' }}>
+                            View →
+                          </button>
+                        ) : (
+                          <span style={{ fontSize:11, color:'#9CA3AF', fontStyle:'italic' }}>orphan record</span>
+                        )}
                       </td>
                     </tr>
                   );
