@@ -18,19 +18,44 @@ const STATUS_STYLE = {
 export default function FeesDashboard({ onNavigate }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      feeAPI.getDashboard().catch(()=>({ data:{ data:{} } })),
-      feeAPI.getAssignments({ status:'overdue' }).catch(()=>({ data:{ data:[] } })),
-    ]).then(([dRes, overdueRes]) => {
+  // Reusable loader so we can call it on mount, focus, interval, button click
+  const reload = React.useCallback(async ({ silent = false } = {}) => {
+    if (silent) setRefreshing(true);
+    try {
+      const [dRes, overdueRes, recentRes] = await Promise.all([
+        feeAPI.getDashboard().catch(()=>({ data:{ data:{} } })),
+        feeAPI.getAssignments({ status:'overdue' }).catch(()=>({ data:{ data:[] } })),
+        feeAPI.getRecentPayments(8).catch(()=>({ data:{ data:[] } })),
+      ]);
       const d = dRes.data.data || {};
       setData({
         ...d,
         overdueList:    (overdueRes.data.data||[]).slice(0,5),
+        recentPayments: recentRes.data.data || [],
       });
-    }).finally(() => setLoading(false));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  // Initial load
+  useEffect(() => { reload(); }, [reload]);
+
+  // Refetch when window regains focus (admin returns from another tab/CollectFees)
+  useEffect(() => {
+    const onFocus = () => reload({ silent: true });
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [reload]);
+
+  // Auto-refresh every 30 seconds in the background
+  useEffect(() => {
+    const id = setInterval(() => reload({ silent: true }), 30000);
+    return () => clearInterval(id);
+  }, [reload]);
 
   if (loading) return <LoadingState />;
 
@@ -40,6 +65,7 @@ export default function FeesDashboard({ onNavigate }) {
   const totalPending   = data?.totalPending    || 0;
   const totalOverdue   = data?.overdueCount    || data?.totalOverdue   || 0;
   const todayCollection= data?.todayCollection || 0;
+  const recentPayments = data?.recentPayments  || [];
   const overdueList    = data?.overdueList     || [];
   const collectionRate = totalAssigned > 0 ? Math.min(100, Math.round((totalCollected/totalAssigned)*100)) : totalCollected > 0 ? 100 : 0;
 
@@ -88,31 +114,72 @@ export default function FeesDashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* Overdue / Pending */}
-      <div className="card" style={{ padding:0, overflow:'hidden' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
-          <span style={{ fontWeight:700, fontSize:14 }}>⚠️ Overdue / Pending</span>
-          <button onClick={()=>onNavigate?.('report')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Manage →</button>
-        </div>
-        {!overdueList.length ? (
-          <EmptyState icon="✅" title="No overdue fees!" subtitle="All students are up to date"/>
-        ) : overdueList.map((a,i) => {
-          const ss = STATUS_STYLE[a.status] || STATUS_STYLE.pending;
-          return (
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+        {/* Recent Payments */}
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
+            <span style={{ fontWeight:700, fontSize:14 }}>
+              Recent Payments
+              {refreshing && <span style={{ fontSize:10, color:'#9CA3AF', fontWeight:500, marginLeft:8 }}>refreshing…</span>}
+            </span>
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              <button onClick={()=>reload({ silent:true })} disabled={refreshing}
+                style={{ fontSize:12, color:'#16A34A', background:'#F0FDF4', border:'1px solid #BBF7D0', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontWeight:600 }}>
+                ↻ Refresh
+              </button>
+              <button onClick={()=>onNavigate?.('slip')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>View all →</button>
+            </div>
+          </div>
+          {!recentPayments.length ? (
+            <EmptyState icon="💳" title="No payments yet" subtitle="Payments will appear here"/>
+          ) : recentPayments.map((p,i) => (
+            <div key={i} onClick={()=>onNavigate?.('slip')}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
+              onMouseEnter={e=>e.currentTarget.style.background='#F8FAFF'}
+              onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+              <div style={{ width:38, height:38, borderRadius:10, background:'#D1FAE5', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>✅</div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:600, fontSize:13, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {a.student?.user?.name || '—'}
+                  {p.studentName || p.student?.user?.name || '—'}
                 </div>
-                <div style={{ fontSize:11, color:'#9CA3AF' }}>{a.feeType?.name} · Due {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</div>
+                <div style={{ fontSize:11, color:'#9CA3AF' }}>
+                  {p.className ? `${p.className} · ` : ''}{p.month || p.feeType || 'Payment'} · {p.paidOn ? new Date(p.paidOn).toLocaleDateString('en-IN') : '—'}
+                </div>
               </div>
               <div style={{ textAlign:'right', flexShrink:0 }}>
-                <div style={{ fontWeight:800, fontSize:13, color:'#DC2626' }}>{fmt(a.pendingAmount || a.finalAmount)}</div>
-                <span style={{ fontSize:10, fontWeight:700, color:ss.color, background:ss.bg, padding:'2px 8px', borderRadius:20 }}>{ss.label}</span>
+                <div style={{ fontWeight:800, fontSize:14, color:'#16A34A' }}>{fmt(p.amount)}</div>
+                {p.receiptNumber && <div style={{ fontSize:10, color:'#9CA3AF' }}>#{p.receiptNumber}</div>}
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* Overdue / Pending */}
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 18px', borderBottom:'1px solid #E5E7EB' }}>
+            <span style={{ fontWeight:700, fontSize:14 }}>⚠️ Overdue / Pending</span>
+            <button onClick={()=>onNavigate?.('report')} style={{ fontSize:12, color:'#1D4ED8', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>Manage →</button>
+          </div>
+          {!overdueList.length ? (
+            <EmptyState icon="✅" title="No overdue fees!" subtitle="All students are up to date"/>
+          ) : overdueList.map((a,i) => {
+            const ss = STATUS_STYLE[a.status] || STATUS_STYLE.pending;
+            return (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', borderBottom:'0.5px solid #F3F4F6' }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:600, fontSize:13, color:'#111827', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {a.student?.user?.name || '—'}
+                  </div>
+                  <div style={{ fontSize:11, color:'#9CA3AF' }}>{a.feeType?.name} · Due {a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-IN') : '—'}</div>
+                </div>
+                <div style={{ textAlign:'right', flexShrink:0 }}>
+                  <div style={{ fontWeight:800, fontSize:13, color:'#DC2626' }}>{fmt(a.pendingAmount || a.finalAmount)}</div>
+                  <span style={{ fontSize:10, fontWeight:700, color:ss.color, background:ss.bg, padding:'2px 8px', borderRadius:20 }}>{ss.label}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
