@@ -39,6 +39,7 @@ export default function FeesDashboard({ onNavigate }) {
   const totalCollected = data?.totalCollected  || 0;
   const totalPending   = data?.totalPending    || 0;
   const totalOverdue   = data?.overdueCount    || data?.totalOverdue   || 0;
+  const todayCollection= data?.todayCollection || 0;
   const overdueList    = data?.overdueList     || [];
   const collectionRate = totalAssigned > 0 ? Math.min(100, Math.round((totalCollected/totalAssigned)*100)) : totalCollected > 0 ? 100 : 0;
 
