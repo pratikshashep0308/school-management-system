@@ -13,6 +13,21 @@ import React from 'react';
 const fmt = n => `₹${(Number(n)||0).toLocaleString('en-IN')}`;
 
 export default function PrintableReceipt({ receipt, onClose, history = [] }) {
+  // Lock the page scroll while the modal is open so the user doesn't accidentally
+  // scroll past the modal header and lose access to the Close button.
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Close on Escape key
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   if (!receipt) return null;
 
   const handlePrint = () => {
@@ -35,9 +50,18 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', padding:16 }}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:700, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.3)' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0 }}>
+    <div onClick={onClose}
+      style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', padding:16 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:700, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.3)' }}>
+
+        {/* Floating ✕ — always visible, top-right of modal */}
+        <button onClick={onClose} title="Close"
+          style={{ position:'absolute', top:10, right:12, zIndex:5, width:32, height:32, borderRadius:'50%', background:'#fff', border:'1px solid #E5E7EB', color:'#374151', fontSize:18, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 6px rgba(0,0,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+          ✕
+        </button>
+
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 60px 16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0 }}>
           <div>
             <h3 style={{ fontSize:17, fontWeight:700, margin:0, color:'#16A34A' }}>✅ Receipt</h3>
             <div style={{ fontSize:12, color:'#16A34A', marginTop:2 }}>
