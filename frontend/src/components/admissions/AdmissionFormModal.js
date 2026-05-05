@@ -136,11 +136,45 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }, [initial]);
 
   const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  // Store only filename string in state to avoid React rendering objects
-  const setDoc = (k, file) => setForm(f => ({
-    ...f,
-    documents: { ...f.documents, [k]: file ? file.name : null }
-  }));
+
+  // Read an uploaded file as base64 data URL + capture metadata
+  const setDoc = (k, file) => {
+    if (!file) {
+      setForm(f => ({ ...f, documents: { ...f.documents, [k]: null } }));
+      return;
+    }
+    // Size check — 2MB cap to keep MongoDB document under the 16MB limit
+    const MAX_BYTES = 2 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast.error(`${file.name} is ${(file.size/1024/1024).toFixed(2)} MB — max 2 MB allowed`);
+      return;
+    }
+    // Type whitelist
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error(`${file.name}: only PDF, JPG, or PNG files are allowed`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm(f => ({
+        ...f,
+        documents: {
+          ...f.documents,
+          [k]: {
+            fileName: file.name,
+            mimeType: file.type,
+            size:     file.size,
+            data:     reader.result, // data:mime;base64,... — ready to display
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+      }));
+      toast.success(`${file.name} attached`);
+    };
+    reader.onerror = () => toast.error(`Failed to read ${file.name}`);
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async () => {
     // ── TC-ADM-03 — Student Name is mandatory ───────────────────────────────
@@ -231,16 +265,25 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
       father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone },
       mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone },
       address: { street: form.address, city: form.city, state: form.state, pincode: form.pincode },
-        documents: {
-          birthCertificate:    form.documents.birthCertificate    ? { submitted: true, url: form.documents.birthCertificate    } : { submitted: false },
-          aadhaarCard:         form.documents.aadhaarCard         ? { submitted: true, url: form.documents.aadhaarCard         } : { submitted: false },
-          passportPhoto:       form.documents.passportPhoto       ? { submitted: true, url: form.documents.passportPhoto       } : { submitted: false },
-          addressProof:        form.documents.addressProof        ? { submitted: true, url: form.documents.addressProof        } : { submitted: false },
-          transferCertificate: form.documents.transferCertificate ? { submitted: true, url: form.documents.transferCertificate } : { submitted: false },
-          marksheet:           form.documents.marksheet           ? { submitted: true, url: form.documents.marksheet           } : { submitted: false },
-          casteCertificate:    form.documents.casteCertificate    ? { submitted: true, url: form.documents.casteCertificate    } : { submitted: false },
-          medicalCertificate:  form.documents.medicalCertificate  ? { submitted: true, url: form.documents.medicalCertificate  } : { submitted: false },
-        },
+      documents: Object.fromEntries(
+        Object.entries(form.documents).map(([key, value]) => {
+          if (!value) return [key, { submitted: false }];
+          // value can be:
+          //   - rich object: { fileName, mimeType, size, data, uploadedAt }  (newly uploaded)
+          //   - string filename or url (legacy)
+          if (typeof value === 'object') {
+            return [key, {
+              submitted:  true,
+              url:        value.data,        // base64 data URL (the actual file content)
+              fileName:   value.fileName,
+              mimeType:   value.mimeType,
+              size:       value.size,
+              uploadedAt: value.uploadedAt,
+            }];
+          }
+          return [key, { submitted: true, url: value, fileName: value }];
+        })
+      ),
       previousSchool: form.previousSchoolName || form.previousSchool,
       previousBoard:  form.previousBoard,
       previousClass:  form.previousClass,
@@ -582,7 +625,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                         </div>
                         {uploaded
                           ? <div style={{ fontSize:11, color:'#16A34A', marginTop:2, display:'flex', alignItems:'center', gap:4 }}>
-                              <span>✓</span> {typeof uploaded === 'string' ? uploaded : 'File uploaded'}
+                              <span>✓</span> {
+                                typeof uploaded === 'object' && uploaded?.fileName
+                                  ? uploaded.fileName
+                                  : (typeof uploaded === 'string' ? uploaded : 'File uploaded')
+                              }
                             </div>
                           : <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>No file uploaded</div>
                         }

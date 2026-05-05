@@ -372,29 +372,73 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                   <p className="text-sm text-slate-500 mb-4">{docsSubmitted} of {DOCS.length} documents submitted</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {DOCS.map(doc => {
-                      const submitted = app.documents?.[doc.key]?.submitted || false;
+                      const docData  = app.documents?.[doc.key];
+                      const submitted = docData?.submitted || false;
+                      const fileUrl   = docData?.url || '';
+                      const fileName  = docData?.fileName || '';
+                      const hasFile   = !!fileUrl;
+
+                      const openFile = (e) => {
+                        e.stopPropagation();
+                        if (!fileUrl) return;
+                        // Open the file in a new tab. Works for both base64 data URLs
+                        // and plain http(s) URLs.
+                        const w = window.open();
+                        if (w) {
+                          if (fileUrl.startsWith('data:')) {
+                            // For data URLs, embed an iframe-style preview so PDFs render too
+                            const isImage = (docData.mimeType || '').startsWith('image/');
+                            w.document.write(
+                              `<title>${fileName || doc.label}</title>` +
+                              `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                              (isImage
+                                ? `<img src="${fileUrl}" alt="${fileName || ''}"/>`
+                                : `<embed src="${fileUrl}" type="${docData.mimeType || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                            );
+                          } else {
+                            w.location.href = fileUrl;
+                          }
+                        }
+                      };
+
                       return (
                         <div key={doc.key}
-                          onClick={() => handleDocToggle(doc.key, submitted)}
-                          className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                          className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
                             submitted
                               ? 'border-emerald-300 bg-emerald-50'
-                              : 'border-slate-200 bg-slate-50 hover:border-indigo-300'
-                          }`}>
+                              : 'border-slate-200 bg-slate-50 hover:border-indigo-300 cursor-pointer'
+                          }`}
+                          onClick={() => handleDocToggle(doc.key, submitted)}>
                           <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                             submitted ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300'
                           }`}>
                             {submitted && <span className="text-xs">✓</span>}
                           </div>
-                          <span className={`text-sm font-medium ${submitted ? 'text-emerald-700' : 'text-slate-600'}`}>
-                            {doc.label}
-                          </span>
-                          {submitted && <span className="ml-auto text-xs text-emerald-600">Received</span>}
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm font-medium ${submitted ? 'text-emerald-700' : 'text-slate-600'}`}>
+                              {doc.label}
+                            </div>
+                            {hasFile && fileName && (
+                              <div className="text-xs text-slate-500 mt-0.5 truncate">
+                                📎 {fileName}
+                              </div>
+                            )}
+                          </div>
+                          {hasFile ? (
+                            <button
+                              onClick={openFile}
+                              className="ml-auto text-xs px-3 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+                              title="View uploaded file">
+                              👁 View
+                            </button>
+                          ) : submitted ? (
+                            <span className="ml-auto text-xs text-emerald-600">Received</span>
+                          ) : null}
                         </div>
                       );
                     })}
                   </div>
-                  <p className="text-xs text-slate-400 mt-4">Click on a document to toggle submitted/pending status</p>
+                  <p className="text-xs text-slate-400 mt-4">Click on a document row to toggle submitted/pending. Click <b>View</b> to open the file.</p>
                 </div>
               )}
 

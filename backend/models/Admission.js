@@ -89,15 +89,12 @@ const AdmissionSchema = new mongoose.Schema({
   },
 
   // ── DOCUMENT CHECKLIST ───────────────────────────────────────
+  // Each document can store the actual file as a base64 data URL,
+  // its original filename, MIME type, and submitted/received flag.
+  // Use Mixed type so we can grow the keyset without schema migration.
   documents: {
-    birthCertificate:    { submitted: { type: Boolean, default: false }, url: String },
-    transferCertificate: { submitted: { type: Boolean, default: false }, url: String },
-    marksheet:           { submitted: { type: Boolean, default: false }, url: String },
-    aadhaarCard:         { submitted: { type: Boolean, default: false }, url: String },
-    passportPhoto:       { submitted: { type: Boolean, default: false }, url: String },
-    casteCertificate:    { submitted: { type: Boolean, default: false }, url: String },
-    medicalCertificate:  { submitted: { type: Boolean, default: false }, url: String },
-    addressProof:        { submitted: { type: Boolean, default: false }, url: String }
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({}),
   },
 
   // ── INTERVIEW ────────────────────────────────────────────────
