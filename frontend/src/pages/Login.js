@@ -78,10 +78,19 @@ export default function Login() {
   const [form,     setForm]     = useState({ email: 'admin@school.com', password: 'Admin@123' });
   const [loading,  setLoading]  = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email || !form.password) { toast.error('Please fill in all fields'); return; }
+    // Inline per-field validation
+    const newErrors = {};
+    if (!form.email)    newErrors.email    = 'Email is required';
+    if (!form.password) newErrors.password = 'Password is required';
+    if (Object.keys(newErrors).length) {
+      setErrors(newErrors);
+      return;
+    }
+    setErrors({});
     setLoading(true);
     try {
       const user = await login(form.email, form.password);
@@ -236,33 +245,45 @@ export default function Login() {
           </div>
 
           {/* Login form */}
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }} noValidate>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', marginBottom: 6 }}>
-                Email Address
+                Email Address <span style={{ color: '#DC2626', marginLeft: 2 }}>*</span>
               </label>
               <input
                 type="email"
                 value={form.email}
-                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                onChange={e => { setForm(p => ({ ...p, email: e.target.value })); setErrors(x => ({ ...x, email: '' })); }}
                 placeholder="admin@school.com"
                 className="tfs-input"
+                style={errors.email ? { borderColor: '#DC2626' } : {}}
                 autoComplete="email"
+                required
+                aria-required="true"
+                aria-invalid={!!errors.email}
               />
+              {errors.email && (
+                <div style={{ color: '#DC2626', fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+                  {errors.email}
+                </div>
+              )}
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94a3b8', marginBottom: 6 }}>
-                Password
+                Password <span style={{ color: '#DC2626', marginLeft: 2 }}>*</span>
               </label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPass ? 'text' : 'password'}
                   value={form.password}
-                  onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                  onChange={e => { setForm(p => ({ ...p, password: e.target.value })); setErrors(x => ({ ...x, password: '' })); }}
                   placeholder="••••••••"
                   className="tfs-input"
-                  style={{ paddingRight: 48 }}
+                  style={{ paddingRight: 48, ...(errors.password ? { borderColor: '#DC2626' } : {}) }}
                   autoComplete="current-password"
+                  required
+                  aria-required="true"
+                  aria-invalid={!!errors.password}
                 />
                 <button type="button" onClick={() => setShowPass(s => !s)} style={{
                   position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
@@ -271,6 +292,11 @@ export default function Login() {
                   {showPass ? '🙈' : '👁'}
                 </button>
               </div>
+              {errors.password && (
+                <div style={{ color: '#DC2626', fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+                  {errors.password}
+                </div>
+              )}
             </div>
 
             <button type="submit" disabled={loading} className="tfs-btn" style={{ marginTop: 4 }}>
