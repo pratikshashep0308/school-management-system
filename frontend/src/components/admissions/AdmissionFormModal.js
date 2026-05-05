@@ -122,7 +122,7 @@ function Section({ number, title, children }) {
 }
 
 export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
-  const [form,   setForm]   = useState(initial ? mergeDeep(EMPTY, initial) : EMPTY);
+  const [form,   setForm]   = useState(initial ? hydrateForm(EMPTY, initial) : EMPTY);
   const [saving,    setSaving]    = useState(false);
   const [submitted, setSubmitted] = useState(null); // holds saved application data for receipt
   const [classes,   setClasses]   = useState([]);
@@ -132,7 +132,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }, []);
 
   useEffect(() => {
-    setForm(initial ? mergeDeep(EMPTY, initial) : EMPTY);
+    setForm(initial ? hydrateForm(EMPTY, initial) : EMPTY);
   }, [initial]);
 
   const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -297,6 +297,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
       if (initial?._id) {
         await admissionAPI.update(initial._id, payload);
         toast.success('Application updated!');
+        if (onSuccess) onSuccess();
       } else {
         const res = await admissionAPI.create(payload);
         toast.success('Application submitted!');
@@ -304,7 +305,16 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         return;
       }
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to save');
+      const status = e.response?.status;
+      if (status === 404) {
+        toast.error('Application not found — it may have been deleted. Please close and reload.');
+      } else if (status === 409) {
+        toast.error(e.response?.data?.message || 'Duplicate admission detected.');
+      } else if (status === 413) {
+        toast.error('Files too large. Please use smaller documents (under 2 MB each).');
+      } else {
+        toast.error(e.response?.data?.message || 'Failed to save. Please try again.');
+      }
     } finally { setSaving(false); }
   };
 
@@ -724,13 +734,64 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   );
 }
 
-function mergeDeep(base, override) {
+// ── Hydrate backend record into flat form shape ─────────────────────────────
+// Backend stores nested objects: address={street,city,state,pincode},
+// father={name,occupation,phone}, mother={...}. Form expects flat fields.
+// Dates come back as ISO strings; <input type="date"> needs YYYY-MM-DD.
+function hydrateForm(base, record) {
+  if (!record) return { ...base };
   const out = { ...base };
-  for (const k of Object.keys(override || {})) {
-    if (override[k] !== null && typeof override[k] === 'object' && !Array.isArray(override[k]) && typeof base[k] === 'object') {
-      out[k] = mergeDeep(base[k], override[k]);
-    } else if (override[k] !== undefined) {
-      out[k] = override[k];
+  // Copy primitive fields directly
+  for (const k of Object.keys(record)) {
+    const val = record[k];
+    if (val === null || val === undefined) continue;
+    // Skip objects we'll flatten manually
+    if (k === 'address' || k === 'father' || k === 'mother' || k === 'documents') continue;
+    // Format dates: backend returns ISO, input wants YYYY-MM-DD
+    if ((k === 'dateOfBirth' || k === 'dateOfAdmission') && typeof val === 'string') {
+      out[k] = val.slice(0, 10);
+    } else if (typeof val !== 'object' || Array.isArray(val)) {
+      out[k] = val;
+    }
+    // Other unknown nested objects: ignore so we don't pollute string fields
+  }
+  // Flatten address
+  if (record.address && typeof record.address === 'object') {
+    out.address = record.address.street  || '';
+    out.city    = record.address.city    || '';
+    out.state   = record.address.state   || '';
+    out.pincode = record.address.pincode || '';
+  }
+  // Flatten father / mother
+  if (record.father && typeof record.father === 'object') {
+    out.fatherName       = record.father.name       || out.fatherName       || '';
+    out.fatherOccupation = record.father.occupation || out.fatherOccupation || '';
+    out.fatherPhone      = record.father.phone      || out.fatherPhone      || '';
+  }
+  if (record.mother && typeof record.mother === 'object') {
+    out.motherName       = record.mother.name       || out.motherName       || '';
+    out.motherOccupation = record.mother.occupation || out.motherOccupation || '';
+    out.motherPhone      = record.mother.phone      || out.motherPhone      || '';
+  }
+  // Documents — preserve objects with url+fileName, fall back gracefully
+  if (record.documents && typeof record.documents === 'object') {
+    out.documents = { ...base.documents };
+    for (const dk of Object.keys(record.documents)) {
+      const d = record.documents[dk];
+      if (!d) continue;
+      if (typeof d === 'object' && (d.url || d.fileName)) {
+        // Rich shape — preserve
+        out.documents[dk] = {
+          fileName: d.fileName || '',
+          mimeType: d.mimeType || '',
+          size:     d.size     || 0,
+          data:     d.url      || '',
+          uploadedAt: d.uploadedAt || '',
+        };
+      } else if (d.submitted) {
+        // Legacy: submitted=true but no real file. Keep null so form doesn't lie.
+        out.documents[dk] = null;
+      }
     }
   }
   return out;
