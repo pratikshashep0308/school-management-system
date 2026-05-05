@@ -30,11 +30,27 @@ exports.getAdmissions = async (req, res) => {
   const page  = Number(req.query.page)  || 1;
   const limit = Number(req.query.limit) || 50;
 
+  // Date range filter (createdAt)
+  if (req.query.dateFrom || req.query.dateTo) {
+    filter.createdAt = {};
+    if (req.query.dateFrom) filter.createdAt.$gte = new Date(req.query.dateFrom);
+    if (req.query.dateTo)   filter.createdAt.$lte = new Date(req.query.dateTo + 'T23:59:59');
+  }
+
+  // Sort: ?sort=date_asc | date_desc (default) | name_asc | name_desc
+  let sort = { createdAt: -1 };
+  switch (req.query.sort) {
+    case 'date_asc':  sort = { createdAt:  1 }; break;
+    case 'date_desc': sort = { createdAt: -1 }; break;
+    case 'name_asc':  sort = { studentName:  1 }; break;
+    case 'name_desc': sort = { studentName: -1 }; break;
+  }
+
   const [admissions, total] = await Promise.all([
     Admission.find(filter)
       .populate('processedBy', 'name')
       .populate('interview.conductedBy', 'name')
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit),
     Admission.countDocuments(filter)
@@ -129,7 +145,73 @@ exports.getAdmission = async (req, res) => {
 // ─────────────────────────────────────────────
 // POST /api/admissions  (admin)
 // ─────────────────────────────────────────────
+//
+// ── Shared validation helpers (used by createAdmission and publicSubmit) ──
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+const PHONE_RE = /^[0-9+\-\s()]{7,20}$/;
+
+function validateAdmissionPayload(body) {
+  const errs = [];
+  const studentName = (body.studentName || body.name || '').trim();
+  if (!studentName) errs.push('Student Name is required');
+
+  // Email format (only if provided — fields are otherwise optional)
+  for (const field of ['parentEmail', 'fatherEmail', 'motherEmail', 'studentEmail']) {
+    const val = (body[field] || '').trim();
+    if (val && !EMAIL_RE.test(val)) errs.push(`Invalid email format in ${field}`);
+  }
+
+  // Phone format (digits, spaces, +, -, parens; 7-20 chars)
+  for (const field of ['parentPhone', 'fatherPhone', 'motherPhone', 'phone']) {
+    const val = (body[field] || '').trim();
+    if (val && !PHONE_RE.test(val)) errs.push(`Invalid phone format in ${field}`);
+  }
+
+  // Date of birth — must not be in the future
+  const dob = body.dateOfBirth || body.dob;
+  if (dob) {
+    const dobDate = new Date(dob);
+    if (isNaN(dobDate.getTime())) {
+      errs.push('Invalid date of birth');
+    } else if (dobDate > new Date()) {
+      errs.push('Date of birth cannot be in the future');
+    }
+  }
+  return errs;
+}
+
+async function isDuplicateAdmission(body, schoolId) {
+  // Match on parent phone OR parent email, scoped to same school + active (non-rejected) status
+  const Admission = require('../models/Admission');
+  const phone = (body.parentPhone || body.phone || '').trim();
+  const email = (body.parentEmail || body.email || '').trim().toLowerCase();
+  if (!phone && !email) return null;
+  const or = [];
+  if (phone) or.push({ parentPhone: phone });
+  if (email) or.push({ parentEmail: email });
+  return Admission.findOne({
+    school: schoolId,
+    status: { $nin: ['rejected', 'enrolled'] }, // rejected/enrolled = won't conflict
+    $or: or,
+  });
+}
+
 exports.createAdmission = async (req, res) => {
+  // Validate inputs
+  const errs = validateAdmissionPayload(req.body);
+  if (errs.length) {
+    return res.status(400).json({ success: false, message: errs.join('. ') });
+  }
+  // Duplicate check
+  const dupe = await isDuplicateAdmission(req.body, req.user.school);
+  if (dupe) {
+    return res.status(409).json({
+      success: false,
+      message: `An active admission already exists for this contact (${dupe.studentName || dupe.applicationNumber}). Please check existing applications first.`,
+      duplicateOf: dupe._id,
+    });
+  }
+
   const admission = await Admission.create({
     ...req.body,
     school: req.user.school,
@@ -148,8 +230,24 @@ exports.publicSubmit = async (req, res) => {
     if (!finalName) {
       return res.status(400).json({ success: false, message: 'Student name is required' });
     }
+    // Validate the rest of the payload
+    const validationBody = { ...req.body, studentName: finalName, dateOfBirth: dob || req.body.dateOfBirth };
+    const errs = validateAdmissionPayload(validationBody);
+    if (errs.length) {
+      return res.status(400).json({ success: false, message: errs.join('. ') });
+    }
     const School = require('../models/School');
     const school = await School.findOne();
+    // Duplicate check (against this school's active admissions)
+    if (school?._id) {
+      const dupe = await isDuplicateAdmission({ ...req.body, parentPhone: phone, parentEmail: email }, school._id);
+      if (dupe) {
+        return res.status(409).json({
+          success: false,
+          message: 'An admission with this contact already exists. Please contact the school office.',
+        });
+      }
+    }
     const admission = await Admission.create({
       ...req.body,
       studentName:      finalName,
@@ -214,6 +312,10 @@ exports.updateStatus = async (req, res) => {
     $push: { timeline: timelineEntry }
   };
   if (rejectionReason) update.rejectionReason = rejectionReason;
+  // ── TC-ADM-06 — When reopening a rejected admission, clear stale rejection reason
+  if (status === 'pending') {
+    update.rejectionReason = '';
+  }
 
   const admission = await Admission.findByIdAndUpdate(req.params.id, update, { new: true });
   if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });

@@ -156,6 +156,64 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
       return;
     }
 
+    // ── TC-ADM-14 — Email format validation (only if provided) ──────────────
+    const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+    const emailFields = [
+      ['parentEmail',  'Parent Email'],
+      ['fatherEmail',  'Father Email'],
+      ['motherEmail',  'Mother Email'],
+      ['studentEmail', 'Student Email'],
+    ];
+    for (const [key, label] of emailFields) {
+      const val = (form[key] || '').trim();
+      if (val && !EMAIL_RE.test(val)) {
+        toast.error(`${label} is not a valid email address`);
+        return;
+      }
+    }
+
+    // ── TC-ADM-13 — Phone format validation (digits, +, -, space, parens) ───
+    const PHONE_RE = /^[0-9+\-\s()]{7,20}$/;
+    const phoneFields = [
+      ['parentPhone', 'Parent Phone'],
+      ['fatherPhone', 'Father Phone'],
+      ['motherPhone', 'Mother Phone'],
+    ];
+    for (const [key, label] of phoneFields) {
+      const val = (form[key] || '').trim();
+      if (val && !PHONE_RE.test(val)) {
+        toast.error(`${label} must contain digits, +, -, space, or parentheses (7-20 chars)`);
+        return;
+      }
+    }
+
+    // ── TC-ADM-15 — Date of Birth cannot be in the future ───────────────────
+    if (form.dateOfBirth) {
+      const dob = new Date(form.dateOfBirth);
+      if (isNaN(dob.getTime())) {
+        toast.error('Invalid date of birth');
+        return;
+      }
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (dob > today) {
+        toast.error('Date of birth cannot be in the future');
+        return;
+      }
+      // ── TC-ADM-16 — Soft warning if DOB > 25 years ago ────────────────────
+      const yrsAgo = (Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      if (yrsAgo > 25 && !form._dobWarningAcked) {
+        if (!window.confirm(
+          `The student appears to be over 25 years old (DOB: ${form.dateOfBirth}). ` +
+          `Is this correct? Click OK to continue or Cancel to fix.`
+        )) {
+          return;
+        }
+        // Mark acknowledged so we don't ask twice in the same submit
+        set('_dobWarningAcked', true);
+      }
+    }
+
     // Backend still has parentName/parentPhone/parentEmail fields (now optional).
     // Populate them from father (preferred) or mother (fallback) when available
     // so primary-contact display elsewhere in the app still works.
@@ -380,7 +438,9 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           {/* Section 2 - Other Information */}
           <Section number="2" title="Other Information">
             <FloatInput label="Date of Birth">
-              <input type="date" style={INP} value={form.dateOfBirth} onChange={e=>set('dateOfBirth',e.target.value)}/>
+              <input type="date" style={INP} value={form.dateOfBirth}
+                     max={new Date().toISOString().split('T')[0]}
+                     onChange={e=>set('dateOfBirth',e.target.value)}/>
             </FloatInput>
             <FloatInput label="Student Birth Form ID / NIC">
               <input style={INP} value={form.birthFormId} onChange={e=>set('birthFormId',e.target.value)} placeholder="Birth Form ID / NIC"/>

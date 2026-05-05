@@ -220,6 +220,9 @@ export default function Admissions() {
   const [statusFilter, setStatus]       = useState('');
   const [classFilter,  setClass]        = useState('');
   const [priorityFilter,setPriority]    = useState('');
+  const [sortBy,       setSortBy]       = useState('date_desc');
+  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateTo,       setDateTo]       = useState('');
   const [page,         setPage]         = useState(1);
   const [detailId,     setDetailId]     = useState(null);
   const [formModal,    setFormModal]    = useState({ open:false, data:null });
@@ -322,6 +325,9 @@ export default function Admissions() {
       if (statusFilter)   params.status = statusFilter;
       if (classFilter)    params.applyingForClass = classFilter;
       if (priorityFilter) params.priority = priorityFilter;
+      if (sortBy)         params.sort = sortBy;
+      if (dateFrom)       params.dateFrom = dateFrom;
+      if (dateTo)         params.dateTo = dateTo;
       const [res, statsRes] = await Promise.all([
         admissionAPI.getAll(params),
         admissionAPI.getStats(),
@@ -331,11 +337,11 @@ export default function Admissions() {
       setStats(statsRes.data.data);
     } catch { toast.error('Failed to load admissions'); }
     finally { setLoading(false); }
-  }, [search, statusFilter, classFilter, priorityFilter, page]);
+  }, [search, statusFilter, classFilter, priorityFilter, sortBy, dateFrom, dateTo, page]);
 
   useEffect(() => { classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, []);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter, sortBy, dateFrom, dateTo]);
 
   const handleStatusChange = async (id, status) => {
     try {
@@ -486,8 +492,18 @@ export default function Admissions() {
           <option value="high">🟠 High</option>
           <option value="normal">⚪ Normal</option>
         </select>
-        {(search||statusFilter||classFilter||priorityFilter) && (
-          <button onClick={()=>{setSearch('');setStatus('');setClass('');setPriority('');}}
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={SEL} title="Sort by">
+          <option value="date_desc">📅 Newest first</option>
+          <option value="date_asc">📅 Oldest first</option>
+          <option value="name_asc">🔤 Name A → Z</option>
+          <option value="name_desc">🔤 Name Z → A</option>
+        </select>
+        <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+               style={{ ...SEL, minWidth:140 }} title="From date" placeholder="From" />
+        <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+               style={{ ...SEL, minWidth:140 }} title="To date" placeholder="To" />
+        {(search||statusFilter||classFilter||priorityFilter||dateFrom||dateTo||sortBy!=='date_desc') && (
+          <button onClick={()=>{setSearch('');setStatus('');setClass('');setPriority('');setDateFrom('');setDateTo('');setSortBy('date_desc');}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
             ✕ Clear all
           </button>
