@@ -111,7 +111,7 @@ function EnrollModal({ app, onClose, onSuccess }) {
   );
 }
 
-function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, onReject, isAdmin, canEdit, classes }) {
+function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, onReject, onReopen, isAdmin, canEdit, classes }) {
   const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
   return (
     <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
@@ -180,6 +180,12 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
               🚫 Reject
             </button>
           )}
+          {isAdmin && app.status==='rejected' && (
+            <button onClick={()=>onReopen(app)}
+              style={{ fontSize:11, fontWeight:700, color:'#6366F1', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              ↻ Reopen
+            </button>
+          )}
           {canEdit && app.status!=='enrolled' && (
             <button onClick={()=>onEnroll(app)}
               style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
@@ -219,6 +225,7 @@ export default function Admissions() {
   const [formModal,    setFormModal]    = useState({ open:false, data:null });
   const [enrollModal,  setEnrollModal]  = useState({ open:false, data:null });
   const [rejectModal,  setRejectModal]  = useState({ open:false, app:null, reason:'' });
+  const [deleteModal,  setDeleteModal]  = useState({ open:false, id:null, name:'', input:'' });
   const [classes,      setClasses]      = useState([]);
   const limit = 20;
 
@@ -360,10 +367,47 @@ export default function Admissions() {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete application for ${name}?`)) return;
-    try { await admissionAPI.delete(id); toast.success('Deleted'); load(); }
-    catch { toast.error('Delete failed'); }
+  // ── TC-ADM — Delete now requires typing the student's name to confirm ────
+  const handleDelete = (id, name) => {
+    setDeleteModal({ open: true, id, name: name || '', input: '' });
+  };
+
+  const confirmDelete = async () => {
+    const { id, name, input } = deleteModal;
+    // Case-insensitive, whitespace-tolerant match
+    const expected = (name || '').trim().toLowerCase();
+    const typed    = (input || '').trim().toLowerCase();
+    if (!expected) {
+      // Fallback for records without a student name — treat as opt-in via "DELETE"
+      if (typed !== 'delete') {
+        toast.error('Type DELETE to confirm');
+        return;
+      }
+    } else if (typed !== expected) {
+      toast.error("Name doesn't match. Type the student's name exactly.");
+      return;
+    }
+    try {
+      await admissionAPI.delete(id);
+      toast.success('Admission permanently deleted');
+      setDeleteModal({ open: false, id: null, name: '', input: '' });
+      load();
+    } catch {
+      toast.error('Delete failed. Please try again.');
+    }
+  };
+
+  // ── TC-ADM-06 — Reopen rejected admission ────────────────────────────────
+  const handleReopen = async (app) => {
+    const name = app.studentName || app.applicationNumber;
+    if (!window.confirm(`Reopen application for ${name}? Status will change back to Pending.`)) return;
+    try {
+      await admissionAPI.updateStatus(app._id, { status: 'pending' });
+      toast.success(`Reopened: ${name}. Now in Pending.`);
+      load();
+    } catch {
+      toast.error('Failed to reopen. Please try again.');
+    }
   };
 
   const s = stats?.status || {};
@@ -477,7 +521,8 @@ export default function Admissions() {
                     onDownload={(a)=>downloadReceipt(a)}
                     onStatusChange={handleStatusChange}
                     onEnroll={(a)=>setEnrollModal({open:true,data:a})}
-                    onReject={handleReject}/>
+                    onReject={handleReject}
+                    onReopen={handleReopen}/>
                 ))}
               </tbody>
             </table>
@@ -575,6 +620,82 @@ export default function Admissions() {
                          color:'#fff', border:'none',
                          cursor: rejectModal.reason.trim() ? 'pointer' : 'not-allowed' }}>
                 Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Permanent Confirmation Modal ── */}
+      {deleteModal.open && (
+        <div onClick={()=>setDeleteModal({open:false,id:null,name:'',input:''})}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex',
+                   alignItems:'center', justifyContent:'center', zIndex:200, padding:16 }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:520,
+                     boxShadow:'0 25px 50px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+            <div style={{ padding:'18px 22px', borderBottom:'1px solid #FECACA', background:'#FEF2F2' }}>
+              <div style={{ fontSize:16, fontWeight:800, color:'#B91C1C' }}>⚠ Permanent Delete</div>
+              <div style={{ fontSize:12, color:'#7F1D1D', marginTop:3 }}>
+                This action cannot be undone.
+              </div>
+            </div>
+            <div style={{ padding:'20px 22px' }}>
+              <div style={{ fontSize:13, color:'#374151', lineHeight:1.55, marginBottom:14 }}>
+                You are about to <b>permanently delete</b> the admission record for{' '}
+                <b style={{ color:'#111827' }}>{deleteModal.name || '(unnamed applicant)'}</b>.
+                The record will be gone forever and cannot be restored.
+              </div>
+              <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8,
+                            padding:'10px 12px', marginBottom:14, fontSize:12, color:'#92400E' }}>
+                💡 If you only want to mark this applicant as not accepted, use{' '}
+                <b>🚫 Reject</b> instead — that's reversible.
+              </div>
+              <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#374151',
+                              textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>
+                Type <span style={{ color:'#DC2626' }}>
+                  {deleteModal.name ? `"${deleteModal.name}"` : '"DELETE"'}
+                </span> to confirm
+              </label>
+              <input
+                autoFocus
+                value={deleteModal.input}
+                onChange={e=>setDeleteModal(prev=>({ ...prev, input:e.target.value }))}
+                placeholder={deleteModal.name || 'DELETE'}
+                style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #E5E7EB',
+                         borderRadius:10, fontSize:13, fontFamily:'inherit',
+                         boxSizing:'border-box', color:'#111827', outline:'none' }}
+                onKeyDown={(e)=>{
+                  if (e.key === 'Escape') setDeleteModal({open:false,id:null,name:'',input:''});
+                  if (e.key === 'Enter') confirmDelete();
+                }}
+              />
+            </div>
+            <div style={{ padding:'14px 22px', background:'#F9FAFB', borderTop:'1px solid #E5E7EB',
+                          display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button
+                onClick={()=>setDeleteModal({open:false,id:null,name:'',input:''})}
+                style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                         background:'#F3F4F6', border:'1px solid #E5E7EB', color:'#374151',
+                         cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={
+                  deleteModal.name
+                    ? deleteModal.input.trim().toLowerCase() !== deleteModal.name.trim().toLowerCase()
+                    : deleteModal.input.trim().toLowerCase() !== 'delete'
+                }
+                style={{
+                  padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                  color:'#fff', border:'none',
+                  ...(((deleteModal.name && deleteModal.input.trim().toLowerCase() === deleteModal.name.trim().toLowerCase()) ||
+                      (!deleteModal.name && deleteModal.input.trim().toLowerCase() === 'delete'))
+                    ? { background:'#DC2626', cursor:'pointer' }
+                    : { background:'#FCA5A5', cursor:'not-allowed' }),
+                }}>
+                🗑 Permanently Delete
               </button>
             </div>
           </div>
