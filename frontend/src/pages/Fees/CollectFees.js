@@ -1,5 +1,5 @@
 // frontend/src/pages/Fees/CollectFees.js
-// Only Half Yearly (5% off) and Yearly (10% off)
+// Half Yearly (6 months) or Yearly (12 months) plans
 // Pre-fills amounts from assigned fees — editable
 // Generates printable receipt
 
@@ -12,8 +12,8 @@ import PrintableReceipt from '../../components/fees/PrintableReceipt';
 const fmt = n => `₹${Math.round(n||0).toLocaleString('en-IN')}`;
 
 const PERIODS = {
-  halfyearly: { months:6,  discount:5,  label:'Half Yearly',     sub:'6 months fee',         badge:'Save 5%'  },
-  yearly:     { months:12, discount:10, label:'Yearly / Annual', sub:'12 months — best value', badge:'Save 10%' },
+  halfyearly: { months:6,  discount:0, label:'Half Yearly',     sub:'6 months fee'              },
+  yearly:     { months:12, discount:0, label:'Yearly / Annual', sub:'12 months — best value'    },
 };
 
 const DEFAULT_FEE_ITEMS = [
@@ -149,7 +149,8 @@ export default function CollectFees() {
       const [y] = feesMonth.split('-');
       const periodCovered = months.length === 1 ? months[0] : `${months[0]} – ${months[months.length-1]}`;
 
-      const r = await feeAPI.recordPayment({
+      // Build the payload once — we may retry it with the override flag if the backend complains
+      const buildPayload = (allowOverpayment = false) => ({
         studentId:     selected._id,
         classId:       selected.class?._id,
         amount:        +deposit,
@@ -172,7 +173,31 @@ export default function CollectFees() {
         discountAmt:   discAmt,
         totalAmount,
         parentName:    selected.parentName || selected.fatherName || '',
+        ...(allowOverpayment ? { allowOverpayment: true } : {}),
       });
+
+      let r;
+      try {
+        r = await feeAPI.recordPayment(buildPayload(false));
+      } catch (err) {
+        // Backend rejected because this payment would exceed total fees.
+        // Ask admin if they want to proceed anyway (e.g. legitimate overpayment / advance).
+        if (err.response?.data?.code === 'OVERPAYMENT') {
+          const d = err.response.data.detail || {};
+          const proceed = window.confirm(
+            `⚠️ This payment exceeds the balance.\n\n` +
+            `Total fees:   ₹${(d.totalDue||0).toLocaleString('en-IN')}\n` +
+            `Already paid: ₹${(d.currentPaid||0).toLocaleString('en-IN')}\n` +
+            `Remaining:    ₹${(d.remaining||0).toLocaleString('en-IN')}\n` +
+            `This payment: ₹${(d.attemptedAmount||0).toLocaleString('en-IN')}\n\n` +
+            `Proceed anyway? (Click OK to record as overpayment / advance)`
+          );
+          if (!proceed) { setSubmitting(false); return; }
+          r = await feeAPI.recordPayment(buildPayload(true));
+        } else {
+          throw err;
+        }
+      }
 
       const history = feeRecord?.paymentHistory || [];
       setReceipt({
@@ -283,7 +308,6 @@ export default function CollectFees() {
                   }}>
                     <div style={{ fontSize:16, fontWeight:700, color:active?'#1E40AF':'#111827' }}>{p.label}</div>
                     <div style={{ fontSize:12, color:active?'#3B82F6':'#9CA3AF', marginTop:2 }}>{p.sub}</div>
-                    <span style={{ display:'inline-block', marginTop:8, fontSize:11, fontWeight:700, background:'#D1FAE5', color:'#065F46', padding:'3px 10px', borderRadius:20 }}>{p.badge}</span>
                   </div>
                 );
               })}
@@ -382,12 +406,12 @@ export default function CollectFees() {
               </tr>
               <tr style={{ background:'#F0FDF4' }}>
                   <td colSpan={5} style={{ padding:'9px 24px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', color:'#16A34A' }}>
-                    Discount {pd.discount > 0 ? `(${pd.discount}% auto)` : ''}
+                    Discount
                   </td>
                   <td style={{ padding:'5px 10px', border:'1px solid #E5E7EB' }}>
                     <input type="number" min="0"
-                      value={customDiscount !== '' ? customDiscount : (pd.discount > 0 ? discAmt : '')}
-                      placeholder={pd.discount > 0 ? fmt(discAmt) : '0'}
+                      value={customDiscount}
+                      placeholder="0"
                       onChange={e=>setCustomDiscount(e.target.value)}
                       style={{ width:'100%', padding:'5px 10px', border:'1.5px solid #10B981', borderRadius:7, fontSize:13, textAlign:'right', outline:'none', background:'#F0FDF4', fontWeight:700, color:'#16A34A' }}/>
                   </td>
