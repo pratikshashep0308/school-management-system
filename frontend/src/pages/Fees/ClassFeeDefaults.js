@@ -24,7 +24,6 @@ export default function ClassFeeDefaults() {
   const [lines,     setLines]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
-  const [applyOpen, setApplyOpen] = useState(false);
   const [typeMgrOpen, setTypeMgrOpen] = useState(false);
 
   const reloadFeeTypes = async () => {
@@ -132,11 +131,6 @@ export default function ClassFeeDefaults() {
           <button style={BTN_LIGHT} onClick={() => setTypeMgrOpen(true)}>
             ⚙ Manage fee types
           </button>
-          {template && (
-            <button style={BTN_LIGHT} onClick={() => setApplyOpen(true)}>
-              ↻ Apply to existing students
-            </button>
-          )}
           <button style={BTN_PRIMARY} onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : (template ? 'Save changes' : 'Save defaults')}
           </button>
@@ -244,16 +238,6 @@ export default function ClassFeeDefaults() {
         </div>
       )}
 
-      {/* ── "Apply to existing students" modal ── */}
-      {applyOpen && (
-        <ApplyToStudentsModal
-          classId={classId}
-          className={`${selectedClass?.name||''} ${selectedClass?.section||''}`}
-          template={template}
-          onClose={() => setApplyOpen(false)}
-        />
-      )}
-
       {/* ── "Manage fee types" modal ── */}
       {typeMgrOpen && (
         <FeeTypeManagerModal
@@ -270,138 +254,6 @@ export default function ClassFeeDefaults() {
 const th = { padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' };
 const td = { padding:'8px 10px', verticalAlign:'top' };
 
-// ── Sub-component: apply to existing students with per-student override ───────
-function ApplyToStudentsModal({ classId, className, template, onClose }) {
-  const [students, setStudents] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [applying, setApplying] = useState(false);
-  // per-student per-feeType override map: { studentId: { feeTypeId: { amount, skip } } }
-  const [overrides, setOverrides] = useState({});
-  const [selected,  setSelected]  = useState({}); // studentId -> bool
-
-  useEffect(() => {
-    studentAPI.getAll({ classId }).then(r => {
-      const list = (r.data.data || []).filter(s => s.isActive !== false);
-      setStudents(list);
-      // Default: all selected
-      const sel = {};
-      list.forEach(s => { sel[s._id] = true; });
-      setSelected(sel);
-    }).catch(()=>{}).finally(() => setLoading(false));
-  }, [classId]);
-
-  const setOverride = (studentId, feeTypeId, key, val) => {
-    setOverrides(prev => ({
-      ...prev,
-      [studentId]: { ...(prev[studentId] || {}), [feeTypeId]: { ...((prev[studentId]||{})[feeTypeId] || {}), [key]: val } },
-    }));
-  };
-
-  const apply = async () => {
-    const studentIds = Object.keys(selected).filter(id => selected[id]);
-    if (!studentIds.length) return toast.error('Select at least one student');
-    setApplying(true);
-    try {
-      // Send a single call per-student so each can have its own overrides.
-      // For students with no overrides, send the empty map (template applies as-is).
-      let totalApplied = 0, totalSkipped = 0;
-      for (const sid of studentIds) {
-        const ov = overrides[sid] || {};
-        const r = await feeAPI.applyClassTemplate(classId, { studentIds: [sid], overrides: ov });
-        totalApplied += r.data.summary?.totalApplied || 0;
-        totalSkipped += r.data.summary?.totalSkipped || 0;
-      }
-      toast.success(`Applied ${totalApplied} fee${totalApplied === 1 ? '' : 's'} (${totalSkipped} skipped)`);
-      onClose();
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Apply failed');
-    } finally { setApplying(false); }
-  };
-
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-      <div style={{ background:'#fff', borderRadius:12, width:'100%', maxWidth:880, maxHeight:'90vh', display:'flex', flexDirection:'column', overflow:'hidden' }}>
-        <div style={{ padding:'14px 18px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div>
-            <div style={{ fontSize:15, fontWeight:800, color:'#111827' }}>Apply defaults to students of {className}</div>
-            <div style={{ fontSize:12, color:'#6B7280' }}>Tweak amounts per student before applying. Existing duplicate fees are skipped.</div>
-          </div>
-          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#6B7280' }}>✕</button>
-        </div>
-
-        <div style={{ flex:1, overflowY:'auto', padding:14 }}>
-          {loading ? <LoadingState /> : students.length === 0 ? (
-            <EmptyState icon="👥" title="No students" subtitle="No active students in this class." />
-          ) : (
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-              <thead>
-                <tr style={{ background:'#F9FAFB' }}>
-                  <th style={{ ...th, width:32 }}>
-                    <input type="checkbox"
-                      checked={students.every(s => selected[s._id])}
-                      onChange={e => {
-                        const v = e.target.checked;
-                        const sel = {};
-                        students.forEach(s => { sel[s._id] = v; });
-                        setSelected(sel);
-                      }} />
-                  </th>
-                  <th style={th}>Student</th>
-                  {template?.lines?.map((l, i) => (
-                    <th key={i} style={th}>
-                      {l.feeType?.name || 'Fee'}
-                      <div style={{ fontSize:9, color:'#9CA3AF', fontWeight:400 }}>Yearly {fmt(l.annualAmount)}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {students.map(s => (
-                  <tr key={s._id} style={{ borderTop:'1px solid #F3F4F6' }}>
-                    <td style={td}>
-                      <input type="checkbox" checked={!!selected[s._id]}
-                        onChange={e => setSelected(prev => ({ ...prev, [s._id]: e.target.checked }))} />
-                    </td>
-                    <td style={td}>
-                      <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{s.user?.name || '—'}</div>
-                      <div style={{ fontSize:11, color:'#6B7280' }}>{s.admissionNumber || ''}</div>
-                    </td>
-                    {template?.lines?.map(l => {
-                      const ftId = l.feeType?._id || l.feeType;
-                      const cur = overrides[s._id]?.[ftId] || {};
-                      return (
-                        <td key={ftId} style={td}>
-                          <input type="number" min="0" disabled={!selected[s._id] || cur.skip}
-                            placeholder={String(l.annualAmount)}
-                            style={{ ...INP, padding:'5px 8px', fontSize:12 }}
-                            value={cur.annualAmount ?? ''}
-                            onChange={e => setOverride(s._id, ftId, 'annualAmount', e.target.value)} />
-                          <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:10, color:'#9CA3AF', marginTop:3 }}>
-                            <input type="checkbox" checked={!!cur.skip}
-                              onChange={e => setOverride(s._id, ftId, 'skip', e.target.checked)} />
-                            Skip
-                          </label>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div style={{ padding:'12px 18px', borderTop:'1px solid #E5E7EB', display:'flex', justifyContent:'flex-end', gap:8 }}>
-          <button style={BTN_LIGHT} onClick={onClose}>Cancel</button>
-          <button style={BTN_PRIMARY} onClick={apply} disabled={applying}>
-            {applying ? 'Applying…' : 'Apply now'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Sub-component: manage fee types (add / rename / delete) ────────────────
 function FeeTypeManagerModal({ feeTypes, onChange, onClose }) {
   const [name,        setName]        = useState('');
@@ -410,6 +262,8 @@ function FeeTypeManagerModal({ feeTypes, onChange, onClose }) {
   const [defaultAmt,  setDefaultAmt]  = useState('');
   const [saving,      setSaving]      = useState(false);
   const [editingId,   setEditingId]   = useState(null);
+  const formRef = React.useRef(null);
+  const nameInputRef = React.useRef(null);
 
   const startEdit = (t) => {
     setEditingId(t._id);
@@ -417,6 +271,12 @@ function FeeTypeManagerModal({ feeTypes, onChange, onClose }) {
     setCategory(t.category || 'other');
     setIsRecurring(!!t.isRecurring);
     setDefaultAmt(t.defaultAmount || '');
+    // Scroll the form into view + focus the name field so user sees it filled
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 50);
   };
 
   const reset = () => {
@@ -472,14 +332,20 @@ function FeeTypeManagerModal({ feeTypes, onChange, onClose }) {
         </div>
 
         {/* Add / Edit form */}
-        <div style={{ padding:14, borderBottom:'1px solid #F3F4F6', background:'#F9FAFB' }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:8 }}>
-            {editingId ? 'Edit fee type' : 'Add new fee type'}
+        <div ref={formRef} style={{
+          padding:14,
+          borderBottom:'1px solid #F3F4F6',
+          background: editingId ? '#FEF3C7' : '#F9FAFB',
+          borderLeft: editingId ? '4px solid #F59E0B' : '4px solid transparent',
+          transition: 'background 0.2s, border-color 0.2s',
+        }}>
+          <div style={{ fontSize:12, fontWeight:700, color: editingId ? '#92400E' : '#374151', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:8 }}>
+            {editingId ? `✏️ Editing fee type — make changes below and click Update` : 'Add new fee type'}
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'2fr 1.3fr 1fr 1fr auto', gap:8, alignItems:'end' }}>
             <div>
               <div style={LBL}>Name</div>
-              <input style={INP} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sports Fee" />
+              <input ref={nameInputRef} style={INP} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sports Fee" />
             </div>
             <div>
               <div style={LBL}>Category</div>
@@ -530,7 +396,7 @@ function FeeTypeManagerModal({ feeTypes, onChange, onClose }) {
               </thead>
               <tbody>
                 {feeTypes.map(t => (
-                  <tr key={t._id} style={{ borderTop:'1px solid #F3F4F6' }}>
+                  <tr key={t._id} style={{ borderTop:'1px solid #F3F4F6', background: editingId === t._id ? '#FEF3C7' : 'transparent' }}>
                     <td style={td}>
                       <div style={{ fontWeight:700, color:'#111827' }}>{t.name}</div>
                     </td>
