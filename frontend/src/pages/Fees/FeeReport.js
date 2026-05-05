@@ -185,6 +185,46 @@ export default function FeeReport() {
   const [activeView,  setActiveView]  = useState('all'); // all | defaulters | paid | partial
   const [panelStudent,setPanelStudent]= useState(null);
   const [summary,     setSummary]     = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [deleting,    setDeleting]    = useState(false);
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleDeleteSingle = async (s) => {
+    const name = s.student?.user?.name || 'this record';
+    if (!window.confirm(`Delete fee record for ${name}?\n\nThis removes the entire ledger and all linked payments.\nThis cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await feeAPI.deleteLedger(s._id);
+      setStudents(prev => prev.filter(x => x._id !== s._id));
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(s._id); return n; });
+      toast.success('Record deleted');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Delete failed');
+    } finally { setDeleting(false); }
+  };
+
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!window.confirm(`Delete ${ids.length} fee record(s)?\n\nThis removes those ledgers and all linked payments.\nThis cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const r = await feeAPI.bulkDeleteLedgers(ids);
+      setStudents(prev => prev.filter(x => !selectedIds.has(x._id)));
+      clearSelection();
+      toast.success(`Deleted ${r.data.deletedCount} record(s)`);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Bulk delete failed');
+    } finally { setDeleting(false); }
+  };
 
   // Load classes + school summary
   useEffect(() => {
@@ -355,6 +395,25 @@ export default function FeeReport() {
         {classId && <button onClick={()=>setClassId('')} style={{ fontSize:12, color:'#DC2626', background:'none', border:'none', cursor:'pointer' }}>✕ Clear class filter</button>}
       </div>
 
+      {/* ── Bulk action bar (only shows when something is selected) ── */}
+      {selectedIds.size > 0 && (
+        <div style={{ background:'#FEF3C7', border:'1px solid #FCD34D', borderRadius:10, padding:'10px 14px', marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ fontSize:13, color:'#78350F', fontWeight:700 }}>
+            {selectedIds.size} record(s) selected
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={clearSelection}
+              style={{ fontSize:12, fontWeight:700, color:'#78350F', background:'transparent', border:'1px solid #FCD34D', padding:'6px 14px', borderRadius:7, cursor:'pointer' }}>
+              Clear
+            </button>
+            <button onClick={handleDeleteSelected} disabled={deleting}
+              style={{ fontSize:12, fontWeight:700, color:'#fff', background:'#DC2626', border:'none', padding:'6px 16px', borderRadius:7, cursor:'pointer' }}>
+              {deleting ? 'Deleting…' : `🗑 Delete ${selectedIds.size}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Student Table ── */}
       {loading ? <LoadingState /> : !filtered.length ? (
         <EmptyState icon="💰" title="No students found" subtitle="Try adjusting your filters"/>
@@ -364,7 +423,16 @@ export default function FeeReport() {
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
               <thead>
                 <tr style={{ background:'#0B1F4A' }}>
-                  {['#','Student','Roll','Class','Total Fees','Paid','Pending','Progress','Status','History'].map(h=>(
+                  <th style={{ padding:'11px 8px', textAlign:'center', color:'#E2E8F0', width:36 }}>
+                    <input type="checkbox"
+                      checked={filtered.length > 0 && filtered.every(s => selectedIds.has(s._id))}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedIds(new Set(filtered.map(s => s._id)));
+                        else clearSelection();
+                      }}
+                      title="Select all visible"/>
+                  </th>
+                  {['#','Student','Roll','Class','Total Fees','Paid','Pending','Progress','Status','History','Delete'].map(h=>(
                     <th key={h} style={{ padding:'11px 14px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -379,9 +447,12 @@ export default function FeeReport() {
 
                   return (
                     <tr key={s._id||i}
-                      style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff', transition:'background 0.1s' }}
-                      onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
-                      onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}>
+                      style={{ borderBottom:'0.5px solid #F3F4F6', background: selectedIds.has(s._id) ? '#FEF3C7' : (i%2?'#FAFAFA':'#fff'), transition:'background 0.1s' }}
+                      onMouseEnter={e=>{ if(!selectedIds.has(s._id)) e.currentTarget.style.background='#F0F7FF'; }}
+                      onMouseLeave={e=>{ if(!selectedIds.has(s._id)) e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'; }}>
+                      <td style={{ padding:'11px 8px', textAlign:'center' }}>
+                        <input type="checkbox" checked={selectedIds.has(s._id)} onChange={() => toggleSelect(s._id)} />
+                      </td>
                       <td style={{ padding:'11px 14px', color:'#9CA3AF', fontSize:12 }}>{i+1}</td>
                       <td style={{ padding:'11px 14px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:9 }}>
@@ -416,6 +487,12 @@ export default function FeeReport() {
                           <span style={{ fontSize:11, color:'#9CA3AF', fontStyle:'italic' }}>orphan record</span>
                         )}
                       </td>
+                      <td style={{ padding:'11px 14px' }}>
+                        <button onClick={() => handleDeleteSingle(s)} disabled={deleting} title="Delete this fee record"
+                          style={{ fontSize:12, fontWeight:700, color:'#991B1B', background:'#FEF2F2', border:'1px solid #FECACA', padding:'5px 10px', borderRadius:7, cursor:'pointer' }}>
+                          🗑
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -424,7 +501,7 @@ export default function FeeReport() {
               {/* Footer totals */}
               <tfoot>
                 <tr style={{ background:'#F8FAFC', borderTop:'2px solid #E5E7EB' }}>
-                  <td colSpan={4} style={{ padding:'11px 14px', fontWeight:700, color:'#374151' }}>
+                  <td colSpan={5} style={{ padding:'11px 14px', fontWeight:700, color:'#374151' }}>
                     Total ({filtered.length} students)
                   </td>
                   <td style={{ padding:'11px 14px', fontWeight:900, color:'#1D4ED8' }}>
@@ -436,7 +513,7 @@ export default function FeeReport() {
                   <td style={{ padding:'11px 14px', fontWeight:900, color:'#DC2626' }}>
                     {fmt(filtered.reduce((s,st)=>s+(st.pendingAmount||0),0))}
                   </td>
-                  <td colSpan={3}/>
+                  <td colSpan={4}/>
                 </tr>
               </tfoot>
             </table>

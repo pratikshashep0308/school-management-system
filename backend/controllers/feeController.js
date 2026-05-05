@@ -271,6 +271,63 @@ exports.deletePayment = async (req, res) => {
   res.json({ success: true, message: 'Payment deleted', receiptNumber });
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/fees/ledger/:id
+// Delete a single StudentFee ledger record (the row in Fee Report).
+// Also clears the linked FeePayment + FeeAssignment.payments entries.
+// Use to remove orphan or corrupt fee records.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.deleteStudentFee = async (req, res) => {
+  const { id } = req.params;
+  const ledger = await StudentFee.findOne({ _id: id, school: req.user.school });
+  if (!ledger) return res.status(404).json({ success: false, message: 'Ledger not found' });
+
+  // Best-effort cleanup of related records
+  const receiptNumbers = (ledger.paymentHistory || []).map(p => p.receiptNumber).filter(Boolean);
+  try {
+    if (receiptNumbers.length) {
+      await FeePayment.deleteMany({ receiptNumber: { $in: receiptNumbers }, school: req.user.school });
+      await FeeAssignment.updateMany(
+        { 'payments.receiptNumber': { $in: receiptNumbers }, school: req.user.school },
+        { $pull: { payments: { receiptNumber: { $in: receiptNumbers } } } }
+      );
+    }
+  } catch (e) { /* non-fatal */ }
+
+  await StudentFee.deleteOne({ _id: id, school: req.user.school });
+  res.json({ success: true, message: 'Fee record deleted', id });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/fees/ledger/bulk-delete
+// Delete multiple StudentFee ledgers in one request.
+// body: { ids: [...] }
+// ─────────────────────────────────────────────────────────────────────────────
+exports.bulkDeleteStudentFees = async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) {
+    return res.status(400).json({ success: false, message: 'ids array required' });
+  }
+
+  const ledgers = await StudentFee.find({ _id: { $in: ids }, school: req.user.school });
+  if (!ledgers.length) return res.status(404).json({ success: false, message: 'No matching records' });
+
+  const allReceipts = ledgers.flatMap(l => (l.paymentHistory || []).map(p => p.receiptNumber).filter(Boolean));
+
+  try {
+    if (allReceipts.length) {
+      await FeePayment.deleteMany({ receiptNumber: { $in: allReceipts }, school: req.user.school });
+      await FeeAssignment.updateMany(
+        { 'payments.receiptNumber': { $in: allReceipts }, school: req.user.school },
+        { $pull: { payments: { receiptNumber: { $in: allReceipts } } } }
+      );
+    }
+  } catch (e) { /* non-fatal */ }
+
+  const result = await StudentFee.deleteMany({ _id: { $in: ids }, school: req.user.school });
+  res.json({ success: true, deletedCount: result.deletedCount });
+};
+
 
 exports.getRecentPayments = async (req, res) => {
   const school = req.user.school;

@@ -20,6 +20,8 @@ const feeAPI = {
   // ── Receipts ─────────────────────────────────────────────────────────────────
   getReceipt:      (receiptNo)    => api.get(`/fees/receipt/${receiptNo}`),
   deletePayment:   (receiptNo)    => api.delete(`/fees/payment/${receiptNo}`),
+  deleteLedger:    (id)           => api.delete(`/fees/ledger/${id}`),
+  bulkDeleteLedgers:(ids)         => api.post('/fees/ledger/bulk-delete', { ids }),
   // PDF download handled via fetch() with blob response in the component
 
   // ── Fee Structures (existing) ─────────────────────────────────────────────

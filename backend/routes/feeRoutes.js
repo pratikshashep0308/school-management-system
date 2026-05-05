@@ -57,6 +57,10 @@ router.get('/receipt/:receiptNumber',     ctrl.getReceipt);
 // Delete a payment (admin only) — by receipt number
 router.delete('/payment/:receiptNumber', authorize(...ADMIN), ctrl.deletePayment);
 
+// Delete a fee ledger (admin only) — single + bulk
+router.delete('/ledger/:id',         authorize(...ADMIN), ctrl.deleteStudentFee);
+router.post('/ledger/bulk-delete',   authorize(...ADMIN), ctrl.bulkDeleteStudentFees);
+
 // Student ledger — student can see own (existing)
 router.get('/student/:studentId', ctrl.getStudentFee);
 
