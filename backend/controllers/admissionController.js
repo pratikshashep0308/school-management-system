@@ -278,9 +278,20 @@ exports.updateAdmission = async (req, res) => {
   const timelineEntry = { action: 'Application details updated', byName: req.user.name, by: req.user.id, at: new Date() };
   if (req.body.notes) timelineEntry.note = req.body.notes;
 
+  // Strip read-only / server-managed fields from the payload BEFORE the update.
+  // If we leave 'timeline' in the body, MongoDB throws:
+  //   "Updating the path 'timeline' would create a conflict at 'timeline'"
+  // because we're also trying to $push timeline. Same defense for _id and other
+  // immutable fields the frontend might echo back.
+  const {
+    _id, __v, school, status, applicationNumber, processedBy, processedAt,
+    timeline, createdAt, updatedAt,
+    ...safeBody
+  } = req.body;
+
   const updated = await Admission.findByIdAndUpdate(
     req.params.id,
-    { ...req.body, $push: { timeline: timelineEntry } },
+    { ...safeBody, $push: { timeline: timelineEntry } },
     { new: true, runValidators: true }
   );
   res.json({ success: true, data: updated });

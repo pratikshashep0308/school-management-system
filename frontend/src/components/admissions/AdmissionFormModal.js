@@ -237,8 +237,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
       // ── TC-ADM-16 — Soft warning if DOB > 25 years ago ────────────────────
       const yrsAgo = (Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
       if (yrsAgo > 25 && !form._dobWarningAcked) {
+        // Show a nicely formatted date in the warning, regardless of what
+        // shape the DOB came in (raw ISO string vs YYYY-MM-DD).
+        const niceDob = dob.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         if (!window.confirm(
-          `The student appears to be over 25 years old (DOB: ${form.dateOfBirth}). ` +
+          `The student appears to be over 25 years old (DOB: ${niceDob}). ` +
           `Is this correct? Click OK to continue or Cancel to fix.`
         )) {
           return;
@@ -255,9 +258,18 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     const primaryPhone = (form.parentPhone || form.fatherPhone || form.motherPhone || '').trim();
     const primaryEmail = (form.parentEmail || '').trim();
 
+    // Server-managed fields the frontend should never send back on update.
+    // Sending them causes MongoDB conflicts (e.g. timeline = $push collision).
+    const {
+      _id, __v, school, status: _status, applicationNumber,
+      processedBy, processedAt, timeline, createdAt, updatedAt,
+      _dobWarningAcked, // local-only flag
+      ...formData
+    } = form;
+
     // Map fields for backend compatibility
     const payload = {
-      ...form,
+      ...formData,
       applyingForClass: form.applyingForClass || '',
       parentName:  primaryName,
       parentPhone: primaryPhone,
