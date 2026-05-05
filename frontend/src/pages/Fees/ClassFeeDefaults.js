@@ -50,6 +50,9 @@ export default function ClassFeeDefaults() {
   // ── Load this class's template whenever class changes ──────────────
   useEffect(() => {
     if (!classId) return;
+    // Reset immediately so old class's lines don't linger during fetch
+    setTemplate(null);
+    setLines([]);
     feeAPI.getClassTemplate(classId).then(r => {
       const tpl = r.data.data;
       setTemplate(tpl);

@@ -75,49 +75,52 @@ export default function CollectFees() {
     setSelected(student);
     setQuery(`${student.rollNumber} - ${student.user?.name} - ${student.class?.name||''} ${student.class?.section||''}`);
     setSuggestions([]);
+
+    // 1. Fetch class template FIRST and independently — this is the source of truth
+    const classId = student.class?._id;
+    let templateLines = [];
+    if (classId) {
+      try {
+        const tplRes = await feeAPI.getClassTemplate(classId);
+        const tpl = tplRes.data?.data;
+        if (tpl?.lines?.length) {
+          templateLines = tpl.lines.map((l, i) => ({
+            key:    `tpl-${i}-${l.feeType?._id || l.feeType}`,
+            label:  l.feeType?.name || 'Fee',
+            amount: Math.round(l.annualAmount || 0),
+          }));
+        }
+      } catch (e) {
+        console.warn('Class template fetch failed:', e?.response?.status, e?.response?.data);
+      }
+    }
+
+    // 2. Try to fetch student's existing ledger (may not exist yet — that's OK)
     try {
-      // 1. Fetch student's ledger (just for past-payment history & totalFees)
       const r = await feeAPI.getStudentFee(student._id);
       setFeeRecord(r.data.data);
       setAssignments(r.data.assignments || []);
-
-      // 2. ALWAYS pre-fill from the class template — that's the source of truth
-      const classId = student.class?._id;
-      let templateLines = [];
-      if (classId) {
-        try {
-          const tplRes = await feeAPI.getClassTemplate(classId);
-          const tpl = tplRes.data?.data;
-          if (tpl?.lines?.length) {
-            templateLines = tpl.lines.map((l, i) => ({
-              key:    `tpl-${i}-${l.feeType?._id || l.feeType}`,
-              label:  l.feeType?.name || 'Fee',
-              amount: Math.round(l.annualAmount || 0),
-            }));
-          }
-        } catch { /* template fetch failed — fall through */ }
-      }
-
-      // 3. Build the table: template lines first, then adjustment rows
-      const extras = [
-        { key:'fine',        label:'Fine',             amount:0 },
-        { key:'others',      label:'Others',           amount:0 },
-        { key:'prevBalance', label:'Previous Balance', amount:0 },
-        { key:'discount',    label:'Discount',         amount:0, isDiscount:true },
-      ];
-
-      if (templateLines.length > 0) {
-        setFeeItems([...templateLines, ...extras]);
-        toast.success(`Loaded ${templateLines.length} fee(s) from ${student.class?.name||'class'} defaults`);
-      } else {
-        // No class template configured — empty manual sheet
-        setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f})));
-        toast(`No class defaults set for ${student.class?.name||'this class'} — enter fees manually`, { icon:'ℹ️' });
-      }
     } catch {
+      // No ledger yet — first-time fee collection for this student. Not an error.
       setFeeRecord(null);
       setAssignments([]);
+    }
+
+    // 3. Build the fee table — template lines + adjustment rows
+    const extras = [
+      { key:'fine',        label:'Fine',             amount:0 },
+      { key:'others',      label:'Others',           amount:0 },
+      { key:'prevBalance', label:'Previous Balance', amount:0 },
+      { key:'discount',    label:'Discount',         amount:0, isDiscount:true },
+    ];
+
+    if (templateLines.length > 0) {
+      setFeeItems([...templateLines, ...extras]);
+      toast.success(`Loaded ${templateLines.length} fee(s) from ${student.class?.name||'class'} defaults`);
+    } else {
+      // No class template — empty manual sheet
       setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f})));
+      toast(`No class defaults set for ${student.class?.name||'this class'} — enter fees manually`, { icon:'ℹ️' });
     }
   };
 
