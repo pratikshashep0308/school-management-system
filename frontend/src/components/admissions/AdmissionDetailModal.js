@@ -376,28 +376,60 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                       const submitted = docData?.submitted || false;
                       const fileUrl   = docData?.url || '';
                       const fileName  = docData?.fileName || '';
-                      const hasFile   = !!fileUrl;
+                      // Only treat as "has viewable file" if the url is a real,
+                      // openable resource — not a legacy filename string
+                      const isViewable = fileUrl && (
+                        fileUrl.startsWith('data:') ||
+                        fileUrl.startsWith('blob:') ||
+                        /^https?:\/\//i.test(fileUrl)
+                      );
+                      const hasFile = isViewable;
 
                       const openFile = (e) => {
                         e.stopPropagation();
                         if (!fileUrl) return;
-                        // Open the file in a new tab. Works for both base64 data URLs
-                        // and plain http(s) URLs.
+
+                        // Detect what kind of URL we have:
+                        //   - data:    → base64 data URL (new uploads — embed preview)
+                        //   - http(s)  → real remote URL (open directly)
+                        //   - blob:    → in-memory blob URL (open directly)
+                        //   - anything else (filename like "cert.pdf", "/path", etc)
+                        //     → legacy data; the actual file was never uploaded.
+                        //       Don't redirect anywhere — just inform the user.
+                        const isData  = fileUrl.startsWith('data:');
+                        const isHttp  = /^https?:\/\//i.test(fileUrl);
+                        const isBlob  = fileUrl.startsWith('blob:');
+
+                        if (!isData && !isHttp && !isBlob) {
+                          alert(
+                            `This document was marked as submitted but the actual file ` +
+                            `is not available for viewing.\n\n` +
+                            `Filename on record: ${fileName || fileUrl}\n\n` +
+                            `Please ask the parent to re-upload the file using the ` +
+                            `Edit option on this admission.`
+                          );
+                          return;
+                        }
+
                         const w = window.open();
-                        if (w) {
-                          if (fileUrl.startsWith('data:')) {
-                            // For data URLs, embed an iframe-style preview so PDFs render too
-                            const isImage = (docData.mimeType || '').startsWith('image/');
-                            w.document.write(
-                              `<title>${fileName || doc.label}</title>` +
-                              `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
-                              (isImage
-                                ? `<img src="${fileUrl}" alt="${fileName || ''}"/>`
-                                : `<embed src="${fileUrl}" type="${docData.mimeType || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
-                            );
-                          } else {
-                            w.location.href = fileUrl;
-                          }
+                        if (!w) {
+                          alert('Could not open new tab. Please allow pop-ups for this site.');
+                          return;
+                        }
+
+                        if (isData) {
+                          // Embed preview so PDFs render in the new tab
+                          const isImage = (docData.mimeType || '').startsWith('image/');
+                          w.document.write(
+                            `<title>${fileName || doc.label}</title>` +
+                            `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                            (isImage
+                              ? `<img src="${fileUrl}" alt="${fileName || ''}"/>`
+                              : `<embed src="${fileUrl}" type="${docData.mimeType || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                          );
+                        } else {
+                          // http(s) or blob — open directly
+                          w.location.href = fileUrl;
                         }
                       };
 
