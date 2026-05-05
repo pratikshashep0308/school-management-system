@@ -1,659 +1,560 @@
-// frontend/src/components/admissions/AdmissionDetailModal.js
-import React, { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
-import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../utils/admissionUtils';
-import { studentAPI, classAPI } from '../../utils/api';
+const mongoose = require('mongoose');
+const Admission = require('../models/Admission');
+const Student   = require('../models/Student');
+const User      = require('../models/User');
+const bcrypt    = require('bcryptjs');
 
-const DOCS = [
-  { key: 'birthCertificate',    label: 'Birth Certificate'    },
-  { key: 'transferCertificate', label: 'Transfer Certificate' },
-  { key: 'marksheet',           label: 'Marksheet'            },
-  { key: 'aadhaarCard',         label: 'Aadhaar Card'         },
-  { key: 'passportPhoto',       label: 'Passport Photo'       },
-  { key: 'casteCertificate',    label: 'Caste Certificate'    },
-  { key: 'medicalCertificate',  label: 'Medical Certificate'  },
-  { key: 'addressProof',        label: 'Address Proof'        },
-];
+// ─────────────────────────────────────────────
+// GET /api/admissions
+// ─────────────────────────────────────────────
+exports.getAdmissions = async (req, res) => {
+  const filter = { school: req.user.school };
+  if (req.query.status)           filter.status = req.query.status;
+  if (req.query.applyingForClass) filter.applyingForClass = req.query.applyingForClass;
+  if (req.query.priority)         filter.priority = req.query.priority;
+  if (req.query.source)           filter.source = req.query.source;
+  if (req.query.academicYear)     filter.academicYear = req.query.academicYear;
 
-const STATUSES = Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({ key, label: cfg.label }));
+  // Text search
+  if (req.query.search) {
+    const q = req.query.search;
+    filter.$or = [
+      { studentName:       { $regex: q, $options: 'i' } },
+      { applicationNumber: { $regex: q, $options: 'i' } },
+      { parentName:        { $regex: q, $options: 'i' } },
+      { parentEmail:       { $regex: q, $options: 'i' } },
+      { parentPhone:       { $regex: q, $options: 'i' } }
+    ];
+  }
 
-export default function AdmissionDetailModal({ id, onClose, onScheduleInterview }) {
-  const [app, setApp]         = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState('details'); // details | documents | timeline | notes
-  const [saving, setSaving]   = useState(false);
-  const [enrolling, setEnrolling] = useState(false);
-  const [classes, setClasses]     = useState([]);
-  const [enrollClass, setEnrollClass] = useState('');
-  const [enrollRoll, setEnrollRoll]   = useState('');
-  const [showEnroll, setShowEnroll]   = useState(false);
+  const page  = Number(req.query.page)  || 1;
+  const limit = Number(req.query.limit) || 50;
 
-  // Status update
-  const [newStatus, setNewStatus]   = useState('');
-  const [statusNote, setStatusNote] = useState('');
-  const [rejReason, setRejReason]   = useState('');
+  // Date range filter (createdAt)
+  if (req.query.dateFrom || req.query.dateTo) {
+    filter.createdAt = {};
+    if (req.query.dateFrom) filter.createdAt.$gte = new Date(req.query.dateFrom);
+    if (req.query.dateTo)   filter.createdAt.$lte = new Date(req.query.dateTo + 'T23:59:59');
+  }
 
-  // Note
-  const [note, setNote]           = useState('');
-  const [isInternal, setInternal] = useState(false);
+  // Sort: ?sort=date_asc | date_desc (default) | name_asc | name_desc
+  let sort = { createdAt: -1 };
+  switch (req.query.sort) {
+    case 'date_asc':  sort = { createdAt:  1 }; break;
+    case 'date_desc': sort = { createdAt: -1 }; break;
+    case 'name_asc':  sort = { studentName:  1 }; break;
+    case 'name_desc': sort = { studentName: -1 }; break;
+  }
 
-  const load = async () => {
-    try {
-      const res = await admissionAPI.getById(id);
-      setApp(res.data.data);
-      setNewStatus(res.data.data.status);
-    } catch { toast.error('Failed to load application'); }
-    finally { setLoading(false); }
+  const [admissions, total] = await Promise.all([
+    Admission.find(filter)
+      .populate('processedBy', 'name')
+      .populate('interview.conductedBy', 'name')
+      .sort(sort)
+      .skip((page - 1) * limit)
+      .limit(limit),
+    Admission.countDocuments(filter)
+  ]);
+
+  res.json({ success: true, count: admissions.length, total, page, pages: Math.ceil(total / limit), data: admissions });
+};
+
+// ─────────────────────────────────────────────
+// GET /api/admissions/stats
+// ─────────────────────────────────────────────
+exports.getStats = async (req, res) => {
+  const school = new mongoose.Types.ObjectId(req.user.school);
+
+  const [statusStats, classStats, sourceStats, monthlyStats] = await Promise.all([
+    // By status
+    Admission.aggregate([
+      { $match: { school } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]),
+
+    // By class
+    Admission.aggregate([
+      { $match: { school } },
+      { $group: { _id: '$applyingForClass', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]),
+
+    // By source
+    Admission.aggregate([
+      { $match: { school } },
+      { $group: { _id: '$source', count: { $sum: 1 } } }
+    ]),
+
+    // Monthly trend (last 6 months)
+    Admission.aggregate([
+      { $match: { school, createdAt: { $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) } } },
+      { $group: {
+          _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+          count: { $sum: 1 }
+      }},
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ])
+  ]);
+
+  // Resolve class IDs to names
+  const ClassModel = mongoose.model('Class');
+  const allClasses = await ClassModel.find({ school: req.user.school }).select('name section').lean().catch(()=>[]);
+  const classNameMap = {};
+  allClasses.forEach(c => { classNameMap[c._id.toString()] = `${c.name}${c.section?' '+c.section:''}`.trim(); });
+
+  const statusResult = {
+    total: 0, pending: 0, under_review: 0, interview_scheduled: 0,
+    approved: 0, rejected: 0, enrolled: 0, waitlisted: 0
   };
+  statusStats.forEach(s => {
+    statusResult[s._id] = s.count;
+    statusResult.total += s.count;
+  });
 
-  useEffect(() => { load(); classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, [id]);
+  // Conversion rate
+  statusResult.conversionRate = statusResult.total > 0
+    ? ((statusResult.enrolled / statusResult.total) * 100).toFixed(1)
+    : 0;
 
-  // Resolve applyingForClass to a friendly label.
-  // Form can store the class ID (24-hex Mongo id) OR a free-text class name.
-  const formatClass = (raw) => {
-    if (!raw) return '—';
-    const isObjectId = typeof raw === 'string' && /^[0-9a-fA-F]{24}$/.test(raw);
-    if (isObjectId) {
-      const cls = classes.find(c => c._id === raw);
-      if (cls) return `${cls.name}${cls.section ? ' ' + cls.section : ''}`;
-      // Class not found (deleted or still loading) — don't show the raw ID
-      return classes.length === 0 ? '—' : 'Unknown class';
+  res.json({
+    success: true,
+    data: {
+      status:  statusResult,
+      byClass: classStats.map(c => ({ class: classNameMap[c._id] || c._id || '—', count: c.count })),
+      bySource: sourceStats.map(s => ({ source: s._id || 'unknown', count: s.count })),
+      monthly: monthlyStats.map(m => ({
+        label: new Date(m._id.year, m._id.month - 1).toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
+        count: m.count
+      }))
     }
-    // Free text — display as-is
-    return raw;
+  });
+};
+
+// ─────────────────────────────────────────────
+// GET /api/admissions/:id
+// ─────────────────────────────────────────────
+exports.getAdmission = async (req, res) => {
+  const admission = await Admission.findById(req.params.id)
+    .populate('processedBy', 'name email')
+    .populate('interview.conductedBy', 'name')
+    .populate('timeline.by', 'name');
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// POST /api/admissions  (admin)
+// ─────────────────────────────────────────────
+//
+// ── Shared validation helpers (used by createAdmission and publicSubmit) ──
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+const PHONE_RE = /^[0-9+\-\s()]{7,20}$/;
+
+function validateAdmissionPayload(body) {
+  const errs = [];
+  const studentName = (body.studentName || body.name || '').trim();
+  if (!studentName) errs.push('Student Name is required');
+
+  // Email format (only if provided — fields are otherwise optional)
+  for (const field of ['parentEmail', 'fatherEmail', 'motherEmail', 'studentEmail']) {
+    const val = (body[field] || '').trim();
+    if (val && !EMAIL_RE.test(val)) errs.push(`Invalid email format in ${field}`);
+  }
+
+  // Phone format (digits, spaces, +, -, parens; 7-20 chars)
+  for (const field of ['parentPhone', 'fatherPhone', 'motherPhone', 'phone']) {
+    const val = (body[field] || '').trim();
+    if (val && !PHONE_RE.test(val)) errs.push(`Invalid phone format in ${field}`);
+  }
+
+  // Date of birth — must not be in the future
+  const dob = body.dateOfBirth || body.dob;
+  if (dob) {
+    const dobDate = new Date(dob);
+    if (isNaN(dobDate.getTime())) {
+      errs.push('Invalid date of birth');
+    } else if (dobDate > new Date()) {
+      errs.push('Date of birth cannot be in the future');
+    }
+  }
+  return errs;
+}
+
+async function isDuplicateAdmission(body, schoolId) {
+  // Match on parent phone OR parent email, scoped to same school + active (non-rejected) status
+  const Admission = require('../models/Admission');
+  const phone = (body.parentPhone || body.phone || '').trim();
+  const email = (body.parentEmail || body.email || '').trim().toLowerCase();
+  if (!phone && !email) return null;
+  const or = [];
+  if (phone) or.push({ parentPhone: phone });
+  if (email) or.push({ parentEmail: email });
+  return Admission.findOne({
+    school: schoolId,
+    status: { $nin: ['rejected', 'enrolled'] }, // rejected/enrolled = won't conflict
+    $or: or,
+  });
+}
+
+exports.createAdmission = async (req, res) => {
+  // Validate inputs
+  const errs = validateAdmissionPayload(req.body);
+  if (errs.length) {
+    return res.status(400).json({ success: false, message: errs.join('. ') });
+  }
+  // Duplicate check
+  const dupe = await isDuplicateAdmission(req.body, req.user.school);
+  if (dupe) {
+    return res.status(409).json({
+      success: false,
+      message: `An active admission already exists for this contact (${dupe.studentName || dupe.applicationNumber}). Please check existing applications first.`,
+      duplicateOf: dupe._id,
+    });
+  }
+
+  const admission = await Admission.create({
+    ...req.body,
+    school: req.user.school,
+    timeline: [{ action: 'Application created', byName: req.user.name, by: req.user.id, at: new Date() }]
+  });
+  res.status(201).json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// POST /api/admissions/public  (no auth)
+// ─────────────────────────────────────────────
+exports.publicSubmit = async (req, res) => {
+  try {
+    const { name, studentName, grade, parentName, phone, email, dob } = req.body;
+    const finalName = studentName || name;
+    if (!finalName) {
+      return res.status(400).json({ success: false, message: 'Student name is required' });
+    }
+    // Validate the rest of the payload
+    const validationBody = { ...req.body, studentName: finalName, dateOfBirth: dob || req.body.dateOfBirth };
+    const errs = validateAdmissionPayload(validationBody);
+    if (errs.length) {
+      return res.status(400).json({ success: false, message: errs.join('. ') });
+    }
+    const School = require('../models/School');
+    const school = await School.findOne();
+    // Duplicate check (against this school's active admissions)
+    if (school?._id) {
+      const dupe = await isDuplicateAdmission({ ...req.body, parentPhone: phone, parentEmail: email }, school._id);
+      if (dupe) {
+        return res.status(409).json({
+          success: false,
+          message: 'An admission with this contact already exists. Please contact the school office.',
+        });
+      }
+    }
+    const admission = await Admission.create({
+      ...req.body,
+      studentName:      finalName,
+      applyingForClass: grade || req.body.applyingForClass || '',
+      parentName:       parentName || '',
+      parentPhone:      phone || req.body.parentPhone || '',
+      parentEmail:      email || req.body.parentEmail || '',
+      dateOfBirth:      dob  || req.body.dateOfBirth  || '',
+      school:  school?._id,
+      status:  'pending',
+      source:  'online',
+      timeline: [{ action: 'Application submitted online', byName: parentName || finalName, at: new Date() }]
+    });
+    res.status(201).json({ success: true, data: { applicationNumber: admission.applicationNumber } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id
+// ─────────────────────────────────────────────
+exports.updateAdmission = async (req, res) => {
+  const admission = await Admission.findById(req.params.id);
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+
+  // Append to timeline
+  const timelineEntry = { action: 'Application details updated', byName: req.user.name, by: req.user.id, at: new Date() };
+  if (req.body.notes) timelineEntry.note = req.body.notes;
+
+  // Strip read-only / server-managed fields from the payload BEFORE the update.
+  // If we leave 'timeline' in the body, MongoDB throws:
+  //   "Updating the path 'timeline' would create a conflict at 'timeline'"
+  // because we're also trying to $push timeline. Same defense for _id and other
+  // immutable fields the frontend might echo back.
+  const {
+    _id, __v, school, status, applicationNumber, processedBy, processedAt,
+    timeline, createdAt, updatedAt,
+    ...safeBody
+  } = req.body;
+
+  const updated = await Admission.findByIdAndUpdate(
+    req.params.id,
+    { ...safeBody, $push: { timeline: timelineEntry } },
+    { new: true, runValidators: true }
+  );
+  res.json({ success: true, data: updated });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/status
+// ─────────────────────────────────────────────
+exports.updateStatus = async (req, res) => {
+  const { status, notes, rejectionReason } = req.body;
+  const validStatuses = ['pending','under_review','interview_scheduled','approved','rejected','enrolled','waitlisted'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status' });
+  }
+
+  const timelineEntry = {
+    action:  `Status changed to ${status.replace('_', ' ')}`,
+    note:    notes || rejectionReason || '',
+    byName:  req.user.name,
+    by:      req.user.id,
+    at:      new Date()
   };
 
-  const handleStatusUpdate = async () => {
-    if (!newStatus) return;
-    setSaving(true);
-    try {
-      await admissionAPI.updateStatus(id, { status: newStatus, notes: statusNote, rejectionReason: rejReason });
-      toast.success('Status updated');
-      setStatusNote(''); setRejReason('');
-      load();
-    } catch { toast.error('Update failed'); }
-    finally { setSaving(false); }
+  const update = {
+    status,
+    notes,
+    processedBy: req.user.id,
+    processedAt: new Date(),
+    $push: { timeline: timelineEntry }
+  };
+  if (rejectionReason) update.rejectionReason = rejectionReason;
+  // ── TC-ADM-06 — When reopening a rejected admission, clear stale rejection reason
+  if (status === 'pending') {
+    update.rejectionReason = '';
+  }
+
+  const admission = await Admission.findByIdAndUpdate(req.params.id, update, { new: true });
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/interview
+// Schedule or update interview
+// ─────────────────────────────────────────────
+exports.updateInterview = async (req, res) => {
+  const { date, time, mode, venue, score, remarks, completed } = req.body;
+
+  const interviewUpdate = {};
+  if (date)      interviewUpdate['interview.date']      = new Date(date);
+  if (time)      interviewUpdate['interview.time']      = time;
+  if (mode)      interviewUpdate['interview.mode']      = mode;
+  if (venue)     interviewUpdate['interview.venue']     = venue;
+  if (score !== undefined) interviewUpdate['interview.score']  = score;
+  if (remarks)   interviewUpdate['interview.remarks']   = remarks;
+  if (completed !== undefined) interviewUpdate['interview.completed'] = completed;
+  interviewUpdate['interview.scheduled'] = true;
+  interviewUpdate['interview.conductedBy'] = req.user.id;
+
+  const action = completed ? 'Interview completed' : 'Interview scheduled';
+  const timelineEntry = { action, note: remarks || '', byName: req.user.name, by: req.user.id, at: new Date() };
+
+  // Auto-update status when interview scheduled
+  if (!completed) interviewUpdate.status = 'interview_scheduled';
+
+  const admission = await Admission.findByIdAndUpdate(
+    req.params.id,
+    { $set: interviewUpdate, $push: { timeline: timelineEntry } },
+    { new: true }
+  );
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/documents
+// Update document checklist
+// ─────────────────────────────────────────────
+exports.updateDocuments = async (req, res) => {
+  const docUpdate = {};
+  Object.keys(req.body).forEach(key => {
+    docUpdate[`documents.${key}`] = req.body[key];
+  });
+
+  const timelineEntry = {
+    action:  'Document checklist updated',
+    byName:  req.user.name,
+    by:      req.user.id,
+    at:      new Date()
   };
 
-  const handleDocToggle = async (docKey, currentVal) => {
-    try {
-      await admissionAPI.updateDocuments(id, { [`${docKey}.submitted`]: !currentVal });
-      load();
-    } catch { toast.error('Update failed'); }
+  const admission = await Admission.findByIdAndUpdate(
+    req.params.id,
+    { $set: docUpdate, $push: { timeline: timelineEntry } },
+    { new: true }
+  );
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/note
+// Add internal note
+// ─────────────────────────────────────────────
+exports.addNote = async (req, res) => {
+  const { note, isInternal } = req.body;
+  if (!note) return res.status(400).json({ success: false, message: 'Note is required' });
+
+  const timelineEntry = {
+    action:  isInternal ? '📌 Internal note added' : '💬 Note added',
+    note,
+    byName:  req.user.name,
+    by:      req.user.id,
+    at:      new Date()
   };
 
-  const handleAddNote = async () => {
-    if (!note.trim()) return;
-    setSaving(true);
-    try {
-      await admissionAPI.addNote(id, { note, isInternal });
-      toast.success('Note added');
-      setNote('');
-      load();
-    } catch { toast.error('Failed to add note'); }
-    finally { setSaving(false); }
-  };
+  const update = { $push: { timeline: timelineEntry } };
+  if (isInternal) update.$set = { internalNotes: note };
+  else             update.$set = { notes: note };
 
-  const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-  const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const admission = await Admission.findByIdAndUpdate(req.params.id, update, { new: true });
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
 
-  const docsSubmitted = app ? DOCS.filter(d => app.documents?.[d.key]?.submitted).length : 0;
+// ─────────────────────────────────────────────
+// DELETE /api/admissions/:id
+// ─────────────────────────────────────────────
+exports.deleteAdmission = async (req, res) => {
+  await Admission.findByIdAndDelete(req.params.id);
+  res.json({ success: true, message: 'Application deleted' });
+};
 
-  const handleEnroll = async () => {
-    if (!enrollClass) return toast.error('Please select a class');
-    setEnrolling(true);
-    try {
-      // Build student payload from admission data
-      // Build clean unique email from name + timestamp
-      const nameParts = (app.studentName||'student').toLowerCase().split(' ');
-      const cleanName = nameParts.join('');
-      const uniqueEmail = cleanName + '.' + Date.now() + '@student.local';
-      
-      const payload = {
-        name:            app.studentName,
-        email:           uniqueEmail,
-        phone:           app.parentPhone || '',
-        password:        'Student@123',
-        role:            'student',
-        classId:         enrollClass,
-        rollNumber:      enrollRoll || '',
-        gender:          app.gender || 'other',
-        parentName:      app.parentName || '',
-        parentPhone:     app.parentPhone || '',
-        parentEmail:     app.parentEmail || '',
-        admissionNumber: `${app.applicationNumber || 'STU'}-${Date.now().toString().slice(-6)}`,
-        status:          'active',
-        isActive:        true,
+// ─────────────────────────────────────────────
+// POST /api/admissions/:id/enroll
+// Creates a Student + User account from admission data
+// ─────────────────────────────────────────────
+exports.enrollFromAdmission = async (req, res) => {
+  try {
+    const { classId, rollNumber } = req.body;
+    if (!classId) return res.status(400).json({ success:false, message:'Class is required' });
+
+    const admission = await Admission.findOne({ _id: req.params.id, school: req.user.school });
+    if (!admission) return res.status(404).json({ success:false, message:'Admission not found' });
+    if (admission.status === 'enrolled') return res.status(400).json({ success:false, message:'Already enrolled' });
+
+    // Generate unique student email
+    const cleanName = (admission.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const studentEmail = cleanName + '.' + Date.now() + '@student.local';
+
+    // Check email not taken
+    const existing = await User.findOne({ email: studentEmail });
+    if (existing) return res.status(400).json({ success:false, message:'Email conflict, try again' });
+
+    // Create User account
+    const hashed = await bcrypt.hash('Student@123', 10);
+    const studentUser = await User.create({
+      name:     admission.studentName,
+      email:    studentEmail,
+      phone:    admission.parentPhone || '',
+      password: hashed,
+      role:     'student',
+      school:   req.user.school,
+      isActive: true,
+    });
+
+    // Generate admission number
+    const admNo = admission.applicationNumber + '-' + Date.now().toString().slice(-4);
+
+    // ── Normalize enum fields to match Student model enums ────────────────────
+    // Student.category enum: ['General','OBC','SC','ST','Other'] (Title Case)
+    // Student.gender   enum: ['male','female','other']           (lowercase)
+    const normalizeCategory = (val) => {
+      if (!val) return undefined; // skip field entirely if blank — avoid enum failure
+      const map = {
+        general: 'General', obc: 'OBC', sc: 'SC', st: 'ST',
+        other: 'Other', others: 'Other',
       };
-      await studentAPI.create(payload);
-      // Update admission status to enrolled
-      await admissionAPI.updateStatus(id, { status: 'enrolled', notes: `Enrolled in class. Roll: ${enrollRoll||'—'}` });
-      toast.success(`✅ ${app.studentName} enrolled successfully!`);
-      console.log('Student login:', payload.email, '/ Student@123');
-      setShowEnroll(false);
-      load();
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Enrollment failed';
-      console.error('Enrollment error:', err.response?.data || err);
-      toast.error(msg);
-    } finally { setEnrolling(false); }
-  };
+      const key = String(val).trim().toLowerCase();
+      return map[key] || 'Other'; // fallback to Other if unrecognized
+    };
+    const normalizeGender = (val) => {
+      if (!val) return 'other';
+      const v = String(val).trim().toLowerCase();
+      return ['male','female','other'].includes(v) ? v : 'other';
+    };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+    const studentDoc = {
+      user:            studentUser._id,
+      admissionNumber: admNo,
+      class:           classId,
+      gender:          normalizeGender(admission.gender),
+      dateOfBirth:     admission.dateOfBirth || null,
+      bloodGroup:      admission.bloodGroup || '',
+      parentName:      admission.parentName || '',
+      parentEmail:     admission.parentEmail || '',
+      parentPhone:     admission.parentPhone || '',
+      religion:        admission.religion || '',
+      isActive:        true,
+      status:          'active',
+      school:          req.user.school,
+    };
+    // Roll number — only set if non-empty. Empty string '' triggers a duplicate-key
+    // error against the legacy unique index `rollNumber_1` because multiple students
+    // could end up with the same '' value. If the admin didn't provide one, auto-fill
+    // with a guaranteed-unique value derived from the admission number.
+    const trimmedRoll = (rollNumber || '').trim();
+    if (trimmedRoll) {
+      studentDoc.rollNumber = trimmedRoll;
+    } else {
+      // Auto-generated fallback: short suffix from admission number + timestamp.
+      // Admin can edit this later from the Students screen.
+      studentDoc.rollNumber = `AUTO-${admNo.slice(-6)}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+    }
+    // Only set category if we have a valid value — empty string would fail enum
+    const cat = normalizeCategory(admission.category);
+    if (cat) studentDoc.category = cat;
 
-        {/* Header */}
-        {loading ? (
-          <div className="p-10 text-center text-slate-400">Loading...</div>
-        ) : !app ? (
-          <div className="p-10 text-center text-red-400">Application not found</div>
-        ) : (
-          <>
-            {/* Top bar */}
-            <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 flex-shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
-                  {app.studentName?.[0]?.toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="font-bold text-slate-800 text-lg">{app.studentName}</h2>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="font-mono text-xs text-slate-400">{app.applicationNumber}</span>
-                    <StatusBadge status={app.status} />
-                    {app.priority !== 'normal' && (
-                      <span className={`text-xs font-semibold ${app.priority === 'urgent' ? 'text-red-600' : 'text-orange-500'}`}>
-                        {app.priority === 'urgent' ? '🔴 Urgent' : '🟠 High Priority'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {!showEnroll && app.status !== 'enrolled' && (
-                  <button onClick={()=>{
-                    // Pre-fill the class with whatever the applicant applied for
-                    // (if it's a real class ID that matches our class list).
-                    const applied = app.applyingForClass || '';
-                    const isObjectId = /^[0-9a-fA-F]{24}$/.test(applied);
-                    if (isObjectId && classes.find(c => c._id === applied)) {
-                      setEnrollClass(applied);
-                    } else if (applied) {
-                      // Try matching by name (case-insensitive) for free-text values
-                      const match = classes.find(c =>
-                        (c.name || '').toLowerCase() === applied.toLowerCase() ||
-                        `${c.name} ${c.section||''}`.trim().toLowerCase() === applied.toLowerCase()
-                      );
-                      if (match) setEnrollClass(match._id);
-                    }
-                    setShowEnroll(true);
-                  }}
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 flex items-center gap-1">
-                    🎓 Enroll as Student
-                  </button>
-                )}
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl px-2">✕</button>
-              </div>
-            </div>
+    // Create Student document
+    const student = await Student.create(studentDoc);
 
-            {/* Quick stats bar */}
-            <div className="grid grid-cols-4 border-b border-slate-100 flex-shrink-0">
-              {[
-                { label: 'Grade',     value: formatClass(app.applyingForClass) },
-                { label: 'Applied',   value: fmt(app.createdAt) },
-                { label: 'Documents', value: `${docsSubmitted}/${DOCS.length} submitted` },
-                { label: 'Interview', value: app.interview?.completed ? `✅ Score: ${app.interview.score ?? '—'}/100` : app.interview?.scheduled ? '📅 Scheduled' : '—' },
-              ].map(s => (
-                <div key={s.label} className="px-5 py-3 text-center border-r border-slate-100 last:border-0">
-                  <div className="text-xs text-slate-400 mb-0.5">{s.label}</div>
-                  <div className="text-sm font-semibold text-slate-700">{s.value}</div>
-                </div>
-              ))}
-            </div>
+    // Update admission status
+    await Admission.findByIdAndUpdate(admission._id, {
+      status: 'enrolled',
+      $push: { timeline: { action:'enrolled', note:'Enrolled as student', byName: req.user.name, by: req.user.id, at: new Date() }}
+    });
 
-            {/* Enroll Panel */}
-        {showEnroll && (
-          <div className="mx-6 mb-2 mt-2 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <div className="font-semibold text-emerald-800 text-sm mb-3">🎓 Enroll {app?.studentName} as Student</div>
-            <div className="text-xs text-emerald-700 bg-emerald-100/70 rounded-lg p-2 mb-3">
-              ℹ️ Confirm the class assignment below — pre-filled from the application. You can change it before enrolling.
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Class *</label>
-                <select value={enrollClass} onChange={e=>setEnrollClass(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                  <option value="">Select Class</option>
-                  {classes.map(cl=><option key={cl._id} value={cl._id}>{cl.name} {cl.section||''}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Roll Number</label>
-                <input value={enrollRoll} onChange={e=>setEnrollRoll(e.target.value)} placeholder="e.g. 01"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"/>
-              </div>
-            </div>
-            <div className="text-xs text-emerald-700 bg-emerald-100 rounded-lg p-2 mb-3">
-              Default password: <strong>Student@123</strong> — student can change after first login
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleEnroll} disabled={enrolling}
-                className="flex-1 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                {enrolling ? 'Enrolling...' : '✓ Confirm Enrollment'}
-              </button>
-              <button onClick={()=>setShowEnroll(false)}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50">
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+    // Auto-apply class fee template (if any) — non-blocking on errors
+    try {
+      const { applyTemplateToStudent } = require('../services/classFeeTemplateService');
+      await applyTemplateToStudent({
+        studentId: student._id,
+        classId,
+        schoolId:  req.user.school,
+        createdBy: req.user._id,
+      });
+    } catch (e) {
+      console.error('Class fee template auto-apply failed:', e.message);
+    }
 
-        {/* Tabs */}
-            <div className="flex gap-1 px-6 pt-4 flex-shrink-0">
-              {[
-                { id: 'details',   label: '📋 Details'   },
-                { id: 'documents', label: `📎 Documents (${docsSubmitted}/${DOCS.length})` },
-                { id: 'status',    label: '🔄 Update Status' },
-                { id: 'timeline',  label: `📜 Timeline (${app.timeline?.length || 0})` },
-                { id: 'notes',     label: '💬 Notes'     },
-              ].map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    tab === t.id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100'
-                  }`}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
+    await student.populate([
+      { path:'user',  select:'name email' },
+      { path:'class', select:'name section' },
+    ]);
 
-            {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-6">
-
-              {/* ── DETAILS TAB ── */}
-              {tab === 'details' && (
-                <div className="space-y-6">
-                  <Section title="Student Information">
-                    <Grid>
-                      <Field label="Full Name"      value={app.studentName} />
-                      <Field label="Date of Birth"  value={fmt(app.dateOfBirth)} />
-                      <Field label="Gender"         value={app.gender} capitalize />
-                      <Field label="Blood Group"    value={app.bloodGroup} />
-                      <Field label="Nationality"    value={app.nationality} />
-                      <Field label="Religion"       value={app.religion} />
-                      <Field label="Category"       value={app.category?.toUpperCase()} />
-                      <Field label="Mother Tongue"  value={app.motherTongue} />
-                      <Field label="Aadhaar"        value={app.aadhaarNumber} />
-                    </Grid>
-                  </Section>
-
-                  <Section title="Address">
-                    <Grid>
-                      <Field label="Street"   value={app.address?.street}  />
-                      <Field label="City"     value={app.address?.city}    />
-                      <Field label="State"    value={app.address?.state}   />
-                      <Field label="Pincode"  value={app.address?.pincode} />
-                    </Grid>
-                  </Section>
-
-                  <Section title="Academic Background">
-                    <Grid>
-                      <Field label="Applying for Grade"   value={formatClass(app.applyingForClass)} />
-                      <Field label="Section Preferred"    value={app.applyingForSection} />
-                      <Field label="Academic Year"        value={app.academicYear} />
-                      <Field label="Previous School"      value={app.previousSchool} />
-                      <Field label="Previous Class"       value={app.previousClass} />
-                      <Field label="Previous Grade/CGPA"  value={app.previousGrade} />
-                      <Field label="Board"                value={app.previousBoard} />
-                      <Field label="TC Number"            value={app.tcNumber} />
-                    </Grid>
-                  </Section>
-
-                  <Section title="Father's Details">
-                    <Grid>
-                      <Field label="Name"           value={app.father?.name} />
-                      <Field label="Occupation"     value={app.father?.occupation} />
-                      <Field label="Phone"          value={app.father?.phone} />
-                      <Field label="Email"          value={app.father?.email} />
-                      <Field label="Qualification"  value={app.father?.qualification} />
-                      <Field label="Annual Income"  value={app.father?.income ? `₹${app.father.income.toLocaleString('en-IN')}` : null} />
-                    </Grid>
-                  </Section>
-
-                  <Section title="Mother's Details">
-                    <Grid>
-                      <Field label="Name"           value={app.mother?.name} />
-                      <Field label="Occupation"     value={app.mother?.occupation} />
-                      <Field label="Phone"          value={app.mother?.phone} />
-                      <Field label="Email"          value={app.mother?.email} />
-                      <Field label="Qualification"  value={app.mother?.qualification} />
-                    </Grid>
-                  </Section>
-
-                  {app.emergencyContact?.name && (
-                    <Section title="Emergency Contact">
-                      <Grid>
-                        <Field label="Name"     value={app.emergencyContact.name} />
-                        <Field label="Relation" value={app.emergencyContact.relation} />
-                        <Field label="Phone 1"  value={app.emergencyContact.phone} />
-                        <Field label="Phone 2"  value={app.emergencyContact.phone2} />
-                      </Grid>
-                    </Section>
-                  )}
-
-                  {(app.medical?.hasAllergies || app.medical?.hasCondition) && (
-                    <Section title="Medical Information">
-                      <Grid>
-                        {app.medical.hasAllergies && <Field label="Allergies" value={app.medical.allergies} />}
-                        {app.medical.hasCondition && <Field label="Medical Condition" value={app.medical.condition} />}
-                        <Field label="Medications"  value={app.medical.medications} />
-                        <Field label="Doctor Name"  value={app.medical.doctorName} />
-                        <Field label="Doctor Phone" value={app.medical.doctorPhone} />
-                      </Grid>
-                    </Section>
-                  )}
-
-                  {app.siblings?.length > 0 && (
-                    <Section title="Siblings">
-                      <div className="space-y-2">
-                        {app.siblings.map((sib, i) => (
-                          <div key={i} className="flex gap-6 bg-slate-50 rounded-xl px-4 py-3 text-sm">
-                            <span className="font-medium text-slate-700">{sib.name}</span>
-                            <span className="text-slate-500">Class {sib.class}</span>
-                            <span className="text-slate-400">{sib.school}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </Section>
-                  )}
-
-                  <Section title="Application Meta">
-                    <Grid>
-                      <Field label="Source"       value={app.source?.replace('_', ' ')} capitalize />
-                      <Field label="Referred By"  value={app.referredBy} />
-                      <Field label="Reg. Fee Paid" value={app.registrationFee?.paid ? `Yes · ₹${app.registrationFee.amount}` : 'No'} />
-                    </Grid>
-                  </Section>
-
-                  {/* Interview section */}
-                  <Section title="Interview Details">
-                    {app.interview?.scheduled ? (
-                      <Grid>
-                        <Field label="Date"        value={fmt(app.interview.date)} />
-                        <Field label="Time"        value={app.interview.time} />
-                        <Field label="Mode"        value={app.interview.mode?.replace('_', ' ')} capitalize />
-                        <Field label="Venue"       value={app.interview.venue} />
-                        <Field label="Score"       value={app.interview.score !== undefined ? `${app.interview.score}/100` : null} />
-                        <Field label="Status"      value={app.interview.completed ? 'Completed' : 'Pending'} />
-                        <Field label="Remarks"     value={app.interview.remarks} />
-                      </Grid>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <p className="text-slate-400 text-sm">No interview scheduled yet.</p>
-                        <button onClick={() => onScheduleInterview(app)}
-                          className="px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700">
-                          📅 Schedule Interview
-                        </button>
-                      </div>
-                    )}
-                  </Section>
-                </div>
-              )}
-
-              {/* ── DOCUMENTS TAB ── */}
-              {tab === 'documents' && (
-                <div>
-                  <p className="text-sm text-slate-500 mb-4">{docsSubmitted} of {DOCS.length} documents submitted</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {DOCS.map(doc => {
-                      const docData  = app.documents?.[doc.key];
-                      const submitted = docData?.submitted || false;
-                      const fileUrl   = docData?.url || '';
-                      const fileName  = docData?.fileName || '';
-                      // Only treat as "has viewable file" if the url is a real,
-                      // openable resource — not a legacy filename string
-                      const isViewable = fileUrl && (
-                        fileUrl.startsWith('data:') ||
-                        fileUrl.startsWith('blob:') ||
-                        /^https?:\/\//i.test(fileUrl)
-                      );
-                      const hasFile = isViewable;
-
-                      const openFile = (e) => {
-                        e.stopPropagation();
-                        if (!fileUrl) return;
-
-                        // Detect what kind of URL we have:
-                        //   - data:    → base64 data URL (new uploads — embed preview)
-                        //   - http(s)  → real remote URL (open directly)
-                        //   - blob:    → in-memory blob URL (open directly)
-                        //   - anything else (filename like "cert.pdf", "/path", etc)
-                        //     → legacy data; the actual file was never uploaded.
-                        //       Don't redirect anywhere — just inform the user.
-                        const isData  = fileUrl.startsWith('data:');
-                        const isHttp  = /^https?:\/\//i.test(fileUrl);
-                        const isBlob  = fileUrl.startsWith('blob:');
-
-                        if (!isData && !isHttp && !isBlob) {
-                          alert(
-                            `This document was marked as submitted but the actual file ` +
-                            `is not available for viewing.\n\n` +
-                            `Filename on record: ${fileName || fileUrl}\n\n` +
-                            `Please ask the parent to re-upload the file using the ` +
-                            `Edit option on this admission.`
-                          );
-                          return;
-                        }
-
-                        const w = window.open();
-                        if (!w) {
-                          alert('Could not open new tab. Please allow pop-ups for this site.');
-                          return;
-                        }
-
-                        if (isData) {
-                          // Embed preview so PDFs render in the new tab
-                          const isImage = (docData.mimeType || '').startsWith('image/');
-                          w.document.write(
-                            `<title>${fileName || doc.label}</title>` +
-                            `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
-                            (isImage
-                              ? `<img src="${fileUrl}" alt="${fileName || ''}"/>`
-                              : `<embed src="${fileUrl}" type="${docData.mimeType || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
-                          );
-                        } else {
-                          // http(s) or blob — open directly
-                          w.location.href = fileUrl;
-                        }
-                      };
-
-                      return (
-                        <div key={doc.key}
-                          className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
-                            submitted
-                              ? 'border-emerald-300 bg-emerald-50'
-                              : 'border-slate-200 bg-slate-50 hover:border-indigo-300 cursor-pointer'
-                          }`}
-                          onClick={() => handleDocToggle(doc.key, submitted)}>
-                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                            submitted ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300'
-                          }`}>
-                            {submitted && <span className="text-xs">✓</span>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-medium ${submitted ? 'text-emerald-700' : 'text-slate-600'}`}>
-                              {doc.label}
-                            </div>
-                            {fileName && (
-                              <div className="text-xs text-slate-500 mt-0.5 truncate">
-                                📎 {fileName}
-                                {!hasFile && <span className="text-amber-600 ml-1">(file not stored)</span>}
-                              </div>
-                            )}
-                          </div>
-                          {hasFile ? (
-                            <button
-                              onClick={openFile}
-                              className="ml-auto text-xs px-3 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
-                              title="View uploaded file">
-                              👁 View
-                            </button>
-                          ) : submitted ? (
-                            <span className="ml-auto text-xs text-emerald-600">Received</span>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-4">Click on a document row to toggle submitted/pending. Click <b>View</b> to open the file.</p>
-                </div>
-              )}
-
-              {/* ── STATUS UPDATE TAB ── */}
-              {tab === 'status' && (
-                <div className="max-w-md space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">New Status</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {STATUSES.map(s => {
-                        const cfg = STATUS_CONFIG[s.key];
-                        return (
-                          <button key={s.key} onClick={() => setNewStatus(s.key)}
-                            className={`px-3 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all text-left flex items-center gap-2 ${
-                              newStatus === s.key
-                                ? `${cfg.border} ${cfg.bg} ${cfg.text}`
-                                : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                            }`}>
-                            <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                            {s.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {newStatus === 'rejected' && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Rejection Reason</label>
-                      <textarea rows={2} value={rejReason} onChange={e => setRejReason(e.target.value)}
-                        placeholder="Reason for rejection..."
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Note (optional)</label>
-                    <textarea rows={2} value={statusNote} onChange={e => setStatusNote(e.target.value)}
-                      placeholder="Add a note for this status change..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                  </div>
-
-                  <button onClick={handleStatusUpdate} disabled={saving || newStatus === app.status}
-                    className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50">
-                    {saving ? 'Updating...' : 'Update Status'}
-                  </button>
-                </div>
-              )}
-
-              {/* ── TIMELINE TAB ── */}
-              {tab === 'timeline' && (
-                <div className="space-y-1">
-                  {!app.timeline?.length ? (
-                    <p className="text-slate-400 text-sm">No activity yet</p>
-                  ) : (
-                    [...app.timeline].reverse().map((entry, i) => (
-                      <div key={i} className="flex gap-4 pb-4">
-                        <div className="flex flex-col items-center">
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {entry.byName?.[0]?.toUpperCase() || '?'}
-                          </div>
-                          {i < app.timeline.length - 1 && <div className="w-0.5 flex-1 bg-slate-200 mt-1" />}
-                        </div>
-                        <div className="flex-1 pb-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold text-slate-700">{entry.action}</p>
-                            <span className="text-xs text-slate-400">{fmtTime(entry.at)}</span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5">by {entry.byName || 'System'}</p>
-                          {entry.note && (
-                            <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2 mt-2 border border-slate-200">
-                              {entry.note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* ── NOTES TAB ── */}
-              {tab === 'notes' && (
-                <div className="space-y-4">
-                  {app.notes && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-amber-600 mb-1">General Note</p>
-                      <p className="text-sm text-amber-800">{app.notes}</p>
-                    </div>
-                  )}
-                  {app.internalNotes && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-slate-500 mb-1">📌 Internal Note (staff only)</p>
-                      <p className="text-sm text-slate-700">{app.internalNotes}</p>
-                    </div>
-                  )}
-                  {app.rejectionReason && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                      <p className="text-xs font-semibold text-red-500 mb-1">Rejection Reason</p>
-                      <p className="text-sm text-red-700">{app.rejectionReason}</p>
-                    </div>
-                  )}
-
-                  <div className="border-t border-slate-100 pt-4 space-y-3">
-                    <textarea rows={3} value={note} onChange={e => setNote(e.target.value)}
-                      placeholder="Add a note..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                        <input type="checkbox" checked={isInternal} onChange={e => setInternal(e.target.checked)}
-                          className="rounded" />
-                        Internal note (staff only)
-                      </label>
-                      <button onClick={handleAddNote} disabled={saving || !note.trim()}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
-                        {saving ? 'Adding...' : 'Add Note'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Helper sub-components ──
-function Section({ title, children }) {
-  return (
-    <div>
-      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 pb-2 border-b border-slate-100">{title}</h3>
-      {children}
-    </div>
-  );
-}
-function Grid({ children }) {
-  return <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">{children}</div>;
-}
-function Field({ label, value, capitalize }) {
-  if (!value && value !== 0) return null;
-  return (
-    <div>
-      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className={`text-sm font-medium text-slate-700 ${capitalize ? 'capitalize' : ''}`}>{value}</p>
-    </div>
-  );
-}
+    res.json({
+      success: true,
+      message: admission.studentName + ' enrolled successfully',
+      data: student,
+      loginEmail:    studentEmail,
+      loginPassword: 'Student@123',
+    });
+  } catch (err) {
+    console.error('Enroll error:', err);
+    // Translate MongoDB duplicate-key errors into a friendly message
+    if (err.code === 11000) {
+      const dupField = Object.keys(err.keyPattern || {})[0] || 'field';
+      const dupVal   = err.keyValue?.[dupField] ?? '';
+      return res.status(409).json({
+        success: false,
+        message: `Cannot enroll: a student with the same ${dupField} (${dupVal}) already exists. Please assign a unique ${dupField} and try again.`,
+      });
+    }
+    res.status(500).json({ success:false, message: err.message || 'Enrollment failed' });
+  }
+};
