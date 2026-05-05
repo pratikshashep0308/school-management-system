@@ -74,6 +74,24 @@ exports.getStudentsFees = async (req, res) => {
       .limit(Number(limit)),
     StudentFee.countDocuments(filter)
   ]);
+
+  // ── Self-healing: fix any student whose linked User has a blank name ─
+  // (Side effect of optional admission fields — old records may have empty names.)
+  // Falls back to parentName or admission/roll number so the UI never shows blank.
+  const User = require('../models/index').User;
+  for (const rec of records) {
+    const userDoc = rec.student?.user;
+    if (userDoc && (!userDoc.name || !userDoc.name.trim())) {
+      const fallback =
+        (rec.student?.parentName && rec.student.parentName.trim() + "'s child") ||
+        ('Student ' + (rec.student?.admissionNumber || rec.student?.rollNumber || rec.student?._id));
+      try {
+        await User.findByIdAndUpdate(userDoc._id, { name: fallback });
+        userDoc.name = fallback;        // patch the in-memory copy so this response reflects the fix
+      } catch (e) { /* ignore individual failures */ }
+    }
+  }
+
   res.json({ success: true, data: records, total, page: Number(page), pages: Math.ceil(total / limit) });
 };
 
@@ -203,6 +221,46 @@ exports.getReceipt = async (req, res) => {
 
   if (format === 'pdf') return buildReceiptPDF(res, data);
   res.json({ success: true, data });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/fees/payment/:receiptNumber
+// Removes a single payment by receipt number. Updates the StudentFee ledger,
+// the FeePayment collection, and any linked FeeAssignment payments.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.deletePayment = async (req, res) => {
+  const { receiptNumber } = req.params;
+  if (!receiptNumber) return res.status(400).json({ success: false, message: 'Receipt number required' });
+
+  // Find the StudentFee record that contains this payment
+  const record = await StudentFee.findOne({
+    'paymentHistory.receiptNumber': receiptNumber,
+    school: req.user.school,
+  });
+  if (!record) return res.status(404).json({ success: false, message: 'Payment not found' });
+
+  // Pull the payment out of the array
+  const before = record.paymentHistory.length;
+  record.paymentHistory = record.paymentHistory.filter(p => p.receiptNumber !== receiptNumber);
+  if (record.paymentHistory.length === before) {
+    return res.status(404).json({ success: false, message: 'Payment not found in record' });
+  }
+
+  // pre-save hook will recompute paidAmount, pendingAmount, paymentStatus
+  await record.save();
+
+  // Also delete from FeePayment collection (best-effort, don't fail on miss)
+  try { await FeePayment.deleteMany({ receiptNumber, school: req.user.school }); } catch (e) { /* ignore */ }
+
+  // Also pull from any FeeAssignment.payments that referenced this receipt
+  try {
+    await FeeAssignment.updateMany(
+      { 'payments.receiptNumber': receiptNumber, school: req.user.school },
+      { $pull: { payments: { receiptNumber } } }
+    );
+  } catch (e) { /* ignore */ }
+
+  res.json({ success: true, message: 'Payment deleted', receiptNumber });
 };
 
 

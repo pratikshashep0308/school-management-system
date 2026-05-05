@@ -19,6 +19,7 @@ const feeAPI = {
 
   // ── Receipts ─────────────────────────────────────────────────────────────────
   getReceipt:      (receiptNo)    => api.get(`/fees/receipt/${receiptNo}`),
+  deletePayment:   (receiptNo)    => api.delete(`/fees/payment/${receiptNo}`),
   // PDF download handled via fetch() with blob response in the component
 
   // ── Fee Structures (existing) ─────────────────────────────────────────────

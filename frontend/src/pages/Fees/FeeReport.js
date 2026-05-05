@@ -54,6 +54,22 @@ function StudentHistoryPanel({ student, onClose }) {
   const payHistory = detail?.data?.paymentHistory || [];
   const assignments = detail?.assignments || [];
 
+  // Local copy so we can remove rows without re-fetching
+  const [localPayments, setLocalPayments] = useState([]);
+  useEffect(() => { setLocalPayments(payHistory); }, [detail]);
+
+  const handleDeletePayment = async (receiptNumber) => {
+    if (!receiptNumber) return toast.error('Receipt number missing');
+    if (!window.confirm(`Delete this payment (${receiptNumber})?\n\nThis cannot be undone. The student's balance will be recalculated.`)) return;
+    try {
+      await feeAPI.deletePayment(receiptNumber);
+      setLocalPayments(prev => prev.filter(p => p.receiptNumber !== receiptNumber));
+      toast.success('Payment deleted');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Delete failed');
+    }
+  };
+
   return (
     <div style={{ position:'fixed', inset:0, zIndex:300, display:'flex' }}>
       <div onClick={onClose} style={{ flex:1, background:'rgba(0,0,0,0.4)' }}/>
@@ -113,14 +129,14 @@ function StudentHistoryPanel({ student, onClose }) {
 
               {/* Payment History */}
               <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:'#111827' }}>
-                📜 Payment History ({payHistory.length} transactions)
+                📜 Payment History ({localPayments.length} transactions)
               </div>
-              {!payHistory.length ? (
+              {!localPayments.length ? (
                 <div style={{ textAlign:'center', padding:'30px', color:'#9CA3AF' }}>
                   <div style={{ fontSize:28, marginBottom:8 }}>💳</div>
                   <div>No payments recorded yet</div>
                 </div>
-              ) : payHistory.map((p,i) => (
+              ) : localPayments.map((p,i) => (
                 <div key={i} style={{ borderBottom:'0.5px solid #F3F4F6', padding:'12px 0', display:'flex', alignItems:'center', gap:12 }}>
                   <div style={{ width:38, height:38, borderRadius:10, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:16 }}>✅</div>
                   <div style={{ flex:1 }}>
@@ -131,14 +147,20 @@ function StudentHistoryPanel({ student, onClose }) {
                     <span style={{ fontSize:11, fontWeight:700, background:'#EFF6FF', color:'#1E40AF', padding:'2px 8px', borderRadius:20, textTransform:'uppercase' }}>{p.method||'cash'}</span>
                     {p.receiptNumber && <div style={{ fontSize:10, color:'#9CA3AF', marginTop:3, fontFamily:'monospace' }}>{p.receiptNumber}</div>}
                   </div>
+                  <button
+                    onClick={() => handleDeletePayment(p.receiptNumber)}
+                    title="Delete this payment"
+                    style={{ flexShrink:0, background:'#FEF2F2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:7, padding:'6px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    🗑
+                  </button>
                 </div>
               ))}
 
               {/* Total summary */}
-              {payHistory.length > 0 && (
+              {localPayments.length > 0 && (
                 <div style={{ marginTop:16, background:'#F0FDF4', borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <span style={{ fontSize:13, fontWeight:700, color:'#065F46' }}>Total Paid</span>
-                  <span style={{ fontSize:18, fontWeight:900, color:'#16A34A' }}>{fmt(payHistory.reduce((s,p)=>s+p.amount,0))}</span>
+                  <span style={{ fontSize:18, fontWeight:900, color:'#16A34A' }}>{fmt(localPayments.reduce((s,p)=>s+p.amount,0))}</span>
                 </div>
               )}
             </>
@@ -349,7 +371,7 @@ export default function FeeReport() {
               </thead>
               <tbody>
                 {filtered.map((s,i) => {
-                  const name    = s.student?.user?.name || '—';
+                  const name     = s.student?.user?.name || '—';
                   const rate    = pct(s.paidAmount, s.totalFees);
                   const ss      = STATUS[s.paymentStatus] || STATUS.pending;
                   const pending = s.pendingAmount || 0;

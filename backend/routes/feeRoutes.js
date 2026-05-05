@@ -54,6 +54,9 @@ router.post('/payments',        authorize(...ADMIN), ctrl.recordPayment);  // al
 router.get('/receipt/:receiptNumber/pdf', ctrl.downloadReceipt);
 router.get('/receipt/:receiptNumber',     ctrl.getReceipt);
 
+// Delete a payment (admin only) — by receipt number
+router.delete('/payment/:receiptNumber', authorize(...ADMIN), ctrl.deletePayment);
+
 // Student ledger — student can see own (existing)
 router.get('/student/:studentId', ctrl.getStudentFee);
 
