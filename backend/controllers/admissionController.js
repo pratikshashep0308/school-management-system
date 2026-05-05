@@ -348,24 +348,46 @@ exports.enrollFromAdmission = async (req, res) => {
     // Generate admission number
     const admNo = admission.applicationNumber + '-' + Date.now().toString().slice(-4);
 
-    // Create Student document
-    const student = await Student.create({
+    // ── Normalize enum fields to match Student model enums ────────────────────
+    // Student.category enum: ['General','OBC','SC','ST','Other'] (Title Case)
+    // Student.gender   enum: ['male','female','other']           (lowercase)
+    const normalizeCategory = (val) => {
+      if (!val) return undefined; // skip field entirely if blank — avoid enum failure
+      const map = {
+        general: 'General', obc: 'OBC', sc: 'SC', st: 'ST',
+        other: 'Other', others: 'Other',
+      };
+      const key = String(val).trim().toLowerCase();
+      return map[key] || 'Other'; // fallback to Other if unrecognized
+    };
+    const normalizeGender = (val) => {
+      if (!val) return 'other';
+      const v = String(val).trim().toLowerCase();
+      return ['male','female','other'].includes(v) ? v : 'other';
+    };
+
+    const studentDoc = {
       user:            studentUser._id,
       admissionNumber: admNo,
       rollNumber:      rollNumber || '',
       class:           classId,
-      gender:          admission.gender || 'other',
+      gender:          normalizeGender(admission.gender),
       dateOfBirth:     admission.dateOfBirth || null,
       bloodGroup:      admission.bloodGroup || '',
       parentName:      admission.parentName || '',
       parentEmail:     admission.parentEmail || '',
       parentPhone:     admission.parentPhone || '',
       religion:        admission.religion || '',
-      category:        admission.category || '',
       isActive:        true,
       status:          'active',
       school:          req.user.school,
-    });
+    };
+    // Only set category if we have a valid value — empty string would fail enum
+    const cat = normalizeCategory(admission.category);
+    if (cat) studentDoc.category = cat;
+
+    // Create Student document
+    const student = await Student.create(studentDoc);
 
     // Update admission status
     await Admission.findByIdAndUpdate(admission._id, {
