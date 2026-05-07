@@ -57,7 +57,11 @@ const EMPTY = {
   state:              '',
   pincode:            '',
 
-  // Section 4 - Bank Details
+  // Section 4 - Government IDs (dynamic list)
+  // Each entry: { type: 'apaar'|'pen'|'aadhaar'|...|'other', customLabel: '', number: '' }
+  governmentIds:      [],
+
+  // Section 5 - Bank Details
   bankAccountHolder:  '',
   bankName:           '',
   bankBranchName:     '',
@@ -768,8 +772,92 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             </FloatInput>
           </Section>
 
-          {/* Section 4 - Bank Details */}
-          <Section number="4" title="Bank Details">
+          {/* Section 4 - Government IDs (dynamic list) */}
+          <Section number="4" title="Government IDs">
+            <FloatInput span={3}>
+              <div>
+                {(form.governmentIds || []).length === 0 && (
+                  <div style={{ fontSize:12, color:'#9CA3AF', marginBottom:10 }}>
+                    No IDs added yet. Click "+ Add ID" below to add APAAR, PEN, or any other government ID.
+                  </div>
+                )}
+
+                {(form.governmentIds || []).map((row, idx) => (
+                  <div key={idx} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start' }}>
+                    {/* ID Type dropdown */}
+                    <select
+                      style={{ ...SEL, flex:'0 0 200px' }}
+                      value={row.type}
+                      onChange={e=>{
+                        const t = e.target.value;
+                        setForm(f => {
+                          const list = [...(f.governmentIds || [])];
+                          list[idx] = { ...list[idx], type: t, ...(t !== 'other' && { customLabel: '' }) };
+                          return { ...f, governmentIds: list };
+                        });
+                      }}>
+                      <option value="">Select ID type</option>
+                      <option value="apaar">APAAR ID</option>
+                      <option value="pen">PEN (Permanent Education Number)</option>
+                      <option value="aadhaar">Aadhaar Number</option>
+                      <option value="udise">UDISE+ Student ID</option>
+                      <option value="samagra">Samagra ID</option>
+                      <option value="ration">Ration Card</option>
+                      <option value="passport">Passport</option>
+                      <option value="other">Other (specify)</option>
+                    </select>
+
+                    {/* Custom label — only when type === 'other' */}
+                    {row.type === 'other' && (
+                      <input
+                        style={{ ...INP, flex:'0 0 180px' }}
+                        value={row.customLabel || ''}
+                        onChange={e=>{
+                          const v = e.target.value;
+                          setForm(f => {
+                            const list = [...(f.governmentIds || [])];
+                            list[idx] = { ...list[idx], customLabel: v };
+                            return { ...f, governmentIds: list };
+                          });
+                        }}
+                        placeholder="ID name"/>
+                    )}
+
+                    {/* ID Number */}
+                    <input
+                      style={{ ...INP, flex:1 }}
+                      value={row.number || ''}
+                      onChange={e=>{
+                        const v = e.target.value;
+                        setForm(f => {
+                          const list = [...(f.governmentIds || [])];
+                          list[idx] = { ...list[idx], number: v };
+                          return { ...f, governmentIds: list };
+                        });
+                      }}
+                      placeholder="ID number"/>
+                  </div>
+                ))}
+
+                {/* Add ID button */}
+                <button type="button"
+                  onClick={()=>{
+                    setForm(f => ({
+                      ...f,
+                      governmentIds: [...(f.governmentIds || []), { type: '', customLabel: '', number: '' }],
+                    }));
+                  }}
+                  style={{ marginTop:6, fontSize:13, color:'#4F46E5', background:'#EEF2FF',
+                           border:'1.5px dashed #C7D2FE', padding:'8px 16px', borderRadius:8,
+                           cursor:'pointer', fontWeight:600 }}>
+                  + Add ID
+                </button>
+              </div>
+            </FloatInput>
+          </Section>
+
+          {/* Section 5 - Bank Details */}
+          <Section number="5" title="Bank Details">
             <FloatInput label="Account Holder Name">
               <input style={INP} value={form.bankAccountHolder}
                 onChange={e=>set('bankAccountHolder', e.target.value)}
@@ -812,7 +900,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           <div style={{ marginBottom:28 }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16, paddingBottom:10, borderBottom:'1.5px solid #E5E7EB' }}>
               <div style={{ width:28, height:28, borderRadius:'50%', background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>5</span>
+                <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>6</span>
               </div>
               <h3 style={{ fontSize:15, fontWeight:700, color:'#1F2937', margin:0, flex:1 }}>Document Upload</h3>
               <div style={{ fontSize:13, fontWeight:700, color:'#10B981' }}>{docsChecked}/{docsTotal} uploaded</div>
@@ -960,7 +1048,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           </div>
 
           {/* Section 6 - Additional */}
-          <Section number="6" title="Additional Information">
+          <Section number="7" title="Additional Information">
             <FloatInput label="Priority">
               <select style={SEL} value={form.priority} onChange={e=>set('priority',e.target.value)}>
                 <option value="normal">⚪ Normal</option>
