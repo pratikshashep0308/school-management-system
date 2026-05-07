@@ -503,66 +503,69 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     const app = submitted || { ...form, applicationNumber: initial?.applicationNumber || 'DRAFT' };
     const win = window.open('','_blank','width=820,height=950');
 
-    // Resolve class _id → "Name Section" using the loaded classes list
+    // ── Lookups & label maps ───────────────────────────────────────────────
     const classObj = classes.find(c => c._id === app.applyingForClass);
     const classDisplay = classObj
       ? `${classObj.name}${classObj.section ? ' ' + classObj.section : ''}`
-      : (app.applyingForClass || '—');
+      : (app.applyingForClass || '');
 
-    // Pretty-print orphan / NCL / disability values stored as enum-ish strings
     const orphanLabels = {
       orphan: 'Orphan',
       single_parent_mother: 'Single Parent (Mother)',
       single_parent_father: 'Single Parent (Father)',
       not_applicable: 'Not Applicable',
     };
-    const orphanText = orphanLabels[app.orphanStudent] || app.orphanStudent || '—';
-    const isDisabledText = app.isDisabled === 'yes' ? 'Yes' : app.isDisabled === 'no' ? 'No' : '—';
-    const nclText = app.nonCreamyLayer === 'yes' ? 'Yes' : app.nonCreamyLayer === 'no' ? 'No' : '—';
+    const yesNo = v => v === 'yes' ? 'Yes' : v === 'no' ? 'No' : '';
 
-    // Date helpers
+    // ── Helpers ────────────────────────────────────────────────────────────
     const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
-    const esc = v => (v === null || v === undefined || v === '') ? '—' : String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const esc = v => (v === null || v === undefined || v === '')
+      ? '—'
+      : String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
-    // Documents — work with both standard slots and custom slots
-    const stdDocs = Object.entries(app.documents||{}).filter(([,v])=>{
-      if (!v) return false;
-      if (Array.isArray(v)) return v.length > 0;
-      if (typeof v === 'object') return v.submitted || v.url || v.data || (Array.isArray(v.files) && v.files.length);
-      return Boolean(v);
-    }).map(([k]) => k.replace(/([A-Z])/g,' $1').replace(/^./, c => c.toUpperCase()).trim());
-    const customDocs = (app.customDocuments || []).filter(r => r && r.label).map(r => r.label);
-    const allDocs = [...stdDocs, ...customDocs];
-    const docsTotalSlots = Object.keys(app.documents||{}).length + (app.customDocuments||[]).length;
+    // ── Documents ──────────────────────────────────────────────────────────
+    const stdDocsList = Object.entries(app.documents||{}).map(([k, v]) => {
+      const filled = v && (Array.isArray(v) ? v.length > 0
+        : typeof v === 'object' ? (v.submitted || v.url || v.data || (Array.isArray(v.files) && v.files.length))
+        : Boolean(v));
+      const niceName = k.replace(/([A-Z])/g,' $1').replace(/^./, c => c.toUpperCase()).trim();
+      return { name: niceName, filled };
+    });
+    const customDocsList = (app.customDocuments || [])
+      .filter(r => r && r.label)
+      .map(r => ({ name: r.label, filled: Array.isArray(r.files) && r.files.length > 0 }));
+    const allDocs = [...stdDocsList, ...customDocsList];
+    const filledCount = allDocs.filter(d => d.filled).length;
 
-    // Government IDs
+    // ── Government IDs ─────────────────────────────────────────────────────
     const govIds = (app.governmentIds || []).filter(r => r && (r.type || r.number));
 
     win.document.write(`
       <html><head><title>Admission Receipt - ${esc(app.studentName)}</title>
       <style>
         * { box-sizing:border-box; margin:0; padding:0; }
-        body { font-family: Arial, sans-serif; padding: 24px; color: #111; font-size:12px; }
-        .header { text-align:center; border-bottom:3px solid #6366F1; padding-bottom:14px; margin-bottom:16px; }
-        .school-name { font-size:22px; font-weight:900; color:#1F2937; }
-        .school-sub { font-size:11px; color:#6B7280; margin-top:3px; }
-        .receipt-title { display:inline-block; margin-top:10px; padding:5px 18px; border:2px solid #6366F1; border-radius:6px; font-size:13px; font-weight:700; color:#6366F1; }
-        .app-no { margin:12px 0; text-align:center; background:#F8F8FF; border:1px solid #E0E0FF; border-radius:8px; padding:8px; font-size:12px; color:#374151; }
-        .app-no strong { color:#6366F1; font-size:14px; }
-        .status-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#D1FAE5; color:#065F46; margin-left:8px; }
-        .section { margin-bottom:14px; page-break-inside:avoid; }
-        .section-title { font-size:11px; font-weight:700; color:#6366F1; text-transform:uppercase; letter-spacing:.08em; border-bottom:1.5px solid #E5E7EB; padding-bottom:4px; margin-bottom:8px; }
-        table { width:100%; border-collapse:collapse; font-size:11px; }
-        td { padding:5px 9px; border-bottom:0.5px solid #F3F4F6; vertical-align:top; }
+        body { font-family: Arial, sans-serif; padding: 22px; color: #111; font-size:11px; }
+        .header { text-align:center; border-bottom:3px solid #6366F1; padding-bottom:12px; margin-bottom:14px; }
+        .school-name { font-size:20px; font-weight:900; color:#1F2937; }
+        .school-sub { font-size:10px; color:#6B7280; margin-top:2px; }
+        .receipt-title { display:inline-block; margin-top:8px; padding:4px 14px; border:2px solid #6366F1; border-radius:6px; font-size:12px; font-weight:700; color:#6366F1; }
+        .app-no { margin:10px 0; text-align:center; background:#F8F8FF; border:1px solid #E0E0FF; border-radius:8px; padding:7px; font-size:11px; color:#374151; }
+        .app-no strong { color:#6366F1; font-size:13px; }
+        .status-badge { display:inline-block; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:700; background:#D1FAE5; color:#065F46; margin-left:6px; }
+        .section { margin-bottom:12px; page-break-inside:avoid; }
+        .section-title { font-size:10px; font-weight:700; color:#6366F1; text-transform:uppercase; letter-spacing:.08em; border-bottom:1.5px solid #E5E7EB; padding-bottom:4px; margin-bottom:7px; }
+        table { width:100%; border-collapse:collapse; font-size:10.5px; }
+        td { padding:4px 8px; border-bottom:0.5px solid #F3F4F6; vertical-align:top; }
         td.lbl { color:#6B7280; width:22%; font-weight:600; }
         td.val { color:#111827; }
-        .doc-grid { display:flex; flex-wrap:wrap; gap:5px; padding:4px 0; }
-        .doc-badge { padding:3px 9px; border-radius:20px; font-size:10px; font-weight:700; background:#EEF2FF; color:#4338CA; }
-        .footer { margin-top:24px; padding-top:12px; border-top:1.5px solid #E5E7EB; display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; font-size:11px; }
+        .doc-grid { display:flex; flex-wrap:wrap; gap:4px; padding:3px 0; }
+        .doc-badge { padding:3px 8px; border-radius:20px; font-size:9.5px; font-weight:700; background:#EEF2FF; color:#4338CA; }
+        .doc-badge.missing { background:#F3F4F6; color:#9CA3AF; }
+        .footer { margin-top:18px; padding-top:10px; border-top:1.5px solid #E5E7EB; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:10px; }
         .sign-box { text-align:center; }
-        .sign-line { border-bottom:1px solid #374151; margin:22px auto 5px; width:130px; }
-        .notice { margin-top:16px; padding:9px 12px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; font-size:10px; color:#92400E; }
-        @page { margin:10mm; size:A4; }
+        .sign-line { border-bottom:1px solid #374151; margin:18px auto 4px; width:120px; }
+        .notice { margin-top:12px; padding:7px 10px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:7px; font-size:9.5px; color:#92400E; }
+        @page { margin:9mm; size:A4; }
         @media print { body { padding:0; } }
       </style></head><body>
 
@@ -574,7 +577,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
       <div class="app-no">
         Application No: <strong>${esc(app.applicationNumber)}</strong>
-        <span class="status-badge">Submitted</span>
+        <span class="status-badge">${esc((app.status||'submitted').toUpperCase())}</span>
         &nbsp;|&nbsp;
         Date: <strong>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</strong>
       </div>
@@ -583,8 +586,12 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         <div class="section-title">1. Student Information</div>
         <table>
           <tr>
-            <td class="lbl">Student Name</td>
-            <td class="val" colspan="3"><strong>${esc(app.studentName)}</strong></td>
+            <td class="lbl">First Name</td><td class="val">${esc(app.firstName)}</td>
+            <td class="lbl">Middle Name</td><td class="val">${esc(app.middleName)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Last Name</td><td class="val">${esc(app.lastName)}</td>
+            <td class="lbl">Full Name</td><td class="val"><strong>${esc(app.studentName)}</strong></td>
           </tr>
           <tr>
             <td class="lbl">Class Applied</td><td class="val">${esc(classDisplay)}</td>
@@ -603,7 +610,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <td class="lbl">Category</td><td class="val">${esc(app.category)}</td>
           </tr>
           <tr>
-            <td class="lbl">Non-Creamy Layer</td><td class="val">${nclText}</td>
+            <td class="lbl">Non-Creamy Layer</td><td class="val">${esc(yesNo(app.nonCreamyLayer))}</td>
             <td class="lbl">Email</td><td class="val">${esc(app.parentEmail || app.studentEmail)}</td>
           </tr>
         </table>
@@ -618,7 +625,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           </tr>
           <tr>
             <td class="lbl">Gender</td><td class="val">${esc(app.gender)}</td>
-            <td class="lbl">Orphan Status</td><td class="val">${esc(orphanText)}</td>
+            <td class="lbl">Orphan Status</td><td class="val">${esc(orphanLabels[app.orphanStudent] || app.orphanStudent)}</td>
           </tr>
           <tr>
             <td class="lbl">Caste</td><td class="val">${esc(app.cast)}</td>
@@ -634,18 +641,16 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           </tr>
           <tr>
             <td class="lbl">Disease (if any)</td><td class="val">${esc(app.disease)}</td>
-            <td class="lbl">Is Disabled?</td><td class="val">${isDisabledText}</td>
+            <td class="lbl">Is Disabled?</td><td class="val">${esc(yesNo(app.isDisabled))}</td>
           </tr>
-          ${app.isDisabled === 'yes' ? `
           <tr>
             <td class="lbl">Disability %</td><td class="val">${app.disabilityPercentage ? esc(app.disabilityPercentage)+'%' : '—'}</td>
             <td class="lbl">Disability Type</td><td class="val">${esc(app.disabilityType)}</td>
-          </tr>` : ''}
-          ${app.additionalNote ? `
+          </tr>
           <tr>
             <td class="lbl">Additional Note</td>
             <td class="val" colspan="3">${esc(app.additionalNote)}</td>
-          </tr>` : ''}
+          </tr>
         </table>
       </div>
 
@@ -673,26 +678,28 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <td class="lbl">Contact Phone</td><td class="val"><strong>${esc(app.parentPhone)}</strong></td>
           </tr>
           <tr>
+            <td class="lbl">Email</td>
+            <td class="val" colspan="3">${esc(app.parentEmail)}</td>
+          </tr>
+          <tr>
             <td class="lbl">Address</td>
             <td class="val" colspan="3">${esc([app.address,app.city,app.state,app.pincode].filter(Boolean).join(', '))}</td>
           </tr>
         </table>
       </div>
 
-      ${govIds.length ? `
       <div class="section">
         <div class="section-title">4. Government IDs</div>
+        ${govIds.length ? `
         <table>
           ${govIds.map(g => `
             <tr>
               <td class="lbl">${esc(g.type)}</td>
               <td class="val" colspan="3">${esc(g.number)}</td>
-            </tr>
-          `).join('')}
-        </table>
-      </div>` : ''}
+            </tr>`).join('')}
+        </table>` : `<div style="font-size:10.5px;color:#9CA3AF;padding:4px 0">No Government IDs added</div>`}
+      </div>
 
-      ${(app.bankAccountHolder || app.bankName || app.bankAccountNumber) ? `
       <div class="section">
         <div class="section-title">5. Bank Details</div>
         <table>
@@ -709,15 +716,33 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <td class="lbl">Branch Address</td><td class="val">${esc(app.bankBranchAddress)}</td>
           </tr>
         </table>
-      </div>` : ''}
+      </div>
 
       <div class="section">
-        <div class="section-title">6. Documents Submitted (${allDocs.length} / ${docsTotalSlots})</div>
+        <div class="section-title">6. Documents Submitted (${filledCount} / ${allDocs.length})</div>
         <div class="doc-grid">
           ${allDocs.length
-            ? allDocs.map(d=>`<span class="doc-badge">✓ ${esc(d)}</span>`).join('')
-            : '<span style="color:#9CA3AF;font-size:11px">No documents uploaded yet</span>'}
+            ? allDocs.map(d => `<span class="doc-badge${d.filled ? '' : ' missing'}">${d.filled ? '✓' : '○'} ${esc(d.name)}</span>`).join('')
+            : '<span style="color:#9CA3AF;font-size:10.5px">No documents in checklist</span>'}
         </div>
+        ${app.addressProofType ? `
+          <div style="margin-top:6px;font-size:10px;color:#6B7280">
+            Address Proof type: <strong style="color:#374151">${esc(app.addressProofType === '__other__' ? (app.addressProofTypeOther || 'Other') : app.addressProofType)}</strong>
+          </div>` : ''}
+      </div>
+
+      <div class="section">
+        <div class="section-title">7. Additional Information</div>
+        <table>
+          <tr>
+            <td class="lbl">Priority</td><td class="val">${esc(app.priority)}</td>
+            <td class="lbl">Source</td><td class="val">${esc(app.source)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Referred By</td><td class="val">${esc(app.referredBy)}</td>
+            <td class="lbl">Notes</td><td class="val">${esc(app.notes)}</td>
+          </tr>
+        </table>
       </div>
 
       <div class="notice">
