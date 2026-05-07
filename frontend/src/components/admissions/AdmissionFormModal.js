@@ -502,79 +502,221 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   const downloadReceipt = () => {
     const app = submitted || { ...form, applicationNumber: initial?.applicationNumber || 'DRAFT' };
     const win = window.open('','_blank','width=820,height=950');
-    const docsSubmitted = Object.entries(app.documents||{}).filter(([,v])=>v).map(([k])=>k.replace(/([A-Z])/g,' $1').trim());
+
+    // Resolve class _id → "Name Section" using the loaded classes list
+    const classObj = classes.find(c => c._id === app.applyingForClass);
+    const classDisplay = classObj
+      ? `${classObj.name}${classObj.section ? ' ' + classObj.section : ''}`
+      : (app.applyingForClass || '—');
+
+    // Pretty-print orphan / NCL / disability values stored as enum-ish strings
+    const orphanLabels = {
+      orphan: 'Orphan',
+      single_parent_mother: 'Single Parent (Mother)',
+      single_parent_father: 'Single Parent (Father)',
+      not_applicable: 'Not Applicable',
+    };
+    const orphanText = orphanLabels[app.orphanStudent] || app.orphanStudent || '—';
+    const isDisabledText = app.isDisabled === 'yes' ? 'Yes' : app.isDisabled === 'no' ? 'No' : '—';
+    const nclText = app.nonCreamyLayer === 'yes' ? 'Yes' : app.nonCreamyLayer === 'no' ? 'No' : '—';
+
+    // Date helpers
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    const esc = v => (v === null || v === undefined || v === '') ? '—' : String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+    // Documents — work with both standard slots and custom slots
+    const stdDocs = Object.entries(app.documents||{}).filter(([,v])=>{
+      if (!v) return false;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'object') return v.submitted || v.url || v.data || (Array.isArray(v.files) && v.files.length);
+      return Boolean(v);
+    }).map(([k]) => k.replace(/([A-Z])/g,' $1').replace(/^./, c => c.toUpperCase()).trim());
+    const customDocs = (app.customDocuments || []).filter(r => r && r.label).map(r => r.label);
+    const allDocs = [...stdDocs, ...customDocs];
+    const docsTotalSlots = Object.keys(app.documents||{}).length + (app.customDocuments||[]).length;
+
+    // Government IDs
+    const govIds = (app.governmentIds || []).filter(r => r && (r.type || r.number));
+
     win.document.write(`
-      <html><head><title>Admission Receipt - ${app.studentName}</title>
+      <html><head><title>Admission Receipt - ${esc(app.studentName)}</title>
       <style>
         * { box-sizing:border-box; margin:0; padding:0; }
-        body { font-family: Arial, sans-serif; padding: 30px; color: #111; font-size:13px; }
-        .header { text-align:center; border-bottom:3px solid #6366F1; padding-bottom:16px; margin-bottom:20px; }
+        body { font-family: Arial, sans-serif; padding: 24px; color: #111; font-size:12px; }
+        .header { text-align:center; border-bottom:3px solid #6366F1; padding-bottom:14px; margin-bottom:16px; }
         .school-name { font-size:22px; font-weight:900; color:#1F2937; }
-        .school-sub { font-size:12px; color:#6B7280; margin-top:4px; }
-        .receipt-title { display:inline-block; margin-top:12px; padding:5px 20px; border:2px solid #6366F1; border-radius:6px; font-size:14px; font-weight:700; color:#6366F1; }
-        .app-no { margin:14px 0; text-align:center; background:#F8F8FF; border:1px solid #E0E0FF; border-radius:8px; padding:10px; font-size:13px; color:#374151; }
-        .app-no strong { color:#6366F1; font-size:15px; }
-        .status-badge { display:inline-block; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; background:#D1FAE5; color:#065F46; margin-left:10px; }
-        .section { margin-bottom:16px; }
-        .section-title { font-size:11px; font-weight:700; color:#6366F1; text-transform:uppercase; letter-spacing:.08em; border-bottom:1.5px solid #E5E7EB; padding-bottom:5px; margin-bottom:10px; }
-        table { width:100%; border-collapse:collapse; font-size:12px; }
-        td { padding:6px 10px; border-bottom:0.5px solid #F3F4F6; vertical-align:top; }
-        td:first-child { color:#6B7280; width:35%; font-weight:600; }
-        td:nth-child(3) { color:#6B7280; width:25%; font-weight:600; }
-        .doc-grid { display:flex; flex-wrap:wrap; gap:6px; padding:6px 0; }
-        .doc-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#EEF2FF; color:#4338CA; }
-        .footer { margin-top:32px; padding-top:14px; border-top:1.5px solid #E5E7EB; display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; font-size:12px; }
+        .school-sub { font-size:11px; color:#6B7280; margin-top:3px; }
+        .receipt-title { display:inline-block; margin-top:10px; padding:5px 18px; border:2px solid #6366F1; border-radius:6px; font-size:13px; font-weight:700; color:#6366F1; }
+        .app-no { margin:12px 0; text-align:center; background:#F8F8FF; border:1px solid #E0E0FF; border-radius:8px; padding:8px; font-size:12px; color:#374151; }
+        .app-no strong { color:#6366F1; font-size:14px; }
+        .status-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; background:#D1FAE5; color:#065F46; margin-left:8px; }
+        .section { margin-bottom:14px; page-break-inside:avoid; }
+        .section-title { font-size:11px; font-weight:700; color:#6366F1; text-transform:uppercase; letter-spacing:.08em; border-bottom:1.5px solid #E5E7EB; padding-bottom:4px; margin-bottom:8px; }
+        table { width:100%; border-collapse:collapse; font-size:11px; }
+        td { padding:5px 9px; border-bottom:0.5px solid #F3F4F6; vertical-align:top; }
+        td.lbl { color:#6B7280; width:22%; font-weight:600; }
+        td.val { color:#111827; }
+        .doc-grid { display:flex; flex-wrap:wrap; gap:5px; padding:4px 0; }
+        .doc-badge { padding:3px 9px; border-radius:20px; font-size:10px; font-weight:700; background:#EEF2FF; color:#4338CA; }
+        .footer { margin-top:24px; padding-top:12px; border-top:1.5px solid #E5E7EB; display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; font-size:11px; }
         .sign-box { text-align:center; }
-        .sign-line { border-bottom:1px solid #374151; margin:24px auto 6px; width:140px; }
-        .notice { margin-top:20px; padding:10px 14px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; font-size:11px; color:#92400E; }
-        @page { margin:12mm; size:A4; }
+        .sign-line { border-bottom:1px solid #374151; margin:22px auto 5px; width:130px; }
+        .notice { margin-top:16px; padding:9px 12px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; font-size:10px; color:#92400E; }
+        @page { margin:10mm; size:A4; }
         @media print { body { padding:0; } }
       </style></head><body>
+
       <div class="header">
         <div class="school-name">The Future Step School</div>
         <div class="school-sub">Securing Future By Adaptive Learning | thefuturestepschool.in</div>
         <div class="receipt-title">Admission Application Receipt</div>
       </div>
+
       <div class="app-no">
-        Application No: <strong>${app.applicationNumber || '—'}</strong>
+        Application No: <strong>${esc(app.applicationNumber)}</strong>
         <span class="status-badge">Submitted</span>
-        &nbsp;&nbsp;|&nbsp;&nbsp;
+        &nbsp;|&nbsp;
         Date: <strong>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</strong>
       </div>
 
       <div class="section">
         <div class="section-title">1. Student Information</div>
         <table>
-          <tr><td>Student Name</td><td><strong>${app.studentName||'—'}</strong></td><td>Class Applied</td><td><strong>${app.applyingForClass||'—'}</strong></td></tr>
-          <tr><td>Date of Birth</td><td>${app.dateOfBirth?new Date(app.dateOfBirth).toLocaleDateString('en-IN'):'—'}</td><td>Gender</td><td>${app.gender||'—'}</td></tr>
-          <tr><td>Blood Group</td><td>${app.bloodGroup||'—'}</td><td>Aadhaar No</td><td>${app.aadhaarNumber||'—'}</td></tr>
-          <tr><td>Religion</td><td>${app.religion||'—'}</td><td>Category</td><td>${app.category||'—'}</td></tr>
-          <tr><td>Caste</td><td>${app.cast||'—'}</td><td>Nationality</td><td>${app.nationality||'—'}</td></tr>
-          <tr><td>Address</td><td colspan="3">${[app.address,app.city,app.state,app.pincode].filter(Boolean).join(', ')||'—'}</td></tr>
-          <tr><td>Date of Admission</td><td>${app.dateOfAdmission?new Date(app.dateOfAdmission).toLocaleDateString('en-IN'):'—'}</td><td>Academic Year</td><td>${app.academicYear||'—'}</td></tr>
-          <tr><td>Discount in Fee</td><td>${app.discountInFee?app.discountInFee+'%':'—'}</td><td>Mobile (SMS)</td><td>${app.mobileForSMS||'—'}</td></tr>
+          <tr>
+            <td class="lbl">Student Name</td>
+            <td class="val" colspan="3"><strong>${esc(app.studentName)}</strong></td>
+          </tr>
+          <tr>
+            <td class="lbl">Class Applied</td><td class="val">${esc(classDisplay)}</td>
+            <td class="lbl">Registration No</td><td class="val">${esc(app.registrationNo)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Date of Admission</td><td class="val">${fmtDate(app.dateOfAdmission)}</td>
+            <td class="lbl">Academic Year</td><td class="val">${esc(app.academicYear)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Discount in Fee</td><td class="val">${app.discountInFee ? esc(app.discountInFee)+'%' : '—'}</td>
+            <td class="lbl">Mobile (SMS/WhatsApp)</td><td class="val">${esc(app.mobileForSMS)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Aadhaar Number</td><td class="val">${esc(app.aadhaarNumber)}</td>
+            <td class="lbl">Category</td><td class="val">${esc(app.category)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Non-Creamy Layer</td><td class="val">${nclText}</td>
+            <td class="lbl">Email</td><td class="val">${esc(app.parentEmail || app.studentEmail)}</td>
+          </tr>
         </table>
       </div>
 
       <div class="section">
-        <div class="section-title">2. Parent / Guardian Information</div>
+        <div class="section-title">2. Other Information</div>
         <table>
-          <tr><td>Father's Name</td><td>${app.fatherName||'—'}</td><td>Father's Phone</td><td>${app.fatherPhone||'—'}</td></tr>
-          <tr><td>Father's Occupation</td><td>${app.fatherOccupation||'—'}</td><td>Mother's Name</td><td>${app.motherName||'—'}</td></tr>
-          <tr><td>Mother's Phone</td><td>${app.motherPhone||'—'}</td><td>Mother's Occupation</td><td>${app.motherOccupation||'—'}</td></tr>
-          <tr><td>Primary Contact</td><td><strong>${app.parentName||'—'}</strong></td><td>Contact Phone</td><td><strong>${app.parentPhone||'—'}</strong></td></tr>
-          <tr><td>Email</td><td colspan="3">${app.parentEmail||'—'}</td></tr>
+          <tr>
+            <td class="lbl">Date of Birth</td><td class="val">${fmtDate(app.dateOfBirth)}</td>
+            <td class="lbl">Birth Form ID / NIC</td><td class="val">${esc(app.birthFormId)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Gender</td><td class="val">${esc(app.gender)}</td>
+            <td class="lbl">Orphan Status</td><td class="val">${esc(orphanText)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Caste</td><td class="val">${esc(app.cast)}</td>
+            <td class="lbl">Religion</td><td class="val">${esc(app.religion)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Blood Group</td><td class="val">${esc(app.bloodGroup)}</td>
+            <td class="lbl">Total Siblings</td><td class="val">${esc(app.totalSiblings)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Nationality</td><td class="val">${esc(app.nationality)}</td>
+            <td class="lbl">Identification Mark</td><td class="val">${esc(app.identificationMark)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Disease (if any)</td><td class="val">${esc(app.disease)}</td>
+            <td class="lbl">Is Disabled?</td><td class="val">${isDisabledText}</td>
+          </tr>
+          ${app.isDisabled === 'yes' ? `
+          <tr>
+            <td class="lbl">Disability %</td><td class="val">${app.disabilityPercentage ? esc(app.disabilityPercentage)+'%' : '—'}</td>
+            <td class="lbl">Disability Type</td><td class="val">${esc(app.disabilityType)}</td>
+          </tr>` : ''}
+          ${app.additionalNote ? `
+          <tr>
+            <td class="lbl">Additional Note</td>
+            <td class="val" colspan="3">${esc(app.additionalNote)}</td>
+          </tr>` : ''}
         </table>
       </div>
 
+      <div class="section">
+        <div class="section-title">3. Parent / Guardian Information</div>
+        <table>
+          <tr>
+            <td class="lbl">Father's Name</td><td class="val">${esc(app.fatherName)}</td>
+            <td class="lbl">Father's Occupation</td><td class="val">${esc(app.fatherOccupation)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Father's Phone</td><td class="val">${esc(app.fatherPhone)}</td>
+            <td class="lbl">Father's Aadhaar</td><td class="val">${esc(app.fatherAadhaar)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Mother's Name</td><td class="val">${esc(app.motherName)}</td>
+            <td class="lbl">Mother's Occupation</td><td class="val">${esc(app.motherOccupation)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Mother's Phone</td><td class="val">${esc(app.motherPhone)}</td>
+            <td class="lbl">Mother's Aadhaar</td><td class="val">${esc(app.motherAadhaar)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Primary Contact</td><td class="val"><strong>${esc(app.parentName)}</strong></td>
+            <td class="lbl">Contact Phone</td><td class="val"><strong>${esc(app.parentPhone)}</strong></td>
+          </tr>
+          <tr>
+            <td class="lbl">Address</td>
+            <td class="val" colspan="3">${esc([app.address,app.city,app.state,app.pincode].filter(Boolean).join(', '))}</td>
+          </tr>
+        </table>
+      </div>
 
+      ${govIds.length ? `
+      <div class="section">
+        <div class="section-title">4. Government IDs</div>
+        <table>
+          ${govIds.map(g => `
+            <tr>
+              <td class="lbl">${esc(g.type)}</td>
+              <td class="val" colspan="3">${esc(g.number)}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </div>` : ''}
+
+      ${(app.bankAccountHolder || app.bankName || app.bankAccountNumber) ? `
+      <div class="section">
+        <div class="section-title">5. Bank Details</div>
+        <table>
+          <tr>
+            <td class="lbl">Account Holder</td><td class="val">${esc(app.bankAccountHolder)}</td>
+            <td class="lbl">Bank Name</td><td class="val">${esc(app.bankName)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Branch Name</td><td class="val">${esc(app.bankBranchName)}</td>
+            <td class="lbl">IFSC Code</td><td class="val">${esc(app.bankIfsc)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Account Number</td><td class="val">${esc(app.bankAccountNumber)}</td>
+            <td class="lbl">Branch Address</td><td class="val">${esc(app.bankBranchAddress)}</td>
+          </tr>
+        </table>
+      </div>` : ''}
 
       <div class="section">
-        <div class="section-title">4. Documents Submitted (${docsSubmitted.length} / 14)</div>
+        <div class="section-title">6. Documents Submitted (${allDocs.length} / ${docsTotalSlots})</div>
         <div class="doc-grid">
-          ${docsSubmitted.length
-            ? docsSubmitted.map(d=>`<span class="doc-badge">✓ ${d}</span>`).join('')
-            : '<span style="color:#9CA3AF;font-size:12px">No documents uploaded yet</span>'}
+          ${allDocs.length
+            ? allDocs.map(d=>`<span class="doc-badge">✓ ${esc(d)}</span>`).join('')
+            : '<span style="color:#9CA3AF;font-size:11px">No documents uploaded yet</span>'}
         </div>
       </div>
 
@@ -591,7 +733,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         <div class="sign-box">
           <div style="font-weight:700;margin-bottom:4px">Parent / Guardian Signature</div>
           <div class="sign-line"></div>
-          <div>${app.parentName||'—'}</div>
+          <div>${esc(app.parentName)}</div>
         </div>
         <div class="sign-box">
           <div style="font-weight:700;margin-bottom:4px">Received By</div>
