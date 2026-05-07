@@ -58,7 +58,7 @@ const EMPTY = {
   pincode:            '',
 
   // Section 4 - Government IDs (dynamic list)
-  // Each entry: { type: 'apaar'|'pen'|'aadhaar'|...|'other', customLabel: '', number: '' }
+  // Each entry: { type: 'APAAR ID'|'PEN'|<any free text>, number: '' }
   governmentIds:      [],
 
   // Section 5 - Bank Details
@@ -784,44 +784,19 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
                 {(form.governmentIds || []).map((row, idx) => (
                   <div key={idx} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start' }}>
-                    {/* ID Type dropdown */}
-                    <select
-                      style={{ ...SEL, flex:'0 0 200px' }}
-                      value={row.type}
+                    {/* ID Type — free text, anything goes */}
+                    <input
+                      style={{ ...INP, flex:'0 0 240px' }}
+                      value={row.type || ''}
                       onChange={e=>{
-                        const t = e.target.value;
+                        const v = e.target.value;
                         setForm(f => {
                           const list = [...(f.governmentIds || [])];
-                          list[idx] = { ...list[idx], type: t, ...(t !== 'other' && { customLabel: '' }) };
+                          list[idx] = { ...list[idx], type: v };
                           return { ...f, governmentIds: list };
                         });
-                      }}>
-                      <option value="">Select ID type</option>
-                      <option value="apaar">APAAR ID</option>
-                      <option value="pen">PEN (Permanent Education Number)</option>
-                      <option value="aadhaar">Aadhaar Number</option>
-                      <option value="udise">UDISE+ Student ID</option>
-                      <option value="samagra">Samagra ID</option>
-                      <option value="ration">Ration Card</option>
-                      <option value="passport">Passport</option>
-                      <option value="other">Other (specify)</option>
-                    </select>
-
-                    {/* Custom label — only when type === 'other' */}
-                    {row.type === 'other' && (
-                      <input
-                        style={{ ...INP, flex:'0 0 180px' }}
-                        value={row.customLabel || ''}
-                        onChange={e=>{
-                          const v = e.target.value;
-                          setForm(f => {
-                            const list = [...(f.governmentIds || [])];
-                            list[idx] = { ...list[idx], customLabel: v };
-                            return { ...f, governmentIds: list };
-                          });
-                        }}
-                        placeholder="ID name"/>
-                    )}
+                      }}
+                      placeholder="ID type"/>
 
                     {/* ID Number */}
                     <input
@@ -844,7 +819,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                   onClick={()=>{
                     setForm(f => ({
                       ...f,
-                      governmentIds: [...(f.governmentIds || []), { type: '', customLabel: '', number: '' }],
+                      governmentIds: [...(f.governmentIds || []), { type: '', number: '' }],
                     }));
                   }}
                   style={{ marginTop:6, fontSize:13, color:'#4F46E5', background:'#EEF2FF',
