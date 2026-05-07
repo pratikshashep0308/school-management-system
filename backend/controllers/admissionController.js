@@ -506,6 +506,15 @@ exports.enrollFromAdmission = async (req, res) => {
       isActive:        true,
       status:          'active',
       school:          req.user.school,
+      // Mirror the full admission record so every field the user filled on the
+      // admission form is queryable from the student/portal/receipt views.
+      // Strip Mongo-internal fields and the timeline (which can be large).
+      admissionSnapshot: (() => {
+        const snap = admission.toObject ? admission.toObject() : { ...admission };
+        delete snap._id; delete snap.__v;
+        delete snap.timeline; delete snap.processedBy;
+        return snap;
+      })(),
     };
     // Roll number — only set if non-empty. Empty string '' triggers a duplicate-key
     // error against the legacy unique index `rollNumber_1` because multiple students

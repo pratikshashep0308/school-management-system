@@ -617,46 +617,172 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                 </div>
               </div>
 
-              {/* Personal info */}
-              <Section title="Personal Information">
-                <InfoGrid items={[
-                  { label: 'Full Name',       value: s.user?.name },
-                  { label: 'Email',           value: s.user?.email },
-                  { label: 'Phone',           value: s.user?.phone || '—' },
-                  { label: 'Date of Birth',   value: s.dateOfBirth ? new Date(s.dateOfBirth).toLocaleDateString('en-IN') : '—' },
-                  { label: 'Gender',          value: s.gender ? s.gender.charAt(0).toUpperCase()+s.gender.slice(1) : '—' },
-                  { label: 'Blood Group',     value: s.bloodGroup || '—' },
-                  { label: 'Admission No',    value: s.admissionNumber },
-                  { label: 'Roll Number',     value: s.rollNumber || '—' },
-                  { label: 'Admission Date',  value: s.admissionDate ? new Date(s.admissionDate).toLocaleDateString('en-IN') : '—' },
-                  { label: 'Status',          value: s.isActive ? '✅ Active' : '⭕ Inactive' },
-                ]} />
-              </Section>
+              {/* Personal info — fed primarily from admissionSnapshot, with
+                  fallbacks to top-level Student fields for older records that
+                  were enrolled before the snapshot was added. */}
+              {(() => {
+                const snap = s.admissionSnapshot || {};
 
-              {/* Address */}
-              {(s.address?.city || s.address?.street) && (
-                <Section title="Address">
-                  <p className="text-sm text-slate dark:text-gray-300">
-                    {[s.address.street, s.address.city, s.address.state, s.address.pincode].filter(Boolean).join(', ')}
-                  </p>
-                </Section>
-              )}
+                // Friendly enum-ish labels
+                const orphanLabels = {
+                  orphan: 'Orphan',
+                  single_parent_mother: 'Single Parent (Mother)',
+                  single_parent_father: 'Single Parent (Father)',
+                  not_applicable: 'Not Applicable',
+                };
+                const yn = v => v === 'yes' ? 'Yes' : v === 'no' ? 'No' : '—';
+                const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '—';
+                const v = (...candidates) => {
+                  for (const c of candidates) {
+                    if (c !== null && c !== undefined && c !== '') return c;
+                  }
+                  return '—';
+                };
 
-              {/* Guardian */}
-              <Section title="Guardian / Parent">
-                <InfoGrid items={[
-                  { label: 'Name',  value: s.parentName  || '—' },
-                  { label: 'Phone', value: s.parentPhone || '—' },
-                  { label: 'Email', value: s.parentEmail || '—' },
-                ]} />
-              </Section>
+                // Government IDs
+                const govIds = (snap.governmentIds || []).filter(g => g && (g.type || g.number));
 
-              {/* Transport */}
-              {s.transportRoute && (
-                <Section title="Transport">
-                  <p className="text-sm text-slate dark:text-gray-300">🚌 Route: {s.transportRoute?.routeName || s.transportRoute}</p>
-                </Section>
-              )}
+                // Custom docs
+                const customDocs = (snap.customDocuments || []).filter(d => d && d.label);
+
+                // Standard docs (whichever ones have files attached)
+                const stdDocs = Object.entries(snap.documents || {})
+                  .filter(([, val]) => {
+                    if (!val) return false;
+                    if (Array.isArray(val)) return val.length > 0;
+                    if (typeof val === 'object') return val.submitted || val.url || val.data || (Array.isArray(val.files) && val.files.length);
+                    return Boolean(val);
+                  })
+                  .map(([k]) => k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim());
+
+                return (
+                  <>
+                    <Section title="Student Information">
+                      <InfoGrid items={[
+                        { label: 'First Name',         value: v(snap.firstName) },
+                        { label: 'Middle Name',        value: v(snap.middleName) },
+                        { label: 'Last Name',          value: v(snap.lastName) },
+                        { label: 'Full Name',          value: v(snap.studentName, s.user?.name) },
+                        { label: 'Registration No',    value: v(snap.registrationNo) },
+                        { label: 'Admission No',       value: v(s.admissionNumber) },
+                        { label: 'Roll Number',        value: v(s.rollNumber) },
+                        { label: 'Class',              value: v(s.class?.name) },
+                        { label: 'Date of Admission',  value: fmtDate(snap.dateOfAdmission || s.admissionDate) },
+                        { label: 'Academic Year',      value: v(snap.academicYear) },
+                        { label: 'Discount in Fee',    value: snap.discountInFee ? `${snap.discountInFee}%` : '—' },
+                        { label: 'Mobile (SMS/WhatsApp)', value: v(snap.mobileForSMS) },
+                        { label: 'Aadhaar Number',     value: v(snap.aadhaarNumber) },
+                        { label: 'Category',           value: v(snap.category, s.category) },
+                        { label: 'Non-Creamy Layer',   value: yn(snap.nonCreamyLayer) },
+                        { label: 'Email',              value: v(snap.parentEmail, s.user?.email) },
+                      ]} />
+                    </Section>
+
+                    <Section title="Other Information">
+                      <InfoGrid items={[
+                        { label: 'Date of Birth',      value: fmtDate(snap.dateOfBirth || s.dateOfBirth) },
+                        { label: 'Birth Form ID / NIC', value: v(snap.birthFormId) },
+                        { label: 'Gender',             value: v(snap.gender, s.gender) },
+                        { label: 'Orphan Status',      value: orphanLabels[snap.orphanStudent] || v(snap.orphanStudent) },
+                        { label: 'Caste',              value: v(snap.cast) },
+                        { label: 'Religion',           value: v(snap.religion, s.religion) },
+                        { label: 'Blood Group',        value: v(snap.bloodGroup, s.bloodGroup) },
+                        { label: 'Total Siblings',     value: v(snap.totalSiblings) },
+                        { label: 'Nationality',        value: v(snap.nationality, s.nationality) },
+                        { label: 'Identification Mark', value: v(snap.identificationMark) },
+                        { label: 'Disease (if any)',   value: v(snap.disease) },
+                        { label: 'Is Disabled?',       value: yn(snap.isDisabled) },
+                        { label: 'Disability %',       value: snap.disabilityPercentage ? `${snap.disabilityPercentage}%` : '—' },
+                        { label: 'Disability Type',    value: v(snap.disabilityType) },
+                      ]} />
+                      {snap.additionalNote && (
+                        <div className="mt-3 pt-3 border-t border-border dark:border-gray-700">
+                          <p className="text-[10px] text-muted uppercase tracking-wide">Additional Note</p>
+                          <p className="text-sm text-ink dark:text-white mt-1">{snap.additionalNote}</p>
+                        </div>
+                      )}
+                    </Section>
+
+                    <Section title="Parent / Guardian Information">
+                      <InfoGrid items={[
+                        { label: "Father's Name",       value: v(snap.fatherName) },
+                        { label: "Father's Occupation", value: v(snap.fatherOccupation) },
+                        { label: "Father's Phone",      value: v(snap.fatherPhone) },
+                        { label: "Father's Aadhaar",    value: v(snap.fatherAadhaar) },
+                        { label: "Mother's Name",       value: v(snap.motherName) },
+                        { label: "Mother's Occupation", value: v(snap.motherOccupation) },
+                        { label: "Mother's Phone",      value: v(snap.motherPhone) },
+                        { label: "Mother's Aadhaar",    value: v(snap.motherAadhaar) },
+                        { label: 'Primary Contact',     value: v(snap.parentName, s.parentName) },
+                        { label: 'Contact Phone',       value: v(snap.parentPhone, s.parentPhone) },
+                      ]} />
+                    </Section>
+
+                    <Section title="Address">
+                      <p className="text-sm text-slate dark:text-gray-300">
+                        {[
+                          snap.address || s.address?.street,
+                          snap.city    || s.address?.city,
+                          snap.state   || s.address?.state,
+                          snap.pincode || s.address?.pincode,
+                        ].filter(Boolean).join(', ') || '—'}
+                      </p>
+                    </Section>
+
+                    {govIds.length > 0 && (
+                      <Section title="Government IDs">
+                        <InfoGrid items={govIds.map(g => ({
+                          label: g.type || 'ID',
+                          value: g.number || '—',
+                        }))} />
+                      </Section>
+                    )}
+
+                    {(snap.bankAccountHolder || snap.bankName || snap.bankAccountNumber) && (
+                      <Section title="Bank Details">
+                        <InfoGrid items={[
+                          { label: 'Account Holder', value: v(snap.bankAccountHolder) },
+                          { label: 'Bank Name',      value: v(snap.bankName) },
+                          { label: 'Branch Name',    value: v(snap.bankBranchName) },
+                          { label: 'IFSC Code',      value: v(snap.bankIfsc) },
+                          { label: 'Account Number', value: v(snap.bankAccountNumber) },
+                          { label: 'Branch Address', value: v(snap.bankBranchAddress) },
+                        ]} />
+                      </Section>
+                    )}
+
+                    {(stdDocs.length > 0 || customDocs.length > 0) && (
+                      <Section title={`Documents Submitted (${stdDocs.length + customDocs.length})`}>
+                        <div className="flex flex-wrap gap-2">
+                          {stdDocs.map(d => (
+                            <span key={d} className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                              ✓ {d}
+                            </span>
+                          ))}
+                          {customDocs.map(d => (
+                            <span key={d.label} className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                              ✓ {d.label}
+                            </span>
+                          ))}
+                        </div>
+                        {snap.addressProofType && (
+                          <p className="mt-3 text-xs text-muted">
+                            Address Proof type: <span className="font-semibold text-ink dark:text-white">
+                              {snap.addressProofType === '__other__' ? (snap.addressProofTypeOther || 'Other') : snap.addressProofType}
+                            </span>
+                          </p>
+                        )}
+                      </Section>
+                    )}
+
+                    {s.transportRoute && (
+                      <Section title="Transport">
+                        <p className="text-sm text-slate dark:text-gray-300">🚌 Route: {s.transportRoute?.routeName || s.transportRoute}</p>
+                      </Section>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 

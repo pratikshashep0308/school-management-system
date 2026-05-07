@@ -72,6 +72,14 @@ const StudentSchema = new mongoose.Schema({
   qrCode:         String,
   isActive:       { type: Boolean, default: true },
   school:         { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+
+  // Full admission record snapshot — populated at enrollment, kept here so the
+  // portal/receipt can render every field the user filled on the admission form
+  // (government IDs, bank details, parent Aadhaar, NCL, disability, custom docs, etc.)
+  // without having to enumerate them in this schema. Mixed = no validation, accepts
+  // whatever shape the admission record had at enrollment time.
+  admissionSnapshot: { type: mongoose.Schema.Types.Mixed },
+
   createdAt:      { type: Date, default: Date.now },
 });
 
