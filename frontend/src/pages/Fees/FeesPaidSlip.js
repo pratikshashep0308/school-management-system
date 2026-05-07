@@ -10,7 +10,8 @@ import PrintableReceipt from '../../components/fees/PrintableReceipt';
 const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;
 
 export default function FeesPaidSlip() {
-  const [feesMonth,   setFeesMonth]   = useState(new Date().toISOString().slice(0,7));
+  // Stored as 4-digit year string (e.g. "2026") — was previously YYYY-MM.
+  const [feesYear,    setFeesYear]    = useState(String(new Date().getFullYear()));
   const [query,       setQuery]       = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [selected,    setSelected]    = useState(null);
@@ -56,8 +57,9 @@ export default function FeesPaidSlip() {
     finally { setLoading(false); }
   };
 
-  const monthLabel = feesMonth ? new Date(feesMonth+'-01').toLocaleString('default',{month:'long',year:'numeric'}) : '';
-  const payments = feeRecord?.paymentHistory?.filter(p => !feesMonth || p.month?.includes(monthLabel.split(' ')[0])) || [];
+  // Filter payment history to entries from the selected year. p.month is like "April 2026".
+  const yearLabel = feesYear || '';
+  const payments = feeRecord?.paymentHistory?.filter(p => !yearLabel || (p.month || '').includes(yearLabel)) || [];
 
   const INP = { width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:9, fontSize:13, boxSizing:'border-box', outline:'none', background:'#fff' };
 
@@ -72,8 +74,16 @@ export default function FeesPaidSlip() {
       <div className="card" style={{ padding:'24px', marginBottom:20, maxWidth:600 }}>
         <div style={{ display:'flex', gap:14, flexDirection:'column' }}>
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', marginBottom:6 }}>Fees Month *</div>
-            <input type="month" value={feesMonth} onChange={e=>setFeesMonth(e.target.value)} style={INP}/>
+            <div style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', marginBottom:6 }}>Fees Year *</div>
+            <select value={feesYear} onChange={e=>setFeesYear(e.target.value)} style={INP}>
+              {(() => {
+                const now = new Date().getFullYear();
+                // Show 5 years back to 2 years ahead — covers reissued slips and advance payments
+                const years = [];
+                for (let y = now - 5; y <= now + 2; y++) years.push(y);
+                return years.reverse().map(y => <option key={y} value={String(y)}>{y}</option>);
+              })()}
+            </select>
           </div>
           <div style={{ position:'relative' }}>
             <div style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', marginBottom:6 }}>Search Student *</div>
@@ -121,7 +131,7 @@ export default function FeesPaidSlip() {
           {/* Payment history table */}
           <div style={{ padding:'20px 24px' }}>
             <div style={{ marginBottom:14, fontWeight:700, fontSize:15 }}>
-              Payment History {monthLabel && `— ${monthLabel}`}
+              Payment History {yearLabel && `— ${yearLabel}`}
               <span style={{ fontSize:11, fontWeight:500, color:'#6B7280', marginLeft:8 }}>
                 Click "View" to open the printable receipt
               </span>
@@ -130,7 +140,7 @@ export default function FeesPaidSlip() {
             {!payments.length ? (
               <div style={{ textAlign:'center', padding:'40px', color:'#9CA3AF' }}>
                 <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
-                <div>No payments found for {monthLabel || 'this month'}</div>
+                <div>No payments found for {yearLabel || 'this year'}</div>
               </div>
             ) : (
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
