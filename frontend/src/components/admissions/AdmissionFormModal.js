@@ -88,6 +88,9 @@ const EMPTY = {
     casteCertificate:    null,
     medicalCertificate:  null,
   },
+  // Custom documents — user-named slots, same multi-file behavior
+  // Each entry: { label: 'Bonafide Certificate', files: [{ fileName, ... }] }
+  customDocuments: [],
 
   // Meta
   priority:    'normal',
@@ -214,6 +217,83 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         ...f,
         documents: { ...f.documents, [k]: next.length ? next : null },
       };
+    });
+  };
+
+  // ── Custom documents (user-defined slots) ──────────────────────────────────
+  // Same per-file rules apply: 2 MB cap, type whitelist, max 5 files per slot.
+  const addCustomDocSlot = () => {
+    setForm(f => ({
+      ...f,
+      customDocuments: [...(f.customDocuments || []), { label: '', files: [] }],
+    }));
+  };
+
+  const setCustomDocLabel = (rowIdx, label) => {
+    setForm(f => {
+      const list = [...(f.customDocuments || [])];
+      list[rowIdx] = { ...list[rowIdx], label };
+      return { ...f, customDocuments: list };
+    });
+  };
+
+  const removeCustomDocSlot = (rowIdx) => {
+    setForm(f => ({
+      ...f,
+      customDocuments: (f.customDocuments || []).filter((_, i) => i !== rowIdx),
+    }));
+  };
+
+  const addCustomDocFile = (rowIdx, file) => {
+    if (!file) return;
+    const row = (form.customDocuments || [])[rowIdx];
+    const existing = row && Array.isArray(row.files) ? row.files : [];
+    if (existing.length >= MAX_FILES_PER_SLOT) {
+      toast.error(`Up to ${MAX_FILES_PER_SLOT} files per document — remove one first`);
+      return;
+    }
+    if (file.size > MAX_BYTES_PER_FILE) {
+      toast.error(`${file.name} is ${(file.size/1024/1024).toFixed(2)} MB — max 2 MB allowed`);
+      return;
+    }
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error(`${file.name}: only PDF, JPG, or PNG files are allowed`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm(f => {
+        const list = [...(f.customDocuments || [])];
+        const cur  = list[rowIdx] || { label: '', files: [] };
+        list[rowIdx] = {
+          ...cur,
+          files: [
+            ...(cur.files || []),
+            {
+              fileName:   file.name,
+              mimeType:   file.type,
+              size:       file.size,
+              data:       reader.result,
+              uploadedAt: new Date().toISOString(),
+            },
+          ],
+        };
+        return { ...f, customDocuments: list };
+      });
+      toast.success(`${file.name} attached`);
+    };
+    reader.onerror = () => toast.error(`Failed to read ${file.name}`);
+    reader.readAsDataURL(file);
+  };
+
+  const removeCustomDocFile = (rowIdx, fileIdx) => {
+    setForm(f => {
+      const list = [...(f.customDocuments || [])];
+      const cur  = list[rowIdx];
+      if (!cur) return f;
+      list[rowIdx] = { ...cur, files: (cur.files || []).filter((_, i) => i !== fileIdx) };
+      return { ...f, customDocuments: list };
     });
   };
 
@@ -367,6 +447,19 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           }];
         })
       ),
+      // Custom (user-named) documents — strip empty rows & normalize shape
+      customDocuments: (form.customDocuments || [])
+        .filter(r => r && (r.label || (r.files && r.files.length)))
+        .map(r => ({
+          label: (r.label || '').trim(),
+          files: (r.files || []).map(f => ({
+            url:        f.data || f.url,
+            fileName:   f.fileName,
+            mimeType:   f.mimeType,
+            size:       f.size,
+            uploadedAt: f.uploadedAt,
+          })),
+        })),
       previousSchool: form.previousSchoolName || form.previousSchool,
       previousBoard:  form.previousBoard,
       previousClass:  form.previousClass,
@@ -508,12 +601,14 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     setTimeout(()=>{ win.print(); }, 600);
   };
 
-  const docsTotal   = Object.keys(form.documents).length;
+  // Counter shows fixed slots + each non-empty custom slot.
+  const customNonEmpty = (form.customDocuments || []).filter(r => r && Array.isArray(r.files) && r.files.length > 0).length;
+  const docsTotal   = Object.keys(form.documents).length + (form.customDocuments || []).length;
   const docsChecked = Object.values(form.documents).filter(v => {
     if (!v) return false;
     if (Array.isArray(v)) return v.length > 0;
     return true; // legacy single-object value counts as one uploaded file
-  }).length;
+  }).length + customNonEmpty;
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'rgba(0,0,0,0.5)' }}>
@@ -1020,6 +1115,146 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 );
               })}
             </div>
+
+            {/* ── Custom (user-named) documents ─────────────────────────────── */}
+            <div style={{ marginTop:24 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#374151', marginBottom:10 }}>
+                Other documents
+                <span style={{ fontWeight:400, color:'#6B7280', marginLeft:6 }}>
+                  — for any document not listed above
+                </span>
+              </div>
+
+              {(form.customDocuments || []).length === 0 && (
+                <div style={{ fontSize:12, color:'#9CA3AF', marginBottom:10 }}>
+                  No custom documents yet. Click "+ Add custom document" to add one (e.g. Bonafide Certificate, NOC, Sports Certificate).
+                </div>
+              )}
+
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 }}>
+                {(form.customDocuments || []).map((slot, rowIdx) => {
+                  const files   = Array.isArray(slot.files) ? slot.files : [];
+                  const hasAny  = files.length > 0;
+                  const atLimit = files.length >= MAX_FILES_PER_SLOT;
+
+                  return (
+                    <div key={rowIdx} style={{ border:`1.5px solid ${hasAny?'#10B981':'#E5E7EB'}`, borderRadius:12, padding:'12px 16px', background:hasAny?'#F0FDF4':'#fff', transition:'all 0.15s' }}>
+                      {/* Row header — label input + remove-row button */}
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:hasAny?10:8 }}>
+                        <span style={{ fontSize:18 }}>📎</span>
+                        <input
+                          style={{ ...INP, flex:1, fontWeight:600 }}
+                          value={slot.label || ''}
+                          onChange={e=>setCustomDocLabel(rowIdx, e.target.value)}
+                          placeholder="Document name (e.g. Bonafide Certificate)"/>
+                        <button type="button" onClick={()=>removeCustomDocSlot(rowIdx)}
+                          title="Remove this document"
+                          style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 10px', borderRadius:6, cursor:'pointer', flexShrink:0, fontWeight:600 }}>
+                          ✕
+                        </button>
+                      </div>
+
+                      <div style={{ fontSize:11, color: hasAny ? '#16A34A' : '#9CA3AF', marginBottom:8 }}>
+                        {hasAny
+                          ? `${files.length} file${files.length>1?'s':''} attached`
+                          : 'No file uploaded — you can attach multiple'}
+                      </div>
+
+                      {/* Per-file rows */}
+                      {files.map((f, fIdx) => {
+                        const url   = (f && typeof f === 'object') ? (f.data || f.url || '') : '';
+                        const mime  = (f && typeof f === 'object') ? (f.mimeType || '') : '';
+                        const fname = (f && typeof f === 'object') ? (f.fileName || `File ${fIdx+1}`) : `File ${fIdx+1}`;
+                        const viewable = url && (url.startsWith('data:') || url.startsWith('blob:') || /^https?:\/\//i.test(url));
+
+                        return (
+                          <div key={fIdx}
+                            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 8px', marginBottom:6,
+                                     background:'#fff', border:'1px solid #D1FAE5', borderRadius:8 }}>
+                            <span style={{ fontSize:12, color:'#16A34A' }}>✓</span>
+                            <div style={{ flex:1, minWidth:0, fontSize:12, color:'#111827',
+                                          whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}
+                                 title={fname}>
+                              {fname}
+                            </div>
+                            {viewable && (
+                              <>
+                                <button type="button" onClick={() => {
+                                  const w = window.open();
+                                  if (!w) { toast.error('Please allow pop-ups to preview the file'); return; }
+                                  if (url.startsWith('data:')) {
+                                    const isImage = mime.startsWith('image/');
+                                    w.document.write(
+                                      `<title>${fname || 'Preview'}</title>` +
+                                      `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                                      (isImage
+                                        ? `<img src="${url}" alt="${fname}"/>`
+                                        : `<embed src="${url}" type="${mime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                                    );
+                                  } else {
+                                    w.location.href = url;
+                                  }
+                                }}
+                                  style={{ fontSize:11, color:'#fff', background:'#6366F1', border:'1px solid #4F46E5', padding:'2px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                                  👁
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = fname || 'document';
+                                  a.style.display = 'none';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                }}
+                                  style={{ fontSize:11, color:'#fff', background:'#10B981', border:'1px solid #059669', padding:'2px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                                  ⬇
+                                </button>
+                              </>
+                            )}
+                            <button type="button" onClick={()=>removeCustomDocFile(rowIdx, fIdx)}
+                              style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'2px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+
+                      {/* Add-file area */}
+                      {!atLimit && (
+                        <label style={{ display:'block', cursor:'pointer' }}>
+                          <div style={{ border:`1.5px dashed ${hasAny?'#10B981':'#D1D5DB'}`, borderRadius:8, padding:'8px', textAlign:'center', fontSize:12, color:hasAny?'#16A34A':'#6B7280', background:hasAny?'#F0FDF4':'#F9FAFB', transition:'all 0.15s' }}>
+                            {hasAny ? `+ Add another file (${files.length}/${MAX_FILES_PER_SLOT})` : '+ Click to upload (multiple allowed)'}
+                          </div>
+                          <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display:'none' }}
+                            onChange={e=>{
+                              const picked = Array.from(e.target.files || []);
+                              const room = MAX_FILES_PER_SLOT - files.length;
+                              picked.slice(0, room).forEach(f => addCustomDocFile(rowIdx, f));
+                              if (picked.length > room) {
+                                toast.error(`Only ${room} more file(s) allowed in this slot`);
+                              }
+                              e.target.value = '';
+                            }}/>
+                        </label>
+                      )}
+                      {atLimit && (
+                        <div style={{ fontSize:11, color:'#9CA3AF', textAlign:'center', padding:'6px 0' }}>
+                          Maximum {MAX_FILES_PER_SLOT} files reached — remove one to add another
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button type="button" onClick={addCustomDocSlot}
+                style={{ marginTop:12, fontSize:13, color:'#4F46E5', background:'#EEF2FF',
+                         border:'1.5px dashed #C7D2FE', padding:'10px 18px', borderRadius:8,
+                         cursor:'pointer', fontWeight:600 }}>
+                + Add custom document
+              </button>
+            </div>
           </div>
 
           {/* Section 6 - Additional */}
@@ -1184,6 +1419,19 @@ function hydrateForm(base, record) {
         }
       }
     }
+  }
+  // Custom (user-named) documents — load saved rows back into the form shape
+  if (Array.isArray(record.customDocuments)) {
+    out.customDocuments = record.customDocuments.map(r => ({
+      label: r?.label || '',
+      files: Array.isArray(r?.files) ? r.files.map(f => ({
+        fileName:   f?.fileName   || '',
+        mimeType:   f?.mimeType   || '',
+        size:       f?.size       || 0,
+        data:       f?.data || f?.url || '',
+        uploadedAt: f?.uploadedAt || '',
+      })) : [],
+    }));
   }
   return out;
 }
