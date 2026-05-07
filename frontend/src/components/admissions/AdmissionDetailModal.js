@@ -106,12 +106,21 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
-  const docsSubmitted = app
+  // Standard checklist docs that have been submitted
+  const stdDocsSubmitted = app
     ? DOCS.filter(d => {
         const dd = app.documents?.[d.key];
         return dd && (dd.submitted || dd.data || dd.url);
       }).length
     : 0;
+  // Custom docs that have at least one file
+  const customDocsSubmitted = app && Array.isArray(app.customDocuments)
+    ? app.customDocuments.filter(d => Array.isArray(d?.files) && d.files.length > 0).length
+    : 0;
+  const customDocsTotal = app && Array.isArray(app.customDocuments) ? app.customDocuments.length : 0;
+  // Combined counts shown in tab strip / stat row
+  const docsSubmitted = stdDocsSubmitted + customDocsSubmitted;
+  const docsTotal     = DOCS.length + customDocsTotal;
 
   const handleEnroll = async () => {
     if (!enrollClass) return toast.error('Please select a class');
@@ -215,7 +224,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
               {[
                 { label: 'Grade',     value: formatClass(app.applyingForClass) },
                 { label: 'Applied',   value: fmt(app.createdAt) },
-                { label: 'Documents', value: `${docsSubmitted}/${DOCS.length} submitted` },
+                { label: 'Documents', value: `${docsSubmitted}/${docsTotal} submitted` },
                 { label: 'Interview', value: app.interview?.completed ? `✅ Score: ${app.interview.score ?? '—'}/100` : app.interview?.scheduled ? '📅 Scheduled' : '—' },
               ].map(s => (
                 <div key={s.label} className="px-5 py-3 text-center border-r border-slate-100 last:border-0">
@@ -267,7 +276,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
             <div className="flex gap-1 px-6 pt-4 flex-shrink-0">
               {[
                 { id: 'details',   label: '📋 Details'   },
-                { id: 'documents', label: `📎 Documents (${docsSubmitted}/${DOCS.length})` },
+                { id: 'documents', label: `📎 Documents (${docsSubmitted}/${docsTotal})` },
                 { id: 'status',    label: '🔄 Update Status' },
                 { id: 'timeline',  label: `📜 Timeline (${app.timeline?.length || 0})` },
                 { id: 'notes',     label: '💬 Notes'     },
@@ -346,12 +355,23 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                       <Field label="Disability %"         value={app.disabilityPercentage ? `${app.disabilityPercentage}%` : ''} />
                       <Field label="Disability Type"      value={app.disabilityType} />
                     </Grid>
-                    {app.additionalNote && (
-                      <div className="mt-3 pt-3 border-t border-slate-200">
-                        <p className="text-xs text-slate-400 mb-0.5">Additional Note</p>
-                        <p className="text-sm text-slate-700">{app.additionalNote}</p>
+                    {/* Additional Note + Address Proof type — always rendered */}
+                    <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-xs text-slate-400 mb-0.5">Address Proof Type</p>
+                        <p className={`text-sm font-medium ${app.addressProofType ? 'text-slate-700' : 'text-slate-300'}`}>
+                          {app.addressProofType
+                            ? (app.addressProofType === '__other__' ? (app.addressProofTypeOther || 'Other') : app.addressProofType)
+                            : '—'}
+                        </p>
                       </div>
-                    )}
+                      <div className="sm:col-span-2">
+                        <p className="text-xs text-slate-400 mb-0.5">Additional Note</p>
+                        <p className={`text-sm ${app.additionalNote ? 'text-slate-700' : 'text-slate-300'}`}>
+                          {app.additionalNote || '—'}
+                        </p>
+                      </div>
+                    </div>
                   </Section>
 
                   <Section title="Parent / Guardian Information">
@@ -364,6 +384,9 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                       <Field label="Mother's Occupation"  value={motherOccupation} />
                       <Field label="Mother's Phone"       value={motherPhone} />
                       <Field label="Mother's Aadhaar"     value={motherAadhaar} />
+                      <Field label="Guardian's Name"      value={app.guardianName     || app.guardian?.name} />
+                      <Field label="Guardian's Relation"  value={app.guardianRelation || app.guardian?.relation} />
+                      <Field label="Guardian's Phone"     value={app.guardianPhone    || app.guardian?.phone} />
                       <Field label="Primary Contact"      value={app.parentName} />
                       <Field label="Contact Phone"        value={app.parentPhone} />
                     </Grid>
@@ -452,7 +475,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
               {/* ── DOCUMENTS TAB ── */}
               {tab === 'documents' && (
                 <div>
-                  <p className="text-sm text-slate-500 mb-4">{docsSubmitted} of {DOCS.length} documents submitted</p>
+                  <p className="text-sm text-slate-500 mb-4">{docsSubmitted} of {docsTotal} documents submitted</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {DOCS.map(doc => {
                       const docData  = app.documents?.[doc.key];
@@ -579,6 +602,55 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                       );
                     })}
                   </div>
+
+                  {/* Custom documents — admin-defined extra slots beyond the standard checklist */}
+                  {Array.isArray(app.customDocuments) && app.customDocuments.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 pb-2 border-b border-slate-100">
+                        Custom Documents ({app.customDocuments.filter(d => d?.files?.length > 0).length}/{app.customDocuments.length})
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {app.customDocuments.map((cd, idx) => {
+                          const file = Array.isArray(cd?.files) && cd.files[0];
+                          const fileUrl  = file?.data || file?.url || '';
+                          const hasFile  = fileUrl && (fileUrl.startsWith('data:') || fileUrl.startsWith('blob:') || /^https?:\/\//i.test(fileUrl));
+                          const fileCount = (cd?.files || []).length;
+
+                          const openCustom = (e) => {
+                            e.stopPropagation();
+                            if (!hasFile) return;
+                            const w = window.open();
+                            if (w) w.location.href = fileUrl;
+                          };
+
+                          return (
+                            <div key={idx} className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${
+                              fileCount > 0 ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-white'
+                            }`}>
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                                fileCount > 0 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {fileCount > 0 ? '✓' : '○'}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-700 truncate">{cd?.label || `Custom doc ${idx + 1}`}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {fileCount > 0 ? `${fileCount} file${fileCount > 1 ? 's' : ''} uploaded` : 'No file'}
+                                </p>
+                              </div>
+                              {hasFile && (
+                                <button onClick={openCustom}
+                                  className="text-xs px-2.5 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+                                  👁 View
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-xs text-slate-400 mt-4">Click on a document row to toggle submitted/pending. <b>👁 View</b> opens the file in a new tab. <b>⬇ Download</b> saves it to your computer.</p>
                 </div>
               )}
