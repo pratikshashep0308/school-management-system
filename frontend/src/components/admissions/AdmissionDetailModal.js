@@ -467,6 +467,22 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                         }
                       };
 
+                      // Download file to user's computer
+                      const downloadFile = (e) => {
+                        e.stopPropagation();
+                        if (!fileUrl) return;
+                        // Pick a reasonable filename: original uploaded name, or a sensible default
+                        const downloadName = fileName ||
+                          `${doc.label.replace(/\s+/g, '_')}_${app.studentName || 'document'}`;
+                        const a = document.createElement('a');
+                        a.href = fileUrl;
+                        a.download = downloadName;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                      };
+
                       return (
                         <div key={doc.key}
                           className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
@@ -484,19 +500,28 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                             <div className={`text-sm font-medium ${submitted ? 'text-emerald-700' : 'text-slate-600'}`}>
                               {doc.label}
                             </div>
-                            {hasFile && fileName && (
+                            {fileName && (
                               <div className="text-xs text-slate-500 mt-0.5 truncate">
                                 📎 {fileName}
+                                {!hasFile && <span className="text-amber-600 ml-1">(file not stored)</span>}
                               </div>
                             )}
                           </div>
                           {hasFile ? (
-                            <button
-                              onClick={openFile}
-                              className="ml-auto text-xs px-3 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
-                              title="View uploaded file">
-                              👁 View
-                            </button>
+                            <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                              <button
+                                onClick={openFile}
+                                className="text-xs px-2.5 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+                                title="Open file in new tab">
+                                👁 View
+                              </button>
+                              <button
+                                onClick={downloadFile}
+                                className="text-xs px-2.5 py-1.5 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                                title="Download file to your computer">
+                                ⬇ Download
+                              </button>
+                            </div>
                           ) : submitted ? (
                             <span className="ml-auto text-xs text-emerald-600">Received</span>
                           ) : null}
@@ -504,7 +529,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                       );
                     })}
                   </div>
-                  <p className="text-xs text-slate-400 mt-4">Click on a document row to toggle submitted/pending. Click <b>View</b> to open the file.</p>
+                  <p className="text-xs text-slate-400 mt-4">Click on a document row to toggle submitted/pending. <b>👁 View</b> opens the file in a new tab. <b>⬇ Download</b> saves it to your computer.</p>
                 </div>
               )}
 

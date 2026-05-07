@@ -672,25 +672,39 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                             );
                             if (!viewable) return null;
                             return (
-                              <button type="button" onClick={() => {
-                                const w = window.open();
-                                if (!w) { toast.error('Please allow pop-ups to preview the file'); return; }
-                                if (url.startsWith('data:')) {
-                                  const isImage = mime.startsWith('image/');
-                                  w.document.write(
-                                    `<title>${fname || 'Preview'}</title>` +
-                                    `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
-                                    (isImage
-                                      ? `<img src="${url}" alt="${fname}"/>`
-                                      : `<embed src="${url}" type="${mime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
-                                  );
-                                } else {
-                                  w.location.href = url;
-                                }
-                              }}
-                                style={{ fontSize:11, color:'#fff', background:'#6366F1', border:'1px solid #4F46E5', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, marginRight:4 }}>
-                                👁 View
-                              </button>
+                              <>
+                                <button type="button" onClick={() => {
+                                  const w = window.open();
+                                  if (!w) { toast.error('Please allow pop-ups to preview the file'); return; }
+                                  if (url.startsWith('data:')) {
+                                    const isImage = mime.startsWith('image/');
+                                    w.document.write(
+                                      `<title>${fname || 'Preview'}</title>` +
+                                      `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                                      (isImage
+                                        ? `<img src="${url}" alt="${fname}"/>`
+                                        : `<embed src="${url}" type="${mime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                                    );
+                                  } else {
+                                    w.location.href = url;
+                                  }
+                                }}
+                                  style={{ fontSize:11, color:'#fff', background:'#6366F1', border:'1px solid #4F46E5', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, marginRight:4 }}>
+                                  👁 View
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = fname || 'document';
+                                  a.style.display = 'none';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                }}
+                                  style={{ fontSize:11, color:'#fff', background:'#10B981', border:'1px solid #059669', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, marginRight:4 }}>
+                                  ⬇ Download
+                                </button>
+                              </>
                             );
                           })()}
                           <button type="button" onClick={()=>setDoc(key, null)}

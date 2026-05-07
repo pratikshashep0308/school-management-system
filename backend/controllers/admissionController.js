@@ -286,15 +286,28 @@ exports.updateAdmission = async (req, res) => {
   const {
     _id, __v, school, status, applicationNumber, processedBy, processedAt,
     timeline, createdAt, updatedAt,
+    documents, // pull out separately — Mixed type needs special handling
     ...safeBody
   } = req.body;
 
-  const updated = await Admission.findByIdAndUpdate(
-    req.params.id,
-    { ...safeBody, $push: { timeline: timelineEntry } },
-    { new: true, runValidators: true }
-  );
-  res.json({ success: true, data: updated });
+  // Apply ordinary fields via document.set so Mongoose tracks changes
+  Object.assign(admission, safeBody);
+
+  // Mixed type field: assign directly, then mark modified so Mongoose persists it.
+  // Without markModified, Mongoose can't detect changes inside Mixed/Object fields
+  // and silently skips writing them to MongoDB.
+  if (documents && typeof documents === 'object') {
+    admission.documents = { ...(admission.documents || {}), ...documents };
+    admission.markModified('documents');
+  }
+
+  // Append timeline entry
+  admission.timeline = admission.timeline || [];
+  admission.timeline.push(timelineEntry);
+  admission.markModified('timeline');
+
+  await admission.save();
+  res.json({ success: true, data: admission });
 };
 
 // ─────────────────────────────────────────────
