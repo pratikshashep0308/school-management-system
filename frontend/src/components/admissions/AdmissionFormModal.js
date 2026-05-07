@@ -718,37 +718,47 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                   { v: 'minority', l: 'Minority' },
                 ];
                 const knownVals = KNOWN_CATEGORIES.map(c => c.v);
-                const isOther = form.category && !knownVals.includes(form.category);
-                const dropdownValue = !form.category ? '' : (isOther ? '__other__' : form.category);
+                // Show textbox when EITHER user just picked Other (categoryOtherSelected flag),
+                // OR the saved value is free-text not in our known list.
+                const isOther = form.categoryOtherSelected || (form.category && !knownVals.includes(form.category));
+                const dropdownValue = isOther ? '__other__' : (form.category || '');
                 // Helper: clear NCL when the new category isn't one where it applies
                 const NCL_CATEGORIES = ['obc', 'sebc', 'sbc'];
-                const updateCategory = (newVal) => {
+                const updateCategory = (newVal, otherFlag = false) => {
                   setForm(f => ({
                     ...f,
                     category: newVal,
+                    categoryOtherSelected: otherFlag,
                     ...(NCL_CATEGORIES.includes(newVal) ? {} : { nonCreamyLayer: '' }),
                   }));
                 };
                 return (
-                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <div style={{ display:'flex', gap:8 }}>
                     <select
-                      style={{ ...SEL, flex: (dropdownValue === '__other__' || isOther) ? '0 0 100%' : 1 }}
+                      style={{ ...SEL, flex: isOther ? '0 0 50%' : 1 }}
                       value={dropdownValue}
                       onChange={e=>{
                         const v = e.target.value;
-                        // "Other" → clear the value so the textbox below starts empty
-                        updateCategory(v === '__other__' ? '' : v);
+                        if (v === '__other__') {
+                          // User picked Other — flag it & blank the value so textbox is empty
+                          updateCategory('', true);
+                        } else {
+                          updateCategory(v, false);
+                        }
                       }}>
                       <option value="">Select</option>
                       {KNOWN_CATEGORIES.map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
                       <option value="__other__">Other (specify)</option>
                     </select>
-                    {(dropdownValue === '__other__' || isOther) && (
+                    {isOther && (
                       <input
-                        style={{ ...INP, flex:'0 0 100%' }}
+                        style={{ ...INP, flex:1 }}
                         value={form.category || ''}
-                        onChange={e=>updateCategory(e.target.value)}
-                        placeholder="Specify category (e.g. Maratha-Kunbi)"/>
+                        onChange={e=>{
+                          // Keep the Other flag on; only update the typed value
+                          setForm(f => ({ ...f, category: e.target.value, categoryOtherSelected: true }));
+                        }}
+                        placeholder="Specify category"/>
                     )}
                   </div>
                 );
@@ -947,8 +957,10 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                     'Domicile Certificate ID',
                     'EWS Certificate ID',
                   ];
-                  const isOther = row.type && !KNOWN_TYPES.includes(row.type);
-                  const dropdownValue = !row.type ? '' : (isOther ? '__other__' : row.type);
+                  // "Other" is active when EITHER the user just picked it (otherSelected flag),
+                  // OR the saved type is some free-text value not in the known list.
+                  const isOther = row.otherSelected || (row.type && !KNOWN_TYPES.includes(row.type));
+                  const dropdownValue = isOther ? '__other__' : (row.type || '');
 
                   return (
                     <div key={idx} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start', flexWrap:'wrap' }}>
@@ -960,8 +972,13 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                           const v = e.target.value;
                           setForm(f => {
                             const list = [...(f.governmentIds || [])];
-                            // Picking "Other" clears type so the textbox starts empty
-                            list[idx] = { ...list[idx], type: v === '__other__' ? '' : v };
+                            if (v === '__other__') {
+                              // User picked "Other" — flag it & clear type so textbox is empty
+                              list[idx] = { ...list[idx], type: '', otherSelected: true };
+                            } else {
+                              // Picked a known type (or cleared back to empty) — drop the flag
+                              list[idx] = { ...list[idx], type: v, otherSelected: false };
+                            }
                             return { ...f, governmentIds: list };
                           });
                         }}>
@@ -971,7 +988,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                       </select>
 
                       {/* If "Other" picked, free-text label input appears */}
-                      {(dropdownValue === '__other__' || isOther) && (
+                      {isOther && (
                         <input
                           style={{ ...INP, flex:'0 0 200px' }}
                           value={row.type || ''}
