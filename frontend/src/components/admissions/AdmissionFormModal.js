@@ -151,19 +151,24 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
   const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // Read an uploaded file as base64 data URL + capture metadata
-  const setDoc = (k, file) => {
-    if (!file) {
-      setForm(f => ({ ...f, documents: { ...f.documents, [k]: null } }));
+  // Each document slot now stores an ARRAY of file objects, so users can attach
+  // both sides of an Aadhaar, multiple passport photos, multi-page LCs, etc.
+  // Shape per file: { fileName, mimeType, size, data (base64 dataURL), uploadedAt }
+  const MAX_FILES_PER_SLOT = 5;
+  const MAX_BYTES_PER_FILE = 2 * 1024 * 1024; // 2 MB
+
+  // Add one file to a slot's array (validating size, type, and slot count).
+  const addDocFile = (k, file) => {
+    if (!file) return;
+    const existing = Array.isArray(form.documents[k]) ? form.documents[k] : [];
+    if (existing.length >= MAX_FILES_PER_SLOT) {
+      toast.error(`Up to ${MAX_FILES_PER_SLOT} files per document — remove one first`);
       return;
     }
-    // Size check — 2MB cap to keep MongoDB document under the 16MB limit
-    const MAX_BYTES = 2 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
+    if (file.size > MAX_BYTES_PER_FILE) {
       toast.error(`${file.name} is ${(file.size/1024/1024).toFixed(2)} MB — max 2 MB allowed`);
       return;
     }
-    // Type whitelist
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
       toast.error(`${file.name}: only PDF, JPG, or PNG files are allowed`);
@@ -171,23 +176,41 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setForm(f => ({
-        ...f,
-        documents: {
-          ...f.documents,
-          [k]: {
-            fileName: file.name,
-            mimeType: file.type,
-            size:     file.size,
-            data:     reader.result, // data:mime;base64,... — ready to display
-            uploadedAt: new Date().toISOString(),
+      setForm(f => {
+        const prev = Array.isArray(f.documents[k]) ? f.documents[k] : [];
+        return {
+          ...f,
+          documents: {
+            ...f.documents,
+            [k]: [
+              ...prev,
+              {
+                fileName:   file.name,
+                mimeType:   file.type,
+                size:       file.size,
+                data:       reader.result,
+                uploadedAt: new Date().toISOString(),
+              },
+            ],
           },
-        },
-      }));
+        };
+      });
       toast.success(`${file.name} attached`);
     };
     reader.onerror = () => toast.error(`Failed to read ${file.name}`);
     reader.readAsDataURL(file);
+  };
+
+  // Remove one file from a slot by index. Removing the last file clears the slot.
+  const removeDocFile = (k, idx) => {
+    setForm(f => {
+      const prev = Array.isArray(f.documents[k]) ? f.documents[k] : [];
+      const next = prev.filter((_, i) => i !== idx);
+      return {
+        ...f,
+        documents: { ...f.documents, [k]: next.length ? next : null },
+      };
+    });
   };
 
   const handleSubmit = async () => {
@@ -294,21 +317,50 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
       address: { street: form.address, city: form.city, state: form.state, pincode: form.pincode },
       documents: Object.fromEntries(
         Object.entries(form.documents).map(([key, value]) => {
-          if (!value) return [key, { submitted: false }];
-          // value can be:
-          //   - rich object: { fileName, mimeType, size, data, uploadedAt }  (newly uploaded)
-          //   - string filename or url (legacy)
-          if (typeof value === 'object') {
-            return [key, {
-              submitted:  true,
-              url:        value.data,        // base64 data URL (the actual file content)
-              fileName:   value.fileName,
-              mimeType:   value.mimeType,
-              size:       value.size,
-              uploadedAt: value.uploadedAt,
-            }];
+          if (!value || (Array.isArray(value) && value.length === 0)) {
+            return [key, { submitted: false, files: [] }];
           }
-          return [key, { submitted: true, url: value, fileName: value }];
+
+          // Normalize to an array of file objects.
+          // - Array (new shape): use directly
+          // - Object (newly uploaded single, or pre-array legacy record): wrap
+          // - String (very old legacy): wrap as { url, fileName }
+          let arr;
+          if (Array.isArray(value)) {
+            arr = value;
+          } else if (typeof value === 'object') {
+            arr = [value];
+          } else {
+            arr = [{ url: value, fileName: value }];
+          }
+
+          // Build the per-file array the backend will store.
+          const files = arr.map(f => {
+            if (typeof f === 'object' && f !== null) {
+              return {
+                url:        f.data || f.url,        // base64 data URL or legacy URL
+                fileName:   f.fileName,
+                mimeType:   f.mimeType,
+                size:       f.size,
+                uploadedAt: f.uploadedAt,
+              };
+            }
+            return { url: f, fileName: f };
+          });
+
+          // Keep legacy single-file fields populated from the FIRST file so the
+          // detail modal (which still reads .url / .data / .fileName) keeps
+          // showing something useful until it's updated to render the array.
+          const first = files[0] || {};
+          return [key, {
+            submitted:  true,
+            url:        first.url,
+            fileName:   first.fileName,
+            mimeType:   first.mimeType,
+            size:       first.size,
+            uploadedAt: first.uploadedAt,
+            files,                                  // ← all files for this slot
+          }];
         })
       ),
       previousSchool: form.previousSchoolName || form.previousSchool,
@@ -453,7 +505,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   };
 
   const docsTotal   = Object.keys(form.documents).length;
-  const docsChecked = Object.values(form.documents).filter(Boolean).length;
+  const docsChecked = Object.values(form.documents).filter(v => {
+    if (!v) return false;
+    if (Array.isArray(v)) return v.length > 0;
+    return true; // legacy single-object value counts as one uploaded file
+  }).length;
 
   return (
     <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'rgba(0,0,0,0.5)' }}>
@@ -471,7 +527,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
           {/* Section 1 - Student Information */}
           <Section number="1" title="Student Information">
-            <FloatInput label="Student Name" required>
+            <FloatInput label="Student Name" span={3} required>
               <div style={{ display:'flex', gap:8 }}>
                 <input
                   style={{ ...INP, flex:1 }}
@@ -664,7 +720,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
           {/* Section 3 - Parent / Guardian */}
           <Section number="3" title="Parent / Guardian Information">
-            <FloatInput label="Father's Name">
+            <FloatInput label="Father's Name" span={3}>
               <input style={INP} value={form.fatherName} onChange={e=>set('fatherName',e.target.value)} placeholder="Father's Full Name"/>
             </FloatInput>
             <FloatInput label="Father's Occupation">
@@ -678,7 +734,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 onChange={e=>set('fatherAadhaar', e.target.value.replace(/\D/g,'').slice(0,12))}
                 placeholder="12-digit Aadhaar number" maxLength={12} inputMode="numeric"/>
             </FloatInput>
-            <FloatInput label="Mother's Name">
+            <FloatInput label="Mother's Name" span={3}>
               <input style={INP} value={form.motherName} onChange={e=>set('motherName',e.target.value)} placeholder="Mother's Full Name"/>
             </FloatInput>
             <FloatInput label="Mother's Occupation">
@@ -786,92 +842,117 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 ['bankDetails',        'Bank Account Details',        '🏦', false],
                 ['medicalCertificate', 'Medical Certificate',         '🏥', false],
               ].map(([key, label, icon, required]) => {
-                const uploaded = form.documents[key];
+                // Normalize storage: array (new), single object (legacy), or null/empty.
+                const raw = form.documents[key];
+                const files = Array.isArray(raw)
+                  ? raw
+                  : (raw && typeof raw === 'object' ? [raw] : []);
+                const hasAny = files.length > 0;
+                const atLimit = files.length >= MAX_FILES_PER_SLOT;
+
                 return (
-                  <div key={key} style={{ border:`1.5px solid ${uploaded?'#10B981':'#E5E7EB'}`, borderRadius:12, padding:'12px 16px', background:uploaded?'#F0FDF4':'#fff', transition:'all 0.15s' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+                  <div key={key} style={{ border:`1.5px solid ${hasAny?'#10B981':'#E5E7EB'}`, borderRadius:12, padding:'12px 16px', background:hasAny?'#F0FDF4':'#fff', transition:'all 0.15s' }}>
+                    {/* ── Card header ───────────────────────────────────── */}
+                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:hasAny?10:8 }}>
                       <span style={{ fontSize:18 }}>{icon}</span>
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:13, fontWeight:700, color:'#111827' }}>
                           {label}
                           {required && <span style={{ color:'#6366F1', marginLeft:4 }}>*</span>}
                         </div>
-                        {uploaded
-                          ? <div style={{ fontSize:11, color:'#16A34A', marginTop:2, display:'flex', alignItems:'center', gap:4 }}>
-                              <span>✓</span> {
-                                typeof uploaded === 'object' && uploaded?.fileName
-                                  ? uploaded.fileName
-                                  : (typeof uploaded === 'string' ? uploaded : 'File uploaded')
-                              }
-                            </div>
-                          : <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>No file uploaded</div>
-                        }
+                        <div style={{ fontSize:11, color: hasAny ? '#16A34A' : '#9CA3AF', marginTop:2 }}>
+                          {hasAny
+                            ? `${files.length} file${files.length>1?'s':''} attached`
+                            : 'No file uploaded — you can attach multiple (e.g. front + back)'}
+                        </div>
                       </div>
-                      {uploaded && (
-                        <>
-                          {/* View button — works for newly-uploaded files (data URL)
-                              or saved ones (data URL or http URL). */}
-                          {(() => {
-                            const u = uploaded;
-                            const url = typeof u === 'object' ? (u.data || u.url) : '';
-                            const mime = typeof u === 'object' ? (u.mimeType || '') : '';
-                            const fname = typeof u === 'object' ? (u.fileName || '') : '';
-                            const viewable = url && (
-                              url.startsWith('data:') ||
-                              url.startsWith('blob:') ||
-                              /^https?:\/\//i.test(url)
-                            );
-                            if (!viewable) return null;
-                            return (
-                              <>
-                                <button type="button" onClick={() => {
-                                  const w = window.open();
-                                  if (!w) { toast.error('Please allow pop-ups to preview the file'); return; }
-                                  if (url.startsWith('data:')) {
-                                    const isImage = mime.startsWith('image/');
-                                    w.document.write(
-                                      `<title>${fname || 'Preview'}</title>` +
-                                      `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
-                                      (isImage
-                                        ? `<img src="${url}" alt="${fname}"/>`
-                                        : `<embed src="${url}" type="${mime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
-                                    );
-                                  } else {
-                                    w.location.href = url;
-                                  }
-                                }}
-                                  style={{ fontSize:11, color:'#fff', background:'#6366F1', border:'1px solid #4F46E5', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, marginRight:4 }}>
-                                  👁 View
-                                </button>
-                                <button type="button" onClick={() => {
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  a.download = fname || 'document';
-                                  a.style.display = 'none';
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                }}
-                                  style={{ fontSize:11, color:'#fff', background:'#10B981', border:'1px solid #059669', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0, marginRight:4 }}>
-                                  ⬇ Download
-                                </button>
-                              </>
-                            );
-                          })()}
-                          <button type="button" onClick={()=>setDoc(key, null)}
-                            style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'3px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
-                            ✕ Remove
-                          </button>
-                        </>
-                      )}
                     </div>
-                    <label style={{ display:'block', cursor:'pointer' }}>
-                      <div style={{ border:`1.5px dashed ${uploaded?'#10B981':'#D1D5DB'}`, borderRadius:8, padding:'8px', textAlign:'center', fontSize:12, color:uploaded?'#16A34A':'#6B7280', background:uploaded?'#F0FDF4':'#F9FAFB', transition:'all 0.15s' }}>
-                        {uploaded ? '📎 Replace file' : '+ Click to upload'}
+
+                    {/* ── Per-file rows: name, view, download, remove ───── */}
+                    {files.map((f, idx) => {
+                      const url   = (f && typeof f === 'object') ? (f.data || f.url || '') : '';
+                      const mime  = (f && typeof f === 'object') ? (f.mimeType || '') : '';
+                      const fname = (f && typeof f === 'object') ? (f.fileName || `File ${idx+1}`) : `File ${idx+1}`;
+                      const viewable = url && (url.startsWith('data:') || url.startsWith('blob:') || /^https?:\/\//i.test(url));
+
+                      return (
+                        <div key={idx}
+                          style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 8px', marginBottom:6,
+                                   background:'#fff', border:'1px solid #D1FAE5', borderRadius:8 }}>
+                          <span style={{ fontSize:12, color:'#16A34A' }}>✓</span>
+                          <div style={{ flex:1, minWidth:0, fontSize:12, color:'#111827',
+                                        whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}
+                               title={fname}>
+                            {fname}
+                          </div>
+                          {viewable && (
+                            <>
+                              <button type="button" onClick={() => {
+                                const w = window.open();
+                                if (!w) { toast.error('Please allow pop-ups to preview the file'); return; }
+                                if (url.startsWith('data:')) {
+                                  const isImage = mime.startsWith('image/');
+                                  w.document.write(
+                                    `<title>${fname || 'Preview'}</title>` +
+                                    `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                                    (isImage
+                                      ? `<img src="${url}" alt="${fname}"/>`
+                                      : `<embed src="${url}" type="${mime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                                  );
+                                } else {
+                                  w.location.href = url;
+                                }
+                              }}
+                                style={{ fontSize:11, color:'#fff', background:'#6366F1', border:'1px solid #4F46E5', padding:'2px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                                👁
+                              </button>
+                              <button type="button" onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = fname || 'document';
+                                a.style.display = 'none';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              }}
+                                style={{ fontSize:11, color:'#fff', background:'#10B981', border:'1px solid #059669', padding:'2px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                                ⬇
+                              </button>
+                            </>
+                          )}
+                          <button type="button" onClick={()=>removeDocFile(key, idx)}
+                            style={{ fontSize:11, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'2px 8px', borderRadius:6, cursor:'pointer', flexShrink:0 }}>
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* ── Add-file input (hidden, triggered by the dashed box) ── */}
+                    {!atLimit && (
+                      <label style={{ display:'block', cursor:'pointer' }}>
+                        <div style={{ border:`1.5px dashed ${hasAny?'#10B981':'#D1D5DB'}`, borderRadius:8, padding:'8px', textAlign:'center', fontSize:12, color:hasAny?'#16A34A':'#6B7280', background:hasAny?'#F0FDF4':'#F9FAFB', transition:'all 0.15s' }}>
+                          {hasAny ? `+ Add another file (${files.length}/${MAX_FILES_PER_SLOT})` : '+ Click to upload (multiple allowed)'}
+                        </div>
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display:'none' }}
+                          onChange={e=>{
+                            const picked = Array.from(e.target.files || []);
+                            // Only fit as many as the slot has room for
+                            const room = MAX_FILES_PER_SLOT - files.length;
+                            picked.slice(0, room).forEach(f => addDocFile(key, f));
+                            if (picked.length > room) {
+                              toast.error(`Only ${room} more file(s) allowed in this slot`);
+                            }
+                            // Reset so the same file can be picked again later
+                            e.target.value = '';
+                          }}/>
+                      </label>
+                    )}
+                    {atLimit && (
+                      <div style={{ fontSize:11, color:'#9CA3AF', textAlign:'center', padding:'6px 0' }}>
+                        Maximum {MAX_FILES_PER_SLOT} files reached — remove one to add another
                       </div>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }}
-                        onChange={e=>{ if(e.target.files[0]) setDoc(key, e.target.files[0]); }}/>
-                    </label>
+                    )}
                   </div>
                 );
               })}
@@ -1004,24 +1085,40 @@ function hydrateForm(base, record) {
     out.motherPhone      = record.mother.phone      || out.motherPhone      || '';
     out.motherAadhaar    = record.mother.aadhaar    || out.motherAadhaar    || '';
   }
-  // Documents — preserve objects with url+fileName, fall back gracefully
+  // Documents — convert any saved shape into the new array form so the edit UI
+  // can show all files and let the user add/remove them.
   if (record.documents && typeof record.documents === 'object') {
     out.documents = { ...base.documents };
     for (const dk of Object.keys(record.documents)) {
       const d = record.documents[dk];
       if (!d) continue;
-      if (typeof d === 'object' && (d.url || d.fileName)) {
-        // Rich shape — preserve
-        out.documents[dk] = {
-          fileName: d.fileName || '',
-          mimeType: d.mimeType || '',
-          size:     d.size     || 0,
-          data:     d.url      || '',
-          uploadedAt: d.uploadedAt || '',
+
+      // Helper: turn one stored file shape into the in-form file shape.
+      const toFormFile = (f) => {
+        if (!f || typeof f !== 'object') return null;
+        if (!f.url && !f.data && !f.fileName) return null;
+        return {
+          fileName:   f.fileName   || '',
+          mimeType:   f.mimeType   || '',
+          size:       f.size       || 0,
+          data:       f.data || f.url || '',
+          uploadedAt: f.uploadedAt || '',
         };
-      } else if (d.submitted) {
-        // Legacy: submitted=true but no real file. Keep null so form doesn't lie.
-        out.documents[dk] = null;
+      };
+
+      if (typeof d === 'object') {
+        if (Array.isArray(d.files) && d.files.length) {
+          // New shape — preserve the full list
+          const arr = d.files.map(toFormFile).filter(Boolean);
+          out.documents[dk] = arr.length ? arr : null;
+        } else if (d.url || d.fileName || d.data) {
+          // Legacy single-file shape — wrap into a 1-item array
+          const single = toFormFile(d);
+          out.documents[dk] = single ? [single] : null;
+        } else if (d.submitted) {
+          // Submitted flag but no file content stored — keep slot empty
+          out.documents[dk] = null;
+        }
       }
     }
   }
