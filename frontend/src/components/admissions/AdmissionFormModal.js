@@ -98,7 +98,7 @@ const EMPTY = {
   notes:       '',
   aadhaarNumber:'',
   category:    '',
-  nonCreamyLayer: '',  // 'yes' | 'no' — only relevant for OBC/SEBC/SBC
+  nonCreamyLayer: '',  // 'yes' | 'no'
   nationality: 'Indian',
   academicYear:'',
 };
@@ -722,14 +722,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 // OR the saved value is free-text not in our known list.
                 const isOther = form.categoryOtherSelected || (form.category && !knownVals.includes(form.category));
                 const dropdownValue = isOther ? '__other__' : (form.category || '');
-                // Helper: clear NCL when the new category isn't one where it applies
-                const NCL_CATEGORIES = ['obc', 'sebc', 'sbc'];
                 const updateCategory = (newVal, otherFlag = false) => {
                   setForm(f => ({
                     ...f,
                     category: newVal,
                     categoryOtherSelected: otherFlag,
-                    ...(NCL_CATEGORIES.includes(newVal) ? {} : { nonCreamyLayer: '' }),
                   }));
                 };
                 return (
@@ -764,16 +761,14 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 );
               })()}
             </FloatInput>
-            {/* Non-Creamy Layer — only shown for OBC/SEBC/SBC */}
-            {['obc','sebc','sbc'].includes(form.category) && (
-              <FloatInput label="Non-Creamy Layer">
-                <select style={SEL} value={form.nonCreamyLayer} onChange={e=>set('nonCreamyLayer', e.target.value)}>
-                  <option value="">Select</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </FloatInput>
-            )}
+            {/* Non-Creamy Layer — always visible */}
+            <FloatInput label="Non-Creamy Layer">
+              <select style={SEL} value={form.nonCreamyLayer} onChange={e=>set('nonCreamyLayer', e.target.value)}>
+                <option value="">Select</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </FloatInput>
           </Section>
 
           {/* Section 2 - Other Information */}
