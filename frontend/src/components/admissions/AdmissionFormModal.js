@@ -622,8 +622,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               {[
                 ['birthCertificate',    'Birth Certificate',          '📋', false],
                 ['aadhaarStudent',      'Aadhaar Card (Student)',      '🪪', false],
-                ['aadhaarParent',       'Aadhaar Card (Parent)',       '🪪', false],
-                ['photos',             'Passport Photos (2–4)',        '📷', false],
+                ['aadhaarParent',       'Aadhaar Card / Pancard(Parent)',       '🪪', false],
+                ['photos',             'Passport Photos',        '📷', false],
                 ['addressProof',       'Address Proof',               '🏠', false],
                 ['apaarId',            'APAAR ID',                    '🆔', false],
                 ['leavingCertificate', 'Leaving Certificate (LC)',    '📄', false],
