@@ -4,15 +4,24 @@ import toast from 'react-hot-toast';
 import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../utils/admissionUtils';
 import { studentAPI, classAPI } from '../../utils/api';
 
+// Keys MUST match AdmissionFormModal.js — the form writes these keys into
+// admission.documents and this modal reads them back. If they drift, uploads
+// appear "missing" here even though they were saved successfully.
 const DOCS = [
-  { key: 'birthCertificate',    label: 'Birth Certificate'    },
-  { key: 'transferCertificate', label: 'Transfer Certificate' },
-  { key: 'marksheet',           label: 'Marksheet'            },
-  { key: 'aadhaarCard',         label: 'Aadhaar Card'         },
-  { key: 'passportPhoto',       label: 'Passport Photo'       },
-  { key: 'casteCertificate',    label: 'Caste Certificate'    },
-  { key: 'medicalCertificate',  label: 'Medical Certificate'  },
-  { key: 'addressProof',        label: 'Address Proof'        },
+  { key: 'birthCertificate',     label: 'Birth Certificate'           },
+  { key: 'aadhaarStudent',       label: 'Aadhaar Card (Student)'      },
+  { key: 'aadhaarParent',        label: 'Aadhaar Card (Parent)'       },
+  { key: 'photos',               label: 'Passport Photos (2–4)'       },
+  { key: 'addressProof',         label: 'Address Proof'               },
+  { key: 'apaarId',              label: 'APAAR ID'                    },
+  { key: 'leavingCertificate',   label: 'Leaving Certificate (LC)'    },
+  { key: 'transferCertificate',  label: 'Transfer Certificate (TC)'   },
+  { key: 'previousMarksheet',    label: 'Previous Marksheet'          },
+  { key: 'studentId',            label: 'Student ID (previous school)'},
+  { key: 'casteCertificate',     label: 'Caste Certificate'           },
+  { key: 'incomeCertificate',    label: 'Income Certificate'          },
+  { key: 'bankDetails',          label: 'Bank Account Details'        },
+  { key: 'medicalCertificate',   label: 'Medical Certificate'         },
 ];
 
 const STATUSES = Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({ key, label: cfg.label }));
@@ -97,7 +106,15 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
-  const docsSubmitted = app ? DOCS.filter(d => app.documents?.[d.key]?.submitted).length : 0;
+  // A document counts as submitted if EITHER the admin toggled `submitted: true`,
+  // OR a file is actually attached (parent uploaded via the form). Otherwise an
+  // upload appears in the list with View/Download buttons but is not counted.
+  const docsSubmitted = app
+    ? DOCS.filter(d => {
+        const dd = app.documents?.[d.key];
+        return dd && (dd.submitted || dd.data || dd.url);
+      }).length
+    : 0;
 
   const handleEnroll = async () => {
     if (!enrollClass) return toast.error('Please select a class');
@@ -407,8 +424,9 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {DOCS.map(doc => {
                       const docData  = app.documents?.[doc.key];
-                      const submitted = docData?.submitted || false;
-                      const fileUrl   = docData?.url || '';
+                      const submitted = docData?.submitted || !!docData?.data || !!docData?.url || false;
+                      // Form writes the base64 under `data`; older records may use `url`
+                      const fileUrl   = docData?.data || docData?.url || '';
                       const fileName  = docData?.fileName || '';
                       // Only treat as "has viewable file" if the url is a real,
                       // openable resource — not a legacy filename string
