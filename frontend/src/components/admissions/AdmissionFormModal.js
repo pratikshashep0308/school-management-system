@@ -9,7 +9,10 @@ import { classAPI } from '../../utils/api';
 
 const EMPTY = {
   // Section 1 - Student Info
-  studentName:        '',
+  firstName:          '',
+  middleName:         '',
+  lastName:           '',
+  studentName:        '', // kept as derived "First Middle Last"; do not edit directly
   registrationNo:     '',
   applyingForClass:   '',
   dateOfAdmission:    new Date().toISOString().split('T')[0],
@@ -29,6 +32,9 @@ const EMPTY = {
   bloodGroup:         '',
   totalSiblings:      '',
   disease:            '',
+  isDisabled:           '',
+  disabilityPercentage: '',
+  disabilityType:       '',
   additionalNote:     '',
 
   // Section 3 - Parent/Guardian Info
@@ -51,7 +57,15 @@ const EMPTY = {
   state:              '',
   pincode:            '',
 
-  // Section 4 - Previous School
+  // Section 4 - Bank Details
+  bankAccountHolder:  '',
+  bankName:           '',
+  bankBranchName:     '',
+  bankIfsc:           '',
+  bankAccountNumber:  '',
+  bankBranchAddress:  '',
+
+  // Section 5 - Previous School
   previousSchoolName: '',
   previousClass:      '',
   previousBoard:      '',
@@ -177,13 +191,14 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   };
 
   const handleSubmit = async () => {
-    // ── TC-ADM-03 — Student Name is mandatory ───────────────────────────────
-    const trimmedName = (form.studentName || '').trim();
-    if (!trimmedName) {
-      toast.error('Student Name is required');
-      // Scroll the form back to the top so the empty field is visible
+    // ── TC-ADM-03 — First Name and Last Name are mandatory ──────────────────
+    const firstNameTrim = (form.firstName || '').trim();
+    const lastNameTrim  = (form.lastName  || '').trim();
+    if (!firstNameTrim || !lastNameTrim) {
+      toast.error(!firstNameTrim ? 'First Name is required' : 'Last Name is required');
       try {
-        const el = document.querySelector('input[placeholder="Name of Student"]');
+        const placeholder = !firstNameTrim ? 'First Name' : 'Last Name';
+        const el = document.querySelector(`input[placeholder="${placeholder}"]`);
         el?.focus();
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } catch (_) {}
@@ -274,8 +289,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
       parentName:  primaryName,
       parentPhone: primaryPhone,
       parentEmail: primaryEmail,
-      father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone },
-      mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone },
+      father: { name: form.fatherName, occupation: form.fatherOccupation, phone: form.fatherPhone, aadhaar: form.fatherAadhaar },
+      mother: { name: form.motherName, occupation: form.motherOccupation, phone: form.motherPhone, aadhaar: form.motherAadhaar },
       address: { street: form.address, city: form.city, state: form.state, pincode: form.pincode },
       documents: Object.fromEntries(
         Object.entries(form.documents).map(([key, value]) => {
@@ -457,7 +472,49 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           {/* Section 1 - Student Information */}
           <Section number="1" title="Student Information">
             <FloatInput label="Student Name" required>
-              <input style={INP} value={form.studentName} onChange={e=>set('studentName',e.target.value)} placeholder="Name of Student" required/>
+              <div style={{ display:'flex', gap:8 }}>
+                <input
+                  style={{ ...INP, flex:1 }}
+                  value={form.firstName}
+                  onChange={e=>{
+                    const firstName = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      firstName,
+                      studentName: [firstName, f.middleName, f.lastName].filter(Boolean).join(' ').trim(),
+                    }));
+                  }}
+                  placeholder="First Name"
+                  required
+                />
+                <input
+                  style={{ ...INP, flex:1 }}
+                  value={form.middleName}
+                  onChange={e=>{
+                    const middleName = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      middleName,
+                      studentName: [f.firstName, middleName, f.lastName].filter(Boolean).join(' ').trim(),
+                    }));
+                  }}
+                  placeholder="Middle Name"
+                />
+                <input
+                  style={{ ...INP, flex:1 }}
+                  value={form.lastName}
+                  onChange={e=>{
+                    const lastName = e.target.value;
+                    setForm(f => ({
+                      ...f,
+                      lastName,
+                      studentName: [f.firstName, f.middleName, lastName].filter(Boolean).join(' ').trim(),
+                    }));
+                  }}
+                  placeholder="Last Name"
+                  required
+                />
+              </div>
             </FloatInput>
             <FloatInput label="Registration No">
               <input style={INP} value={form.registrationNo} onChange={e=>set('registrationNo',e.target.value)} placeholder="Registration No"/>
@@ -513,8 +570,10 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Orphan Student">
               <select style={SEL} value={form.orphanStudent} onChange={e=>set('orphanStudent',e.target.value)}>
                 <option value="">Select</option>
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
+                <option value="orphan">Orphan</option>
+                <option value="single_parent_mother">Single Parent (Mother)</option>
+                <option value="single_parent_father">Single Parent (Father)</option>
+                <option value="not_applicable">Not Applicable</option>
               </select>
             </FloatInput>
             <FloatInput label="Gender">
@@ -554,6 +613,50 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Disease (if any)">
               <input style={INP} value={form.disease} onChange={e=>set('disease',e.target.value)} placeholder="Disease If Any?"/>
             </FloatInput>
+            <FloatInput label="Is Disable?">
+              <select
+                style={SEL}
+                value={form.isDisabled}
+                onChange={e=>{
+                  const v = e.target.value;
+                  setForm(f => ({
+                    ...f,
+                    isDisabled: v,
+                    // Clear dependent fields when switching away from Yes
+                    ...(v !== 'yes' && { disabilityPercentage: '', disabilityType: '' }),
+                  }));
+                }}>
+                <option value="">Select</option>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </FloatInput>
+            {form.isDisabled === 'yes' && (
+              <FloatInput label="Percentage of Disability">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  style={INP}
+                  value={form.disabilityPercentage}
+                  onChange={e=>{
+                    // Clamp to 0–100 and strip non-digits
+                    const raw = e.target.value.replace(/[^\d.]/g,'');
+                    const num = raw === '' ? '' : Math.min(100, Math.max(0, Number(raw)));
+                    set('disabilityPercentage', num === '' ? '' : String(num));
+                  }}
+                  placeholder="e.g. 40"/>
+              </FloatInput>
+            )}
+            {form.isDisabled === 'yes' && (
+              <FloatInput label="Disability Type">
+                <input
+                  style={INP}
+                  value={form.disabilityType}
+                  onChange={e=>set('disabilityType', e.target.value)}
+                  placeholder="e.g. Visual, Hearing, Locomotor"/>
+              </FloatInput>
+            )}
             <FloatInput label="Any Additional Note" span={2}>
               <input style={INP} value={form.additionalNote} onChange={e=>set('additionalNote',e.target.value)} placeholder="Any Additional Note"/>
             </FloatInput>
@@ -570,6 +673,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Father's Phone">
               <PhoneInput value={form.fatherPhone} onChange={v=>set('fatherPhone',v)} style={{padding:'8px 0'}} />
             </FloatInput>
+            <FloatInput label="Father's Aadhaar">
+              <input style={INP} value={form.fatherAadhaar}
+                onChange={e=>set('fatherAadhaar', e.target.value.replace(/\D/g,'').slice(0,12))}
+                placeholder="12-digit Aadhaar number" maxLength={12} inputMode="numeric"/>
+            </FloatInput>
             <FloatInput label="Mother's Name">
               <input style={INP} value={form.motherName} onChange={e=>set('motherName',e.target.value)} placeholder="Mother's Full Name"/>
             </FloatInput>
@@ -578,6 +686,11 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             </FloatInput>
             <FloatInput label="Mother's Phone">
               <PhoneInput value={form.motherPhone} onChange={v=>set('motherPhone',v)} style={{padding:'8px 0'}} />
+            </FloatInput>
+            <FloatInput label="Mother's Aadhaar">
+              <input style={INP} value={form.motherAadhaar}
+                onChange={e=>set('motherAadhaar', e.target.value.replace(/\D/g,'').slice(0,12))}
+                placeholder="12-digit Aadhaar number" maxLength={12} inputMode="numeric"/>
             </FloatInput>
 
             <FloatInput label="Email">
@@ -599,13 +712,51 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             </FloatInput>
           </Section>
 
+          {/* Section 4 - Bank Details */}
+          <Section number="4" title="Bank Details">
+            <FloatInput label="Account Holder Name">
+              <input style={INP} value={form.bankAccountHolder}
+                onChange={e=>set('bankAccountHolder', e.target.value)}
+                placeholder="Name as on bank account"/>
+            </FloatInput>
+            <FloatInput label="Bank Name">
+              <input style={INP} value={form.bankName}
+                onChange={e=>set('bankName', e.target.value)}
+                placeholder="e.g. State Bank of India"/>
+            </FloatInput>
+            <FloatInput label="Branch Name">
+              <input style={INP} value={form.bankBranchName}
+                onChange={e=>set('bankBranchName', e.target.value)}
+                placeholder="Branch name"/>
+            </FloatInput>
+            <FloatInput label="IFSC Code">
+              <input style={INP} value={form.bankIfsc}
+                onChange={e=>{
+                  // IFSC is 11 chars: 4 letters + 0 + 6 alphanumeric. Force uppercase, cap at 11.
+                  const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,11);
+                  set('bankIfsc', v);
+                }}
+                placeholder="e.g. SBIN0001234" maxLength={11}/>
+            </FloatInput>
+            <FloatInput label="Account Number">
+              <input style={INP} value={form.bankAccountNumber}
+                onChange={e=>set('bankAccountNumber', e.target.value.replace(/\D/g,'').slice(0,18))}
+                placeholder="Account number" inputMode="numeric"/>
+            </FloatInput>
+            <FloatInput label="Branch Address" span={3}>
+              <input style={INP} value={form.bankBranchAddress}
+                onChange={e=>set('bankBranchAddress', e.target.value)}
+                placeholder="Full branch address"/>
+            </FloatInput>
+          </Section>
+
 
 
           {/* Section 5 - Documents Checklist */}
           <div style={{ marginBottom:28 }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16, paddingBottom:10, borderBottom:'1.5px solid #E5E7EB' }}>
               <div style={{ width:28, height:28, borderRadius:'50%', background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>4</span>
+                <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>5</span>
               </div>
               <h3 style={{ fontSize:15, fontWeight:700, color:'#1F2937', margin:0, flex:1 }}>Document Upload</h3>
               <div style={{ fontSize:13, fontWeight:700, color:'#10B981' }}>{docsChecked}/{docsTotal} uploaded</div>
@@ -622,8 +773,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               {[
                 ['birthCertificate',    'Birth Certificate',          '📋', false],
                 ['aadhaarStudent',      'Aadhaar Card (Student)',      '🪪', false],
-                ['aadhaarParent',       'Aadhaar Card / Pancard(Parent)',       '🪪', false],
-                ['photos',             'Passport Photos',        '📷', false],
+                ['aadhaarParent',       'Aadhaar Card (Parent)',       '🪪', false],
+                ['photos',             'Passport Photos (2–4)',        '📷', false],
                 ['addressProof',       'Address Proof',               '🏠', false],
                 ['apaarId',            'APAAR ID',                    '🆔', false],
                 ['leavingCertificate', 'Leaving Certificate (LC)',    '📄', false],
@@ -728,7 +879,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
           </div>
 
           {/* Section 6 - Additional */}
-          <Section number="4" title="Additional Information">
+          <Section number="6" title="Additional Information">
             <FloatInput label="Priority">
               <select style={SEL} value={form.priority} onChange={e=>set('priority',e.target.value)}>
                 <option value="normal">⚪ Normal</option>
@@ -825,16 +976,33 @@ function hydrateForm(base, record) {
     out.state   = record.address.state   || '';
     out.pincode = record.address.pincode || '';
   }
+  // Back-fill First/Middle/Last from legacy studentName when the new fields
+  // are missing (older records were saved with only `studentName`).
+  if (!out.firstName && !out.middleName && !out.lastName && out.studentName) {
+    const parts = String(out.studentName).trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) {
+      out.firstName = parts[0];
+    } else if (parts.length === 2) {
+      out.firstName = parts[0];
+      out.lastName  = parts[1];
+    } else if (parts.length >= 3) {
+      out.firstName  = parts[0];
+      out.lastName   = parts[parts.length - 1];
+      out.middleName = parts.slice(1, -1).join(' ');
+    }
+  }
   // Flatten father / mother
   if (record.father && typeof record.father === 'object') {
     out.fatherName       = record.father.name       || out.fatherName       || '';
     out.fatherOccupation = record.father.occupation || out.fatherOccupation || '';
     out.fatherPhone      = record.father.phone      || out.fatherPhone      || '';
+    out.fatherAadhaar    = record.father.aadhaar    || out.fatherAadhaar    || '';
   }
   if (record.mother && typeof record.mother === 'object') {
     out.motherName       = record.mother.name       || out.motherName       || '';
     out.motherOccupation = record.mother.occupation || out.motherOccupation || '';
     out.motherPhone      = record.mother.phone      || out.motherPhone      || '';
+    out.motherAadhaar    = record.mother.aadhaar    || out.motherAadhaar    || '';
   }
   // Documents — preserve objects with url+fileName, fall back gracefully
   if (record.documents && typeof record.documents === 'object') {
