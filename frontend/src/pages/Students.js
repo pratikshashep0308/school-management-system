@@ -555,12 +555,16 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
   const weakSub = examResults.filter(e => e.pct < 50);
 
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:300, display:"flex" }}>
-      {/* Backdrop */}
-      <div style={{ flex:1, background:"rgba(0,0,0,0.5)" }} onClick={onClose} />
-      {/* Drawer */}
-      <div style={{ width:"100%", maxWidth:860, background:"#fff", height:"100%", overflowY:"auto", boxShadow:"-8px 0 40px rgba(0,0,0,0.15)" }}>
-        {/* Drawer header */}
+    <div
+      style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:"24px 16px", overflowY:"auto", backdropFilter:"blur(2px)" }}
+      onClick={onClose}
+    >
+      {/* Centered modal — wide layout so two-column field grids stay roomy */}
+      <div
+        style={{ maxWidth:1280, margin:"0 auto", background:"#fff", borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.45)", minHeight:"calc(100vh - 48px)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Modal header */}
         <div style={{ position:"sticky", top:0, zIndex:10, background:"#fff", borderBottom:"1px solid #E5E7EB", padding:"20px 28px 0" }}>
           <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
             <div style={{ width:60, height:60, borderRadius:18, background:"#0B1F4A", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -729,30 +733,30 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                       </p>
                     </Section>
 
-                    {govIds.length > 0 && (
-                      <Section title="Government IDs">
+                    <Section title="Government IDs">
+                      {govIds.length > 0 ? (
                         <InfoGrid items={govIds.map(g => ({
                           label: g.type || 'ID',
                           value: g.number || '—',
                         }))} />
-                      </Section>
-                    )}
+                      ) : (
+                        <p className="text-sm text-muted">— No Government IDs added</p>
+                      )}
+                    </Section>
 
-                    {(snap.bankAccountHolder || snap.bankName || snap.bankAccountNumber) && (
-                      <Section title="Bank Details">
-                        <InfoGrid items={[
-                          { label: 'Account Holder', value: v(snap.bankAccountHolder) },
-                          { label: 'Bank Name',      value: v(snap.bankName) },
-                          { label: 'Branch Name',    value: v(snap.bankBranchName) },
-                          { label: 'IFSC Code',      value: v(snap.bankIfsc) },
-                          { label: 'Account Number', value: v(snap.bankAccountNumber) },
-                          { label: 'Branch Address', value: v(snap.bankBranchAddress) },
-                        ]} />
-                      </Section>
-                    )}
+                    <Section title="Bank Details">
+                      <InfoGrid items={[
+                        { label: 'Account Holder', value: v(snap.bankAccountHolder) },
+                        { label: 'Bank Name',      value: v(snap.bankName) },
+                        { label: 'Branch Name',    value: v(snap.bankBranchName) },
+                        { label: 'IFSC Code',      value: v(snap.bankIfsc) },
+                        { label: 'Account Number', value: v(snap.bankAccountNumber) },
+                        { label: 'Branch Address', value: v(snap.bankBranchAddress) },
+                      ]} />
+                    </Section>
 
-                    {(stdDocs.length > 0 || customDocs.length > 0) && (
-                      <Section title={`Documents Submitted (${stdDocs.length + customDocs.length})`}>
+                    <Section title={`Documents Submitted (${stdDocs.length + customDocs.length})`}>
+                      {(stdDocs.length > 0 || customDocs.length > 0) ? (
                         <div className="flex flex-wrap gap-2">
                           {stdDocs.map(d => (
                             <span key={d} className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
@@ -765,15 +769,17 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                             </span>
                           ))}
                         </div>
-                        {snap.addressProofType && (
-                          <p className="mt-3 text-xs text-muted">
-                            Address Proof type: <span className="font-semibold text-ink dark:text-white">
-                              {snap.addressProofType === '__other__' ? (snap.addressProofTypeOther || 'Other') : snap.addressProofType}
-                            </span>
-                          </p>
-                        )}
-                      </Section>
-                    )}
+                      ) : (
+                        <p className="text-sm text-muted">— No documents uploaded</p>
+                      )}
+                      {snap.addressProofType && (
+                        <p className="mt-3 text-xs text-muted">
+                          Address Proof type: <span className="font-semibold text-ink dark:text-white">
+                            {snap.addressProofType === '__other__' ? (snap.addressProofTypeOther || 'Other') : snap.addressProofType}
+                          </span>
+                        </p>
+                      )}
+                    </Section>
 
                     {s.transportRoute && (
                       <Section title="Transport">
@@ -1125,7 +1131,7 @@ function Section({ title, children }) {
 
 function InfoGrid({ items }) {
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
       {items.map(({ label, value }) => (
         <div key={label}>
           <p className="text-[10px] text-muted uppercase tracking-wide">{label}</p>
