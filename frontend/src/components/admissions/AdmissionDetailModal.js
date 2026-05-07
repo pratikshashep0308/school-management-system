@@ -106,9 +106,6 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
-  // A document counts as submitted if EITHER the admin toggled `submitted: true`,
-  // OR a file is actually attached (parent uploaded via the form). Otherwise an
-  // upload appears in the list with View/Download buttons but is not counted.
   const docsSubmitted = app
     ? DOCS.filter(d => {
         const dd = app.documents?.[d.key];
@@ -288,111 +285,144 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
             <div className="flex-1 overflow-y-auto p-6">
 
               {/* ── DETAILS TAB ── */}
-              {tab === 'details' && (
+              {tab === 'details' && (() => {
+                // Friendly enum-ish labels
+                const orphanLabels = {
+                  orphan: 'Orphan',
+                  single_parent_mother: 'Single Parent (Mother)',
+                  single_parent_father: 'Single Parent (Father)',
+                  not_applicable: 'Not Applicable',
+                };
+                const yn = v => v === 'yes' ? 'Yes' : v === 'no' ? 'No' : '';
+
+                // Father / mother data — form stores both nested AND flat depending on
+                // when the record was saved, so fall back across both shapes.
+                const fatherName       = app.father?.name        || app.fatherName        || '';
+                const fatherOccupation = app.father?.occupation  || app.fatherOccupation  || '';
+                const fatherPhone      = app.father?.phone       || app.fatherPhone       || '';
+                const fatherAadhaar    = app.father?.aadhaar     || app.fatherAadhaar     || '';
+                const motherName       = app.mother?.name        || app.motherName        || '';
+                const motherOccupation = app.mother?.occupation  || app.motherOccupation  || '';
+                const motherPhone      = app.mother?.phone       || app.motherPhone       || '';
+                const motherAadhaar    = app.mother?.aadhaar     || app.motherAadhaar     || '';
+
+                const govIds = (app.governmentIds || []).filter(g => g && (g.type || g.number));
+
+                return (
                 <div className="space-y-6">
                   <Section title="Student Information">
                     <Grid>
-                      <Field label="Full Name"      value={app.studentName} />
-                      <Field label="Date of Birth"  value={fmt(app.dateOfBirth)} />
-                      <Field label="Gender"         value={app.gender} capitalize />
-                      <Field label="Blood Group"    value={app.bloodGroup} />
-                      <Field label="Nationality"    value={app.nationality} />
-                      <Field label="Religion"       value={app.religion} />
-                      <Field label="Category"       value={app.category?.toUpperCase()} />
-                      <Field label="Mother Tongue"  value={app.motherTongue} />
-                      <Field label="Aadhaar"        value={app.aadhaarNumber} />
+                      <Field label="First Name"           value={app.firstName} />
+                      <Field label="Middle Name"          value={app.middleName} />
+                      <Field label="Last Name"            value={app.lastName} />
+                      <Field label="Full Name"            value={app.studentName} />
+                      <Field label="Registration No"      value={app.registrationNo} />
+                      <Field label="Application No"       value={app.applicationNumber} />
+                      <Field label="Date of Admission"    value={fmt(app.dateOfAdmission)} />
+                      <Field label="Academic Year"        value={app.academicYear} />
+                      <Field label="Discount in Fee"      value={app.discountInFee ? `${app.discountInFee}%` : ''} />
+                      <Field label="Mobile (SMS/WhatsApp)" value={app.mobileForSMS} />
+                      <Field label="Aadhaar Number"       value={app.aadhaarNumber} />
+                      <Field label="Category"             value={app.category} capitalize />
+                      <Field label="Non-Creamy Layer"     value={yn(app.nonCreamyLayer)} />
+                      <Field label="Email"                value={app.parentEmail || app.email} />
+                    </Grid>
+                  </Section>
+
+                  <Section title="Other Information">
+                    <Grid>
+                      <Field label="Date of Birth"        value={fmt(app.dateOfBirth)} />
+                      <Field label="Birth Form ID / NIC"  value={app.birthFormId} />
+                      <Field label="Gender"               value={app.gender} capitalize />
+                      <Field label="Orphan Status"        value={orphanLabels[app.orphanStudent] || app.orphanStudent} />
+                      <Field label="Caste"                value={app.cast} />
+                      <Field label="Religion"             value={app.religion} />
+                      <Field label="Blood Group"          value={app.bloodGroup} />
+                      <Field label="Total Siblings"       value={app.totalSiblings} />
+                      <Field label="Nationality"          value={app.nationality} />
+                      <Field label="Identification Mark"  value={app.identificationMark} />
+                      <Field label="Disease (if any)"     value={app.disease} />
+                      <Field label="Is Disabled?"         value={yn(app.isDisabled)} />
+                      <Field label="Disability %"         value={app.disabilityPercentage ? `${app.disabilityPercentage}%` : ''} />
+                      <Field label="Disability Type"      value={app.disabilityType} />
+                    </Grid>
+                    {app.additionalNote && (
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <p className="text-xs text-slate-400 mb-0.5">Additional Note</p>
+                        <p className="text-sm text-slate-700">{app.additionalNote}</p>
+                      </div>
+                    )}
+                  </Section>
+
+                  <Section title="Parent / Guardian Information">
+                    <Grid>
+                      <Field label="Father's Name"        value={fatherName} />
+                      <Field label="Father's Occupation"  value={fatherOccupation} />
+                      <Field label="Father's Phone"       value={fatherPhone} />
+                      <Field label="Father's Aadhaar"     value={fatherAadhaar} />
+                      <Field label="Mother's Name"        value={motherName} />
+                      <Field label="Mother's Occupation"  value={motherOccupation} />
+                      <Field label="Mother's Phone"       value={motherPhone} />
+                      <Field label="Mother's Aadhaar"     value={motherAadhaar} />
+                      <Field label="Primary Contact"      value={app.parentName} />
+                      <Field label="Contact Phone"        value={app.parentPhone} />
                     </Grid>
                   </Section>
 
                   <Section title="Address">
                     <Grid>
-                      <Field label="Street"   value={app.address?.street}  />
-                      <Field label="City"     value={app.address?.city}    />
-                      <Field label="State"    value={app.address?.state}   />
-                      <Field label="Pincode"  value={app.address?.pincode} />
+                      <Field label="Street"   value={app.address?.street  || app.address}  />
+                      <Field label="City"     value={app.address?.city    || app.city}     />
+                      <Field label="State"    value={app.address?.state   || app.state}    />
+                      <Field label="Pincode"  value={app.address?.pincode || app.pincode}  />
+                    </Grid>
+                  </Section>
+
+                  <Section title="Government IDs">
+                    {govIds.length > 0 ? (
+                      <Grid>
+                        {govIds.map((g, i) => (
+                          <Field key={i} label={g.type || `ID ${i+1}`} value={g.number} />
+                        ))}
+                      </Grid>
+                    ) : (
+                      <p className="text-sm text-slate-400">— No Government IDs added</p>
+                    )}
+                  </Section>
+
+                  <Section title="Bank Details">
+                    <Grid>
+                      <Field label="Account Holder"  value={app.bankAccountHolder} />
+                      <Field label="Bank Name"       value={app.bankName} />
+                      <Field label="Branch Name"     value={app.bankBranchName} />
+                      <Field label="IFSC Code"       value={app.bankIfsc} />
+                      <Field label="Account Number"  value={app.bankAccountNumber} />
+                      <Field label="Branch Address"  value={app.bankBranchAddress} />
                     </Grid>
                   </Section>
 
                   <Section title="Academic Background">
                     <Grid>
-                      <Field label="Applying for Grade"   value={formatClass(app.applyingForClass)} />
-                      <Field label="Section Preferred"    value={app.applyingForSection} />
-                      <Field label="Academic Year"        value={app.academicYear} />
-                      <Field label="Previous School"      value={app.previousSchool} />
-                      <Field label="Previous Class"       value={app.previousClass} />
-                      <Field label="Previous Grade/CGPA"  value={app.previousGrade} />
-                      <Field label="Board"                value={app.previousBoard} />
-                      <Field label="TC Number"            value={app.tcNumber} />
+                      <Field label="Applying for Grade"  value={formatClass(app.applyingForClass)} />
+                      <Field label="Section Preferred"   value={app.applyingForSection} />
+                      <Field label="Previous School"     value={app.previousSchool} />
+                      <Field label="Previous Class"      value={app.previousClass} />
+                      <Field label="Previous Grade/CGPA" value={app.previousGrade} />
+                      <Field label="Board"               value={app.previousBoard} />
+                      <Field label="TC Number"           value={app.tcNumber} />
                     </Grid>
                   </Section>
-
-                  <Section title="Father's Details">
-                    <Grid>
-                      <Field label="Name"           value={app.father?.name} />
-                      <Field label="Occupation"     value={app.father?.occupation} />
-                      <Field label="Phone"          value={app.father?.phone} />
-                      <Field label="Email"          value={app.father?.email} />
-                      <Field label="Qualification"  value={app.father?.qualification} />
-                      <Field label="Annual Income"  value={app.father?.income ? `₹${app.father.income.toLocaleString('en-IN')}` : null} />
-                    </Grid>
-                  </Section>
-
-                  <Section title="Mother's Details">
-                    <Grid>
-                      <Field label="Name"           value={app.mother?.name} />
-                      <Field label="Occupation"     value={app.mother?.occupation} />
-                      <Field label="Phone"          value={app.mother?.phone} />
-                      <Field label="Email"          value={app.mother?.email} />
-                      <Field label="Qualification"  value={app.mother?.qualification} />
-                    </Grid>
-                  </Section>
-
-                  {app.emergencyContact?.name && (
-                    <Section title="Emergency Contact">
-                      <Grid>
-                        <Field label="Name"     value={app.emergencyContact.name} />
-                        <Field label="Relation" value={app.emergencyContact.relation} />
-                        <Field label="Phone 1"  value={app.emergencyContact.phone} />
-                        <Field label="Phone 2"  value={app.emergencyContact.phone2} />
-                      </Grid>
-                    </Section>
-                  )}
-
-                  {(app.medical?.hasAllergies || app.medical?.hasCondition) && (
-                    <Section title="Medical Information">
-                      <Grid>
-                        {app.medical.hasAllergies && <Field label="Allergies" value={app.medical.allergies} />}
-                        {app.medical.hasCondition && <Field label="Medical Condition" value={app.medical.condition} />}
-                        <Field label="Medications"  value={app.medical.medications} />
-                        <Field label="Doctor Name"  value={app.medical.doctorName} />
-                        <Field label="Doctor Phone" value={app.medical.doctorPhone} />
-                      </Grid>
-                    </Section>
-                  )}
-
-                  {app.siblings?.length > 0 && (
-                    <Section title="Siblings">
-                      <div className="space-y-2">
-                        {app.siblings.map((sib, i) => (
-                          <div key={i} className="flex gap-6 bg-slate-50 rounded-xl px-4 py-3 text-sm">
-                            <span className="font-medium text-slate-700">{sib.name}</span>
-                            <span className="text-slate-500">Class {sib.class}</span>
-                            <span className="text-slate-400">{sib.school}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </Section>
-                  )}
 
                   <Section title="Application Meta">
                     <Grid>
-                      <Field label="Source"       value={app.source?.replace('_', ' ')} capitalize />
-                      <Field label="Referred By"  value={app.referredBy} />
+                      <Field label="Source"        value={app.source?.replace('_', ' ')} capitalize />
+                      <Field label="Priority"      value={app.priority} capitalize />
+                      <Field label="Referred By"   value={app.referredBy} />
                       <Field label="Reg. Fee Paid" value={app.registrationFee?.paid ? `Yes · ₹${app.registrationFee.amount}` : 'No'} />
                     </Grid>
                   </Section>
 
-                  {/* Interview section */}
+                  {/* Interview section (kept inside Details tab) */}
                   <Section title="Interview Details">
                     {app.interview?.scheduled ? (
                       <Grid>
@@ -415,7 +445,9 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                     )}
                   </Section>
                 </div>
-              )}
+                );
+              })()}
+
 
               {/* ── DOCUMENTS TAB ── */}
               {tab === 'documents' && (
@@ -691,11 +723,14 @@ function Grid({ children }) {
   return <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">{children}</div>;
 }
 function Field({ label, value, capitalize }) {
-  if (!value && value !== 0) return null;
+  // Always render, even when empty -- so the panel layout stays predictable
+  // and the user can confirm a field exists rather than wondering if it was hidden.
+  const display = (value === null || value === undefined || value === '') ? '—' : value;
+  const isEmpty = display === '—';
   return (
     <div>
       <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className={`text-sm font-medium text-slate-700 ${capitalize ? 'capitalize' : ''}`}>{value}</p>
+      <p className={`text-sm font-medium ${isEmpty ? 'text-slate-300' : 'text-slate-700'} ${capitalize ? 'capitalize' : ''}`}>{display}</p>
     </div>
   );
 }

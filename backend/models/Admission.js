@@ -10,7 +10,10 @@ const AdmissionSchema = new mongoose.Schema({
   photo:          { type: String, default: '' },
   nationality:    { type: String, default: 'Indian' },
   religion:       { type: String },
-  category:       { type: String, enum: ['general','obc','sc','st','other',''], default: '' },
+  // Free string — schools/states have many categories beyond General/OBC/SC/ST.
+  // The frontend form lists known options (EWS, SEBC, NT-A..D, VJ, Minority,
+  // Other-specify) but stores whatever the user picked.
+  category:       { type: String, default: '' },
   motherTongue:   { type: String },
   aadhaarNumber:  { type: String },
 
@@ -28,9 +31,9 @@ const AdmissionSchema = new mongoose.Schema({
   applyingForSection: { type: String },
   academicYear:       { type: String },
   previousSchool:     { type: String },
-  previousClass:      { type: Number },
+  previousClass:      { type: String },                       // was Number — accept "Class 5", "Pre-K", etc.
   previousGrade:      { type: String },
-  previousBoard:      { type: String, enum: ['CBSE','ICSE','State Board','IB','IGCSE','Other',''], default: '' },
+  previousBoard:      { type: String, default: '' },          // was an enum — kept open like category
   tcNumber:           { type: String },
 
   // ── PARENT / GUARDIAN ────────────────────────────────────────
@@ -40,14 +43,16 @@ const AdmissionSchema = new mongoose.Schema({
     phone:         String,
     email:         { type: String, lowercase: true },
     qualification: String,
-    income:        Number
+    income:        Number,
+    aadhaar:       String,                                    // added — form sends this nested
   },
   mother: {
     name:          String,
     occupation:    String,
     phone:         String,
     email:         { type: String, lowercase: true },
-    qualification: String
+    qualification: String,
+    aadhaar:       String,                                    // added — form sends this nested
   },
   guardian: {
     name:     String,
@@ -158,6 +163,13 @@ const AdmissionSchema = new mongoose.Schema({
   school:    { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
+}, {
+  // strict: false — allow the form to save fields not explicitly defined here
+  // (firstName/middleName/lastName, isDisabled, disabilityPercentage, disabilityType,
+  //  nonCreamyLayer, bankAccountHolder/bankName/.../bankBranchAddress, governmentIds,
+  //  customDocuments, addressProofType, fatherAadhaar, motherAadhaar, etc.).
+  // Without this, Mongoose silently strips them on save and the form's data is lost.
+  strict: false,
 });
 
 AdmissionSchema.pre('save', function (next) {

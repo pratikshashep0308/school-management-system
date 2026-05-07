@@ -15,7 +15,8 @@ const StudentSchema = new mongoose.Schema({
   bloodGroup:   { type: String, enum: ['A+','A-','B+','B-','AB+','AB-','O+','O-'] },
   nationality:  { type: String, default: 'Indian' },
   religion:     String,
-  category:     { type: String, enum: ['General','OBC','SC','ST','Other'] },
+  // Free string — many state-specific categories exist beyond General/OBC/SC/ST.
+  category:     { type: String },
   hobbies:      String,
   profileImage: String,
 
@@ -81,6 +82,11 @@ const StudentSchema = new mongoose.Schema({
   admissionSnapshot: { type: mongoose.Schema.Types.Mixed },
 
   createdAt:      { type: Date, default: Date.now },
+}, {
+  // strict: false — accept extra top-level fields the form/portal might send
+  // alongside admissionSnapshot (e.g. fatherAadhaar, governmentIds at root, etc.)
+  // without dropping them silently.
+  strict: false,
 });
 
 // Auto-generate QR code string; keep legacy `parent` field in sync with parentId

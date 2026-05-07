@@ -475,16 +475,11 @@ exports.enrollFromAdmission = async (req, res) => {
     const admNo = admission.applicationNumber + '-' + Date.now().toString().slice(-4);
 
     // ── Normalize enum fields to match Student model enums ────────────────────
-    // Student.category enum: ['General','OBC','SC','ST','Other'] (Title Case)
-    // Student.gender   enum: ['male','female','other']           (lowercase)
+    // Category is now a free string (no enum). Store the original value as-is
+    // so state-specific categories (NT-A..D, EWS, SEBC, etc.) survive enrollment.
     const normalizeCategory = (val) => {
-      if (!val) return undefined; // skip field entirely if blank — avoid enum failure
-      const map = {
-        general: 'General', obc: 'OBC', sc: 'SC', st: 'ST',
-        other: 'Other', others: 'Other',
-      };
-      const key = String(val).trim().toLowerCase();
-      return map[key] || 'Other'; // fallback to Other if unrecognized
+      if (!val) return undefined; // skip if blank
+      return String(val).trim();
     };
     const normalizeGender = (val) => {
       if (!val) return 'other';
