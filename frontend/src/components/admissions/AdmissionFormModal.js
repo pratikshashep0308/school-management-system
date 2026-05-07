@@ -98,6 +98,7 @@ const EMPTY = {
   notes:       '',
   aadhaarNumber:'',
   category:    '',
+  nonCreamyLayer: '',  // 'yes' | 'no' — only relevant for OBC/SEBC/SBC
   nationality: 'Indian',
   academicYear:'',
 };
@@ -701,15 +702,68 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 placeholder="XXXX XXXX XXXX" maxLength={14}/>
             </FloatInput>
             <FloatInput label="Category">
-              <select style={SEL} value={form.category} onChange={e=>set('category',e.target.value)}>
-                <option value="">Select</option>
-                <option value="general">General</option>
-                <option value="obc">OBC</option>
-                <option value="sc">SC</option>
-                <option value="st">ST</option>
-                <option value="other">Other</option>
-              </select>
+              {(() => {
+                const KNOWN_CATEGORIES = [
+                  { v: 'general', l: 'General (Open)' },
+                  { v: 'obc',     l: 'OBC (Other Backward Class)' },
+                  { v: 'sc',      l: 'SC (Scheduled Caste)' },
+                  { v: 'st',      l: 'ST (Scheduled Tribe)' },
+                  { v: 'ews',     l: 'EWS (Economically Weaker Section)' },
+                  { v: 'sebc',    l: 'SEBC (Maratha — Maharashtra)' },
+                  { v: 'sbc',     l: 'SBC (Special Backward Class)' },
+                  { v: 'vjnt_a',  l: 'VJ-A / DT (Vimukta Jati / Denotified)' },
+                  { v: 'nt_b',    l: 'NT-B (Nomadic Tribe B)' },
+                  { v: 'nt_c',    l: 'NT-C (Nomadic Tribe C)' },
+                  { v: 'nt_d',    l: 'NT-D (Nomadic Tribe D)' },
+                  { v: 'minority', l: 'Minority' },
+                ];
+                const knownVals = KNOWN_CATEGORIES.map(c => c.v);
+                const isOther = form.category && !knownVals.includes(form.category);
+                const dropdownValue = !form.category ? '' : (isOther ? '__other__' : form.category);
+                // Helper: clear NCL when the new category isn't one where it applies
+                const NCL_CATEGORIES = ['obc', 'sebc', 'sbc'];
+                const updateCategory = (newVal) => {
+                  setForm(f => ({
+                    ...f,
+                    category: newVal,
+                    ...(NCL_CATEGORIES.includes(newVal) ? {} : { nonCreamyLayer: '' }),
+                  }));
+                };
+                return (
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    <select
+                      style={{ ...SEL, flex: (dropdownValue === '__other__' || isOther) ? '0 0 100%' : 1 }}
+                      value={dropdownValue}
+                      onChange={e=>{
+                        const v = e.target.value;
+                        // "Other" → clear the value so the textbox below starts empty
+                        updateCategory(v === '__other__' ? '' : v);
+                      }}>
+                      <option value="">Select</option>
+                      {KNOWN_CATEGORIES.map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
+                      <option value="__other__">Other (specify)</option>
+                    </select>
+                    {(dropdownValue === '__other__' || isOther) && (
+                      <input
+                        style={{ ...INP, flex:'0 0 100%' }}
+                        value={form.category || ''}
+                        onChange={e=>updateCategory(e.target.value)}
+                        placeholder="Specify category (e.g. Maratha-Kunbi)"/>
+                    )}
+                  </div>
+                );
+              })()}
             </FloatInput>
+            {/* Non-Creamy Layer — only shown for OBC/SEBC/SBC */}
+            {['obc','sebc','sbc'].includes(form.category) && (
+              <FloatInput label="Non-Creamy Layer">
+                <select style={SEL} value={form.nonCreamyLayer} onChange={e=>set('nonCreamyLayer', e.target.value)}>
+                  <option value="">Select</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </FloatInput>
+            )}
           </Section>
 
           {/* Section 2 - Other Information */}
@@ -877,37 +931,77 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                   </div>
                 )}
 
-                {(form.governmentIds || []).map((row, idx) => (
-                  <div key={idx} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start' }}>
-                    {/* ID Type — free text, anything goes */}
-                    <input
-                      style={{ ...INP, flex:'0 0 240px' }}
-                      value={row.type || ''}
-                      onChange={e=>{
-                        const v = e.target.value;
-                        setForm(f => {
-                          const list = [...(f.governmentIds || [])];
-                          list[idx] = { ...list[idx], type: v };
-                          return { ...f, governmentIds: list };
-                        });
-                      }}
-                      placeholder="ID type"/>
+                {(form.governmentIds || []).map((row, idx) => {
+                  // Known list — anything not in this list is treated as "Other"
+                  // so editing existing records still works for legacy free-text values.
+                  const KNOWN_TYPES = [
+                    'APAAR ID',
+                    'PEN (Permanent Education Number)',
+                    'Aadhaar Number',
+                    'UDISE+ Student ID',
+                    'Samagra ID',
+                    'Ration Card',
+                    'Passport',
+                    'Caste Certificate ID',
+                    'Income Certificate ID',
+                    'Domicile Certificate ID',
+                    'EWS Certificate ID',
+                  ];
+                  const isOther = row.type && !KNOWN_TYPES.includes(row.type);
+                  const dropdownValue = !row.type ? '' : (isOther ? '__other__' : row.type);
 
-                    {/* ID Number */}
-                    <input
-                      style={{ ...INP, flex:1 }}
-                      value={row.number || ''}
-                      onChange={e=>{
-                        const v = e.target.value;
-                        setForm(f => {
-                          const list = [...(f.governmentIds || [])];
-                          list[idx] = { ...list[idx], number: v };
-                          return { ...f, governmentIds: list };
-                        });
-                      }}
-                      placeholder="ID number"/>
-                  </div>
-                ))}
+                  return (
+                    <div key={idx} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start', flexWrap:'wrap' }}>
+                      {/* ID Type dropdown */}
+                      <select
+                        style={{ ...SEL, flex:'0 0 240px' }}
+                        value={dropdownValue}
+                        onChange={e=>{
+                          const v = e.target.value;
+                          setForm(f => {
+                            const list = [...(f.governmentIds || [])];
+                            // Picking "Other" clears type so the textbox starts empty
+                            list[idx] = { ...list[idx], type: v === '__other__' ? '' : v };
+                            return { ...f, governmentIds: list };
+                          });
+                        }}>
+                        <option value="">Select ID type</option>
+                        {KNOWN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        <option value="__other__">Other (specify)</option>
+                      </select>
+
+                      {/* If "Other" picked, free-text label input appears */}
+                      {(dropdownValue === '__other__' || isOther) && (
+                        <input
+                          style={{ ...INP, flex:'0 0 200px' }}
+                          value={row.type || ''}
+                          onChange={e=>{
+                            const v = e.target.value;
+                            setForm(f => {
+                              const list = [...(f.governmentIds || [])];
+                              list[idx] = { ...list[idx], type: v };
+                              return { ...f, governmentIds: list };
+                            });
+                          }}
+                          placeholder="ID name"/>
+                      )}
+
+                      {/* ID Number */}
+                      <input
+                        style={{ ...INP, flex:1, minWidth:160 }}
+                        value={row.number || ''}
+                        onChange={e=>{
+                          const v = e.target.value;
+                          setForm(f => {
+                            const list = [...(f.governmentIds || [])];
+                            list[idx] = { ...list[idx], number: v };
+                            return { ...f, governmentIds: list };
+                          });
+                        }}
+                        placeholder="ID number"/>
+                    </div>
+                  );
+                })}
 
                 {/* Add ID button */}
                 <button type="button"
