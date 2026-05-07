@@ -294,6 +294,14 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
             <div className="flex-1 overflow-y-auto p-6">
 
               {/* ── DETAILS TAB ── */}
+              {/* Section order MATCHES the admission form exactly:
+                  1. Student Information
+                  2. Other Information
+                  3. Parent / Guardian Information   (includes Address as a sub-block)
+                  4. Government IDs
+                  5. Bank Details
+                  6. Additional Information          (Previous School + meta + notes merged)
+                  7. Interview Details               (kept at the end as it's admin-only) */}
               {tab === 'details' && (() => {
                 // Friendly enum-ish labels
                 const orphanLabels = {
@@ -319,43 +327,46 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
 
                 return (
                 <div className="space-y-6">
-                  <Section title="Student Information">
+                  {/* 1 ─────────────────────────────────────────────── */}
+                  <Section title="1. Student Information">
                     <Grid>
-                      <Field label="First Name"           value={app.firstName} />
-                      <Field label="Middle Name"          value={app.middleName} />
-                      <Field label="Last Name"            value={app.lastName} />
-                      <Field label="Full Name"            value={app.studentName} />
-                      <Field label="Registration No"      value={app.registrationNo} />
-                      <Field label="Application No"       value={app.applicationNumber} />
-                      <Field label="Date of Admission"    value={fmt(app.dateOfAdmission)} />
-                      <Field label="Academic Year"        value={app.academicYear} />
-                      <Field label="Discount in Fee"      value={app.discountInFee ? `${app.discountInFee}%` : ''} />
+                      <Field label="First Name"            value={app.firstName} />
+                      <Field label="Middle Name"           value={app.middleName} />
+                      <Field label="Last Name"             value={app.lastName} />
+                      <Field label="Full Name"             value={app.studentName} />
+                      <Field label="Registration No"       value={app.registrationNo} />
+                      <Field label="Application No"        value={app.applicationNumber} />
+                      <Field label="Applying for Grade"    value={formatClass(app.applyingForClass)} />
+                      <Field label="Section Preferred"     value={app.applyingForSection} />
+                      <Field label="Date of Admission"     value={fmt(app.dateOfAdmission)} />
+                      <Field label="Academic Year"         value={app.academicYear} />
+                      <Field label="Discount in Fee"       value={app.discountInFee ? `${app.discountInFee}%` : ''} />
                       <Field label="Mobile (SMS/WhatsApp)" value={app.mobileForSMS} />
-                      <Field label="Aadhaar Number"       value={app.aadhaarNumber} />
-                      <Field label="Category"             value={app.category} capitalize />
-                      <Field label="Non-Creamy Layer"     value={yn(app.nonCreamyLayer)} />
-                      <Field label="Email"                value={app.parentEmail || app.email} />
+                      <Field label="Aadhaar Number"        value={app.aadhaarNumber} />
+                      <Field label="Category"              value={app.category} capitalize />
+                      <Field label="Non-Creamy Layer"      value={yn(app.nonCreamyLayer)} />
+                      <Field label="Email"                 value={app.parentEmail || app.email} />
                     </Grid>
                   </Section>
 
-                  <Section title="Other Information">
+                  {/* 2 ─────────────────────────────────────────────── */}
+                  <Section title="2. Other Information">
                     <Grid>
-                      <Field label="Date of Birth"        value={fmt(app.dateOfBirth)} />
-                      <Field label="Birth Form ID / NIC"  value={app.birthFormId} />
-                      <Field label="Gender"               value={app.gender} capitalize />
-                      <Field label="Orphan Status"        value={orphanLabels[app.orphanStudent] || app.orphanStudent} />
-                      <Field label="Caste"                value={app.cast} />
-                      <Field label="Religion"             value={app.religion} />
-                      <Field label="Blood Group"          value={app.bloodGroup} />
-                      <Field label="Total Siblings"       value={app.totalSiblings} />
-                      <Field label="Nationality"          value={app.nationality} />
-                      <Field label="Identification Mark"  value={app.identificationMark} />
-                      <Field label="Disease (if any)"     value={app.disease} />
-                      <Field label="Is Disabled?"         value={yn(app.isDisabled)} />
-                      <Field label="Disability %"         value={app.disabilityPercentage ? `${app.disabilityPercentage}%` : ''} />
-                      <Field label="Disability Type"      value={app.disabilityType} />
+                      <Field label="Date of Birth"         value={fmt(app.dateOfBirth)} />
+                      <Field label="Birth Form ID / NIC"   value={app.birthFormId} />
+                      <Field label="Gender"                value={app.gender} capitalize />
+                      <Field label="Orphan Status"         value={orphanLabels[app.orphanStudent] || app.orphanStudent} />
+                      <Field label="Caste"                 value={app.cast} />
+                      <Field label="Religion"              value={app.religion} />
+                      <Field label="Blood Group"           value={app.bloodGroup} />
+                      <Field label="Total Siblings"        value={app.totalSiblings} />
+                      <Field label="Nationality"           value={app.nationality} />
+                      <Field label="Identification Mark"   value={app.identificationMark} />
+                      <Field label="Disease (if any)"      value={app.disease} />
+                      <Field label="Is Disabled?"          value={yn(app.isDisabled)} />
+                      <Field label="Disability %"          value={app.disabilityPercentage ? `${app.disabilityPercentage}%` : ''} />
+                      <Field label="Disability Type"       value={app.disabilityType} />
                     </Grid>
-                    {/* Additional Note + Address Proof type — always rendered */}
                     <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                       <div>
                         <p className="text-xs text-slate-400 mb-0.5">Address Proof Type</p>
@@ -374,34 +385,37 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                     </div>
                   </Section>
 
-                  <Section title="Parent / Guardian Information">
+                  {/* 3 ─────────────────────────────────────────────── */}
+                  <Section title="3. Parent / Guardian Information">
                     <Grid>
-                      <Field label="Father's Name"        value={fatherName} />
-                      <Field label="Father's Occupation"  value={fatherOccupation} />
-                      <Field label="Father's Phone"       value={fatherPhone} />
-                      <Field label="Father's Aadhaar"     value={fatherAadhaar} />
-                      <Field label="Mother's Name"        value={motherName} />
-                      <Field label="Mother's Occupation"  value={motherOccupation} />
-                      <Field label="Mother's Phone"       value={motherPhone} />
-                      <Field label="Mother's Aadhaar"     value={motherAadhaar} />
-                      <Field label="Guardian's Name"      value={app.guardianName     || app.guardian?.name} />
-                      <Field label="Guardian's Relation"  value={app.guardianRelation || app.guardian?.relation} />
-                      <Field label="Guardian's Phone"     value={app.guardianPhone    || app.guardian?.phone} />
-                      <Field label="Primary Contact"      value={app.parentName} />
-                      <Field label="Contact Phone"        value={app.parentPhone} />
+                      <Field label="Father's Name"         value={fatherName} />
+                      <Field label="Father's Occupation"   value={fatherOccupation} />
+                      <Field label="Father's Phone"        value={fatherPhone} />
+                      <Field label="Father's Aadhaar"      value={fatherAadhaar} />
+                      <Field label="Mother's Name"         value={motherName} />
+                      <Field label="Mother's Occupation"   value={motherOccupation} />
+                      <Field label="Mother's Phone"        value={motherPhone} />
+                      <Field label="Mother's Aadhaar"      value={motherAadhaar} />
+                      <Field label="Guardian's Name"       value={app.guardianName     || app.guardian?.name} />
+                      <Field label="Guardian's Relation"   value={app.guardianRelation || app.guardian?.relation} />
+                      <Field label="Guardian's Phone"      value={app.guardianPhone    || app.guardian?.phone} />
+                      <Field label="Primary Contact"       value={app.parentName} />
+                      <Field label="Contact Phone"         value={app.parentPhone} />
                     </Grid>
+                    {/* Address as a sub-block at the bottom of this section, like in the form */}
+                    <div className="mt-4 pt-3 border-t border-slate-200">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Address</p>
+                      <Grid>
+                        <Field label="Street"   value={app.address?.street  || app.address}  />
+                        <Field label="City"     value={app.address?.city    || app.city}     />
+                        <Field label="State"    value={app.address?.state   || app.state}    />
+                        <Field label="Pincode"  value={app.address?.pincode || app.pincode}  />
+                      </Grid>
+                    </div>
                   </Section>
 
-                  <Section title="Address">
-                    <Grid>
-                      <Field label="Street"   value={app.address?.street  || app.address}  />
-                      <Field label="City"     value={app.address?.city    || app.city}     />
-                      <Field label="State"    value={app.address?.state   || app.state}    />
-                      <Field label="Pincode"  value={app.address?.pincode || app.pincode}  />
-                    </Grid>
-                  </Section>
-
-                  <Section title="Government IDs">
+                  {/* 4 ─────────────────────────────────────────────── */}
+                  <Section title="4. Government IDs">
                     {govIds.length > 0 ? (
                       <Grid>
                         {govIds.map((g, i) => (
@@ -413,7 +427,8 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                     )}
                   </Section>
 
-                  <Section title="Bank Details">
+                  {/* 5 ─────────────────────────────────────────────── */}
+                  <Section title="5. Bank Details">
                     <Grid>
                       <Field label="Account Holder"  value={app.bankAccountHolder} />
                       <Field label="Bank Name"       value={app.bankName} />
@@ -424,29 +439,25 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                     </Grid>
                   </Section>
 
-                  <Section title="Academic Background">
+                  {/* 6 ─────────────────────────────────────────────── */}
+                  {/* Mirrors form's "Additional Information" — Previous-school + meta in one block */}
+                  <Section title="6. Additional Information">
                     <Grid>
-                      <Field label="Applying for Grade"  value={formatClass(app.applyingForClass)} />
-                      <Field label="Section Preferred"   value={app.applyingForSection} />
                       <Field label="Previous School"     value={app.previousSchool} />
                       <Field label="Previous Class"      value={app.previousClass} />
                       <Field label="Previous Grade/CGPA" value={app.previousGrade} />
                       <Field label="Board"               value={app.previousBoard} />
                       <Field label="TC Number"           value={app.tcNumber} />
+                      <Field label="Source"              value={app.source?.replace('_', ' ')} capitalize />
+                      <Field label="Priority"            value={app.priority} capitalize />
+                      <Field label="Referred By"         value={app.referredBy} />
+                      <Field label="Reg. Fee Paid"       value={app.registrationFee?.paid ? `Yes · ₹${app.registrationFee.amount}` : 'No'} />
                     </Grid>
                   </Section>
 
-                  <Section title="Application Meta">
-                    <Grid>
-                      <Field label="Source"        value={app.source?.replace('_', ' ')} capitalize />
-                      <Field label="Priority"      value={app.priority} capitalize />
-                      <Field label="Referred By"   value={app.referredBy} />
-                      <Field label="Reg. Fee Paid" value={app.registrationFee?.paid ? `Yes · ₹${app.registrationFee.amount}` : 'No'} />
-                    </Grid>
-                  </Section>
-
-                  {/* Interview section (kept inside Details tab) */}
-                  <Section title="Interview Details">
+                  {/* 7 ─────────────────────────────────────────────── */}
+                  {/* Interview kept at the end — not part of the parent-visible form */}
+                  <Section title="7. Interview Details">
                     {app.interview?.scheduled ? (
                       <Grid>
                         <Field label="Date"        value={fmt(app.interview.date)} />
