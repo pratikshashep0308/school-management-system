@@ -978,55 +978,239 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 // ADD / EDIT STUDENT FORM MODAL
 // =============================================================================
 function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
-  const [form, setForm] = useState({
-    name: '', email: '', phone: '', admissionNumber: '', rollNumber: '',
-    classId: '', gender: '', dateOfBirth: '', bloodGroup: '',
-    parentName: '', parentPhone: '', parentEmail: '',
+  // The form mirrors `admissionSnapshot` shape so changes flow back into the same
+  // place the Overview tab reads from. A few fields (name/email/phone/class/roll)
+  // are also kept on the top-level Student doc, so they're saved both places.
+  const EMPTY_FORM = {
+    // Top-level student fields (also synced to the User doc)
+    name: '', email: '', phone: '',
+    admissionNumber: '', rollNumber: '',
+    classId: '',
+    // Section 1 — Student Information
+    firstName: '', middleName: '', lastName: '',
+    studentName: '',
+    registrationNo: '',
+    dateOfAdmission: '',
+    academicYear: '',
+    discountInFee: '',
+    mobileForSMS: '',
+    aadhaarNumber: '',
+    category: '',
+    nonCreamyLayer: '',
+    parentEmailSnap: '',
+    // Section 2 — Other Information
+    dateOfBirth: '',
+    birthFormId: '',
+    gender: '',
+    orphanStudent: '',
+    cast: '',
+    religion: '',
+    bloodGroup: '',
+    totalSiblings: '',
+    nationality: '',
+    identificationMark: '',
+    disease: '',
+    isDisabled: '',
+    disabilityPercentage: '',
+    disabilityType: '',
+    additionalNote: '',
+    // Section 3 — Parent / Guardian
+    fatherName: '', fatherOccupation: '', fatherPhone: '', fatherAadhaar: '',
+    motherName: '', motherOccupation: '', motherPhone: '', motherAadhaar: '',
+    parentName: '', parentPhone: '',
+    // Section 4 — Address
     address: { street: '', city: '', state: '', pincode: '' },
-    medicalInfo: '', hobbies: '',
-  });
-  const [activeSection, setActiveSection] = useState('basic');
+    // Section 5 — Bank Details
+    bankAccountHolder: '', bankName: '', bankBranchName: '',
+    bankIfsc: '', bankAccountNumber: '', bankBranchAddress: '',
+    // Section 6 — Government IDs
+    governmentIds: [],
+    // Medical
+    medicalInfo: '',
+    hobbies: '',
+  };
 
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [activeSection, setActiveSection] = useState('student');
+
+  // Hydrate when modal opens with a record
   useEffect(() => {
     if (data) {
+      const snap = data.admissionSnapshot || {};
       setForm({
+        // Top-level
         name: data.user?.name || data.name || '',
         email: data.user?.email || data.email || '',
         phone: data.user?.phone || data.phone || '',
         admissionNumber: data.admissionNumber || '',
         rollNumber: data.rollNumber || '',
         classId: data.class?._id || data.classId || '',
-        gender: data.gender || '',
-        dateOfBirth: data.dateOfBirth ? data.dateOfBirth.split('T')[0] : '',
-        bloodGroup: data.bloodGroup || '',
-        parentName: data.parentName || '',
-        parentPhone: data.parentPhone || '',
-        parentEmail: data.parentEmail || '',
-        address: data.address || { street: '', city: '', state: '', pincode: '' },
+        // Section 1
+        firstName: snap.firstName || '',
+        middleName: snap.middleName || '',
+        lastName: snap.lastName || '',
+        studentName: snap.studentName || data.user?.name || '',
+        registrationNo: snap.registrationNo || '',
+        dateOfAdmission: snap.dateOfAdmission ? String(snap.dateOfAdmission).split('T')[0]
+                       : data.admissionDate ? String(data.admissionDate).split('T')[0]
+                       : '',
+        academicYear: snap.academicYear || '',
+        discountInFee: snap.discountInFee || '',
+        mobileForSMS: snap.mobileForSMS || '',
+        aadhaarNumber: snap.aadhaarNumber || '',
+        category: snap.category || data.category || '',
+        nonCreamyLayer: snap.nonCreamyLayer || '',
+        parentEmailSnap: snap.parentEmail || '',
+        // Section 2
+        dateOfBirth: snap.dateOfBirth ? String(snap.dateOfBirth).split('T')[0]
+                   : data.dateOfBirth ? String(data.dateOfBirth).split('T')[0] : '',
+        birthFormId: snap.birthFormId || '',
+        gender: snap.gender || data.gender || '',
+        orphanStudent: snap.orphanStudent || '',
+        cast: snap.cast || '',
+        religion: snap.religion || data.religion || '',
+        bloodGroup: snap.bloodGroup || data.bloodGroup || '',
+        totalSiblings: snap.totalSiblings || '',
+        nationality: snap.nationality || data.nationality || 'Indian',
+        identificationMark: snap.identificationMark || '',
+        disease: snap.disease || '',
+        isDisabled: snap.isDisabled || '',
+        disabilityPercentage: snap.disabilityPercentage || '',
+        disabilityType: snap.disabilityType || '',
+        additionalNote: snap.additionalNote || '',
+        // Section 3
+        fatherName: snap.fatherName || '',
+        fatherOccupation: snap.fatherOccupation || '',
+        fatherPhone: snap.fatherPhone || '',
+        fatherAadhaar: snap.fatherAadhaar || '',
+        motherName: snap.motherName || '',
+        motherOccupation: snap.motherOccupation || '',
+        motherPhone: snap.motherPhone || '',
+        motherAadhaar: snap.motherAadhaar || '',
+        parentName: snap.parentName || data.parentName || '',
+        parentPhone: snap.parentPhone || data.parentPhone || '',
+        // Section 4
+        address: {
+          street:  snap.address || data.address?.street  || '',
+          city:    snap.city    || data.address?.city    || '',
+          state:   snap.state   || data.address?.state   || '',
+          pincode: snap.pincode || data.address?.pincode || '',
+        },
+        // Section 5
+        bankAccountHolder: snap.bankAccountHolder || '',
+        bankName: snap.bankName || '',
+        bankBranchName: snap.bankBranchName || '',
+        bankIfsc: snap.bankIfsc || '',
+        bankAccountNumber: snap.bankAccountNumber || '',
+        bankBranchAddress: snap.bankBranchAddress || '',
+        // Section 6
+        governmentIds: Array.isArray(snap.governmentIds) ? snap.governmentIds : [],
+        // Medical
         medicalInfo: data.medicalInfo || '',
-        hobbies: data.hobbies || '',
+        hobbies: data.hobbies || snap.hobbies || '',
         _id: data._id,
       });
     } else {
-      setForm({
-        name: '', email: '', phone: '', admissionNumber: '', rollNumber: '',
-        classId: '', gender: '', dateOfBirth: '', bloodGroup: '',
-        parentName: '', parentPhone: '', parentEmail: '',
-        address: { street: '', city: '', state: '', pincode: '' },
-        medicalInfo: '', hobbies: '',
-      });
+      setForm(EMPTY_FORM);
     }
-    setActiveSection('basic');
+    setActiveSection('student');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, isOpen]);
 
-  const set  = (k, v)    => setForm(f => ({ ...f, [k]: v }));
-  const setA = (k, v)    => setForm(f => ({ ...f, address: { ...f.address, [k]: v } }));
+  const set  = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const setA = (k, v) => setForm(f => ({ ...f, address: { ...f.address, [k]: v } }));
+
+  // Government IDs helpers
+  const addGovId    = () => set('governmentIds', [...(form.governmentIds || []), { type: '', number: '' }]);
+  const removeGovId = (i) => set('governmentIds', (form.governmentIds || []).filter((_, idx) => idx !== i));
+  const updateGovId = (i, patch) => set('governmentIds',
+    (form.governmentIds || []).map((row, idx) => idx === i ? { ...row, ...patch } : row));
+
+  // Build the payload sent to the backend. We send top-level Student fields
+  // alongside a complete admissionSnapshot (Mixed field — replaces wholesale).
+  const buildPayload = () => {
+    const fullName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ').trim()
+                   || form.studentName
+                   || form.name;
+    const snapshot = {
+      // Section 1
+      firstName: form.firstName, middleName: form.middleName, lastName: form.lastName,
+      studentName: fullName,
+      registrationNo: form.registrationNo,
+      dateOfAdmission: form.dateOfAdmission || null,
+      academicYear: form.academicYear,
+      discountInFee: form.discountInFee,
+      mobileForSMS: form.mobileForSMS,
+      aadhaarNumber: form.aadhaarNumber,
+      category: form.category,
+      nonCreamyLayer: form.nonCreamyLayer,
+      parentEmail: form.parentEmailSnap || form.email,
+      // Section 2
+      dateOfBirth: form.dateOfBirth || null,
+      birthFormId: form.birthFormId,
+      gender: form.gender,
+      orphanStudent: form.orphanStudent,
+      cast: form.cast,
+      religion: form.religion,
+      bloodGroup: form.bloodGroup,
+      totalSiblings: form.totalSiblings,
+      nationality: form.nationality,
+      identificationMark: form.identificationMark,
+      disease: form.disease,
+      isDisabled: form.isDisabled,
+      disabilityPercentage: form.disabilityPercentage,
+      disabilityType: form.disabilityType,
+      additionalNote: form.additionalNote,
+      // Section 3
+      fatherName: form.fatherName, fatherOccupation: form.fatherOccupation,
+      fatherPhone: form.fatherPhone, fatherAadhaar: form.fatherAadhaar,
+      motherName: form.motherName, motherOccupation: form.motherOccupation,
+      motherPhone: form.motherPhone, motherAadhaar: form.motherAadhaar,
+      parentName: form.parentName, parentPhone: form.parentPhone,
+      // Section 4 (snapshot uses flat fields)
+      address: form.address.street,
+      city:    form.address.city,
+      state:   form.address.state,
+      pincode: form.address.pincode,
+      // Section 5
+      bankAccountHolder: form.bankAccountHolder, bankName: form.bankName,
+      bankBranchName: form.bankBranchName, bankIfsc: form.bankIfsc,
+      bankAccountNumber: form.bankAccountNumber, bankBranchAddress: form.bankBranchAddress,
+      // Section 6
+      governmentIds: (form.governmentIds || []).filter(g => g && (g.type || g.number)),
+    };
+    return {
+      _id: form._id,
+      // Top-level fields kept on the Student document
+      name: fullName || form.name,
+      email: form.email,
+      phone: form.phone,
+      admissionNumber: form.admissionNumber,
+      rollNumber: form.rollNumber,
+      classId: form.classId,
+      gender: form.gender,
+      dateOfBirth: form.dateOfBirth || null,
+      bloodGroup: form.bloodGroup,
+      religion: form.religion,
+      nationality: form.nationality,
+      parentName: form.parentName,
+      parentPhone: form.parentPhone,
+      parentEmail: form.parentEmailSnap || form.email,
+      address: form.address,
+      medicalInfo: form.medicalInfo,
+      hobbies: form.hobbies,
+      // The full mirror — backend treats this as Mixed, replaces wholesale
+      admissionSnapshot: snapshot,
+    };
+  };
 
   const sections = [
-    { id: 'basic',    label: '👤 Basic' },
-    { id: 'academic', label: '🎓 Academic' },
+    { id: 'student',  label: '👤 Student' },
+    { id: 'other',    label: '📋 Other' },
     { id: 'guardian', label: '👨‍👩‍👧 Guardian' },
     { id: 'address',  label: '📍 Address' },
+    { id: 'bank',     label: '🏦 Bank' },
+    { id: 'govids',   label: '🆔 Govt IDs' },
     { id: 'medical',  label: '🏥 Medical' },
   ];
 
@@ -1034,90 +1218,203 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
     <Modal isOpen={isOpen} onClose={onClose} title={form._id ? 'Edit Student Profile' : 'Add New Student'} size="xl"
       footer={<>
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
-        <button className="btn-primary" onClick={() => onSave(form)} disabled={saving}>{saving ? 'Saving…' : form._id ? 'Save Changes' : 'Add Student'}</button>
+        <button className="btn-primary" onClick={() => onSave(buildPayload())} disabled={saving}>
+          {saving ? 'Saving…' : form._id ? 'Save Changes' : 'Add Student'}
+        </button>
       </>}>
 
       {/* Section tabs inside modal */}
-      <div className="flex gap-1 mb-5 p-1 rounded-xl bg-warm dark:bg-gray-800 border border-border">
+      <div className="flex gap-1 mb-5 p-1 rounded-xl bg-warm dark:bg-gray-800 border border-border" style={{ overflowX:'auto' }}>
         {sections.map(s => (
           <button key={s.id} onClick={() => setActiveSection(s.id)}
-            className={'flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ' +
+            className={'flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ' +
               (activeSection === s.id ? 'bg-white dark:bg-gray-700 shadow text-accent' : 'text-muted hover:text-ink dark:hover:text-white')}>
             {s.label}
           </button>
         ))}
       </div>
 
-      {activeSection === 'basic' && (
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Full Name *" className="col-span-2"><input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Arjun Sharma" /></FormGroup>
-          <FormGroup label="Email *"><input type="email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@school.com" /></FormGroup>
-          <FormGroup label="Phone"><PhoneInput value={form.phone} onChange={v => set('phone', v)} /></FormGroup>
-          <FormGroup label="Gender">
-            <select className="form-input" value={form.gender} onChange={e => set('gender', e.target.value)}>
-              <option value="">Select gender</option>
-              <option value="male">Male</option><option value="female">Female</option><option value="other">Other</option>
+      {/* ── Student Information ── */}
+      {activeSection === 'student' && (
+        <div className="grid grid-cols-3 gap-4">
+          <FormGroup label="First Name *"><input className="form-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="Pratiksha" /></FormGroup>
+          <FormGroup label="Middle Name"><input className="form-input" value={form.middleName} onChange={e => set('middleName', e.target.value)} placeholder="Dhanraj" /></FormGroup>
+          <FormGroup label="Last Name *"><input className="form-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Shep" /></FormGroup>
+          <FormGroup label="Registration No"><input className="form-input" value={form.registrationNo} onChange={e => set('registrationNo', e.target.value)} placeholder="REG-0042" /></FormGroup>
+          <FormGroup label="Admission No"><input className="form-input" value={form.admissionNumber} onChange={e => set('admissionNumber', e.target.value)} placeholder="ADM-2026-XXXX" /></FormGroup>
+          <FormGroup label="Roll Number"><input className="form-input" value={form.rollNumber} onChange={e => set('rollNumber', e.target.value)} placeholder="01" /></FormGroup>
+          <FormGroup label="Class">
+            <select className="form-input" value={form.classId} onChange={e => set('classId', e.target.value)}>
+              <option value="">Select class</option>
+              {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>)}
             </select>
           </FormGroup>
+          <FormGroup label="Date of Admission"><input type="date" className="form-input" value={form.dateOfAdmission} onChange={e => set('dateOfAdmission', e.target.value)} /></FormGroup>
+          <FormGroup label="Academic Year"><input className="form-input" value={form.academicYear} onChange={e => set('academicYear', e.target.value)} placeholder="2026-27" /></FormGroup>
+          <FormGroup label="Discount in Fee (%)"><input className="form-input" type="number" min="0" max="100" value={form.discountInFee} onChange={e => set('discountInFee', e.target.value)} placeholder="0" /></FormGroup>
+          <FormGroup label="Mobile (SMS/WhatsApp)"><input className="form-input" value={form.mobileForSMS} onChange={e => set('mobileForSMS', e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="9876543210" /></FormGroup>
+          <FormGroup label="Aadhaar Number"><input className="form-input" value={form.aadhaarNumber} onChange={e => set('aadhaarNumber', e.target.value.replace(/\D/g,'').slice(0,12))} placeholder="XXXX XXXX XXXX" /></FormGroup>
+          <FormGroup label="Category">
+            <select className="form-input" value={form.category} onChange={e => set('category', e.target.value)}>
+              <option value="">Select</option>
+              <option value="general">General (Open)</option>
+              <option value="obc">OBC</option>
+              <option value="sc">SC</option>
+              <option value="st">ST</option>
+              <option value="ews">EWS</option>
+              <option value="sebc">SEBC</option>
+              <option value="sbc">SBC</option>
+              <option value="vjnt_a">VJ-A / DT</option>
+              <option value="nt_b">NT-B</option>
+              <option value="nt_c">NT-C</option>
+              <option value="nt_d">NT-D</option>
+              <option value="minority">Minority</option>
+            </select>
+          </FormGroup>
+          <FormGroup label="Non-Creamy Layer">
+            <select className="form-input" value={form.nonCreamyLayer} onChange={e => set('nonCreamyLayer', e.target.value)}>
+              <option value="">Select</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </FormGroup>
+          <FormGroup label="Email *" className="col-span-2"><input type="email" className="form-input" value={form.email} onChange={e => set('email', e.target.value)} placeholder="student@school.com" /></FormGroup>
+        </div>
+      )}
+
+      {/* ── Other Information ── */}
+      {activeSection === 'other' && (
+        <div className="grid grid-cols-3 gap-4">
           <FormGroup label="Date of Birth"><input type="date" className="form-input" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} /></FormGroup>
+          <FormGroup label="Birth Form ID / NIC"><input className="form-input" value={form.birthFormId} onChange={e => set('birthFormId', e.target.value)} /></FormGroup>
+          <FormGroup label="Gender">
+            <select className="form-input" value={form.gender} onChange={e => set('gender', e.target.value)}>
+              <option value="">Select</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </FormGroup>
+          <FormGroup label="Orphan Status">
+            <select className="form-input" value={form.orphanStudent} onChange={e => set('orphanStudent', e.target.value)}>
+              <option value="">Select</option>
+              <option value="orphan">Orphan</option>
+              <option value="single_parent_mother">Single Parent (Mother)</option>
+              <option value="single_parent_father">Single Parent (Father)</option>
+              <option value="not_applicable">Not Applicable</option>
+            </select>
+          </FormGroup>
+          <FormGroup label="Caste"><input className="form-input" value={form.cast} onChange={e => set('cast', e.target.value)} /></FormGroup>
+          <FormGroup label="Religion"><input className="form-input" value={form.religion} onChange={e => set('religion', e.target.value)} /></FormGroup>
           <FormGroup label="Blood Group">
             <select className="form-input" value={form.bloodGroup} onChange={e => set('bloodGroup', e.target.value)}>
               <option value="">Select</option>
               {BLOOD_GROUPS.map(b => <option key={b}>{b}</option>)}
             </select>
           </FormGroup>
-          <FormGroup label="Hobbies"><input className="form-input" value={form.hobbies} onChange={e => set('hobbies', e.target.value)} placeholder="Cricket, Drawing…" /></FormGroup>
-        </div>
-      )}
-
-      {activeSection === 'academic' && (
-        <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Admission Number *"><input className="form-input" value={form.admissionNumber} onChange={e => set('admissionNumber', e.target.value)} placeholder="STU-2024-001" /></FormGroup>
-          <FormGroup label="Roll Number"><input className="form-input" value={form.rollNumber} onChange={e => set('rollNumber', e.target.value)} placeholder="01" /></FormGroup>
-          <FormGroup label="Class" className="col-span-2">
-            <select className="form-input" value={form.classId} onChange={e => set('classId', e.target.value)}>
-              <option value="">Select class</option>
-              {classes.map(c => <option key={c._id} value={c._id}>{c.name} — {c.section}</option>)}
+          <FormGroup label="Total Siblings"><input className="form-input" type="number" min="0" value={form.totalSiblings} onChange={e => set('totalSiblings', e.target.value)} /></FormGroup>
+          <FormGroup label="Nationality"><input className="form-input" value={form.nationality} onChange={e => set('nationality', e.target.value)} /></FormGroup>
+          <FormGroup label="Identification Mark" className="col-span-2"><input className="form-input" value={form.identificationMark} onChange={e => set('identificationMark', e.target.value)} /></FormGroup>
+          <FormGroup label="Disease (if any)"><input className="form-input" value={form.disease} onChange={e => set('disease', e.target.value)} /></FormGroup>
+          <FormGroup label="Is Disabled?">
+            <select className="form-input" value={form.isDisabled} onChange={e => set('isDisabled', e.target.value)}>
+              <option value="">Select</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
             </select>
           </FormGroup>
-          {!form._id && (
-            <div className="col-span-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 text-xs text-blue-700 dark:text-blue-300">
-              💡 Default password: <strong>Student@123</strong> — student can change after first login.
-            </div>
-          )}
+          {form.isDisabled === 'yes' && <>
+            <FormGroup label="Disability %"><input className="form-input" type="number" min="0" max="100" value={form.disabilityPercentage} onChange={e => set('disabilityPercentage', e.target.value)} /></FormGroup>
+            <FormGroup label="Disability Type" className="col-span-2"><input className="form-input" value={form.disabilityType} onChange={e => set('disabilityType', e.target.value)} placeholder="e.g. Visual, Hearing, Locomotor" /></FormGroup>
+          </>}
+          <FormGroup label="Additional Note" className="col-span-3"><textarea className="form-input" rows={3} value={form.additionalNote} onChange={e => set('additionalNote', e.target.value)} style={{ resize:'vertical' }} /></FormGroup>
         </div>
       )}
 
+      {/* ── Parent / Guardian ── */}
       {activeSection === 'guardian' && (
         <div className="grid grid-cols-2 gap-4">
-          <FormGroup label="Parent / Guardian Name" className="col-span-2"><input className="form-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Rajesh Sharma" /></FormGroup>
-          <FormGroup label="Parent Phone"><PhoneInput value={form.parentPhone} onChange={v => set('parentPhone', v)} /></FormGroup>
-          <FormGroup label="Parent Email"><input type="email" className="form-input" value={form.parentEmail} onChange={e => set('parentEmail', e.target.value)} placeholder="parent@email.com" /></FormGroup>
+          <FormGroup label="Father's Name"><input className="form-input" value={form.fatherName} onChange={e => set('fatherName', e.target.value)} /></FormGroup>
+          <FormGroup label="Father's Occupation"><input className="form-input" value={form.fatherOccupation} onChange={e => set('fatherOccupation', e.target.value)} /></FormGroup>
+          <FormGroup label="Father's Phone"><PhoneInput value={form.fatherPhone} onChange={v => set('fatherPhone', v)} /></FormGroup>
+          <FormGroup label="Father's Aadhaar"><input className="form-input" value={form.fatherAadhaar} onChange={e => set('fatherAadhaar', e.target.value.replace(/\D/g,'').slice(0,12))} placeholder="12-digit" /></FormGroup>
+          <FormGroup label="Mother's Name"><input className="form-input" value={form.motherName} onChange={e => set('motherName', e.target.value)} /></FormGroup>
+          <FormGroup label="Mother's Occupation"><input className="form-input" value={form.motherOccupation} onChange={e => set('motherOccupation', e.target.value)} /></FormGroup>
+          <FormGroup label="Mother's Phone"><PhoneInput value={form.motherPhone} onChange={v => set('motherPhone', v)} /></FormGroup>
+          <FormGroup label="Mother's Aadhaar"><input className="form-input" value={form.motherAadhaar} onChange={e => set('motherAadhaar', e.target.value.replace(/\D/g,'').slice(0,12))} placeholder="12-digit" /></FormGroup>
+          <FormGroup label="Primary Contact Name" className="col-span-2"><input className="form-input" value={form.parentName} onChange={e => set('parentName', e.target.value)} placeholder="Father / Mother / Guardian" /></FormGroup>
+          <FormGroup label="Contact Phone"><PhoneInput value={form.parentPhone} onChange={v => set('parentPhone', v)} /></FormGroup>
+          <FormGroup label="Contact Email"><input type="email" className="form-input" value={form.parentEmailSnap} onChange={e => set('parentEmailSnap', e.target.value)} placeholder="parent@email.com" /></FormGroup>
         </div>
       )}
 
+      {/* ── Address ── */}
       {activeSection === 'address' && (
         <div className="grid grid-cols-2 gap-4">
           <FormGroup label="Street / House No" className="col-span-2"><input className="form-input" value={form.address?.street} onChange={e => setA('street', e.target.value)} placeholder="123 Main Street" /></FormGroup>
-          <FormGroup label="City"><input className="form-input" value={form.address?.city} onChange={e => setA('city', e.target.value)} placeholder="Pune" /></FormGroup>
-          <FormGroup label="State"><input className="form-input" value={form.address?.state} onChange={e => setA('state', e.target.value)} placeholder="Maharashtra" /></FormGroup>
-          <FormGroup label="Pincode"><input className="form-input" value={form.address?.pincode} onChange={e => setA('pincode', e.target.value)} placeholder="411001" /></FormGroup>
+          <FormGroup label="City"><input className="form-input" value={form.address?.city} onChange={e => setA('city', e.target.value)} /></FormGroup>
+          <FormGroup label="State"><input className="form-input" value={form.address?.state} onChange={e => setA('state', e.target.value)} /></FormGroup>
+          <FormGroup label="Pincode"><input className="form-input" value={form.address?.pincode} onChange={e => setA('pincode', e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit" /></FormGroup>
         </div>
       )}
 
+      {/* ── Bank Details ── */}
+      {activeSection === 'bank' && (
+        <div className="grid grid-cols-2 gap-4">
+          <FormGroup label="Account Holder Name"><input className="form-input" value={form.bankAccountHolder} onChange={e => set('bankAccountHolder', e.target.value)} /></FormGroup>
+          <FormGroup label="Bank Name"><input className="form-input" value={form.bankName} onChange={e => set('bankName', e.target.value)} placeholder="State Bank of India" /></FormGroup>
+          <FormGroup label="Branch Name"><input className="form-input" value={form.bankBranchName} onChange={e => set('bankBranchName', e.target.value)} /></FormGroup>
+          <FormGroup label="IFSC Code"><input className="form-input" value={form.bankIfsc} onChange={e => set('bankIfsc', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,11))} placeholder="SBIN0001234" /></FormGroup>
+          <FormGroup label="Account Number"><input className="form-input" value={form.bankAccountNumber} onChange={e => set('bankAccountNumber', e.target.value.replace(/\D/g,'').slice(0,18))} /></FormGroup>
+          <FormGroup label="Branch Address" className="col-span-2"><input className="form-input" value={form.bankBranchAddress} onChange={e => set('bankBranchAddress', e.target.value)} /></FormGroup>
+        </div>
+      )}
+
+      {/* ── Government IDs ── */}
+      {activeSection === 'govids' && (
+        <div>
+          {(form.governmentIds || []).length === 0 && (
+            <p className="text-sm text-muted mb-3">No IDs added yet. Click "+ Add ID" below.</p>
+          )}
+          {(form.governmentIds || []).map((row, i) => (
+            <div key={i} className="grid grid-cols-12 gap-2 mb-3 items-start">
+              <div className="col-span-4">
+                <input className="form-input" value={row.type || ''} onChange={e => updateGovId(i, { type: e.target.value })} placeholder="ID type (e.g. APAAR, PEN)" />
+              </div>
+              <div className="col-span-7">
+                <input className="form-input" value={row.number || ''} onChange={e => updateGovId(i, { number: e.target.value })} placeholder="ID number" />
+              </div>
+              <div className="col-span-1">
+                <button type="button" onClick={() => removeGovId(i)}
+                  className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md px-2 py-2 w-full">✕</button>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={addGovId}
+            className="text-sm font-semibold text-indigo-600 bg-indigo-50 border border-dashed border-indigo-300 rounded-lg px-4 py-2">
+            + Add ID
+          </button>
+        </div>
+      )}
+
+      {/* ── Medical ── */}
       {activeSection === 'medical' && (
         <div className="space-y-4">
           <FormGroup label="Medical Conditions / Allergies">
             <textarea className="form-input" rows={4} value={form.medicalInfo} onChange={e => set('medicalInfo', e.target.value)} placeholder="Any known allergies, chronic conditions, medications…" style={{ resize: 'vertical' }} />
           </FormGroup>
+          <FormGroup label="Hobbies / Interests">
+            <input className="form-input" value={form.hobbies} onChange={e => set('hobbies', e.target.value)} placeholder="Cricket, Drawing…" />
+          </FormGroup>
           <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700">
-            ⚕️ This information is confidential and only visible to school administration.
+            ⚕️ Medical information is confidential and only visible to school administration.
           </div>
         </div>
       )}
     </Modal>
   );
 }
+
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 function Section({ title, children }) {
