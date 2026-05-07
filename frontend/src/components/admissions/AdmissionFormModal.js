@@ -92,6 +92,10 @@ const EMPTY = {
   // Each entry: { label: 'Bonafide Certificate', files: [{ fileName, ... }] }
   customDocuments: [],
 
+  // The kind of address proof attached (light bill, ration card, etc.)
+  addressProofType: '',
+  addressProofTypeOther: '',  // when user picks "Other"
+
   // Meta
   priority:    'normal',
   source:      'walk_in',
@@ -1123,6 +1127,14 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                         <div style={{ fontSize:13, fontWeight:700, color:'#111827' }}>
                           {label}
                           {required && <span style={{ color:'#6366F1', marginLeft:4 }}>*</span>}
+                          {/* Show selected proof type next to the label, if set */}
+                          {key === 'addressProof' && form.addressProofType && (
+                            <span style={{ fontSize:11, fontWeight:500, color:'#4F46E5', marginLeft:6 }}>
+                              — {form.addressProofType === '__other__'
+                                  ? (form.addressProofTypeOther || 'Other')
+                                  : form.addressProofType}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize:11, color: hasAny ? '#16A34A' : '#9CA3AF', marginTop:2 }}>
                           {hasAny
@@ -1131,6 +1143,47 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                         </div>
                       </div>
                     </div>
+
+                    {/* ── Address Proof: type-of-proof dropdown ─────────── */}
+                    {key === 'addressProof' && (
+                      <div style={{ display:'flex', gap:8, marginBottom:10, alignItems:'center' }}>
+                        <span style={{ fontSize:11, color:'#6B7280', flexShrink:0 }}>Type:</span>
+                        <select
+                          style={{ ...SEL, flex: form.addressProofType === '__other__' ? '0 0 50%' : 1, padding:'6px 10px', fontSize:12 }}
+                          value={form.addressProofType}
+                          onChange={e=>{
+                            const v = e.target.value;
+                            setForm(f => ({
+                              ...f,
+                              addressProofType: v,
+                              // Drop the custom label whenever the user picks a known type
+                              ...(v !== '__other__' && { addressProofTypeOther: '' }),
+                            }));
+                          }}>
+                          <option value="">Select type</option>
+                          <option value="Light Bill">Light / Electricity Bill</option>
+                          <option value="Water Bill">Water Bill</option>
+                          <option value="Gas Bill">Gas Bill</option>
+                          <option value="Telephone Bill">Telephone / Internet Bill</option>
+                          <option value="Property Tax Receipt">Property Tax Receipt</option>
+                          <option value="Rent Agreement">Rent Agreement</option>
+                          <option value="Ration Card">Ration Card</option>
+                          <option value="Aadhaar Address">Aadhaar (Address Page)</option>
+                          <option value="Voter ID">Voter ID</option>
+                          <option value="Passport">Passport</option>
+                          <option value="Driving License">Driving License</option>
+                          <option value="Bank Statement">Bank Statement / Passbook</option>
+                          <option value="__other__">Other (specify)</option>
+                        </select>
+                        {form.addressProofType === '__other__' && (
+                          <input
+                            style={{ ...INP, flex:1, padding:'6px 10px', fontSize:12 }}
+                            value={form.addressProofTypeOther}
+                            onChange={e=>set('addressProofTypeOther', e.target.value)}
+                            placeholder="Specify type"/>
+                        )}
+                      </div>
+                    )}
 
                     {/* ── Per-file rows: name, view, download, remove ───── */}
                     {files.map((f, idx) => {
