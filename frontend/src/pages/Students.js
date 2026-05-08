@@ -650,14 +650,36 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                 const customDocs = (snap.customDocuments || []).filter(d => d && d.label);
 
                 // Standard docs (whichever ones have files attached)
+                // Keep name + url so the view button can open them.
                 const stdDocs = Object.entries(snap.documents || {})
-                  .filter(([, val]) => {
-                    if (!val) return false;
-                    if (Array.isArray(val)) return val.length > 0;
-                    if (typeof val === 'object') return val.submitted || val.url || val.data || (Array.isArray(val.files) && val.files.length);
-                    return Boolean(val);
+                  .map(([k, val]) => {
+                    let url = '';
+                    let hasFile = false;
+                    if (val) {
+                      if (Array.isArray(val) && val.length > 0) {
+                        url = val[0]?.data || val[0]?.url || '';
+                        hasFile = true;
+                      } else if (typeof val === 'object') {
+                        if (Array.isArray(val.files) && val.files.length) {
+                          url = val.files[0]?.data || val.files[0]?.url || '';
+                          hasFile = true;
+                        } else if (val.data || val.url) {
+                          url = val.data || val.url;
+                          hasFile = true;
+                        } else if (val.submitted) {
+                          hasFile = true;
+                        }
+                      } else {
+                        hasFile = Boolean(val);
+                      }
+                    }
+                    return hasFile ? {
+                      key: k,
+                      name: k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim(),
+                      url,
+                    } : null;
                   })
-                  .map(([k]) => k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim());
+                  .filter(Boolean);
 
                 return (
                   <>
@@ -723,14 +745,33 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                     </Section>
 
                     <Section title="Address">
-                      <p className="text-sm text-slate dark:text-gray-300">
-                        {[
-                          snap.address || s.address?.street,
-                          snap.city    || s.address?.city,
-                          snap.state   || s.address?.state,
-                          snap.pincode || s.address?.pincode,
-                        ].filter(Boolean).join(', ') || '—'}
-                      </p>
+                      {(() => {
+                        // Address shape varies a lot historically:
+                        //  · old admission saves: snap.address = "anand nagar" (string), with snap.city/state/pincode flat
+                        //  · newer student-edit saves: snap.address = "anand nagar" (string), still flat siblings
+                        //  · still older saves:  snap.address = { street, city, state, pincode } (object)
+                        //  · top-level student doc: s.address = { street, city, state, pincode } (object)
+                        // We coerce whatever each piece resolves to into a string so we never
+                        // render `[object Object]` even if a nested object slipped through.
+                        const toStr = v => {
+                          if (v === null || v === undefined) return '';
+                          if (typeof v === 'string' || typeof v === 'number') return String(v);
+                          // It's an object — try common nested shape, else give up to ''
+                          if (typeof v === 'object') return v.street || v.text || '';
+                          return '';
+                        };
+                        const snapAddrIsObj = snap.address && typeof snap.address === 'object';
+                        const street  = toStr(snapAddrIsObj ? snap.address.street  : (snap.address  || s.address?.street));
+                        const city    = toStr(snapAddrIsObj ? snap.address.city    : (snap.city     || s.address?.city));
+                        const state   = toStr(snapAddrIsObj ? snap.address.state   : (snap.state    || s.address?.state));
+                        const pincode = toStr(snapAddrIsObj ? snap.address.pincode : (snap.pincode  || s.address?.pincode));
+                        const joined  = [street, city, state, pincode].filter(Boolean).join(', ');
+                        return (
+                          <p className="text-sm text-slate dark:text-gray-300">
+                            {joined || '—'}
+                          </p>
+                        );
+                      })()}
                     </Section>
 
                     <Section title="Government IDs">
@@ -757,17 +798,61 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
                     <Section title={`Documents Submitted (${stdDocs.length + customDocs.length})`}>
                       {(stdDocs.length > 0 || customDocs.length > 0) ? (
-                        <div className="flex flex-wrap gap-2">
-                          {stdDocs.map(d => (
-                            <span key={d} className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                              ✓ {d}
-                            </span>
-                          ))}
-                          {customDocs.map(d => (
-                            <span key={d.label} className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                              ✓ {d.label}
-                            </span>
-                          ))}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {stdDocs.map(d => {
+                            const hasViewable = d.url && (
+                              d.url.startsWith('data:') ||
+                              d.url.startsWith('blob:') ||
+                              /^https?:\/\//i.test(d.url)
+                            );
+                            const open = () => {
+                              if (!hasViewable) return;
+                              const w = window.open();
+                              if (w) w.location.href = d.url;
+                            };
+                            return (
+                              <div key={d.key} className="border border-emerald-200 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 bg-emerald-500 text-white">✓</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-ink dark:text-white truncate">{d.name}</p>
+                                  <p className="text-[10px] text-muted">{hasViewable ? 'File uploaded' : 'Marked submitted'}</p>
+                                </div>
+                                {hasViewable && (
+                                  <button onClick={open} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+                                    👁 View
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {customDocs.map((d, idx) => {
+                            const file = Array.isArray(d.files) && d.files[0];
+                            const url  = file?.data || file?.url || '';
+                            const hasViewable = url && (
+                              url.startsWith('data:') ||
+                              url.startsWith('blob:') ||
+                              /^https?:\/\//i.test(url)
+                            );
+                            const open = () => {
+                              if (!hasViewable) return;
+                              const w = window.open();
+                              if (w) w.location.href = url;
+                            };
+                            return (
+                              <div key={`custom-${idx}`} className="border border-emerald-200 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 bg-emerald-500 text-white">✓</div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-ink dark:text-white truncate">{d.label}</p>
+                                  <p className="text-[10px] text-muted">{(d.files || []).length} file{(d.files || []).length === 1 ? '' : 's'}</p>
+                                </div>
+                                {hasViewable && (
+                                  <button onClick={open} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+                                    👁 View
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-sm text-muted">— No documents uploaded</p>
