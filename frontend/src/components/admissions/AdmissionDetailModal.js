@@ -624,6 +624,8 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                         {app.customDocuments.map((cd, idx) => {
                           const file = Array.isArray(cd?.files) && cd.files[0];
                           const fileUrl  = file?.data || file?.url || '';
+                          const fileMime = file?.mimeType || file?.type || '';
+                          const fileName = file?.fileName || file?.name || cd?.label || 'document';
                           const hasFile  = fileUrl && (fileUrl.startsWith('data:') || fileUrl.startsWith('blob:') || /^https?:\/\//i.test(fileUrl));
                           const fileCount = (cd?.files || []).length;
 
@@ -631,7 +633,21 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                             e.stopPropagation();
                             if (!hasFile) return;
                             const w = window.open();
-                            if (w) w.location.href = fileUrl;
+                            if (!w) { alert('Could not open new tab. Please allow pop-ups for this site.'); return; }
+                            // For data: URLs Chrome blocks top-level navigation.
+                            // Embed the file in a wrapper so PDFs/images render.
+                            if (fileUrl.startsWith('data:')) {
+                              const isImage = fileMime.startsWith('image/');
+                              w.document.write(
+                                `<title>${fileName}</title>` +
+                                `<style>body{margin:0;background:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;color:#fff}img,embed{max-width:100%;max-height:100vh}</style>` +
+                                (isImage
+                                  ? `<img src="${fileUrl}" alt="${fileName}"/>`
+                                  : `<embed src="${fileUrl}" type="${fileMime || 'application/pdf'}" width="100%" height="100%" style="height:100vh"/>`)
+                              );
+                            } else {
+                              w.location.href = fileUrl;
+                            }
                           };
 
                           return (

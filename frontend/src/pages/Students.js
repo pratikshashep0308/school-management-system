@@ -807,8 +807,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                             );
                             const open = () => {
                               if (!hasViewable) return;
-                              const w = window.open();
-                              if (w) w.location.href = d.url;
+                              openFileInNewTab(d.url, d.name);
                             };
                             return (
                               <div key={d.key} className="border border-emerald-200 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
@@ -835,8 +834,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                             );
                             const open = () => {
                               if (!hasViewable) return;
-                              const w = window.open();
-                              if (w) w.location.href = url;
+                              openFileInNewTab(url, d.label);
                             };
                             return (
                               <div key={`custom-${idx}`} className="border border-emerald-200 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
@@ -1502,6 +1500,68 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
 
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Open a file URL in a new tab. Handles three cases:
+ *   1. http(s):// URL  →  just open it directly.
+ *   2. data: URL      →  Chrome blocks navigating top-level tabs to data: URLs
+ *                        (security mitigation), which is why earlier code
+ *                        landed on a blank page. Convert to a Blob and use
+ *                        the resulting blob: URL, which is allowed.
+ *   3. blob: URL      →  open directly.
+ *
+ * Falls back gracefully if the browser refuses popups (returns null window).
+ */
+function openFileInNewTab(url, suggestedName) {
+  if (!url) return;
+
+  // Case 1 & 3 — http(s) and existing blob URLs
+  if (/^https?:\/\//i.test(url) || url.startsWith('blob:')) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  // Case 2 — data: URL → convert to Blob → blob: URL → open
+  if (url.startsWith('data:')) {
+    try {
+      // Parse the data URL: "data:[<mediatype>][;base64],<data>"
+      const match = /^data:([^;,]+)?(;base64)?,(.*)$/i.exec(url);
+      if (!match) {
+        window.open(url, '_blank');
+        return;
+      }
+      const mime    = match[1] || 'application/octet-stream';
+      const isB64   = !!match[2];
+      const payload = match[3];
+
+      let bytes;
+      if (isB64) {
+        const binary = atob(payload);
+        bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      } else {
+        bytes = new TextEncoder().encode(decodeURIComponent(payload));
+      }
+
+      const blob    = new Blob([bytes], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Open immediately. Don't revoke synchronously — give the new tab time to
+      // load. Revoke after a generous delay (1 minute is overkill, but cheap).
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (err) {
+      console.error('openFileInNewTab failed:', err);
+      // Last-ditch fallback — let the browser try
+      window.open(url, '_blank');
+    }
+    return;
+  }
+
+  // Unknown shape — try anyway
+  window.open(url, '_blank');
+}
+
 function Section({ title, children }) {
   return (
     <div>
