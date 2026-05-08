@@ -80,15 +80,6 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
         </div>
 
         <div id="printable-receipt" style={{ padding:'24px', fontFamily:'Arial, sans-serif' }}>
-          {/* Action toolbar — always visible at the top of the receipt scroll area.
-              Hidden on print via the @media rule injected by handlePrint. */}
-          <div className="receipt-actions" style={{ display:'flex', gap:10, justifyContent:'flex-end', marginBottom:16, paddingBottom:12, borderBottom:'1px dashed #E5E7EB' }}>
-            <button onClick={handlePrint}
-              style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>🖨 Print</button>
-            <button onClick={onClose}
-              style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700, background:'#DC2626', color:'#fff', border:'none', cursor:'pointer' }}>✕ Close</button>
-          </div>
-
           <div style={{ textAlign:'center', marginBottom:16 }}>
             <div style={{ fontSize:20, fontWeight:900, color:'#0B1F4A' }}>The Future Step School</div>
             <div style={{ fontSize:12, color:'#6B7280' }}>Securing Future By Adaptive Learning</div>
@@ -129,42 +120,46 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
                 <tr style={{ background:'#F3F4F6' }}>
                   <th style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB', width:40 }}>Sr.</th>
                   <th style={{ padding:'8px 12px', textAlign:'left', fontWeight:700, border:'1px solid #E5E7EB' }}>Particulars</th>
-                  <th style={{ padding:'8px 12px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:100 }}>Per Month</th>
                   <th style={{ padding:'8px 12px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:110 }}>Total</th>
+                  <th style={{ padding:'8px 12px', textAlign:'right', fontWeight:700, border:'1px solid #E5E7EB', width:110, color:'#16A34A' }}>Paying Now</th>
                 </tr>
               </thead>
               <tbody>
                 {receipt.items.map((item,i) => (
                   <tr key={i}>
                     <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'center' }}>{i+1}</td>
-                    <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB' }}>{(item.label||'').toUpperCase()}{receipt.periodMonths>1?` × ${receipt.periodMonths}`:''}</td>
-                    <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'right', color:'#6B7280' }}>{fmt(item.perMonth)}</td>
-                    <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:600 }}>{fmt(item.total)}</td>
+                    <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB' }}>{(item.label||'').toUpperCase()}</td>
+                    <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:600 }}>{fmt(item.perMonth)}</td>
+                    <td style={{ padding:'7px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#16A34A' }}>{fmt(item.payingNow)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ background:'#F8FAFC' }}>
-                  <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>SUBTOTAL</td>
+                  <td colSpan={2} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>SUBTOTAL</td>
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>{fmt(receipt.subtotal)}</td>
+                  <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB' }}></td>
                 </tr>
                 {receipt.discountAmt > 0 && (
                   <tr style={{ background:'#F0FDF4' }}>
-                    <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#16A34A' }}>{receipt.periodLabel} Discount ({receipt.discountPct}%)</td>
+                    <td colSpan={2} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#16A34A' }}>{receipt.periodLabel} Discount ({receipt.discountPct}%)</td>
                     <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#16A34A' }}>-{fmt(receipt.discountAmt)}</td>
+                    <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB' }}></td>
                   </tr>
                 )}
                 <tr style={{ background:'#EFF6FF' }}>
-                  <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#1E40AF' }}>TOTAL</td>
+                  <td colSpan={2} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#1E40AF' }}>TOTAL</td>
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:900, fontSize:15, color:'#1E40AF' }}>{fmt(receipt.totalAmount)}</td>
+                  <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB' }}></td>
                 </tr>
                 <tr>
                   <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>DEPOSIT</td>
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#16A34A' }}>{fmt(receipt.deposit)}</td>
                 </tr>
                 <tr style={{ background:receipt.balance>0?'#FEF2F2':'#F0FDF4' }}>
-                  <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>DUE-ABLE BALANCE</td>
+                  <td colSpan={2} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>DUE-ABLE BALANCE</td>
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:900, fontSize:15, color:receipt.balance>0?'#DC2626':'#16A34A' }}>{fmt(receipt.balance)}</td>
+                  <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB' }}></td>
                 </tr>
               </tfoot>
             </table>

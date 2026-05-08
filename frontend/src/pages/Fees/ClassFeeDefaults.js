@@ -25,6 +25,7 @@ export default function ClassFeeDefaults() {
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
   const [typeMgrOpen, setTypeMgrOpen] = useState(false);
+  const [viewMode,    setViewMode]    = useState('yearly'); // 'yearly' | 'halfYearly' — toggled by clicking summary cards
 
   const reloadFeeTypes = async () => {
     try {
@@ -155,13 +156,35 @@ export default function ClassFeeDefaults() {
             {template ? '✓ Default fees configured' : 'No defaults yet'}
           </div>
         </div>
-        <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:14 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'#1E40AF', textTransform:'uppercase' }}>Yearly Total (12 mo)</div>
+        <div
+          onClick={() => setViewMode('yearly')}
+          style={{
+            background: viewMode==='yearly' ? '#DBEAFE' : '#EFF6FF',
+            border: viewMode==='yearly' ? '2px solid #1D4ED8' : '1px solid #BFDBFE',
+            borderRadius:10, padding: viewMode==='yearly' ? 13 : 14, // -1 to compensate for thicker border
+            cursor:'pointer', transition:'all 0.15s',
+          }}
+          title="Click to view yearly amounts"
+        >
+          <div style={{ fontSize:11, fontWeight:700, color:'#1E40AF', textTransform:'uppercase', display:'flex', alignItems:'center', gap:6 }}>
+            Yearly Total (12 mo){viewMode==='yearly' && <span style={{ fontSize:10 }}>● Active</span>}
+          </div>
           <div style={{ fontSize:22, fontWeight:800, color:'#1E3A8A', marginTop:4 }}>{fmt(totalAnnual)}</div>
           <div style={{ fontSize:11, color:'#3B82F6', marginTop:2 }}>Per student / year</div>
         </div>
-        <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, padding:14 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'#166534', textTransform:'uppercase' }}>Half-Yearly (6 mo)</div>
+        <div
+          onClick={() => setViewMode('halfYearly')}
+          style={{
+            background: viewMode==='halfYearly' ? '#DCFCE7' : '#F0FDF4',
+            border: viewMode==='halfYearly' ? '2px solid #15803D' : '1px solid #BBF7D0',
+            borderRadius:10, padding: viewMode==='halfYearly' ? 13 : 14,
+            cursor:'pointer', transition:'all 0.15s',
+          }}
+          title="Click to view half-yearly amounts"
+        >
+          <div style={{ fontSize:11, fontWeight:700, color:'#166534', textTransform:'uppercase', display:'flex', alignItems:'center', gap:6 }}>
+            Half-Yearly (6 mo){viewMode==='halfYearly' && <span style={{ fontSize:10 }}>● Active</span>}
+          </div>
           <div style={{ fontSize:22, fontWeight:800, color:'#14532D', marginTop:4 }}>{fmt(totalHalfYear)}</div>
           <div style={{ fontSize:11, color:'#16A34A', marginTop:2 }}>Auto = yearly ÷ 2</div>
         </div>
@@ -184,8 +207,8 @@ export default function ClassFeeDefaults() {
             <thead>
               <tr style={{ background:'#F9FAFB' }}>
                 <th style={th}>Fee Type</th>
-                <th style={th}>Yearly Amount (₹)</th>
-                <th style={th}>Half-Yearly (auto)</th>
+                <th style={th}>{viewMode==='yearly' ? 'Yearly Amount (₹)' : 'Yearly (auto)'}</th>
+                <th style={th}>{viewMode==='halfYearly' ? 'Half-Yearly Amount (₹)' : 'Half-Yearly (auto)'}</th>
                 <th style={th}>Notes</th>
                 <th style={{ ...th, width:60 }}></th>
               </tr>
@@ -207,15 +230,32 @@ export default function ClassFeeDefaults() {
                         ))}
                       </select>
                     </td>
-                    <td style={td}>
-                      <input type="number" min="0" style={INP} value={l.annualAmount}
-                        onChange={e => setLine(i, 'annualAmount', e.target.value)} placeholder="0" />
-                    </td>
-                    <td style={td}>
-                      <div style={{ ...INP, background:'#F9FAFB', color:'#6B7280', cursor:'not-allowed' }}>
-                        {annual > 0 ? `₹${halfYear.toLocaleString('en-IN')}` : '—'}
-                      </div>
-                    </td>
+                    {viewMode === 'yearly' ? (
+                      <>
+                        <td style={td}>
+                          <input type="number" min="0" style={INP} value={l.annualAmount}
+                            onChange={e => setLine(i, 'annualAmount', e.target.value)} placeholder="0" />
+                        </td>
+                        <td style={td}>
+                          <div style={{ ...INP, background:'#F9FAFB', color:'#6B7280', cursor:'not-allowed' }}>
+                            {annual > 0 ? `₹${halfYear.toLocaleString('en-IN')}` : '—'}
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={td}>
+                          <div style={{ ...INP, background:'#F9FAFB', color:'#6B7280', cursor:'not-allowed' }}>
+                            {annual > 0 ? `₹${annual.toLocaleString('en-IN')}` : '—'}
+                          </div>
+                        </td>
+                        <td style={td}>
+                          <input type="number" min="0" style={INP} value={annual ? halfYear : ''}
+                            onChange={e => setLine(i, 'annualAmount', (Number(e.target.value) || 0) * 2)}
+                            placeholder="0" />
+                        </td>
+                      </>
+                    )}
                     <td style={td}>
                       <input style={INP} value={l.notes}
                         onChange={e => setLine(i, 'notes', e.target.value)} placeholder="Optional" />

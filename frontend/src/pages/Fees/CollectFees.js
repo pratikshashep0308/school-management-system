@@ -178,7 +178,7 @@ export default function CollectFees() {
         periodCovered,
         items:         feeItems.filter(f=>f.amount>0).map(f=>{
           const periodTotal = +f.amount * pd.months / 12;
-          return { label:f.label, perMonth:+f.amount, total: f.isDiscount ? -periodTotal : periodTotal };
+          return { label:f.label, perMonth:+f.amount, total: f.isDiscount ? -periodTotal : periodTotal, payingNow: +f.paid || 0 };
         }),
         subtotal,
         discountPct:   pd.discount,
@@ -230,7 +230,7 @@ export default function CollectFees() {
         date:           new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),
         items:          feeItems.filter(f=>f.amount>0).map(f=>{
           const periodTotal = +f.amount * pd.months / 12;
-          return { label:f.label, perMonth:f.amount, total: f.isDiscount ? -periodTotal : periodTotal };
+          return { label:f.label, perMonth:f.amount, total: f.isDiscount ? -periodTotal : periodTotal, payingNow: +f.paid || 0 };
         }),
         history: [...history.map(h=>({ date:new Date(h.paidOn).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), period:h.month||'—', total:totalAmount, deposit:h.amount, due:totalAmount-h.amount })),
           { date:new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), period:periodCovered, total:totalAmount, deposit:+deposit, due:dueBalance }],

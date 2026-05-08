@@ -158,6 +158,7 @@ const StudentFeeSchema = new mongoose.Schema({
       label:    { type: String },
       perMonth: { type: Number },
       total:    { type: Number },
+      payingNow: { type: Number },                                       // amount paid for this line in this transaction
     }],
     subtotal:       { type: Number },
     discountPct:    { type: Number },
