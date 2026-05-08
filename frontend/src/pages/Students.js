@@ -103,10 +103,33 @@ export default function Students() {
   const handleSave = async (form) => {
     setSaving(true);
     try {
-      if (form._id) { await studentAPI.update(form._id, form); toast.success('Student updated'); }
-      else          { await studentAPI.create(form); toast.success('Student added ✅'); }
+      // Strip _id from body (it lives in the URL) and ensure ObjectId-typed
+      // fields are sent as strings rather than nested objects. The server's
+      // global error handler shows "Resource not found with id of [object Object]"
+      // when one of these slips through unstringified — usually from a populated
+      // field on the source record.
+      const { _id, ...body } = form;
+      // Coerce common id fields to strings, handling both populated subdocs and ObjectId types
+      const toIdStr = (v) => {
+        if (!v) return v;
+        if (typeof v === 'string') return v;
+        if (typeof v === 'object') return String(v._id || v);
+        return String(v);
+      };
+      if (body.classId)  body.classId  = toIdStr(body.classId);
+      if (body.class)    body.class    = toIdStr(body.class);
+      if (body.parentId) body.parentId = toIdStr(body.parentId);
+      if (body.parent)   body.parent   = toIdStr(body.parent);
+      if (body.school)   body.school   = toIdStr(body.school);
+      if (body.user)     body.user     = toIdStr(body.user);
+
+      if (_id) { await studentAPI.update(_id, body); toast.success('Student updated'); }
+      else     { await studentAPI.create(body); toast.success('Student added ✅'); }
       setAddModal({ open: false, data: null }); load();
-    } catch (err) { toast.error(err.response?.data?.message || 'Error saving student'); }
+    } catch (err) {
+      console.error('Save failed:', err.response?.data || err);
+      toast.error(err.response?.data?.message || 'Error saving student');
+    }
     finally { setSaving(false); }
   };
 
