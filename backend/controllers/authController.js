@@ -56,7 +56,30 @@ exports.login = async (req, res) => {
 // @access  Private
 exports.getMe = async (req, res) => {
   const user = await User.findById(req.user.id).populate('school', 'name logo');
-  res.status(200).json({ success: true, data: user });
+
+  // For students, also pull their profile photo from the Student record so the
+  // student-side portal can display it without a second round-trip.
+  let extra = {};
+  if (user?.role === 'student') {
+    try {
+      const Student = require('../models/Student');
+      const stu = await Student.findOne({ user: user._id })
+        .select('studentPhoto admissionNumber rollNumber class')
+        .lean();
+      if (stu) {
+        extra.studentPhoto    = stu.studentPhoto    || '';
+        extra.admissionNumber = stu.admissionNumber || '';
+        extra.rollNumber      = stu.rollNumber      || '';
+      }
+    } catch (e) {
+      // Don't break login — just skip the extras.
+      console.warn('[getMe] student lookup failed:', e.message);
+    }
+  }
+
+  // Merge into a plain object (User toObject + extras)
+  const data = { ...(user?.toObject ? user.toObject() : user), ...extra };
+  res.status(200).json({ success: true, data });
 };
 
 // @desc    Logout (client-side token removal, server-side blacklist optional)

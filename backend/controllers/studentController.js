@@ -1,6 +1,7 @@
 // backend/controllers/studentController.js
 const User    = require('../models/User');
 const Student = require('../models/Student');
+const Admission = require('../models/Admission');
 const { Class, BookIssue, Attendance } = require('../models/index');
 
 // ─── Helper: auto-generate admission number ───────────────────────────────────
@@ -251,6 +252,40 @@ exports.updateStudent = async (req, res) => {
       ...(req.body.email && { email: req.body.email }),
       ...(req.body.phone && { phone: req.body.phone }),
     });
+  }
+
+  // ── Mirror back to the source Admission record ──────────────────────────
+  // The admin can edit a student's data via the portal Edit modal. Without this
+  // mirror, the Admission record (which is the source of truth before enrollment
+  // and is reopened when admins click "View Application") would go stale.
+  // We match by admissionNumber → applicationNumber, which is the field copied
+  // verbatim at enrollment time.
+  // Done as a non-blocking attempt — failures here shouldn't fail the student
+  // save the user just made.
+  try {
+    if (student.admissionNumber) {
+      const admUpdate = {};
+      // Profile photo (top-level on admission, mirrors the new admissionSnapshot.studentPhoto)
+      if (req.body.studentPhoto !== undefined) admUpdate.studentPhoto = req.body.studentPhoto;
+      // Whole snapshot, if provided — overwrites the admission with the latest values
+      // for every field the user just edited (Govt IDs, Bank, Disability, etc.).
+      if (req.body.admissionSnapshot && typeof req.body.admissionSnapshot === 'object') {
+        Object.assign(admUpdate, req.body.admissionSnapshot);
+        // Don't drag the snapshot itself into the admission — admissions don't
+        // have an admissionSnapshot field, just the flat fields.
+        delete admUpdate.admissionSnapshot;
+      }
+      if (Object.keys(admUpdate).length) {
+        await Admission.findOneAndUpdate(
+          { applicationNumber: student.admissionNumber },
+          { $set: admUpdate },
+          { new: false, runValidators: false }
+        );
+      }
+    }
+  } catch (syncErr) {
+    // Log but don't surface — the primary student save already succeeded.
+    console.warn('[updateStudent] admission mirror failed (non-fatal):', syncErr.message);
   }
 
   res.json({ success: true, data: updated });

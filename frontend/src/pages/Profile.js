@@ -66,9 +66,8 @@ function SchoolBrandBadge() {
   );
 }
 
-// ── Avatar: uses school logo as fallback when no profile image ────────────────
-function ProfileAvatar({ name, color, size = 80 }) {
-  const [imgError, setImgError] = useState(false);
+// ── Avatar: profile picture if available, else initials with school-logo accent
+function ProfileAvatar({ name, color, size = 80, src }) {
   const initials = name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
 
   return (
@@ -76,14 +75,20 @@ function ProfileAvatar({ name, color, size = 80 }) {
       {/* Main avatar circle */}
       <div style={{
         width: size, height: size, borderRadius: 20,
-        background: color,
+        background: src ? '#F3F4F6' : color,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: size * 0.32, fontWeight: 900, color: '#fff',
         border: `3px solid ${color}40`,
         boxShadow: `0 6px 20px ${color}35`,
         position: 'relative', overflow: 'hidden',
       }}>
-        {initials}
+        {src ? (
+          <img src={src} alt={name || ''}
+            style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+            onError={e => { e.currentTarget.style.display='none'; }} />
+        ) : (
+          initials
+        )}
         {/* Subtle diamond watermark in corner */}
         <div style={{
           position: 'absolute', bottom: -4, right: -4,
@@ -160,7 +165,7 @@ export default function Profile() {
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, paddingTop: 4, flexWrap: 'wrap' }}>
           {/* Avatar */}
-          <ProfileAvatar name={user?.name} color={avatarColor} size={80} />
+          <ProfileAvatar name={user?.name} color={avatarColor} size={80} src={user?.studentPhoto} />
 
           {/* Info */}
           <div style={{ flex: 1, minWidth: 0 }}>

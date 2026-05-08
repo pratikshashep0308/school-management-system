@@ -21,7 +21,9 @@ function cardHTML(s) {
   const cls   = `${s.class?.name||''} ${s.class?.section||''}`.trim() || '—';
   const color = cardColor(name);
   const ini   = initials(name);
-  const photo = s.user?.profileImage;
+  // Profile photo: prefer top-level studentPhoto, then admissionSnapshot, then
+  // legacy User.profileImage. Whichever exists first wins.
+  const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || s.user?.profileImage;
   const avatar = photo
     ? `<img src="${photo}" style="width:56px;height:68px;object-fit:cover;border-radius:6px;border:2px solid ${color}" />`
     : `<div style="width:56px;height:68px;border-radius:6px;background:${color};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;border:2px solid ${color}">${ini}</div>`;
@@ -118,7 +120,9 @@ function IDCardPreview({ student }) {
   const name  = student.user?.name || '—';
   const cls   = `${student.class?.name||''} ${student.class?.section||''}`.trim() || '—';
   const color = cardColor(name);
-  const photo = student.user?.profileImage;
+  // Profile photo: prefer top-level studentPhoto, then admissionSnapshot, then
+  // legacy User.profileImage.
+  const photo = student.studentPhoto || student.admissionSnapshot?.studentPhoto || student.user?.profileImage;
 
   return (
     <div style={{ width:'100%', maxWidth:280, background:'#fff', borderRadius:10, overflow:'hidden',
