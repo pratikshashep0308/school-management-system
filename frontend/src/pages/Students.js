@@ -3,9 +3,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import api, { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
+import { admissionAPI } from '../utils/admissionUtils';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
+import AdmissionFormModal from '../components/admissions/AdmissionFormModal';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -64,6 +66,8 @@ export default function Students() {
   const [tab,          setTab]         = useState('all');
   const [viewStudent,  setViewStudent] = useState(null);  // student profile drawer
   const [addModal,     setAddModal]    = useState({ open: false, data: null });
+  const [editAdmission, setEditAdmission] = useState(null); // admission record loaded for AdmissionFormModal
+  const [loadingAdm,   setLoadingAdm]  = useState(false);
   const [saving,       setSaving]      = useState(false);
   const [resetModal,   setResetModal]  = useState(null); // student to reset password
   const [newPassword,  setNewPassword] = useState('');
@@ -71,6 +75,54 @@ export default function Students() {
   const [showPwd,      setShowPwd]     = useState({});
 
   const canManage = can(['superAdmin', 'schoolAdmin']);
+
+  /**
+   * Open the comprehensive AdmissionFormModal for editing a student.
+   *
+   * Why this exists: the Students page formerly opened a smaller tabbed modal
+   * (StudentFormModal). The user asked for a single edit experience, so we now
+   * load the matching Admission record and reuse the AdmissionFormModal — same
+   * form used in the Admissions page.
+   *
+   * Match rule: admission.applicationNumber matches student.admissionNumber as
+   * a prefix (at enrollment, admNo can be `${applicationNumber}-<timestamp>`).
+   * If no admission is found, fall back to constructing a synthetic record from
+   * the student's data (e.g. for students created manually without admission).
+   */
+  const openEditFromStudent = useCallback(async (s) => {
+    if (!s?.admissionNumber) {
+      toast.error('No admission record linked to this student.');
+      return;
+    }
+    setLoadingAdm(true);
+    try {
+      // Try exact match first, then prefix
+      const res = await admissionAPI.getAll({ search: s.admissionNumber });
+      const list = res.data?.data || [];
+      let adm = list.find(a => a.applicationNumber === s.admissionNumber)
+             || list.find(a => s.admissionNumber.startsWith(a.applicationNumber));
+
+      if (!adm) {
+        // No admission found — synthesize from student snapshot so the form is
+        // still usable. Save will go through admissionAPI.create on submit.
+        const snap = s.admissionSnapshot || {};
+        adm = {
+          ...snap,
+          applicationNumber: s.admissionNumber,
+          studentName: s.user?.name || snap.studentName || '',
+          status: 'enrolled',
+          // No _id => AdmissionFormModal will treat it as a new record
+        };
+      }
+
+      setEditAdmission(adm);
+    } catch (err) {
+      console.error('Failed to load admission:', err);
+      toast.error('Could not load admission record.');
+    } finally {
+      setLoadingAdm(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -340,9 +392,9 @@ export default function Students() {
                             👁 View
                           </button>
                           {canManage && (
-                            <button onClick={()=>setAddModal({ open:true, data:{ ...s, name:s.user?.name, email:s.user?.email, classId:s.class?._id } })}
-                              style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-                              ✎
+                            <button onClick={()=>openEditFromStudent(s)} disabled={loadingAdm}
+                              style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor: loadingAdm ? 'wait' : 'pointer' }}>
+                              {loadingAdm ? '⏳' : '✎'}
                             </button>
                           )}
                         </div>
@@ -500,11 +552,24 @@ export default function Students() {
           classes={classes}
           canManage={canManage}
           onClose={() => setViewStudent(null)}
-          onEdit={() => { setAddModal({ open: true, data: { ...viewStudent, name: viewStudent.user?.name, email: viewStudent.user?.email, classId: viewStudent.class?._id } }); setViewStudent(null); }}
+          onEdit={() => { openEditFromStudent(viewStudent); setViewStudent(null); }}
         />
       )}
 
-      {/* Add / Edit Modal */}
+      {/* ── Edit Modal ── reuses the AdmissionFormModal so the experience matches
+          the Admissions page. The backend's Admission→Student mirror keeps the
+          Student record in sync after save. */}
+      {editAdmission && (
+        <AdmissionFormModal
+          isOpen={true}
+          initial={editAdmission}
+          onClose={() => setEditAdmission(null)}
+          onSuccess={() => { setEditAdmission(null); load(); toast.success('Student updated'); }}
+        />
+      )}
+
+      {/* New-student "Add" still uses the lightweight tabbed form below
+          (StudentFormModal). Edit always goes through AdmissionFormModal above. */}
       <StudentFormModal
         isOpen={addModal.open}
         data={addModal.data}
