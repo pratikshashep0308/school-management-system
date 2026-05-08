@@ -103,25 +103,34 @@ export default function Students() {
   const handleSave = async (form) => {
     setSaving(true);
     try {
-      // Strip _id from body (it lives in the URL) and ensure ObjectId-typed
-      // fields are sent as strings rather than nested objects. The server's
-      // global error handler shows "Resource not found with id of [object Object]"
-      // when one of these slips through unstringified — usually from a populated
-      // field on the source record.
+      // Strip _id from body (it lives in the URL).
       const { _id, ...body } = form;
-      // Coerce common id fields to strings, handling both populated subdocs and ObjectId types
+
+      // Defensive: stringify any ObjectId-typed field, in case it arrived as a
+      // populated subdoc or ObjectId object instead of a plain string.
       const toIdStr = (v) => {
-        if (!v) return v;
+        if (v === null || v === undefined || v === '') return v;
         if (typeof v === 'string') return v;
-        if (typeof v === 'object') return String(v._id || v);
+        if (typeof v === 'object') return v._id ? String(v._id) : String(v);
         return String(v);
       };
-      if (body.classId)  body.classId  = toIdStr(body.classId);
-      if (body.class)    body.class    = toIdStr(body.class);
-      if (body.parentId) body.parentId = toIdStr(body.parentId);
-      if (body.parent)   body.parent   = toIdStr(body.parent);
-      if (body.school)   body.school   = toIdStr(body.school);
-      if (body.user)     body.user     = toIdStr(body.user);
+      ['classId','class','parentId','parent','school','user','transportRoute'].forEach(k => {
+        if (k in body) body[k] = toIdStr(body[k]);
+      });
+
+      // Log every field in the body whose value is an object/array — useful for
+      // diagnosing "Resource not found with id of [object Object]" errors,
+      // which are caused by an ObjectId field being sent as an object instead of
+      // a string. Will print to console once before sending.
+      console.log('[Save Student] PUT body keys:', Object.keys(body));
+      Object.entries(body).forEach(([k, v]) => {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          // Allowed nested objects: address, admissionSnapshot
+          if (!['address', 'admissionSnapshot'].includes(k)) {
+            console.warn(`[Save Student] ⚠ field "${k}" is an object:`, v);
+          }
+        }
+      });
 
       if (_id) { await studentAPI.update(_id, body); toast.success('Student updated'); }
       else     { await studentAPI.create(body); toast.success('Student added ✅'); }
