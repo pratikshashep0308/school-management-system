@@ -141,8 +141,11 @@ exports.recordPayment = async (req, res) => {
   if (totalFees) record.totalFees = totalFees;
 
   const receiptNumber = genReceipt();
+  // Snapshot ledger state BEFORE this payment so the receipt always shows
+  // accurate "previously paid" even after later payments are recorded.
+  const paidBeforeThis = record.paidAmount || 0;
   // Compute balance AFTER this payment for snapshot on the receipt
-  const balanceAfter = Math.max(0, (record.totalFees || 0) - ((record.paidAmount || 0) + Number(amount)));
+  const balanceAfter = Math.max(0, (record.totalFees || 0) - (paidBeforeThis + Number(amount)));
 
   record.paymentHistory.push({
     amount: Number(amount), paidOn: new Date(),
@@ -153,6 +156,7 @@ exports.recordPayment = async (req, res) => {
     items: Array.isArray(items) ? items : [],
     subtotal, discountPct, discountAmt, totalAmount,
     balanceAfter,
+    paidBeforeThis,
     parentName,
   });
   await record.save();
@@ -220,6 +224,9 @@ exports.getReceipt = async (req, res) => {
     discountAmt:    payment.discountAmt   || 0,
     totalAmount:    payment.totalAmount   || payment.amount,
     balance:        payment.balanceAfter != null ? payment.balanceAfter : record.pendingAmount,
+    paidBeforeThis: payment.paidBeforeThis != null
+                      ? payment.paidBeforeThis
+                      : Math.max(0, (record.paidAmount || 0) - (payment.amount || 0)), // best-effort fallback for OLD receipts
 
     // ── Ledger snapshot ──
     totalFees:      record.totalFees,

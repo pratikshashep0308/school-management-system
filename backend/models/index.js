@@ -165,6 +165,7 @@ const StudentFeeSchema = new mongoose.Schema({
     discountAmt:    { type: Number },
     totalAmount:    { type: Number },
     balanceAfter:   { type: Number },
+    paidBeforeThis: { type: Number },                                    // ledger paidAmount BEFORE this payment, for receipt clarity
     parentName:     { type: String },
   }],
 

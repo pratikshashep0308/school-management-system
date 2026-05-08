@@ -31,7 +31,11 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
   if (!receipt) return null;
 
   const handlePrint = () => {
-    const content = document.getElementById('printable-receipt').innerHTML;
+    // Convert relative image paths to absolute so they resolve in the print window
+    // (window.open('') has no base URL, so /school-logo.jpeg would otherwise 404).
+    const baseUrl = window.location.origin;
+    const content = document.getElementById('printable-receipt').innerHTML
+      .replace(/src="\/(?!\/)/g, `src="${baseUrl}/`);
     const win = window.open('', '_blank', 'width=800,height=900');
     win.document.write(`
       <html><head><title>Fee Receipt – ${receipt.receiptNumber}</title>
@@ -47,22 +51,17 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
     `);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 500);
+    // Wait for the logo to load before triggering print, otherwise it prints blank.
+    setTimeout(() => { win.print(); win.close(); }, 800);
   };
 
   return (
     <div onClick={onClose}
       style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'flex-start', justifyContent:'center', background:'rgba(0,0,0,0.7)', padding:'20px 16px', overflowY:'auto' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:760, margin:'auto', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.5)' }}>
+        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:760, margin:'0 auto', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.5)' }}>
 
-        {/* Floating ✕ — always visible, top-right of modal */}
-        <button onClick={onClose} title="Close"
-          style={{ position:'absolute', top:10, right:12, zIndex:5, width:32, height:32, borderRadius:'50%', background:'#fff', border:'1px solid #E5E7EB', color:'#374151', fontSize:18, fontWeight:700, cursor:'pointer', boxShadow:'0 2px 6px rgba(0,0,0,0.08)', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
-          ✕
-        </button>
-
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 60px 16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0 }}>
+        <div style={{ position:'sticky', top:0, zIndex:6, background:'#fff', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0, borderRadius:'16px 16px 0 0' }}>
           <div>
             <h3 style={{ fontSize:17, fontWeight:700, margin:0, color:'#16A34A' }}>✅ Receipt</h3>
             <div style={{ fontSize:12, color:'#16A34A', marginTop:2 }}>
@@ -80,10 +79,38 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
         </div>
 
         <div id="printable-receipt" style={{ padding:'24px', fontFamily:'Arial, sans-serif' }}>
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, marginBottom:8 }}>
+            <img
+              src="/school-logo.jpeg"
+              alt="School logo"
+              style={{ width:90, height:90, objectFit:'contain', flexShrink:0 }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'#374151', letterSpacing:'0.05em' }}>K V P S SANSTHA BHALER</div>
+              {/* Rainbow letter-by-letter "The Future Step School" — colors match SchoolName.jpeg.
+                  Inlined here (instead of importing the React component) so it survives the
+                  innerHTML copy-paste that handlePrint() does into the new print window. */}
+              <div style={{ fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, fontSize:26, lineHeight:1.1, marginTop:4 }}>
+                {(() => {
+                  const COLORS = [
+                    '#E53935','#F57C00','#43A047',null,
+                    '#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,
+                    '#43A047','#E53935','#7B1FA2','#F57C00',null,
+                    '#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0',
+                  ];
+                  const NAME = 'The Future Step School';
+                  return NAME.split('').map((ch, i) => {
+                    if (ch === ' ') return <span key={i} style={{ display:'inline-block', width:8 }}>&nbsp;</span>;
+                    return <span key={i} style={{ color: COLORS[i] }}>{ch}</span>;
+                  });
+                })()}
+              </div>
+              <div style={{ fontSize:12, color:'#6B7280', marginTop:4 }}>Securing Future By Adaptive Learning</div>
+            </div>
+          </div>
           <div style={{ textAlign:'center', marginBottom:16 }}>
-            <div style={{ fontSize:20, fontWeight:900, color:'#0B1F4A' }}>The Future Step School</div>
-            <div style={{ fontSize:12, color:'#6B7280' }}>Securing Future By Adaptive Learning</div>
-            <div style={{ fontSize:14, fontWeight:700, color:'#D4522A', marginTop:10, borderBottom:'2px solid #D4522A', paddingBottom:6 }}>Fees Paid Receipt</div>
+            <div style={{ display:'inline-block', fontSize:14, fontWeight:700, color:'#D4522A', marginTop:6, borderBottom:'2px solid #D4522A', paddingBottom:6, paddingLeft:24, paddingRight:24 }}>Fees Paid Receipt</div>
           </div>
 
           {receipt.periodMonths > 1 && (
@@ -152,8 +179,22 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:900, fontSize:15, color:'#1E40AF' }}>{fmt(receipt.totalAmount)}</td>
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB' }}></td>
                 </tr>
+                {(() => {
+                  // Previously paid = ledger paid amount before this transaction.
+                  // Backend snapshots this at payment time (paidBeforeThis); we fall back
+                  // to a derived value for OLD receipts that don't have the snapshot.
+                  const prevPaid = Number(receipt.paidBeforeThis) || 0;
+                  if (prevPaid <= 0) return null;
+                  return (
+                    <tr>
+                      <td colSpan={2} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#6B7280' }}>PREVIOUSLY PAID</td>
+                      <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#6B7280' }}>-{fmt(prevPaid)}</td>
+                      <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB' }}></td>
+                    </tr>
+                  );
+                })()}
                 <tr>
-                  <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>DEPOSIT</td>
+                  <td colSpan={3} style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700 }}>THIS PAYMENT</td>
                   <td style={{ padding:'8px 12px', border:'1px solid #E5E7EB', textAlign:'right', fontWeight:700, color:'#16A34A' }}>{fmt(receipt.deposit)}</td>
                 </tr>
                 <tr style={{ background:receipt.balance>0?'#FEF2F2':'#F0FDF4' }}>
