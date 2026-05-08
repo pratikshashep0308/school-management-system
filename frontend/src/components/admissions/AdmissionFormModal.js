@@ -786,8 +786,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }).length + customNonEmpty;
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'center', justifyContent:'center', padding:8, background:'rgba(0,0,0,0.5)' }}>
-      <div style={{ background:'#F8F8FF', borderRadius:20, width:'100%', maxWidth:1400, height:'96vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:8, background:'rgba(0,0,0,0.5)', overflowY:'auto' }}>
+      <div style={{ background:'#F8F8FF', borderRadius:20, width:'100%', maxWidth:1400, minHeight:'calc(100vh - 16px)', margin:'4px 0', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)', overflow:'hidden' }}>
 
         {/* Header */}
         <div style={{ background:'#fff', padding:'20px 28px', borderBottom:'1px solid #E5E7EB', flexShrink:0, textAlign:'center' }}>

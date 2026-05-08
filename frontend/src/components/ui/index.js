@@ -12,10 +12,12 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' })
   };
   const isFull = size === 'full';
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={isFull ? { padding: 8 } : undefined}>
+    <div className={`fixed inset-0 z-[200] flex ${isFull ? 'items-start' : 'items-center'} justify-center p-4 ${isFull ? 'overflow-y-auto' : ''}`} style={isFull ? { padding: 8 } : undefined}>
       <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative bg-white rounded-2xl w-full ${sizes[size]} shadow-2xl animate-scale-in overflow-hidden`}
-        style={{ maxHeight: isFull ? '96vh' : '90vh', height: isFull ? '96vh' : undefined, display:'flex', flexDirection:'column' }}>
+        style={isFull
+          ? { minHeight: 'calc(100vh - 16px)', margin: '4px 0', display:'flex', flexDirection:'column' }
+          : { maxHeight: '90vh', display:'flex', flexDirection:'column' }}>
         <div className="flex items-center justify-between px-7 py-5 border-b border-border" style={{ flexShrink:0 }}>
           <h2 className="font-display text-xl text-ink">{title}</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted hover:border-accent hover:text-accent transition-all text-lg">×</button>

@@ -163,8 +163,8 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1400px] h-[96vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-2 bg-black/50 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1400px] my-2 flex flex-col overflow-hidden" style={{ minHeight: 'calc(100vh - 16px)' }}>
 
         {/* Header */}
         {loading ? (
