@@ -264,7 +264,10 @@ exports.updateStudent = async (req, res) => {
   // save the user just made.
   try {
     if (student.admissionNumber) {
-      const adm = await Admission.findOne({ applicationNumber: student.admissionNumber });
+      // student.admissionNumber is `<applicationNumber>-<4digits>` (set at enrollment).
+      // Derive the applicationNumber by stripping the trailing -NNNN suffix.
+      const appNum = student.admissionNumber.replace(/-\d{1,6}$/, '');
+      const adm = await Admission.findOne({ applicationNumber: appNum });
       if (adm) {
         // Profile photo (top-level on admission, mirrors snapshot.studentPhoto)
         if (req.body.studentPhoto !== undefined) adm.studentPhoto = req.body.studentPhoto;

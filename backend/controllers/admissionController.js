@@ -316,7 +316,13 @@ exports.updateAdmission = async (req, res) => {
   try {
     if (admission.applicationNumber) {
       const Student = require('../models/Student');
-      const stu = await Student.findOne({ admissionNumber: admission.applicationNumber });
+      // Student.admissionNumber may equal applicationNumber OR be suffixed with
+      // a timestamp at enrollment time (`${applicationNumber}-${suffix}`).
+      // Use a prefix-regex match so both shapes are handled.
+      const safeRegex = admission.applicationNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const stu = await Student.findOne({
+        admissionNumber: { $regex: '^' + safeRegex },
+      });
       if (stu) {
         // Build a fresh snapshot from the just-saved admission doc.
         // Strip Mongo-internals and the timeline (large + irrelevant in snapshot).
@@ -329,6 +335,9 @@ exports.updateAdmission = async (req, res) => {
         // Student.studentPhoto stay current.
         if (admission.studentPhoto !== undefined) stu.studentPhoto = admission.studentPhoto;
         await stu.save();
+        console.log(`[updateAdmission] ✓ mirrored snapshot to Student ${stu.admissionNumber}`);
+      } else {
+        console.log(`[updateAdmission] no Student matched applicationNumber prefix "${admission.applicationNumber}"`);
       }
     }
   } catch (mirrorErr) {
