@@ -96,23 +96,29 @@ export default function Students() {
     }
     setLoadingAdm(true);
     try {
-      // Try exact match first, then prefix
-      const res = await admissionAPI.getAll({ search: s.admissionNumber });
+      // student.admissionNumber may be `<applicationNumber>-<timestamp>` (set at
+      // enrollment) or sometimes just the applicationNumber. Strip a trailing
+      // `-NNNNNN` suffix so the search matches the admission's applicationNumber.
+      const appNumGuess = s.admissionNumber.replace(/-\d{1,6}$/, '');
+
+      // Search by the (likely) applicationNumber prefix
+      const res = await admissionAPI.getAll({ search: appNumGuess });
       const list = res.data?.data || [];
+
+      // Match preference order:
+      //   1. Exact applicationNumber match (most reliable)
+      //   2. Stripped-suffix match (covers enrolled-with-timestamp case)
+      //   3. Original admissionNumber starts with returned applicationNumber
       let adm = list.find(a => a.applicationNumber === s.admissionNumber)
+             || list.find(a => a.applicationNumber === appNumGuess)
              || list.find(a => s.admissionNumber.startsWith(a.applicationNumber));
 
       if (!adm) {
-        // No admission found — synthesize from student snapshot so the form is
-        // still usable. Save will go through admissionAPI.create on submit.
-        const snap = s.admissionSnapshot || {};
-        adm = {
-          ...snap,
-          applicationNumber: s.admissionNumber,
-          studentName: s.user?.name || snap.studentName || '',
-          status: 'enrolled',
-          // No _id => AdmissionFormModal will treat it as a new record
-        };
+        // No admission found — refuse to silently create a new one. This avoids
+        // accidentally producing duplicate admissions when a search/lookup fails.
+        toast.error('No matching admission record found for this student. Please contact admin.');
+        console.error('No admission match for student', { admissionNumber: s.admissionNumber, appNumGuess, candidates: list.map(a => a.applicationNumber) });
+        return;
       }
 
       setEditAdmission(adm);
