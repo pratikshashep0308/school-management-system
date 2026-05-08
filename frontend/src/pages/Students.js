@@ -809,6 +809,10 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                               if (!hasViewable) return;
                               openFileInNewTab(d.url, d.name);
                             };
+                            const dl = () => {
+                              if (!hasViewable) return;
+                              downloadFileFromUrl(d.url, d.fileName || `${d.name}.${(d.url.split(';')[0].split('/')[1] || 'pdf').split('+')[0]}`);
+                            };
                             return (
                               <div key={d.key} className="border border-emerald-200 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
                                 <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 bg-emerald-500 text-white">✓</div>
@@ -817,9 +821,14 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                                   <p className="text-[10px] text-muted">{hasViewable ? 'File uploaded' : 'Marked submitted'}</p>
                                 </div>
                                 {hasViewable && (
-                                  <button onClick={open} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
-                                    👁 View
-                                  </button>
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <button onClick={open} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+                                      👁 View
+                                    </button>
+                                    <button onClick={dl} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700">
+                                      ⬇ Download
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             );
@@ -836,6 +845,11 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                               if (!hasViewable) return;
                               openFileInNewTab(url, d.label);
                             };
+                            const dl = () => {
+                              if (!hasViewable) return;
+                              const name = file?.fileName || file?.name || `${d.label}.${(url.split(';')[0].split('/')[1] || 'pdf').split('+')[0]}`;
+                              downloadFileFromUrl(url, name);
+                            };
                             return (
                               <div key={`custom-${idx}`} className="border border-emerald-200 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-900/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
                                 <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 bg-emerald-500 text-white">✓</div>
@@ -844,9 +858,14 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                                   <p className="text-[10px] text-muted">{(d.files || []).length} file{(d.files || []).length === 1 ? '' : 's'}</p>
                                 </div>
                                 {hasViewable && (
-                                  <button onClick={open} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
-                                    👁 View
-                                  </button>
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <button onClick={open} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+                                      👁 View
+                                    </button>
+                                    <button onClick={dl} className="text-[10px] px-2 py-1 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700">
+                                      ⬇ Download
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             );
@@ -1560,6 +1579,30 @@ function openFileInNewTab(url, suggestedName) {
 
   // Unknown shape — try anyway
   window.open(url, '_blank');
+}
+
+/**
+ * Download a file URL to the user's computer. Handles data: URLs (most common
+ * in this app since uploads are stored as base64), blob: URLs, and remote URLs.
+ * Triggers a real browser download via a temporary <a download> element.
+ */
+function downloadFileFromUrl(url, suggestedName) {
+  if (!url) return;
+  try {
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = suggestedName || 'document';
+    // Some browsers refuse to download cross-origin URLs without rel=noopener
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error('downloadFileFromUrl failed:', err);
+    // Fallback: open in a tab so the user can save it manually
+    openFileInNewTab(url, suggestedName);
+  }
 }
 
 function Section({ title, children }) {

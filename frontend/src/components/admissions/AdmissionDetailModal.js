@@ -650,6 +650,18 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                             }
                           };
 
+                          const downloadCustom = (e) => {
+                            e.stopPropagation();
+                            if (!hasFile) return;
+                            const a = document.createElement('a');
+                            a.href = fileUrl;
+                            a.download = fileName;
+                            a.style.display = 'none';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                          };
+
                           return (
                             <div key={idx} className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${
                               fileCount > 0 ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-white'
@@ -666,10 +678,18 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                                 </p>
                               </div>
                               {hasFile && (
-                                <button onClick={openCustom}
-                                  className="text-xs px-2.5 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
-                                  👁 View
-                                </button>
+                                <div className="flex gap-1.5 flex-shrink-0">
+                                  <button onClick={openCustom}
+                                    className="text-xs px-2.5 py-1.5 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700"
+                                    title="Open file in new tab">
+                                    👁 View
+                                  </button>
+                                  <button onClick={downloadCustom}
+                                    className="text-xs px-2.5 py-1.5 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                                    title="Download file">
+                                    ⬇ Download
+                                  </button>
+                                </div>
                               )}
                             </div>
                           );
