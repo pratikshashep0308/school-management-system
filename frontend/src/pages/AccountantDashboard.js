@@ -150,7 +150,7 @@ export default function AccountantDashboard() {
             <div className="py-10 text-center text-muted text-sm">No payments yet</div>
           ) : recentPayments.map(p => (
             <div key={p._id} className="flex items-center gap-3 px-5 py-3 border-t border-border hover:bg-warm/40 transition-colors">
-              <Avatar name={p.student?.user?.name} size="sm" />
+              <Avatar name={p.student?.user?.name} size="sm" src={p.student?.studentPhoto || p.student?.admissionSnapshot?.studentPhoto || p.student?.user?.profileImage} />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-ink truncate">{p.student?.user?.name}</div>
                 <div className="text-xs text-muted font-mono">{p.receiptNumber}</div>
@@ -178,7 +178,7 @@ export default function AccountantDashboard() {
             </div>
           ) : overdueList.map(p => (
             <div key={p._id} className="flex items-center gap-3 px-5 py-3 border-t border-border hover:bg-warm/40 transition-colors">
-              <Avatar name={p.student?.user?.name} size="sm" />
+              <Avatar name={p.student?.user?.name} size="sm" src={p.student?.studentPhoto || p.student?.admissionSnapshot?.studentPhoto || p.student?.user?.profileImage} />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-ink truncate">{p.student?.user?.name}</div>
                 <div className="text-xs text-muted">{p.month}</div>

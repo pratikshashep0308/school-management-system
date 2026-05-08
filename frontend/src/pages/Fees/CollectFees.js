@@ -270,20 +270,25 @@ export default function CollectFees() {
             placeholder="Type student name or roll number…" style={{ ...INP, fontSize:14 }}/>
           {suggestions.length > 0 && (
             <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:50, marginTop:4 }}>
-              {suggestions.map(s=>(
+              {suggestions.map(s=>{
+                const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || s.user?.profileImage;
+                return (
                 <div key={s._id} onClick={()=>selectStudent(s)}
                   style={{ padding:'10px 16px', cursor:'pointer', fontSize:13, borderBottom:'0.5px solid #F3F4F6', display:'flex', alignItems:'center', gap:10 }}
                   onMouseEnter={e=>e.currentTarget.style.background='#EFF6FF'}
                   onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                  <div style={{ width:30, height:30, borderRadius:8, background:'#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>
+                  <div style={{ width:30, height:30, borderRadius:8, background: photo ? '#F3F4F6' : '#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                    {photo
+                      ? <img src={photo} alt={s.user?.name||''} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                      : <span style={{ fontSize:12, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>}
                   </div>
                   <div>
                     <span style={{ fontWeight:700, color:'#111827' }}>{s.rollNumber} – {s.user?.name}</span>
                     <span style={{ color:'#9CA3AF', marginLeft:8 }}>– {s.class?.name} {s.class?.section||''}</span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -111,9 +111,17 @@ export default function FeesStudentTable({ onPayClick, onReceiptClick }) {
                       <tr className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                              {rec.student?.user?.name?.[0]?.toUpperCase() || '?'}
-                            </div>
+                            {(() => {
+                              const photo = rec.student?.studentPhoto || rec.student?.admissionSnapshot?.studentPhoto || rec.student?.user?.profileImage;
+                              return photo ? (
+                                <img src={photo} alt={rec.student?.user?.name || ''}
+                                  className="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-slate-100" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                  {rec.student?.user?.name?.[0]?.toUpperCase() || '?'}
+                                </div>
+                              );
+                            })()}
                             <div>
                               <p className="font-semibold text-slate-800">{rec.student?.user?.name || 'N/A'}</p>
                               <p className="text-xs text-slate-400">{rec.student?.admissionNumber}</p>

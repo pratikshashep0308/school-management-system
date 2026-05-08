@@ -614,7 +614,8 @@ export default function ParentDashboard() {
                   (selected?._id === child._id
                     ? 'border-accent bg-accent/5 dark:bg-accent/10'
                     : 'border-border bg-white dark:bg-gray-800 hover:border-accent/40')}>
-                <Avatar name={child.user?.name} size="sm" />
+                <Avatar name={child.user?.name} size="sm"
+                  src={child.studentPhoto || child.admissionSnapshot?.studentPhoto || child.user?.profileImage} />
                 <div className="text-left">
                   <div className={'text-sm font-semibold ' + (selected?._id === child._id ? 'text-accent' : 'text-ink dark:text-white')}>
                     {child.user?.name}
@@ -640,7 +641,8 @@ export default function ParentDashboard() {
         <>
           {/* Child info banner */}
           <div className="card px-6 py-4 flex items-center gap-4 bg-accent/5 dark:bg-accent/10 border border-accent/20">
-            <Avatar name={childName} size="md" />
+            <Avatar name={childName} size="md"
+              src={student.studentPhoto || student.admissionSnapshot?.studentPhoto || student.user?.profileImage} />
             <div>
               <div className="font-bold text-ink dark:text-white">{childName}</div>
               <div className="text-xs text-muted">
