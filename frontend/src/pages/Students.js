@@ -1205,6 +1205,15 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
     bankIfsc: '', bankAccountNumber: '', bankBranchAddress: '',
     // Section 6 — Government IDs
     governmentIds: [],
+    // Documents — same shape as admission record
+    documents: {
+      birthCertificate: null, aadhaarCard: null, passportPhoto: null,
+      addressProof: null, transferCertificate: null, marksheet: null,
+      casteCertificate: null, medicalCertificate: null,
+    },
+    customDocuments: [],            // [{ label, files: [...] }]
+    addressProofType: '',
+    addressProofTypeOther: '',
     // Medical
     medicalInfo: '',
     hobbies: '',
@@ -1286,6 +1295,20 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         bankBranchAddress: snap.bankBranchAddress || '',
         // Section 6
         governmentIds: Array.isArray(snap.governmentIds) ? snap.governmentIds : [],
+        // Documents — copy from admissionSnapshot if present
+        documents: {
+          birthCertificate:    snap.documents?.birthCertificate    || null,
+          aadhaarCard:         snap.documents?.aadhaarCard         || null,
+          passportPhoto:       snap.documents?.passportPhoto       || null,
+          addressProof:        snap.documents?.addressProof        || null,
+          transferCertificate: snap.documents?.transferCertificate || null,
+          marksheet:           snap.documents?.marksheet           || null,
+          casteCertificate:    snap.documents?.casteCertificate    || null,
+          medicalCertificate:  snap.documents?.medicalCertificate  || null,
+        },
+        customDocuments:       Array.isArray(snap.customDocuments) ? snap.customDocuments : [],
+        addressProofType:      snap.addressProofType      || '',
+        addressProofTypeOther: snap.addressProofTypeOther || '',
         // Medical
         medicalInfo: data.medicalInfo || '',
         hobbies: data.hobbies || snap.hobbies || '',
@@ -1360,6 +1383,11 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       bankAccountNumber: form.bankAccountNumber, bankBranchAddress: form.bankBranchAddress,
       // Section 6
       governmentIds: (form.governmentIds || []).filter(g => g && (g.type || g.number)),
+      // Section 7 — Documents (admission record format)
+      documents: form.documents,
+      customDocuments: (form.customDocuments || []).filter(d => d && (d.label || (d.files && d.files.length))),
+      addressProofType: form.addressProofType,
+      addressProofTypeOther: form.addressProofTypeOther,
     };
     return {
       _id: form._id,
@@ -1388,13 +1416,14 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
   };
 
   const sections = [
-    { id: 'student',  label: '👤 Student' },
-    { id: 'other',    label: '📋 Other' },
-    { id: 'guardian', label: '👨‍👩‍👧 Guardian' },
-    { id: 'address',  label: '📍 Address' },
-    { id: 'bank',     label: '🏦 Bank' },
-    { id: 'govids',   label: '🆔 Govt IDs' },
-    { id: 'medical',  label: '🏥 Medical' },
+    { id: 'student',   label: '👤 Student' },
+    { id: 'other',     label: '📋 Other' },
+    { id: 'guardian',  label: '👨‍👩‍👧 Guardian' },
+    { id: 'address',   label: '📍 Address' },
+    { id: 'bank',      label: '🏦 Bank' },
+    { id: 'govids',    label: '🆔 Govt IDs' },
+    { id: 'documents', label: '📎 Documents' },
+    { id: 'medical',   label: '🏥 Medical' },
   ];
 
   return (
@@ -1621,6 +1650,220 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
             className="text-sm font-semibold text-indigo-600 bg-indigo-50 border border-dashed border-indigo-300 rounded-lg px-4 py-2">
             + Add ID
           </button>
+        </div>
+      )}
+
+      {/* ── Documents ── */}
+      {activeSection === 'documents' && (
+        <div className="space-y-4">
+          {(() => {
+            // Standard doc list — keys must match what admission form uses
+            const STANDARD_DOCS = [
+              { key: 'birthCertificate',    label: 'Birth Certificate' },
+              { key: 'aadhaarCard',         label: 'Aadhaar Card' },
+              { key: 'passportPhoto',       label: 'Passport-size Photos' },
+              { key: 'addressProof',        label: 'Address Proof' },
+              { key: 'transferCertificate', label: 'Transfer Certificate' },
+              { key: 'marksheet',           label: 'Previous Marksheet' },
+              { key: 'casteCertificate',    label: 'Caste Certificate' },
+              { key: 'medicalCertificate',  label: 'Medical Certificate' },
+            ];
+
+            // Read files for a doc slot (handles legacy + new shapes)
+            const readFiles = (val) => {
+              if (!val) return [];
+              if (Array.isArray(val)) return val;
+              if (typeof val === 'object' && val.files) return val.files;
+              if (typeof val === 'object' && (val.url || val.data)) return [val];
+              return [];
+            };
+
+            // 2 MB per file ceiling — keeps payload manageable
+            const MAX_BYTES = 2 * 1024 * 1024;
+            const handleStandardUpload = (key, fileList) => {
+              const arr = Array.from(fileList || []);
+              const tooBig = arr.find(f => f.size > MAX_BYTES);
+              if (tooBig) { alert(`"${tooBig.name}" is over 2 MB. Please pick a smaller file.`); return; }
+              Promise.all(arr.map(file => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve({
+                  data: reader.result, fileName: file.name,
+                  mimeType: file.type, size: file.size,
+                  uploadedAt: new Date().toISOString(),
+                });
+                reader.readAsDataURL(file);
+              }))).then(newFiles => {
+                set('documents', { ...form.documents, [key]: [...readFiles(form.documents[key]), ...newFiles] });
+              });
+            };
+            const removeStandardFile = (key, idx) => {
+              const files = readFiles(form.documents[key]);
+              files.splice(idx, 1);
+              set('documents', { ...form.documents, [key]: files.length ? files : null });
+            };
+
+            const handleCustomUpload = (idx, fileList) => {
+              const arr = Array.from(fileList || []);
+              const tooBig = arr.find(f => f.size > MAX_BYTES);
+              if (tooBig) { alert(`"${tooBig.name}" is over 2 MB.`); return; }
+              Promise.all(arr.map(file => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve({
+                  data: reader.result, fileName: file.name,
+                  mimeType: file.type, size: file.size,
+                  uploadedAt: new Date().toISOString(),
+                });
+                reader.readAsDataURL(file);
+              }))).then(newFiles => {
+                const next = [...(form.customDocuments || [])];
+                next[idx] = { ...(next[idx] || { label: '', files: [] }), files: [...(next[idx]?.files || []), ...newFiles] };
+                set('customDocuments', next);
+              });
+            };
+            const updateCustomLabel = (idx, label) => {
+              const next = [...(form.customDocuments || [])];
+              next[idx] = { ...(next[idx] || { files: [] }), label };
+              set('customDocuments', next);
+            };
+            const removeCustomFile = (idx, fileIdx) => {
+              const next = [...(form.customDocuments || [])];
+              if (next[idx]) {
+                next[idx].files = (next[idx].files || []).filter((_, i) => i !== fileIdx);
+              }
+              set('customDocuments', next);
+            };
+            const addCustomDoc = () => {
+              set('customDocuments', [...(form.customDocuments || []), { label: '', files: [] }]);
+            };
+            const removeCustomDoc = (idx) => {
+              set('customDocuments', (form.customDocuments || []).filter((_, i) => i !== idx));
+            };
+
+            const filledStdCount = STANDARD_DOCS.filter(d => readFiles(form.documents[d.key]).length > 0).length;
+            const filledCustomCount = (form.customDocuments || []).filter(d => (d.files || []).length > 0).length;
+
+            return (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-ink dark:text-white">Document Checklist</p>
+                    <p className="text-xs text-muted">{filledStdCount + filledCustomCount} of {STANDARD_DOCS.length + (form.customDocuments || []).length} uploaded</p>
+                  </div>
+                </div>
+
+                {/* Standard documents */}
+                <div className="space-y-2">
+                  {STANDARD_DOCS.map(({ key, label }) => {
+                    const files = readFiles(form.documents[key]);
+                    const filled = files.length > 0;
+                    return (
+                      <div key={key} className={`rounded-xl border-2 p-3 ${filled ? 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10' : 'border-border bg-warm/40 dark:bg-gray-800/40'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${filled ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400 dark:bg-gray-700'}`}>
+                            {filled ? '✓' : '○'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-ink dark:text-white">{label}</p>
+                            <p className="text-[11px] text-muted">{filled ? `${files.length} file${files.length === 1 ? '' : 's'}` : 'No file uploaded'}</p>
+                          </div>
+                          <label className="text-[11px] font-bold px-3 py-1.5 rounded-md cursor-pointer bg-indigo-600 text-white hover:bg-indigo-700">
+                            📎 Upload
+                            <input type="file" multiple accept=".pdf,image/*" className="hidden"
+                              onChange={e => { handleStandardUpload(key, e.target.files); e.target.value=''; }} />
+                          </label>
+                        </div>
+                        {filled && (
+                          <div className="mt-2 pt-2 border-t border-emerald-200 dark:border-emerald-800 space-y-1">
+                            {files.map((f, fi) => (
+                              <div key={fi} className="flex items-center gap-2 text-xs">
+                                <span className="flex-1 truncate text-slate dark:text-gray-300">📄 {f.fileName || `File ${fi + 1}`}</span>
+                                {(f.data || f.url) && (
+                                  <a href={f.data || f.url} target="_blank" rel="noopener noreferrer"
+                                    className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 font-semibold hover:bg-indigo-200">View</a>
+                                )}
+                                <button type="button" onClick={() => removeStandardFile(key, fi)}
+                                  className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-semibold hover:bg-red-200">✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Address proof type */}
+                <FormGroup label="Address Proof Type">
+                  <select className="form-input" value={form.addressProofType} onChange={e => set('addressProofType', e.target.value)}>
+                    <option value="">-- Select --</option>
+                    <option value="light_bill">Electricity Bill</option>
+                    <option value="ration_card">Ration Card</option>
+                    <option value="rent_agreement">Rent Agreement</option>
+                    <option value="passport">Passport</option>
+                    <option value="voter_id">Voter ID</option>
+                    <option value="driving_license">Driving License</option>
+                    <option value="__other__">Other</option>
+                  </select>
+                </FormGroup>
+                {form.addressProofType === '__other__' && (
+                  <FormGroup label="Specify Other Address Proof">
+                    <input className="form-input" value={form.addressProofTypeOther} onChange={e => set('addressProofTypeOther', e.target.value)} placeholder="e.g. Property Tax receipt" />
+                  </FormGroup>
+                )}
+
+                {/* Custom Documents */}
+                <div className="pt-4 border-t border-border">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold text-ink dark:text-white">Custom Documents</p>
+                    <button type="button" onClick={addCustomDoc}
+                      className="text-xs font-bold px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">+ Add Document</button>
+                  </div>
+                  {(!form.customDocuments || form.customDocuments.length === 0) ? (
+                    <p className="text-xs text-muted">No custom documents added yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {form.customDocuments.map((doc, idx) => (
+                        <div key={idx} className="rounded-xl border-2 border-border bg-warm/30 dark:bg-gray-800/30 p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <input className="form-input flex-1 text-sm"
+                              value={doc?.label || ''}
+                              onChange={e => updateCustomLabel(idx, e.target.value)}
+                              placeholder="Document name (e.g. Bonafide Certificate)" />
+                            <label className="text-[11px] font-bold px-3 py-1.5 rounded-md cursor-pointer bg-indigo-600 text-white hover:bg-indigo-700">
+                              📎 Upload
+                              <input type="file" multiple accept=".pdf,image/*" className="hidden"
+                                onChange={e => { handleCustomUpload(idx, e.target.files); e.target.value=''; }} />
+                            </label>
+                            <button type="button" onClick={() => removeCustomDoc(idx)}
+                              className="text-xs font-bold px-2.5 py-1.5 rounded-md bg-red-100 text-red-600 hover:bg-red-200">✕</button>
+                          </div>
+                          {(doc?.files || []).length > 0 && (
+                            <div className="space-y-1 pt-2 border-t border-border">
+                              {doc.files.map((f, fi) => (
+                                <div key={fi} className="flex items-center gap-2 text-xs">
+                                  <span className="flex-1 truncate text-slate dark:text-gray-300">📄 {f.fileName || `File ${fi + 1}`}</span>
+                                  {(f.data || f.url) && (
+                                    <a href={f.data || f.url} target="_blank" rel="noopener noreferrer"
+                                      className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 font-semibold hover:bg-indigo-200">View</a>
+                                  )}
+                                  <button type="button" onClick={() => removeCustomFile(idx, fi)}
+                                    className="px-2 py-0.5 rounded bg-red-100 text-red-700 font-semibold hover:bg-red-200">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 text-xs text-blue-700">
+                  ℹ️ Files are stored as base64 inline. Keep each file under 2 MB for best performance. PDF and images supported.
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
