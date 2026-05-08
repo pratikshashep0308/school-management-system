@@ -52,9 +52,9 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
 
   return (
     <div onClick={onClose}
-      style={{ position:'fixed', inset:0, zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.6)', padding:16 }}>
+      style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'flex-start', justifyContent:'center', background:'rgba(0,0,0,0.7)', padding:'20px 16px', overflowY:'auto' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:700, maxHeight:'92vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.3)' }}>
+        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:760, margin:'auto', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.5)' }}>
 
         {/* Floating ✕ — always visible, top-right of modal */}
         <button onClick={onClose} title="Close"
@@ -79,7 +79,7 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
           </div>
         </div>
 
-        <div id="printable-receipt" style={{ overflowY:'auto', flex:1, padding:'24px', fontFamily:'Arial, sans-serif' }}>
+        <div id="printable-receipt" style={{ padding:'24px', fontFamily:'Arial, sans-serif' }}>
           {/* Action toolbar — always visible at the top of the receipt scroll area.
               Hidden on print via the @media rule injected by handlePrint. */}
           <div className="receipt-actions" style={{ display:'flex', gap:10, justifyContent:'flex-end', marginBottom:16, paddingBottom:12, borderBottom:'1px dashed #E5E7EB' }}>
