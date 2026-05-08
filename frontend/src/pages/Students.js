@@ -235,6 +235,8 @@ export default function Students() {
                   const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
                   const colors = ['#D4522A','#C9A84C','#4A7C59','#7C6AF5','#2D9CDB','#F2994A','#10B981','#8B5CF6'];
                   const bg     = colors[name.charCodeAt(0) % colors.length];
+                  // Profile photo: prefer top-level Student.studentPhoto, fall back to snapshot
+                  const photo  = s.studentPhoto || s.admissionSnapshot?.studentPhoto || '';
                   const statusStyle = s.status === 'active'
                     ? { bg:'#D1FAE5', color:'#065F46' }
                     : s.status === 'alumni'
@@ -249,8 +251,12 @@ export default function Students() {
                       <td style={{ padding:'10px 14px', color:'#9CA3AF', fontSize:12 }}>{i+1}</td>
                       <td style={{ padding:'10px 14px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                          <div style={{ width:36, height:36, borderRadius:10, background:bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                            <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{initials}</span>
+                          <div style={{ width:36, height:36, borderRadius:10, background:photo ? '#F3F4F6' : bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                            {photo ? (
+                              <img src={photo} alt={name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                            ) : (
+                              <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{initials}</span>
+                            )}
                           </div>
                           <div>
                             <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{name}</div>
@@ -278,16 +284,12 @@ export default function Students() {
                             style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', border:'1px solid #BFDBFE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
                             👁 View
                           </button>
-                          {canManage && <>
+                          {canManage && (
                             <button onClick={()=>setAddModal({ open:true, data:{ ...s, name:s.user?.name, email:s.user?.email, classId:s.class?._id } })}
                               style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
                               ✎
                             </button>
-                            <button onClick={()=>handleDelete(s._id, s.user?.name)}
-                              style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
-                              ✕
-                            </button>
-                          </>}
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -468,11 +470,23 @@ function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
   return (
     <div className="card p-5 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer" onClick={onView}>
       <div className="flex items-start gap-3 mb-3">
-        {/* Avatar */}
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0"
-          style={{ background: `linear-gradient(135deg, ${genderColor}cc, ${genderColor}88)` }}>
-          {s.user?.name?.charAt(0)?.toUpperCase()}
-        </div>
+        {/* Avatar — photo if uploaded, else first-letter circle */}
+        {(() => {
+          const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || '';
+          if (photo) {
+            return (
+              <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-warm">
+                <img src={photo} alt={s.user?.name || ''} className="w-full h-full object-cover" />
+              </div>
+            );
+          }
+          return (
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0"
+              style={{ background: `linear-gradient(135deg, ${genderColor}cc, ${genderColor}88)` }}>
+              {s.user?.name?.charAt(0)?.toUpperCase()}
+            </div>
+          );
+        })()}
         <div className="flex-1 min-w-0">
           <p className="font-bold text-ink dark:text-white truncate">{s.user?.name}</p>
           <p className="text-xs text-muted">{s.admissionNumber}</p>
@@ -496,7 +510,6 @@ function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
           <button onClick={onView}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-accent hover:text-accent transition-all">👁 View</button>
           <button onClick={onEdit}   className="flex-1 text-xs border border-border rounded-lg py-1.5 text-slate hover:border-blue-400 hover:text-blue-600 transition-all">✎ Edit</button>
           {s.parentPhone && <button onClick={()=>{ const ph=(s.parentPhone||'').replace(/\D/g,'').replace(/^0/,'91'); window.open(`https://wa.me/${ph}?text=${encodeURIComponent('Dear Parent, this is a message from The Future Step School regarding '+s.user?.name+'.')}`, '_blank'); }} className="text-xs border border-green-200 rounded-lg px-2.5 py-1.5 text-green-600 hover:border-green-400 hover:bg-green-50 transition-all">💬</button>}
-          <button onClick={onDelete} className="text-xs border border-red-200 rounded-lg px-2.5 py-1.5 text-red-400 hover:border-red-400 hover:text-red-600 transition-all">✕</button>
         </div>
       )}
     </div>
@@ -567,9 +580,18 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
         {/* Modal header */}
         <div style={{ position:"sticky", top:0, zIndex:10, background:"#fff", borderBottom:"1px solid #E5E7EB", padding:"20px 28px 0" }}>
           <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
-            <div style={{ width:60, height:60, borderRadius:18, background:"#0B1F4A", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <span style={{ fontSize:22, fontWeight:700, color:"#fff" }}>{(s.user?.name||"?").charAt(0).toUpperCase()}</span>
-            </div>
+            {(() => {
+              const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || '';
+              return (
+                <div style={{ width:60, height:60, borderRadius:18, background: photo ? "#F3F4F6" : "#0B1F4A", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden" }}>
+                  {photo ? (
+                    <img src={photo} alt={s.user?.name || ''} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  ) : (
+                    <span style={{ fontSize:22, fontWeight:700, color:"#fff" }}>{(s.user?.name||"?").charAt(0).toUpperCase()}</span>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{ flex:1 }}>
               <div style={{ fontSize:20, fontWeight:700, color:"#111827" }}>{s.user?.name}</div>
               <div style={{ fontSize:13, color:"#6B7280", marginTop:2 }}>{s.admissionNumber} · {s.class?.name} {s.class?.section||""}</div>
@@ -1091,6 +1113,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
     // Section 1 — Student Information
     firstName: '', middleName: '', lastName: '',
     studentName: '',
+    studentPhoto: '',                         // base64 data URL
     registrationNo: '',
     dateOfAdmission: '',
     academicYear: '',
@@ -1152,6 +1175,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         middleName: snap.middleName || '',
         lastName: snap.lastName || '',
         studentName: snap.studentName || data.user?.name || '',
+        studentPhoto: snap.studentPhoto || data.studentPhoto || '',
         registrationNo: snap.registrationNo || '',
         dateOfAdmission: snap.dateOfAdmission ? String(snap.dateOfAdmission).split('T')[0]
                        : data.admissionDate ? String(data.admissionDate).split('T')[0]
@@ -1238,6 +1262,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       // Section 1
       firstName: form.firstName, middleName: form.middleName, lastName: form.lastName,
       studentName: fullName,
+      studentPhoto: form.studentPhoto,
       registrationNo: form.registrationNo,
       dateOfAdmission: form.dateOfAdmission || null,
       academicYear: form.academicYear,
@@ -1301,6 +1326,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       address: form.address,
       medicalInfo: form.medicalInfo,
       hobbies: form.hobbies,
+      studentPhoto: form.studentPhoto,
       // The full mirror — backend treats this as Mixed, replaces wholesale
       admissionSnapshot: snapshot,
     };
@@ -1339,6 +1365,50 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       {/* ── Student Information ── */}
       {activeSection === 'student' && (
         <div className="grid grid-cols-3 gap-4">
+          {/* Profile photo upload — first row, spans full width */}
+          <FormGroup label="Profile Photo" className="col-span-3">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-full overflow-hidden flex-shrink-0 border-2 border-border bg-warm dark:bg-gray-800 flex items-center justify-center">
+                {form.studentPhoto ? (
+                  <img src={form.studentPhoto} alt="Student" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl font-bold text-muted">
+                    {(form.firstName || form.name || '?').charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1">
+                <label className="inline-flex items-center self-start px-4 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer">
+                  {form.studentPhoto ? '🔄 Change Photo' : '📷 Upload Photo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 2 * 1024 * 1024) {
+                        alert('Photo must be under 2 MB. Please pick a smaller one.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => set('studentPhoto', reader.result);
+                      reader.readAsDataURL(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {form.studentPhoto && (
+                  <button type="button" onClick={() => set('studentPhoto', '')}
+                    className="self-start px-3 py-1 rounded-md text-[11px] font-semibold text-red-600 border border-red-200 bg-transparent hover:bg-red-50">
+                    Remove
+                  </button>
+                )}
+                <p className="text-[11px] text-muted">JPG / PNG, under 2 MB. Square photos look best.</p>
+              </div>
+            </div>
+          </FormGroup>
+
           <FormGroup label="First Name *"><input className="form-input" value={form.firstName} onChange={e => set('firstName', e.target.value)} placeholder="Pratiksha" /></FormGroup>
           <FormGroup label="Middle Name"><input className="form-input" value={form.middleName} onChange={e => set('middleName', e.target.value)} placeholder="Dhanraj" /></FormGroup>
           <FormGroup label="Last Name *"><input className="form-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Shep" /></FormGroup>

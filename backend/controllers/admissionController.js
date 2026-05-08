@@ -498,6 +498,7 @@ exports.enrollFromAdmission = async (req, res) => {
       parentEmail:     admission.parentEmail || '',
       parentPhone:     admission.parentPhone || '',
       religion:        admission.religion || '',
+      studentPhoto:    admission.studentPhoto || '',
       isActive:        true,
       status:          'active',
       school:          req.user.school,

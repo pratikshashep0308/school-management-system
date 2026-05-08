@@ -9,6 +9,9 @@ import { classAPI } from '../../utils/api';
 
 const EMPTY = {
   // Section 1 - Student Info
+  // Profile photo: base64 data URL ("data:image/jpeg;base64,...") so it can be
+  // stored alongside the rest of the admission record without external uploads.
+  studentPhoto:       '',
   firstName:          '',
   middleName:         '',
   lastName:           '',
@@ -798,6 +801,68 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
 
           {/* Section 1 - Student Information */}
           <Section number="1" title="Student Information">
+            {/* Profile photo upload — sits at the top of Section 1 so admins can attach
+                a face photo while filling the application. Stored as base64 inline. */}
+            <FloatInput label="Profile Photo" span={3}>
+              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                {/* Live preview circle (or placeholder initials) */}
+                <div style={{
+                  width:84, height:84, borderRadius:'50%', overflow:'hidden', flexShrink:0,
+                  border:'2px solid #E5E7EB', background:'#F9FAFB',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                }}>
+                  {form.studentPhoto ? (
+                    <img src={form.studentPhoto} alt="Student" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  ) : (
+                    <span style={{ fontSize:24, fontWeight:700, color:'#9CA3AF' }}>
+                      {(form.firstName || form.studentName || '?').charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                {/* Buttons: choose / remove */}
+                <div style={{ display:'flex', flexDirection:'column', gap:6, flex:1 }}>
+                  <label style={{
+                    display:'inline-block', alignSelf:'flex-start',
+                    padding:'8px 16px', borderRadius:8, fontSize:12, fontWeight:700,
+                    color:'#fff', background:'#6366F1', cursor:'pointer',
+                  }}>
+                    {form.studentPhoto ? '🔄 Change Photo' : '📷 Upload Photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display:'none' }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 2 * 1024 * 1024) {
+                          alert('Photo must be under 2 MB. Please pick a smaller one.');
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = () => setForm(f => ({ ...f, studentPhoto: reader.result }));
+                        reader.readAsDataURL(file);
+                        // Reset so the same file can be re-selected later if needed
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {form.studentPhoto && (
+                    <button type="button"
+                      onClick={() => setForm(f => ({ ...f, studentPhoto: '' }))}
+                      style={{
+                        alignSelf:'flex-start', padding:'4px 12px', borderRadius:6,
+                        fontSize:11, fontWeight:600, color:'#DC2626',
+                        background:'transparent', border:'1px solid #FECACA', cursor:'pointer',
+                      }}>
+                      Remove
+                    </button>
+                  )}
+                  <p style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>JPG / PNG, under 2 MB. Square photos look best.</p>
+                </div>
+              </div>
+            </FloatInput>
+
             <FloatInput label="Student Name" span={3} required>
               <div style={{ display:'flex', gap:8 }}>
                 <input
