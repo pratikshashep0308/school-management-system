@@ -888,10 +888,12 @@ export default function Admissions() {
                 <b>🚫 Reject</b> instead — that's reversible.
               </div>
               <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#374151',
-                              textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>
-                Type <span style={{ color:'#DC2626' }}>
-                  {deleteModal.name ? `"${deleteModal.name}"` : '"DELETE"'}
-                </span> to confirm
+                              letterSpacing:'0.05em', marginBottom:6 }}>
+                <span style={{ textTransform:'uppercase' }}>Type</span>{' '}
+                <span style={{ color:'#DC2626', fontFamily:'monospace', background:'#FEE2E2', padding:'2px 8px', borderRadius:4 }}>
+                  {deleteModal.name || 'DELETE'}
+                </span>
+                {' '}<span style={{ textTransform:'uppercase' }}>to confirm (case-insensitive)</span>
               </label>
               <input
                 autoFocus
