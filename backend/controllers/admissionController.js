@@ -286,7 +286,8 @@ exports.updateAdmission = async (req, res) => {
   const {
     _id, __v, school, status, applicationNumber, processedBy, processedAt,
     timeline, createdAt, updatedAt,
-    documents, // pull out separately — Mixed type needs special handling
+    documents,        // pull out separately — Mixed type needs special handling
+    customDocuments,  // also Mixed (via strict:false) — same treatment
     ...safeBody
   } = req.body;
 
@@ -299,6 +300,10 @@ exports.updateAdmission = async (req, res) => {
   if (documents && typeof documents === 'object') {
     admission.documents = { ...(admission.documents || {}), ...documents };
     admission.markModified('documents');
+  }
+  if (Array.isArray(customDocuments)) {
+    admission.customDocuments = customDocuments;
+    admission.markModified('customDocuments');
   }
 
   // Append timeline entry
@@ -320,6 +325,7 @@ exports.updateAdmission = async (req, res) => {
       // a timestamp at enrollment time (`${applicationNumber}-${suffix}`).
       // Use a prefix-regex match so both shapes are handled.
       const safeRegex = admission.applicationNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      console.log(`[updateAdmission] mirror lookup: applicationNumber="${admission.applicationNumber}", regex="^${safeRegex}"`);
       const stu = await Student.findOne({
         admissionNumber: { $regex: '^' + safeRegex },
       });
@@ -329,19 +335,26 @@ exports.updateAdmission = async (req, res) => {
         const snap = admission.toObject ? admission.toObject() : { ...admission };
         delete snap._id; delete snap.__v;
         delete snap.timeline; delete snap.processedBy;
+
+        // DIAG: report what's actually inside the snapshot we're about to write.
+        const docKeys = snap.documents ? Object.keys(snap.documents).filter(k => snap.documents[k]) : [];
+        console.log(`[updateAdmission] writing snapshot — student=${stu.admissionNumber}, docs=[${docKeys.join(',')}], customDocs=${(snap.customDocuments||[]).length}, photo=${snap.studentPhoto ? 'yes' : 'no'}`);
+
         stu.admissionSnapshot = snap;
         stu.markModified('admissionSnapshot');
         // Also mirror the top-level photo so portal pages that read from
         // Student.studentPhoto stay current.
         if (admission.studentPhoto !== undefined) stu.studentPhoto = admission.studentPhoto;
         await stu.save();
-        console.log(`[updateAdmission] ✓ mirrored snapshot to Student ${stu.admissionNumber}`);
+        console.log(`[updateAdmission] ✓ saved Student ${stu._id} (${stu.admissionNumber})`);
       } else {
-        console.log(`[updateAdmission] no Student matched applicationNumber prefix "${admission.applicationNumber}"`);
+        // List candidate students for debugging
+        const all = await Student.find({}, 'admissionNumber').limit(20).lean();
+        console.log(`[updateAdmission] ✗ no Student matched. Candidates: ${all.map(s => s.admissionNumber).join(', ')}`);
       }
     }
   } catch (mirrorErr) {
-    console.warn('[updateAdmission] student mirror failed (non-fatal):', mirrorErr.message);
+    console.error('[updateAdmission] student mirror FAILED:', mirrorErr);
   }
 
   res.json({ success: true, data: admission });
