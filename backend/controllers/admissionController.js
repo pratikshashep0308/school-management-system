@@ -345,8 +345,25 @@ exports.updateAdmission = async (req, res) => {
         // Also mirror the top-level photo so portal pages that read from
         // Student.studentPhoto stay current.
         if (admission.studentPhoto !== undefined) stu.studentPhoto = admission.studentPhoto;
+        // Update top-level Student fields that are pulled from the admission
+        // (these power the table view, ID cards, and other quick references).
+        if (admission.parentName !== undefined)  stu.parentName  = admission.parentName  || '';
+        if (admission.parentPhone !== undefined) stu.parentPhone = admission.parentPhone || '';
+        if (admission.parentEmail !== undefined) stu.parentEmail = admission.parentEmail || '';
         await stu.save();
         console.log(`[updateAdmission] ✓ saved Student ${stu._id} (${stu.admissionNumber})`);
+
+        // The student's name lives on the linked User document. Update it too,
+        // otherwise table views (which read User.name) keep showing the old name.
+        if (admission.studentName && stu.user) {
+          try {
+            const User = require('../models/User');
+            await User.findByIdAndUpdate(stu.user, { name: admission.studentName });
+            console.log(`[updateAdmission] ✓ synced User name → "${admission.studentName}"`);
+          } catch (uErr) {
+            console.warn('[updateAdmission] User name sync failed:', uErr.message);
+          }
+        }
       } else {
         // List candidate students for debugging
         const all = await Student.find({}, 'admissionNumber').limit(20).lean();
