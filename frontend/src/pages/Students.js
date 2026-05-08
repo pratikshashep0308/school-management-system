@@ -695,12 +695,13 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
   return (
     <div
-      style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:"24px 16px", overflowY:"auto", backdropFilter:"blur(2px)" }}
+      style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:"12px 8px", overflowY:"auto", backdropFilter:"blur(2px)" }}
       onClick={onClose}
     >
-      {/* Centered modal — wide layout so two-column field grids stay roomy */}
+      {/* Centered modal — near-fullscreen so all sections of the student profile
+          are roomy without forcing horizontal scrolling. */}
       <div
-        style={{ maxWidth:1280, margin:"0 auto", background:"#fff", borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.45)", minHeight:"calc(100vh - 48px)" }}
+        style={{ maxWidth:1400, margin:"0 auto", background:"#fff", borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.45)", minHeight:"calc(100vh - 24px)" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal header */}
@@ -1498,7 +1499,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={form._id ? 'Edit Student Profile' : 'Add New Student'} size="xl"
+    <Modal isOpen={isOpen} onClose={onClose} title={form._id ? 'Edit Student Profile' : 'Add New Student'} size="full"
       footer={<>
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
         <button className="btn-primary" onClick={() => onSave(buildPayload())} disabled={saving}>
@@ -1520,7 +1521,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       {/* Fixed-height tab body — keeps the modal a stable size across tabs.
           Tall content scrolls within this container; short content leaves
           empty space rather than collapsing the modal. */}
-      <div style={{ minHeight: 460, maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }}>
+      <div style={{ minHeight: 600, maxHeight: 'calc(96vh - 240px)', overflowY: 'auto', paddingRight: 4 }}>
 
       {/* ── Student Information ── */}
       {activeSection === 'student' && (

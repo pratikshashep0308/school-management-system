@@ -3,11 +3,19 @@ import React from 'react';
 // ── MODAL ──
 export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }) {
   if (!isOpen) return null;
-  const sizes = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+  const sizes = {
+    sm:   'max-w-md',
+    md:   'max-w-lg',
+    lg:   'max-w-2xl',
+    xl:   'max-w-4xl',
+    full: 'max-w-[1400px]',  // near-fullscreen — for big tabbed forms
+  };
+  const isFull = size === 'full';
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={isFull ? { padding: 8 } : undefined}>
       <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl w-full ${sizes[size]} shadow-2xl animate-scale-in overflow-hidden`} style={{ maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
+      <div className={`relative bg-white rounded-2xl w-full ${sizes[size]} shadow-2xl animate-scale-in overflow-hidden`}
+        style={{ maxHeight: isFull ? '96vh' : '90vh', height: isFull ? '96vh' : undefined, display:'flex', flexDirection:'column' }}>
         <div className="flex items-center justify-between px-7 py-5 border-b border-border" style={{ flexShrink:0 }}>
           <h2 className="font-display text-xl text-ink">{title}</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted hover:border-accent hover:text-accent transition-all text-lg">×</button>
@@ -143,20 +151,11 @@ export function TableRow({ columns, children, onClick }) {
 }
 
 // ── AVATAR ──
-export function Avatar({ name, color, size = 'sm', src }) {
+export function Avatar({ name, color, size = 'sm' }) {
   const sizes = { xs: 'w-7 h-7 text-xs', sm: 'w-9 h-9 text-sm', md: 'w-11 h-11 text-base', lg: 'w-14 h-14 text-xl' };
   const initials = name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
   const colors = ['#d4522a','#c9a84c','#4a7c59','#7c6af5','#2d9cdb','#f2994a','#e91e8c'];
   const bg = color || colors[name?.charCodeAt(0) % colors.length] || '#d4522a';
-  // Photo-backed avatar — show the image, fall back to initials if it errors
-  if (src) {
-    return (
-      <div className={`${sizes[size]} rounded-full overflow-hidden flex-shrink-0 bg-warm`}>
-        <img src={src} alt={name || ''} className="w-full h-full object-cover"
-          onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-      </div>
-    );
-  }
   return (
     <div className={`${sizes[size]} rounded-full flex items-center justify-center font-bold text-white flex-shrink-0`} style={{ background: bg }}>
       {initials}
