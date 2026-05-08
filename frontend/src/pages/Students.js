@@ -106,8 +106,10 @@ export default function Students() {
       // Strip _id from body (it lives in the URL).
       const { _id, ...body } = form;
 
-      // Defensive: stringify any ObjectId-typed field, in case it arrived as a
-      // populated subdoc or ObjectId object instead of a plain string.
+      // ── Defensive cleanup ─────────────────────────────────────────────────
+      // Two known sources of "Resource not found with id of [object Object]":
+      //
+      // 1. ObjectId-typed fields receiving a populated subdoc instead of a string.
       const toIdStr = (v) => {
         if (v === null || v === undefined || v === '') return v;
         if (typeof v === 'string') return v;
@@ -118,19 +120,40 @@ export default function Students() {
         if (k in body) body[k] = toIdStr(body[k]);
       });
 
-      // Log every field in the body whose value is an object/array — useful for
-      // diagnosing "Resource not found with id of [object Object]" errors,
-      // which are caused by an ObjectId field being sent as an object instead of
-      // a string. Will print to console once before sending.
-      console.log('[Save Student] PUT body keys:', Object.keys(body));
-      Object.entries(body).forEach(([k, v]) => {
-        if (v && typeof v === 'object' && !Array.isArray(v)) {
-          // Allowed nested objects: address, admissionSnapshot
-          if (!['address', 'admissionSnapshot'].includes(k)) {
-            console.warn(`[Save Student] ⚠ field "${k}" is an object:`, v);
-          }
+      // 2. address.{street|city|state|pincode} can become NESTED objects when an
+      //    older record had snap.address as an object and hydration assigned the
+      //    whole object to the `street` slot. Force every part to a clean string.
+      const flatStr = (v) => {
+        if (v === null || v === undefined) return '';
+        if (typeof v === 'string' || typeof v === 'number') return String(v);
+        if (typeof v === 'object') {
+          // Recursively try common nested shapes
+          return flatStr(v.street ?? v.line1 ?? v.text ?? v.value ?? '');
         }
-      });
+        return '';
+      };
+      if (body.address && typeof body.address === 'object') {
+        body.address = {
+          street:  flatStr(body.address.street),
+          city:    flatStr(body.address.city),
+          state:   flatStr(body.address.state),
+          pincode: flatStr(body.address.pincode),
+        };
+      }
+      // Also clean snapshot.address if it slipped through as an object
+      if (body.admissionSnapshot && typeof body.admissionSnapshot === 'object') {
+        const snap = body.admissionSnapshot;
+        if (snap.address && typeof snap.address === 'object') {
+          // Migrate: store flat string at snapshot level, since the receipt and
+          // detail modal already handle both flat and nested shapes.
+          snap.address = flatStr(snap.address);
+        }
+        ['city','state','pincode'].forEach(k => {
+          if (snap[k] !== undefined) snap[k] = flatStr(snap[k]);
+        });
+      }
+
+      console.log('[Save Student] PUT body keys:', Object.keys(body));
 
       if (_id) { await studentAPI.update(_id, body); toast.success('Student updated'); }
       else     { await studentAPI.create(body); toast.success('Student added ✅'); }
