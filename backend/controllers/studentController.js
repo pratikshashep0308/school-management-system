@@ -264,23 +264,34 @@ exports.updateStudent = async (req, res) => {
   // save the user just made.
   try {
     if (student.admissionNumber) {
-      const admUpdate = {};
-      // Profile photo (top-level on admission, mirrors the new admissionSnapshot.studentPhoto)
-      if (req.body.studentPhoto !== undefined) admUpdate.studentPhoto = req.body.studentPhoto;
-      // Whole snapshot, if provided — overwrites the admission with the latest values
-      // for every field the user just edited (Govt IDs, Bank, Disability, etc.).
-      if (req.body.admissionSnapshot && typeof req.body.admissionSnapshot === 'object') {
-        Object.assign(admUpdate, req.body.admissionSnapshot);
-        // Don't drag the snapshot itself into the admission — admissions don't
-        // have an admissionSnapshot field, just the flat fields.
-        delete admUpdate.admissionSnapshot;
-      }
-      if (Object.keys(admUpdate).length) {
-        await Admission.findOneAndUpdate(
-          { applicationNumber: student.admissionNumber },
-          { $set: admUpdate },
-          { new: false, runValidators: false }
-        );
+      const adm = await Admission.findOne({ applicationNumber: student.admissionNumber });
+      if (adm) {
+        // Profile photo (top-level on admission, mirrors snapshot.studentPhoto)
+        if (req.body.studentPhoto !== undefined) adm.studentPhoto = req.body.studentPhoto;
+
+        // Mirror snapshot fields onto the admission. Documents and customDocuments
+        // are Mixed-typed on the admission schema; assign them via direct property
+        // set + markModified so Mongoose actually persists changes.
+        if (req.body.admissionSnapshot && typeof req.body.admissionSnapshot === 'object') {
+          const snap = { ...req.body.admissionSnapshot };
+          // Pull out Mixed-typed nested objects for explicit handling
+          const { documents, customDocuments, ...rest } = snap;
+          // Don't drag fields the admission shouldn't have
+          delete rest.admissionSnapshot;
+          delete rest._id; delete rest.__v;
+
+          Object.assign(adm, rest);
+
+          if (documents && typeof documents === 'object') {
+            adm.documents = documents;
+            adm.markModified('documents');
+          }
+          if (Array.isArray(customDocuments)) {
+            adm.customDocuments = customDocuments;
+            adm.markModified('customDocuments');
+          }
+        }
+        await adm.save();
       }
     }
   } catch (syncErr) {

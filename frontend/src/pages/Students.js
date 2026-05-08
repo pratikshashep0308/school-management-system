@@ -1446,6 +1446,11 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         ))}
       </div>
 
+      {/* Fixed-height tab body — keeps the modal a stable size across tabs.
+          Tall content scrolls within this container; short content leaves
+          empty space rather than collapsing the modal. */}
+      <div style={{ minHeight: 460, maxHeight: '60vh', overflowY: 'auto', paddingRight: 4 }}>
+
       {/* ── Student Information ── */}
       {activeSection === 'student' && (
         <div className="grid grid-cols-3 gap-4">
@@ -1881,6 +1886,8 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
           </div>
         </div>
       )}
+
+      </div>
     </Modal>
   );
 }

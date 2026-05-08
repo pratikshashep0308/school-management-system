@@ -307,6 +307,34 @@ exports.updateAdmission = async (req, res) => {
   admission.markModified('timeline');
 
   await admission.save();
+
+  // ── Mirror back to enrolled Student record ──────────────────────────────
+  // If this admission was already enrolled, the corresponding Student doc has
+  // an admissionSnapshot mirror that needs to stay in sync. We match by
+  // applicationNumber === Student.admissionNumber (the field copied at enrollment).
+  // Non-fatal: failures here shouldn't block the admission save.
+  try {
+    if (admission.applicationNumber) {
+      const Student = require('../models/Student');
+      const stu = await Student.findOne({ admissionNumber: admission.applicationNumber });
+      if (stu) {
+        // Build a fresh snapshot from the just-saved admission doc.
+        // Strip Mongo-internals and the timeline (large + irrelevant in snapshot).
+        const snap = admission.toObject ? admission.toObject() : { ...admission };
+        delete snap._id; delete snap.__v;
+        delete snap.timeline; delete snap.processedBy;
+        stu.admissionSnapshot = snap;
+        stu.markModified('admissionSnapshot');
+        // Also mirror the top-level photo so portal pages that read from
+        // Student.studentPhoto stay current.
+        if (admission.studentPhoto !== undefined) stu.studentPhoto = admission.studentPhoto;
+        await stu.save();
+      }
+    }
+  } catch (mirrorErr) {
+    console.warn('[updateAdmission] student mirror failed (non-fatal):', mirrorErr.message);
+  }
+
   res.json({ success: true, data: admission });
 };
 
