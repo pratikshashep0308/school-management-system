@@ -181,7 +181,66 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 connectDB()
   .then(() => dropTransportIndexes())
+  .then(() => backfillAdmissionSnapshots())
   .catch(err => console.error('❌ MongoDB connection error:', err.message));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🪞 One-time-style backfill: copy Admission → Student.admissionSnapshot for any
+// enrolled students whose snapshot is missing or out-of-date. Runs on every
+// startup, but skips students whose snapshot already matches the admission's
+// most recent updatedAt timestamp, so it's effectively a no-op after the first
+// run. Safe to ship in production.
+// ─────────────────────────────────────────────────────────────────────────────
+async function backfillAdmissionSnapshots() {
+  try {
+    const Admission = require('./models/Admission');
+    const Student   = require('./models/Student');
+
+    // Only enrolled admissions produced a Student
+    const admissions = await Admission.find({ status: 'enrolled' }).lean();
+    let updated = 0, skipped = 0;
+
+    for (const adm of admissions) {
+      if (!adm.applicationNumber) continue;
+
+      // Match by exact applicationNumber prefix on the student's admissionNumber.
+      // (At enrollment, admNo can be `${applicationNumber}-<timestamp>`.)
+      const safeRegex = adm.applicationNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const student = await Student.findOne({
+        admissionNumber: { $regex: '^' + safeRegex },
+      });
+      if (!student) continue;
+
+      const snap = student.admissionSnapshot || {};
+      // Compare a freshness marker — the admission's updatedAt — to skip cleanly
+      // when a student already has the latest snapshot.
+      const stale = !snap || !snap.__mirrorStamp ||
+        new Date(snap.__mirrorStamp).getTime() < new Date(adm.updatedAt || 0).getTime();
+      if (!stale) { skipped++; continue; }
+
+      const fresh = { ...adm };
+      delete fresh._id; delete fresh.__v;
+      delete fresh.timeline; delete fresh.processedBy;
+      fresh.__mirrorStamp = adm.updatedAt || new Date();
+
+      student.admissionSnapshot = fresh;
+      student.markModified('admissionSnapshot');
+      // Also keep top-level studentPhoto in sync
+      if (adm.studentPhoto !== undefined) student.studentPhoto = adm.studentPhoto;
+      await student.save();
+      updated++;
+    }
+
+    if (updated > 0) {
+      console.log(`🪞 Backfill done — updated ${updated}, skipped ${skipped}`);
+    } else {
+      console.log(`🪞 Backfill: nothing to do (${skipped} students already current)`);
+    }
+  } catch (err) {
+    // Non-fatal — server should still start even if backfill fails.
+    console.warn('⚠ Backfill failed (server still starting):', err.message);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 🛡️  Global error handlers — prevent server crash on unhandled rejections
