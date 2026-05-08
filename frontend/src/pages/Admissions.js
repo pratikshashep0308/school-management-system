@@ -120,9 +120,17 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
       onClick={onView}>
       <td style={{ padding:'12px 16px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ width:38, height:38, borderRadius:10, background:'#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <span style={{ fontSize:15, fontWeight:700, color:'#fff' }}>{(app.studentName||'?')[0].toUpperCase()}</span>
-          </div>
+          {(() => {
+            // Photo lives on the admission record (set when filling the form)
+            const photo = app.studentPhoto || '';
+            return (
+              <div style={{ width:38, height:38, borderRadius:10, background: photo ? '#F3F4F6' : '#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                {photo
+                  ? <img src={photo} alt={app.studentName||''} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  : <span style={{ fontSize:15, fontWeight:700, color:'#fff' }}>{(app.studentName||'?')[0].toUpperCase()}</span>}
+              </div>
+            );
+          })()}
           <div>
             <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{app.studentName}</div>
             <div style={{ fontSize:11, color:'#9CA3AF', fontFamily:'monospace' }}>{app.applicationNumber}</div>

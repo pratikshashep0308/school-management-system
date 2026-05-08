@@ -176,9 +176,14 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
             {/* Top bar */}
             <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 flex-shrink-0">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
-                  {app.studentName?.[0]?.toUpperCase()}
-                </div>
+                {app.studentPhoto ? (
+                  <img src={app.studentPhoto} alt={app.studentName || ''}
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-slate-100" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
+                    {app.studentName?.[0]?.toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <h2 className="font-bold text-slate-800 text-lg">{app.studentName}</h2>
                   <div className="flex items-center gap-3 mt-0.5">
