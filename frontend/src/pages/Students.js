@@ -695,13 +695,12 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
 
   return (
     <div
-      style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:"12px 8px", overflowY:"auto", backdropFilter:"blur(2px)" }}
+      style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:0, overflowY:"auto", backdropFilter:"blur(2px)" }}
       onClick={onClose}
     >
-      {/* Centered modal — near-fullscreen so all sections of the student profile
-          are roomy without forcing horizontal scrolling. */}
+      {/* Full-screen modal — uses entire viewport width and height. */}
       <div
-        style={{ maxWidth:1400, margin:"0 auto", background:"#fff", borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.45)", minHeight:"calc(100vh - 24px)" }}
+        style={{ maxWidth:"none", width:"100%", margin:0, background:"#fff", borderRadius:0, overflow:"hidden", boxShadow:"none", minHeight:"100vh" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal header */}
