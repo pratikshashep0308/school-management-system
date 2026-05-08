@@ -222,7 +222,7 @@ export default function StudentIDCards() {
 
       {/* Cards Grid */}
       {loading ? (
-        <div style={{ textAlign:'center', padding:60, color:'#9CA3AF' }}>⏳ Loading…</div>
+        <div style={{ textAlign:'center', padding:60, color:'#9CA3AF' }}>⏳Loading…</div>
       ) : !filtered.length ? (
         <div style={{ textAlign:'center', padding:60, color:'#9CA3AF' }}>
           <div style={{ fontSize:48, marginBottom:12 }}>🪪</div>
