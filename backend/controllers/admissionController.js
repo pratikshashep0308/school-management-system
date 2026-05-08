@@ -537,13 +537,20 @@ exports.enrollFromAdmission = async (req, res) => {
       return ['male','female','other'].includes(v) ? v : 'other';
     };
 
+    // Whitelist of valid blood group values (matches Student schema enum).
+    // Anything outside this list — including empty strings — must be omitted,
+    // not set to '', because the schema's enum validator rejects '' explicitly.
+    const VALID_BLOODS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
+    const bg = admission.bloodGroup;
+    const safeBloodGroup = bg && VALID_BLOODS.includes(bg) ? bg : undefined;
+
     const studentDoc = {
       user:            studentUser._id,
       admissionNumber: admNo,
       class:           classId,
       gender:          normalizeGender(admission.gender),
       dateOfBirth:     admission.dateOfBirth || null,
-      bloodGroup:      admission.bloodGroup || '',
+      ...(safeBloodGroup ? { bloodGroup: safeBloodGroup } : {}),
       parentName:      admission.parentName || '',
       parentEmail:     admission.parentEmail || '',
       parentPhone:     admission.parentPhone || '',

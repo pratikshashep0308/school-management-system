@@ -238,6 +238,18 @@ exports.updateStudent = async (req, res) => {
     }
   }
 
+  // Strip enum-validated fields when they're empty strings — Mongoose's enum
+  // validator rejects '' (it's not in the enum list), even though the field
+  // is optional. Setting to undefined / removing the key bypasses validation.
+  const VALID_BLOODS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
+  const VALID_GENDERS = ['male','female','other'];
+  if (req.body.bloodGroup !== undefined && !VALID_BLOODS.includes(req.body.bloodGroup)) {
+    delete req.body.bloodGroup;
+  }
+  if (req.body.gender !== undefined && !VALID_GENDERS.includes(req.body.gender)) {
+    delete req.body.gender;
+  }
+
   const updated = await Student.findByIdAndUpdate(req.params.id, req.body, {
     new: true, runValidators: true,
   })
