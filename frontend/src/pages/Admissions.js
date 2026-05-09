@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { admissionAPI } from '../utils/admissionUtils';
-import api, { studentAPI, classAPI } from '../utils/api';
+import api, { classAPI } from '../utils/api';
 import AdmissionDetailModal from '../components/admissions/AdmissionDetailModal';
 import AdmissionFormModal   from '../components/admissions/AdmissionFormModal';
 
@@ -121,8 +121,10 @@ function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onE
       <td style={{ padding:'12px 16px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           {(() => {
-            // Photo lives on the admission record (set when filling the form)
-            const photo = app.studentPhoto || '';
+            // Photo could be saved under different keys depending on which form
+            // wrote the record (`studentPhoto` from current form, `photo` from
+            // schema-declared field, `profilePhoto` from legacy imports).
+            const photo = app.studentPhoto || app.photo || app.profilePhoto || '';
             return (
               <div style={{ width:38, height:38, borderRadius:10, background: photo ? '#F3F4F6' : '#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
                 {photo

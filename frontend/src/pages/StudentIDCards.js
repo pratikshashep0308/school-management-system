@@ -113,19 +113,35 @@ function printSingle(student) {
 <html><head><title>ID Card — ${student.user?.name}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; background:#f5f5f5; padding:20px; }
-  .no-print { margin-bottom:16px; display:flex; gap:10px; }
-  @media print { .no-print { display:none; } body { background:#fff; } }
+  /* Tight page: just big enough to hold the card with a small margin so the
+     printer doesn't waste a full A4 sheet on a single small card. */
+  @page { size: 90mm 60mm; margin: 4mm; }
+  html, body { background:#f5f5f5; }
+  body {
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    min-height:100vh; padding:20px; gap:14px;
+  }
+  .no-print { display:flex; gap:10px; }
+  /* Wrap the card so we control print sizing without touching cardHTML's inline styles. */
+  .card-wrap { display:flex; align-items:center; justify-content:center; }
+  @media print {
+    .no-print { display:none; }
+    html, body { background:#fff; padding:0; margin:0; min-height:auto; }
+    body { display:block; }
+    .card-wrap { display:block; }
+    /* Stop browsers from stripping our backgrounds (navy header, etc.) */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
 </style></head>
 <body>
   <div class="no-print">
     <button onclick="window.print()" style="padding:9px 22px;background:#0B1F4A;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Print</button>
     <button onclick="window.close()" style="padding:9px 16px;background:#f0f0f0;color:#333;border:none;border-radius:8px;font-size:13px;cursor:pointer">✕ Close</button>
   </div>
-  ${cardHTML(student)}
+  <div class="card-wrap">${cardHTML(student)}</div>
 </body></html>`;
 
-  const w = window.open('', '_blank', 'width=400,height=400');
+  const w = window.open('', '_blank', 'width=520,height=460');
   w.document.open();
   w.document.write(html);
   w.document.close();

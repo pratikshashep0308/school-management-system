@@ -2,10 +2,10 @@
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import api, { studentAPI, classAPI, attendanceAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
+import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
 import { admissionAPI } from '../utils/admissionUtils';
 import { useAuth } from '../context/AuthContext';
-import { Modal, FormGroup, Badge, Avatar, SearchBox, LoadingState, EmptyState } from '../components/ui';
+import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
 import AdmissionFormModal from '../components/admissions/AdmissionFormModal';
 
@@ -56,7 +56,7 @@ function Ring({ pct, size = 56, stroke = 6, color }) {
 // MAIN STUDENTS PAGE
 // =============================================================================
 export default function Students() {
-  const { isAdmin, can } = useAuth();
+  const { can } = useAuth();
   const [students,     setStudents]    = useState([]);
   const [classes,      setClasses]     = useState([]);
   const [loading,      setLoading]     = useState(true);
@@ -149,7 +149,7 @@ export default function Students() {
     const matchClass  = !filterClass || s.class?._id === filterClass;
     const matchTab    = tab === 'all' || tab === 'managelogin' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
     const matchGender = !filterGender || (s.gender||'').toLowerCase() === filterGender;
-    return matchSearch && matchClass && matchTab;
+    return matchSearch && matchClass && matchTab && matchGender;
   });
 
   // Stats
@@ -223,6 +223,7 @@ export default function Students() {
     finally { setSaving(false); }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleDelete = async (id, name) => {
     if (!id) return toast.error('Invalid student');
     if (!window.confirm(`Delete student "${name}"?\n\nThis will permanently remove the student from the system.`)) return;
@@ -348,8 +349,11 @@ export default function Students() {
                   const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
                   const colors = ['#D4522A','#C9A84C','#4A7C59','#7C6AF5','#2D9CDB','#F2994A','#10B981','#8B5CF6'];
                   const bg     = colors[name.charCodeAt(0) % colors.length];
-                  // Profile photo: prefer top-level Student.studentPhoto, fall back to snapshot
-                  const photo  = s.studentPhoto || s.admissionSnapshot?.studentPhoto || '';
+                  // Profile photo: check top-level Student fields and snapshot
+                  // under multiple possible keys (saved code wrote to `studentPhoto`,
+                  // schema declared `photo`, legacy imports used `profilePhoto`).
+                  const photo  = s.studentPhoto || s.photo || s.profilePhoto
+                                 || s.admissionSnapshot?.studentPhoto || s.admissionSnapshot?.photo || '';
                   const statusStyle = s.status === 'active'
                     ? { bg:'#D1FAE5', color:'#065F46' }
                     : s.status === 'alumni'
@@ -591,6 +595,7 @@ export default function Students() {
 // =============================================================================
 // STUDENT CARD
 // =============================================================================
+// eslint-disable-next-line no-unused-vars
 function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
   const genderColor = s.gender === 'female' ? '#ec4899' : s.gender === 'male' ? '#3b82f6' : '#8b5cf6';
   return (
@@ -598,7 +603,8 @@ function StudentCard({ student: s, canManage, onView, onEdit, onDelete }) {
       <div className="flex items-start gap-3 mb-3">
         {/* Avatar — photo if uploaded, else first-letter circle */}
         {(() => {
-          const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || '';
+          const photo = s.studentPhoto || s.photo || s.profilePhoto
+                        || s.admissionSnapshot?.studentPhoto || s.admissionSnapshot?.photo || '';
           if (photo) {
             return (
               <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-warm">
@@ -707,7 +713,8 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
         <div style={{ position:"sticky", top:0, zIndex:10, background:"#fff", borderBottom:"1px solid #E5E7EB", padding:"20px 28px 0" }}>
           <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:16 }}>
             {(() => {
-              const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || '';
+              const photo = s.studentPhoto || s.photo || s.profilePhoto
+                            || s.admissionSnapshot?.studentPhoto || s.admissionSnapshot?.photo || '';
               return (
                 <div style={{ width:60, height:60, borderRadius:18, background: photo ? "#F3F4F6" : "#0B1F4A", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden" }}>
                   {photo ? (
@@ -1310,7 +1317,8 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         middleName: snap.middleName || '',
         lastName: snap.lastName || '',
         studentName: snap.studentName || data.user?.name || '',
-        studentPhoto: snap.studentPhoto || data.studentPhoto || '',
+        studentPhoto: snap.studentPhoto || snap.photo || snap.profilePhoto
+                       || data.studentPhoto || data.photo || data.profilePhoto || '',
         registrationNo: snap.registrationNo || '',
         dateOfAdmission: snap.dateOfAdmission ? String(snap.dateOfAdmission).split('T')[0]
                        : data.admissionDate ? String(data.admissionDate).split('T')[0]
@@ -1480,7 +1488,11 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       address: form.address,
       medicalInfo: form.medicalInfo,
       hobbies: form.hobbies,
-      studentPhoto: form.studentPhoto,
+      // Profile photo: send under BOTH names so backend persists regardless of
+      // which field the schema/code reads. Without this mirror, the photo on
+      // edit was sometimes silently dropped.
+      studentPhoto: form.studentPhoto || '',
+      photo:        form.studentPhoto || '',
       // The full mirror — backend treats this as Mixed, replaces wholesale
       admissionSnapshot: snapshot,
     };
