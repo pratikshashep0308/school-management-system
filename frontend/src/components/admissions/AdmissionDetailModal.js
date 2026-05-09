@@ -46,12 +46,24 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const [note, setNote]           = useState('');
   const [isInternal, setInternal] = useState(false);
 
+  const [loadError, setLoadError] = useState(null);
+
   const load = async () => {
+    setLoadError(null);
     try {
       const res = await admissionAPI.getById(id);
-      setApp(res.data.data);
-      setNewStatus(res.data.data.status);
-    } catch { toast.error('Failed to load application'); }
+      const data = res?.data?.data || res?.data;
+      if (!data) {
+        throw new Error('No data returned from server');
+      }
+      setApp(data);
+      setNewStatus(data.status);
+    } catch (err) {
+      console.error('Failed to load admission detail:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Failed to load application';
+      setLoadError(msg);
+      toast.error(msg);
+    }
     finally { setLoading(false); }
   };
 
@@ -168,9 +180,28 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
 
         {/* Header */}
         {loading ? (
-          <div className="p-10 text-center text-slate-400">Loading...</div>
+          <div className="p-10 text-center text-slate-400">
+            <div className="text-3xl mb-2">⏳</div>
+            Loading application…
+          </div>
+        ) : loadError ? (
+          <div className="p-10 text-center">
+            <div className="text-4xl mb-3">⚠️</div>
+            <h3 className="text-lg font-bold text-red-600 mb-2">Couldn't load this application</h3>
+            <p className="text-sm text-slate-500 mb-1">{loadError}</p>
+            <p className="text-xs text-slate-400 mb-6">Application ID: <span className="font-mono">{id}</span></p>
+            <div className="flex gap-2 justify-center">
+              <button onClick={load} className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700">Try again</button>
+              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-300">Close</button>
+            </div>
+          </div>
         ) : !app ? (
-          <div className="p-10 text-center text-red-400">Application not found</div>
+          <div className="p-10 text-center">
+            <div className="text-4xl mb-3">🤷</div>
+            <h3 className="text-lg font-bold text-slate-700 mb-2">Application not found</h3>
+            <p className="text-xs text-slate-400 mb-6">It may have been deleted. ID: <span className="font-mono">{id}</span></p>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-300">Close</button>
+          </div>
         ) : (
           <>
             {/* Top bar */}
