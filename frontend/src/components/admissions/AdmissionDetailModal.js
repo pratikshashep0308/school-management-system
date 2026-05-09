@@ -442,10 +442,15 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                     <div className="mt-4 pt-3 border-t border-slate-200">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Address</p>
                       <Grid>
-                        <Field label="Street"   value={app.address?.street  || app.address}  />
+                        {/* Only fall back to flat field when address.street is missing AND the
+                            top-level app.address is itself a STRING (legacy free-text addresses).
+                            Older bug let the whole {street,city,...} object slip through here,
+                            which crashed React. */}
+                        <Field label="Street"   value={app.address?.street  || (typeof app.address === 'string' ? app.address : '')} />
                         <Field label="City"     value={app.address?.city    || app.city}     />
                         <Field label="State"    value={app.address?.state   || app.state}    />
                         <Field label="Pincode"  value={app.address?.pincode || app.pincode}  />
+                        <Field label="Country"  value={app.address?.country} />
                       </Grid>
                     </div>
                   </Section>
@@ -880,7 +885,25 @@ function Grid({ children }) {
 function Field({ label, value, capitalize }) {
   // Always render, even when empty -- so the panel layout stays predictable
   // and the user can confirm a field exists rather than wondering if it was hidden.
-  const display = (value === null || value === undefined || value === '') ? '—' : value;
+
+  // Defense in depth: never let a bare object/array slip through to JSX, since
+  // React will throw "Objects are not valid as a React child" and blank the
+  // entire modal. Convert sensibly and log so we can spot any new bad data path.
+  let safe = value;
+  if (value !== null && typeof value === 'object') {
+    if (Array.isArray(value)) {
+      safe = value.filter(v => v != null && v !== '').join(', ');
+    } else {
+      // For object values, join the non-empty primitive sub-values.
+      const parts = Object.values(value).filter(v => v != null && v !== '' && typeof v !== 'object');
+      safe = parts.join(', ');
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.warn(`[AdmissionDetailModal] Field "${label}" got an object value; coerced to string:`, value);
+    }
+  }
+  const display = (safe === null || safe === undefined || safe === '') ? '—' : safe;
   const isEmpty = display === '—';
   return (
     <div>
