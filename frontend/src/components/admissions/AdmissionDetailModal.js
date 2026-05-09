@@ -207,14 +207,31 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
             {/* Top bar */}
             <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 flex-shrink-0">
               <div className="flex items-center gap-4">
-                {app.studentPhoto ? (
-                  <img src={app.studentPhoto} alt={app.studentName || ''}
-                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-slate-100" />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
-                    {app.studentName?.[0]?.toUpperCase()}
-                  </div>
-                )}
+                {(() => {
+                  // Photo can land under different field names depending on which form
+                  // saved this record. Check the common spots in priority order:
+                  //   - studentPhoto: name used by the current Admission form
+                  //   - photo:        schema-declared field name on Admission model
+                  //   - profilePhoto: legacy name used by some imports
+                  const photoSrc = app.studentPhoto || app.photo || app.profilePhoto || '';
+                  if (photoSrc) {
+                    return (
+                      <img src={photoSrc} alt={app.studentName || ''}
+                        className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-slate-100"
+                        onError={(e) => {
+                          // Hide broken image and let initial-letter fallback show through
+                          e.target.style.display = 'none';
+                          if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    );
+                  }
+                  return (
+                    <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                      {app.studentName?.[0]?.toUpperCase()}
+                    </div>
+                  );
+                })()}
                 <div>
                   <h2 className="font-bold text-slate-800 text-lg">{app.studentName}</h2>
                   <div className="flex items-center gap-3 mt-0.5">
@@ -363,6 +380,24 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
 
                 return (
                 <div className="space-y-6">
+                  {/* Profile photo display — large, prominent. Same field-name fallback
+                      as the header avatar, so any saved photo shows up here. */}
+                  {(() => {
+                    const photoSrc = app.studentPhoto || app.photo || app.profilePhoto || '';
+                    if (!photoSrc) return null;
+                    return (
+                      <div className="flex justify-center pb-2">
+                        <img
+                          src={photoSrc}
+                          alt={app.studentName || 'Profile'}
+                          className="w-40 h-40 rounded-2xl object-cover shadow-lg border-4 border-white"
+                          style={{ background:'#F1F5F9' }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      </div>
+                    );
+                  })()}
+
                   {/* 1 ─────────────────────────────────────────────── */}
                   <Section title="1. Student Information">
                     <Grid>
