@@ -28,13 +28,29 @@ function cardHTML(s) {
     ? `<img src="${photo}" style="width:56px;height:68px;object-fit:cover;border-radius:6px;border:2px solid ${color}" />`
     : `<div style="width:56px;height:68px;border-radius:6px;background:${color};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;border:2px solid ${color}">${ini}</div>`;
 
+  // Build rainbow-letter school name as inline HTML (survives the print window's
+  // innerHTML copy because each color is a literal style attribute).
+  const RAINBOW_COLORS = [
+    '#FF6B6B','#FFA94D','#69DB7C',null,
+    '#69DB7C','#4DABF7','#B197FC','#FF6B6B','#69DB7C','#3BC9DB',null,
+    '#69DB7C','#FF6B6B','#B197FC','#FFA94D',null,
+    '#69DB7C','#4DABF7','#B197FC','#FF6B6B','#FFA94D','#4DABF7',
+  ];
+  const rainbowName = SCHOOL.name.split('').map((ch, i) => {
+    if (ch === ' ') return `<span style="display:inline-block;width:3px"></span>`;
+    return `<span style="color:${RAINBOW_COLORS[i] || '#fff'}">${ch}</span>`;
+  }).join('');
+  // Print window has no relative-URL base, so /school-logo.jpeg won't load there.
+  // Use an absolute URL anchored at the current origin.
+  const logoUrl = `${window.location.origin}/school-logo.jpeg`;
+
   return `
   <div style="width:252px;background:#fff;border-radius:10px;overflow:hidden;font-family:Arial,sans-serif;border:1px solid #ddd;page-break-inside:avoid;break-inside:avoid">
     <div style="background:#0B1F4A;padding:7px 10px;display:flex;align-items:center;gap:8px">
-      <div style="width:30px;height:30px;border-radius:5px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏫</div>
+      <img src="${logoUrl}" style="width:32px;height:32px;border-radius:5px;background:#fff;object-fit:contain;padding:2px;flex-shrink:0" />
       <div>
-        <div style="font-size:9px;font-weight:900;color:#fff;line-height:1.2">${SCHOOL.name}</div>
-        <div style="font-size:7px;color:rgba(255,255,255,0.6);line-height:1.2">${SCHOOL.address}</div>
+        <div style="font-size:7px;color:rgba(255,255,255,0.7);line-height:1.2;letter-spacing:0.04em;font-weight:600">${SCHOOL.address}</div>
+        <div style="font-family:'Georgia','Times New Roman',serif;font-style:italic;font-weight:900;font-size:11px;line-height:1.1;margin-top:1px">${rainbowName}</div>
       </div>
     </div>
     <div style="padding:10px;display:flex;gap:10px;align-items:flex-start">
@@ -129,10 +145,30 @@ function IDCardPreview({ student }) {
       boxShadow:'0 4px 16px rgba(0,0,0,0.1)', border:'1px solid #E5E7EB', fontFamily:'Arial,sans-serif' }}>
       {/* Header */}
       <div style={{ background:'#0B1F4A', padding:'8px 10px', display:'flex', alignItems:'center', gap:8 }}>
-        <div style={{ width:30, height:30, borderRadius:5, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>🏫</div>
+        <img
+          src="/school-logo.jpeg"
+          alt=""
+          style={{ width:32, height:32, borderRadius:5, background:'#fff', objectFit:'contain', padding:2, flexShrink:0 }}
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
         <div>
-          <div style={{ fontSize:9, fontWeight:900, color:'#fff', lineHeight:1.2 }}>{SCHOOL.name}</div>
-          <div style={{ fontSize:7, color:'rgba(255,255,255,0.6)', lineHeight:1.2 }}>{SCHOOL.address}</div>
+          <div style={{ fontSize:7, color:'rgba(255,255,255,0.7)', lineHeight:1.2, letterSpacing:'0.04em', fontWeight:600 }}>{SCHOOL.address}</div>
+          {/* Rainbow letter colors matching SchoolName.jpeg. Inline so it survives
+              the cardHTML() innerHTML copy used by the print path. */}
+          <div style={{ fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, fontSize:11, lineHeight:1.1, marginTop:1 }}>
+            {(() => {
+              const COLORS = [
+                '#FF6B6B','#FFA94D','#69DB7C',null,
+                '#69DB7C','#4DABF7','#B197FC','#FF6B6B','#69DB7C','#3BC9DB',null,
+                '#69DB7C','#FF6B6B','#B197FC','#FFA94D',null,
+                '#69DB7C','#4DABF7','#B197FC','#FF6B6B','#FFA94D','#4DABF7',
+              ];
+              return SCHOOL.name.split('').map((ch, i) => {
+                if (ch === ' ') return <span key={i} style={{ display:'inline-block', width:3 }}>&nbsp;</span>;
+                return <span key={i} style={{ color: COLORS[i] || '#fff' }}>{ch}</span>;
+              });
+            })()}
+          </div>
         </div>
       </div>
       {/* Body */}
