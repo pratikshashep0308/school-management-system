@@ -22,12 +22,6 @@ const EMPTY = {
   discountInFee:      '',
   mobileForSMS:       '',
 
-  // Section 1b - Portal Login (admin-defined)
-  // Admin sets these explicitly so the student/parent knows their credentials
-  // up-front rather than relying on auto-generated ones.
-  loginEmail:         '',
-  loginPassword:      '',
-
   // Section 2 - Other Info
   dateOfBirth:        '',
   birthFormId:        '',
@@ -407,13 +401,6 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     const payload = {
       ...formData,
       applyingForClass: form.applyingForClass || '',
-      // Profile photo: send under BOTH names so it persists regardless of which
-      // field the schema declares. The Admission schema has a `photo` field, but
-      // strict:false also stores `studentPhoto`. Without this explicit mapping,
-      // edits sometimes fail to update the photo because `record.photo` (loaded
-      // on hydrate) lingers in formData and overrides the new studentPhoto.
-      studentPhoto: form.studentPhoto || '',
-      photo:        form.studentPhoto || '',
       parentName:  primaryName,
       parentPhone: primaryPhone,
       parentEmail: primaryEmail,
@@ -799,8 +786,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
   }).length + customNonEmpty;
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:8, background:'rgba(0,0,0,0.5)', overflowY:'auto' }}>
-      <div style={{ background:'#F8F8FF', borderRadius:20, width:'100%', maxWidth:1400, minHeight:'calc(100vh - 16px)', margin:'4px 0', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'stretch', justifyContent:'stretch', padding:0, background:'rgba(0,0,0,0.5)', overflowY:'auto' }}>
+      <div style={{ background:'#F8F8FF', borderRadius:0, width:'100%', maxWidth:'none', minHeight:'100vh', margin:0, display:'flex', flexDirection:'column', boxShadow:'none', overflow:'hidden' }}>
 
         {/* Header */}
         <div style={{ background:'#fff', padding:'20px 28px', borderBottom:'1px solid #E5E7EB', flexShrink:0, textAlign:'center' }}>
@@ -1018,29 +1005,6 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
                 <option value="no">No</option>
               </select>
             </FloatInput>
-          </Section>
-
-          {/* Section 1b - Portal Login Credentials (Admin-defined) */}
-          <Section number="1b" title="🔐 Portal Login Credentials">
-            <div style={{ gridColumn:'1 / -1', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'10px 14px', marginBottom:8, fontSize:12, color:'#92400E' }}>
-              <strong>📌 Important:</strong> Set the username and password the student/parent will use to log in to the portal.
-              You'll share these credentials with them. If left blank, the system will auto-generate them.
-            </div>
-            <FloatInput label="Login Username / Email">
-              <input style={INP} value={form.loginEmail}
-                onChange={e=>set('loginEmail', e.target.value.toLowerCase().trim())}
-                placeholder="e.g. pratiksha2026 or student.name@school.in"
-                autoComplete="off" />
-            </FloatInput>
-            <FloatInput label="Login Password">
-              <input type="text" style={INP} value={form.loginPassword}
-                onChange={e=>set('loginPassword', e.target.value)}
-                placeholder="At least 6 characters"
-                autoComplete="off" />
-            </FloatInput>
-            <div style={{ gridColumn:'1 / -1', fontSize:11, color:'#6B7280', marginTop:-4 }}>
-              The student can also log in with their admission number or roll number once enrolled.
-            </div>
           </Section>
 
           {/* Section 2 - Other Information */}
@@ -1781,12 +1745,6 @@ function hydrateForm(base, record) {
     out.city    = record.address.city    || '';
     out.state   = record.address.state   || '';
     out.pincode = record.address.pincode || '';
-  }
-  // Photo can come back under different field names depending on which form/import
-  // wrote the record. The form input only knows about `studentPhoto`, so map
-  // alternates into it during hydration.
-  if (!out.studentPhoto) {
-    out.studentPhoto = record.photo || record.profilePhoto || '';
   }
   // Back-fill First/Middle/Last from legacy studentName when the new fields
   // are missing (older records were saved with only `studentName`).

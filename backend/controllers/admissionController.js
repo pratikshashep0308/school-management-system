@@ -294,21 +294,6 @@ exports.updateAdmission = async (req, res) => {
   // Apply ordinary fields via document.set so Mongoose tracks changes
   Object.assign(admission, safeBody);
 
-  // Photo field-name reconciliation: schema declares `photo`, frontend sends
-  // `studentPhoto` (and now both). Make sure whichever side has the newest data
-  // wins, and the other field stays in sync so reads under either name work.
-  if (safeBody.studentPhoto !== undefined) {
-    admission.studentPhoto = safeBody.studentPhoto;
-    admission.photo        = safeBody.studentPhoto;
-    admission.markModified('studentPhoto');
-    admission.markModified('photo');
-  } else if (safeBody.photo !== undefined) {
-    admission.studentPhoto = safeBody.photo;
-    admission.photo        = safeBody.photo;
-    admission.markModified('studentPhoto');
-    admission.markModified('photo');
-  }
-
   // Mixed type field: assign directly, then mark modified so Mongoose persists it.
   // Without markModified, Mongoose can't detect changes inside Mixed/Object fields
   // and silently skips writing them to MongoDB.
@@ -373,33 +358,10 @@ exports.updateAdmission = async (req, res) => {
         if (admission.studentName && stu.user) {
           try {
             const User = require('../models/User');
-            const userUpdate = { name: admission.studentName };
-
-            // Sync admin-edited login credentials to the linked User account so
-            // they actually work for login. Skip if blank to preserve existing.
-            if (admission.loginEmail && admission.loginEmail.trim()) {
-              const newEmail = admission.loginEmail.trim().toLowerCase();
-              // Don't overwrite if email is already taken by ANOTHER user.
-              const conflict = await User.findOne({ email: newEmail, _id: { $ne: stu.user } });
-              if (!conflict) userUpdate.email = newEmail;
-              else console.warn(`[updateAdmission] login email ${newEmail} already taken; skipped`);
-            }
-            if (admission.loginPassword && admission.loginPassword.length >= 6) {
-              const bcrypt = require('bcryptjs');
-              userUpdate.password = await bcrypt.hash(admission.loginPassword, 10);
-            }
-
-            await User.findByIdAndUpdate(stu.user, userUpdate);
-            console.log(`[updateAdmission] ✓ synced User — fields: ${Object.keys(userUpdate).join(', ')}`);
-
-            // Clear the plaintext password from the Admission doc so it doesn't
-            // sit in the DB indefinitely. (The email stays — it's not sensitive.)
-            if (userUpdate.password && admission.loginPassword) {
-              admission.loginPassword = '';
-              await admission.save();
-            }
+            await User.findByIdAndUpdate(stu.user, { name: admission.studentName });
+            console.log(`[updateAdmission] ✓ synced User name → "${admission.studentName}"`);
           } catch (uErr) {
-            console.warn('[updateAdmission] User sync failed:', uErr.message);
+            console.warn('[updateAdmission] User name sync failed:', uErr.message);
           }
         }
       } else {
@@ -556,35 +518,16 @@ exports.enrollFromAdmission = async (req, res) => {
     if (!admission) return res.status(404).json({ success:false, message:'Admission not found' });
     if (admission.status === 'enrolled') return res.status(400).json({ success:false, message:'Already enrolled' });
 
-    // Determine login email: use admin-supplied if provided, else auto-generate.
-    // Admin can set this in the Admission form's "Portal Login Credentials"
-    // section. The value is stored on the Admission doc when the form saves.
-    let studentEmail;
-    if (admission.loginEmail && admission.loginEmail.trim()) {
-      studentEmail = admission.loginEmail.trim().toLowerCase();
-    } else {
-      const cleanName = (admission.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
-      studentEmail = cleanName + '.' + Date.now() + '@student.local';
-    }
+    // Generate unique student email
+    const cleanName = (admission.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const studentEmail = cleanName + '.' + Date.now() + '@student.local';
 
     // Check email not taken
     const existing = await User.findOne({ email: studentEmail });
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: admission.loginEmail
-          ? `Login username "${studentEmail}" is already in use. Please pick another.`
-          : 'Email conflict, try again',
-      });
-    }
-
-    // Determine login password: use admin-supplied if provided, else default.
-    const plainPassword = (admission.loginPassword && admission.loginPassword.length >= 6)
-      ? admission.loginPassword
-      : 'Student@123';
+    if (existing) return res.status(400).json({ success:false, message:'Email conflict, try again' });
 
     // Create User account
-    const hashed = await bcrypt.hash(plainPassword, 10);
+    const hashed = await bcrypt.hash('Student@123', 10);
     const studentUser = await User.create({
       name:     admission.studentName,
       email:    studentEmail,
@@ -691,7 +634,7 @@ exports.enrollFromAdmission = async (req, res) => {
       message: admission.studentName + ' enrolled successfully',
       data: student,
       loginEmail:    studentEmail,
-      loginPassword: plainPassword,
+      loginPassword: 'Student@123',
     });
   } catch (err) {
     console.error('Enroll error:', err);
