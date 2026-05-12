@@ -776,6 +776,82 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                 </div>
               </div>
 
+              {/* Login credentials — admin-only view so the school can share
+                  these with the student/parent. Username is the student's email
+                  (primary login). Admission number is shown as an alternate login
+                  for students who can't remember a generated email. Password is
+                  the bootstrap default until the student changes it. */}
+              {canManage && (() => {
+                const admNo = s.admissionNumber || s.rollNumber || '';
+                const email = s.user?.email || '';
+                const isAutoEmail = email.includes('@student.local');
+                const copy = (text, label) => {
+                  if (!text) return;
+                  navigator.clipboard?.writeText(text).then(
+                    () => toast.success(`${label} copied`),
+                    () => toast.error('Could not copy')
+                  );
+                };
+                return (
+                  <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:12, padding:'14px 16px' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                      <div style={{ fontSize:12, fontWeight:800, color:'#92400E', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                        🔑 Login Credentials
+                      </div>
+                      <span style={{ fontSize:10, color:'#92400E', fontStyle:'italic' }}>Share with student / parent</span>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                      {/* Primary username = email */}
+                      <div>
+                        <div style={{ fontSize:10, color:'#92400E', fontWeight:700, marginBottom:3 }}>
+                          USERNAME / EMAIL{isAutoEmail ? ' (auto-generated)' : ''}
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <div style={{ flex:1, fontFamily:'monospace', fontSize:12, fontWeight:700, color: isAutoEmail?'#6B7280':'#0B1F4A', background:'#fff', border:'1px solid #FDE68A', padding:'7px 10px', borderRadius:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {email || '— not assigned —'}
+                          </div>
+                          <button onClick={() => copy(email, 'Email')} disabled={!email}
+                            style={{ fontSize:11, fontWeight:700, color:'#92400E', background:'#FDE68A', border:'1px solid #FCD34D', padding:'7px 10px', borderRadius:6, cursor: email?'pointer':'not-allowed', opacity: email?1:0.5 }}>
+                            📋 Copy
+                          </button>
+                        </div>
+                      </div>
+                      {/* Password */}
+                      <div>
+                        <div style={{ fontSize:10, color:'#92400E', fontWeight:700, marginBottom:3 }}>PASSWORD (default)</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <div style={{ flex:1, fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#0B1F4A', background:'#fff', border:'1px solid #FDE68A', padding:'7px 10px', borderRadius:6 }}>
+                            Student@123
+                          </div>
+                          <button onClick={() => copy('Student@123', 'Password')}
+                            style={{ fontSize:11, fontWeight:700, color:'#92400E', background:'#FDE68A', border:'1px solid #FCD34D', padding:'7px 10px', borderRadius:6, cursor:'pointer' }}>
+                            📋 Copy
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Admission number as alternate login option */}
+                    {admNo && (
+                      <div style={{ marginTop:10 }}>
+                        <div style={{ fontSize:10, color:'#92400E', fontWeight:700, marginBottom:3 }}>ADMISSION NO (alternate login)</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <div style={{ flex:1, fontFamily:'monospace', fontSize:13, color:'#0B1F4A', background:'#fff', border:'1px solid #FDE68A', padding:'6px 10px', borderRadius:6 }}>
+                            {admNo}
+                          </div>
+                          <button onClick={() => copy(admNo, 'Admission No')}
+                            style={{ fontSize:11, fontWeight:700, color:'#92400E', background:'#FDE68A', border:'1px solid #FCD34D', padding:'6px 10px', borderRadius:6, cursor:'pointer' }}>
+                            📋 Copy
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ marginTop:10, fontSize:11, color:'#92400E', lineHeight:1.5 }}>
+                      Student should log in at <strong>https://school-management-system-eight-nu.vercel.app/login</strong> using the email + password above. We recommend they change the password after first login.
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Personal info — fed primarily from admissionSnapshot, with
                   fallbacks to top-level Student fields for older records that
                   were enrolled before the snapshot was added. */}

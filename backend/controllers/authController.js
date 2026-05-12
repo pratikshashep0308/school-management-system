@@ -33,7 +33,43 @@ exports.login = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Please provide email and password' });
   }
 
-  const user = await User.findOne({ email }).select('+password');
+  // Allow students to log in with admission number / roll number instead of
+  // the auto-generated email (which is hard to remember). We try email first,
+  // then fall back to looking up the Student record by admissionNumber or
+  // rollNumber and resolving back to the linked User.
+  const identifier = String(email).trim();
+
+  // Try email match — exact first (preserves original behavior for existing
+  // accounts), then case-insensitive as a forgiveness fallback so users don't
+  // get locked out by an off-by-case typo.
+  let user = await User.findOne({ email: identifier }).select('+password');
+  if (!user && identifier !== identifier.toLowerCase()) {
+    user = await User.findOne({ email: identifier.toLowerCase() }).select('+password');
+  }
+  if (!user) {
+    // ci email match — handles records stored with mixed case
+    const escape = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    user = await User.findOne({ email: new RegExp(`^${escape}$`, 'i') }).select('+password');
+  }
+
+  if (!user) {
+    // Treat the identifier as a possible admission/roll number (case-insensitive,
+    // exact match) and resolve to the linked User account.
+    try {
+      const Student = require('../models/Student');
+      const escape = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escape}$`, 'i');
+      const stu = await Student.findOne({
+        $or: [{ admissionNumber: regex }, { rollNumber: regex }],
+      }).select('user');
+      if (stu?.user) {
+        user = await User.findById(stu.user).select('+password');
+      }
+    } catch (e) {
+      console.warn('[login] student lookup failed:', e.message);
+      // Non-fatal — fall through to invalid-credentials response below.
+    }
+  }
 
   if (!user) {
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
