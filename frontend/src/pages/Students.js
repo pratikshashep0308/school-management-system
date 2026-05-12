@@ -73,6 +73,22 @@ export default function Students() {
   const [newPassword,  setNewPassword] = useState('');
   const [resetting,    setResetting]   = useState(false);
   const [showPwd,      setShowPwd]     = useState({});
+  // Track passwords set during THIS browser session so the admin can see what
+  // they just assigned without needing to remember it. Passwords are bcrypt-hashed
+  // in the DB and not retrievable — so for any student whose password we didn't
+  // set here, we can only show "unknown". Stored in sessionStorage (not local)
+  // so it clears on browser close — keeps things less risky.
+  const [knownPwd, setKnownPwd] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('knownStudentPwds') || '{}'); }
+    catch { return {}; }
+  });
+  const rememberPwd = (studentId, pwd) => {
+    setKnownPwd(prev => {
+      const next = { ...prev, [studentId]: pwd };
+      try { sessionStorage.setItem('knownStudentPwds', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   const canManage = can(['superAdmin', 'schoolAdmin']);
 
@@ -243,6 +259,8 @@ export default function Students() {
     setResetting(true);
     try {
       await studentAPI.resetPassword(resetModal._id, { password: newPassword });
+      // Remember this password so the table column shows the truth, not a guess.
+      rememberPwd(resetModal._id, newPassword);
       toast.success(`Password reset for ${resetModal.user?.name}`);
       setResetModal(null); setNewPassword('');
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to reset password'); }
@@ -464,15 +482,32 @@ export default function Students() {
                       )}
                     </td>
                     <td style={{ padding:'11px 16px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <div style={{ fontFamily:'monospace', fontSize:12, color:'#374151', background:'#F3F4F6', padding:'4px 10px', borderRadius:6 }}>
-                          {showPwd[s._id] ? 'Student@123' : '••••••••••'}
-                        </div>
-                        <button onClick={()=>setShowPwd(p=>({...p,[s._id]:!p[s._id]}))}
-                          style={{ fontSize:11, color:'#6B7280', background:'none', border:'none', cursor:'pointer' }}>
-                          {showPwd[s._id] ? '🙈' : '👁'}
-                        </button>
-                      </div>
+                      {(() => {
+                        const known = knownPwd[s._id];
+                        const isVisible = showPwd[s._id];
+                        // We can't truly know an old password (bcrypt is one-way).
+                        // If we don't have one saved from this session, say so.
+                        if (!known) {
+                          return (
+                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                              <div style={{ fontFamily:'monospace', fontSize:11, color:'#9CA3AF', background:'#F9FAFB', padding:'4px 10px', borderRadius:6, fontStyle:'italic' }}>
+                                unknown — reset to set
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <div style={{ fontFamily:'monospace', fontSize:12, color:'#374151', background:'#F3F4F6', padding:'4px 10px', borderRadius:6 }}>
+                              {isVisible ? known : '••••••••••'}
+                            </div>
+                            <button onClick={()=>setShowPwd(p=>({...p,[s._id]:!p[s._id]}))}
+                              style={{ fontSize:11, color:'#6B7280', background:'none', border:'none', cursor:'pointer' }}>
+                              {isVisible ? '🙈' : '👁'}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding:'11px 16px' }}>
                       <span style={{ fontSize:11, fontWeight:700, color:'#065F46', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
@@ -561,6 +596,7 @@ export default function Students() {
           student={viewStudent}
           classes={classes}
           canManage={canManage}
+          knownPassword={knownPwd[viewStudent._id]}
           onClose={() => setViewStudent(null)}
           onEdit={() => { openEditFromStudent(viewStudent); setViewStudent(null); }}
         />
@@ -660,7 +696,7 @@ const PROFILE_TABS = [
   { id: 'health',      label: 'Health',      icon: '🏥' },
 ];
 
-function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit }) {
+function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, onClose, onEdit }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [exams,       setExams]       = useState([]);
   const [attendance,  setAttendance]  = useState([]);
@@ -816,15 +852,19 @@ function StudentProfileDrawer({ student: s, classes, canManage, onClose, onEdit 
                           </button>
                         </div>
                       </div>
-                      {/* Password */}
+                      {/* Password — show known value if we set it in this session,
+                          else say so honestly. Bcrypt is one-way, so we can't reveal
+                          an old password — admin should reset to set a new one. */}
                       <div>
-                        <div style={{ fontSize:10, color:'#92400E', fontWeight:700, marginBottom:3 }}>PASSWORD (default)</div>
+                        <div style={{ fontSize:10, color:'#92400E', fontWeight:700, marginBottom:3 }}>
+                          PASSWORD {knownPassword ? '(set this session)' : '(unknown — reset to set)'}
+                        </div>
                         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <div style={{ flex:1, fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#0B1F4A', background:'#fff', border:'1px solid #FDE68A', padding:'7px 10px', borderRadius:6 }}>
-                            Student@123
+                          <div style={{ flex:1, fontFamily:'monospace', fontSize:13, fontWeight:700, color: knownPassword?'#0B1F4A':'#9CA3AF', background:'#fff', border:'1px solid #FDE68A', padding:'7px 10px', borderRadius:6, fontStyle: knownPassword?'normal':'italic' }}>
+                            {knownPassword || 'reset password to assign one'}
                           </div>
-                          <button onClick={() => copy('Student@123', 'Password')}
-                            style={{ fontSize:11, fontWeight:700, color:'#92400E', background:'#FDE68A', border:'1px solid #FCD34D', padding:'7px 10px', borderRadius:6, cursor:'pointer' }}>
+                          <button onClick={() => copy(knownPassword, 'Password')} disabled={!knownPassword}
+                            style={{ fontSize:11, fontWeight:700, color:'#92400E', background:'#FDE68A', border:'1px solid #FCD34D', padding:'7px 10px', borderRadius:6, cursor: knownPassword?'pointer':'not-allowed', opacity: knownPassword?1:0.5 }}>
                             📋 Copy
                           </button>
                         </div>
