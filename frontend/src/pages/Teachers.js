@@ -2,7 +2,7 @@
 // frontend/src/pages/Teachers.js — eSkooly-style Employees module
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { teacherAPI, subjectAPI } from '../utils/api';
+import { teacherAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';

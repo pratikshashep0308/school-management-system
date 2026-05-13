@@ -42,13 +42,15 @@ const TeacherSchema = new mongoose.Schema({
   uanNumber:        String,               // EPF UAN
   pfNumber:         String,
 
-  // Documents — generic store: each entry { type, url, name, uploadedAt }
-  documents: [{
-    type:       String,                   // 'aadhaar' | 'pan' | 'photo' | 'ssc' | 'graduation' | 'experience_cert' | 'address_proof' | 'bank_proof' | 'other'
-    url:        String,
-    name:       String,
-    uploadedAt: { type: Date, default: Date.now },
-  }],
+  // Documents — each entry: { type, name, files: [{ name, dataUrl, size, mime }] }
+  // `type` is one of DOC_TYPES keys (aadhaar, pan, photo, ...) or "other:N" for
+  // user-named custom slots. Files are stored as base64 data URLs so we don't
+  // need cloud storage. `strict: false` on the sub-schema lets the shape evolve
+  // (e.g., adding cloud-storage URLs later) without a schema migration.
+  documents: {
+    type: [new mongoose.Schema({}, { strict: false, _id: false })],
+    default: [],
+  },
 
   isActive:      { type: Boolean, default: true },
   school:        { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
