@@ -2,7 +2,7 @@
 // frontend/src/pages/Teachers.js — eSkooly-style Employees module
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { teacherAPI } from '../utils/api';
+import { teacherAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
@@ -43,6 +43,235 @@ function avatarBg(name) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 function initials(name) { return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+
+// ── Document helpers ──────────────────────────────────────────────────────────
+// Each entry in `form.documents` is { type, name, files: [{ name, dataUrl, size, mime }] }
+// where `type` is either one of DOC_TYPES.key (predefined slot) or 'other:<n>' for
+// the user-named custom slots. Multiple files per slot supported.
+const MAX_FILE_MB = 5;
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = () => resolve({ name: file.name, dataUrl: r.result, size: file.size, mime: file.type });
+    r.onerror = () => reject(new Error('Could not read file'));
+    r.readAsDataURL(file);
+  });
+}
+
+function downloadFile(file) {
+  // dataUrl is already a self-contained data: URL — anchor download works.
+  const a = document.createElement('a');
+  a.href = file.dataUrl;
+  a.download = file.name || 'document';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function viewFile(file) {
+  // Images / PDFs render in a new tab from the data URL. Other types
+  // download instead (browser can't preview them).
+  const win = window.open();
+  if (!win) { downloadFile(file); return; }
+  if ((file.mime || '').startsWith('image/')) {
+    win.document.write(`<title>${file.name}</title><img src="${file.dataUrl}" style="max-width:100vw;max-height:100vh;display:block;margin:auto"/>`);
+  } else if (file.mime === 'application/pdf') {
+    win.document.write(`<title>${file.name}</title><iframe src="${file.dataUrl}" style="border:0;width:100vw;height:100vh"></iframe>`);
+  } else {
+    win.close();
+    downloadFile(file);
+  }
+}
+
+function FileChip({ file, onView, onDownload, onRemove }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:6, background:'#fff', border:'1px solid #E5E7EB', borderRadius:8, padding:'4px 8px', fontSize:11, maxWidth:'100%' }}>
+      <span style={{ fontSize:14 }}>📄</span>
+      <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'#111827' }}>{file.name}</span>
+      <button onClick={onView}     title="View"     style={{ border:'none', background:'none', cursor:'pointer', color:'#1D4ED8' }}>👁</button>
+      <button onClick={onDownload} title="Download" style={{ border:'none', background:'none', cursor:'pointer', color:'#16A34A' }}>⬇</button>
+      <button onClick={onRemove}   title="Remove"   style={{ border:'none', background:'none', cursor:'pointer', color:'#DC2626' }}>✕</button>
+    </div>
+  );
+}
+
+// Single predefined doc slot — Aadhaar, PAN, photo, etc.
+function DocumentSlot({ docKey, label, documents, onChange }) {
+  const inputRef = React.useRef();
+  const docs = Array.isArray(documents) ? documents : [];
+  const idx = docs.findIndex(x => x?.type === docKey);
+  const files = idx >= 0 ? (Array.isArray(docs[idx].files) ? docs[idx].files : []) : [];
+
+  const updateFiles = (nextFiles) => {
+    const next = [...docs];
+    if (nextFiles.length > 0) {
+      const entry = { type: docKey, name: label, files: nextFiles };
+      if (idx >= 0) next[idx] = { ...next[idx], ...entry };
+      else next.push(entry);
+    } else if (idx >= 0) {
+      next.splice(idx, 1);
+    }
+    onChange(next);
+  };
+
+  const handlePick = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (!picked.length) return;
+    const oversized = picked.filter(f => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (oversized.length) {
+      toast.error(`${oversized.length} file(s) exceed ${MAX_FILE_MB} MB and were skipped`);
+    }
+    const usable = picked.filter(f => f.size <= MAX_FILE_MB * 1024 * 1024);
+    try {
+      const read = await Promise.all(usable.map(readFileAsDataURL));
+      updateFiles([...files, ...read]);
+    } catch (err) {
+      toast.error('Could not read one or more files');
+    }
+    // Reset so picking the same file twice re-fires onChange
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <div>
+      <label style={LBL}>
+        {label}
+        {files.length > 0 && <span style={{ marginLeft:6, fontSize:10, color:'#16A34A', fontWeight:700 }}>· {files.length} file{files.length>1?'s':''}</span>}
+      </label>
+      <div style={{ border:'1.5px dashed #D1D5DB', borderRadius:10, padding:files.length?'8px':'14px 10px', background:'#FAFAFA' }}>
+        {files.length > 0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:8 }}>
+            {files.map((f, i) => (
+              <FileChip
+                key={i}
+                file={f}
+                onView={() => viewFile(f)}
+                onDownload={() => downloadFile(f)}
+                onRemove={() => updateFiles(files.filter((_, j) => j !== i))}
+              />
+            ))}
+          </div>
+        )}
+        <button type="button"
+          onClick={() => inputRef.current?.click()}
+          style={{ width:'100%', padding:'7px 10px', border:'none', background:'#EFF6FF', color:'#1D4ED8', fontSize:12, fontWeight:600, borderRadius:6, cursor:'pointer' }}>
+          + {files.length ? 'Add another' : 'Click to upload'} <span style={{ color:'#9CA3AF', fontWeight:400 }}>(PDF / JPG / PNG)</span>
+        </button>
+        <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display:'none' }} onChange={handlePick}/>
+      </div>
+    </div>
+  );
+}
+
+// Other documents — variable list, user names each one. Each slot still uses
+// the same file-upload UI as DocumentSlot.
+function OtherDocumentsList({ documents, onChange }) {
+  const docs = Array.isArray(documents) ? documents : [];
+  // Slots whose `type` starts with "other:" — preserves their index ordering.
+  const otherSlots = docs
+    .map((d, i) => ({ d, i }))
+    .filter(({ d }) => typeof d?.type === 'string' && d.type.startsWith('other:'));
+
+  const addSlot = () => {
+    // Find next unused other:N key
+    const usedNums = otherSlots
+      .map(({ d }) => parseInt(d.type.slice(6), 10))
+      .filter(n => !isNaN(n));
+    const nextN = usedNums.length ? Math.max(...usedNums) + 1 : 1;
+    onChange([...docs, { type: `other:${nextN}`, name: '', files: [] }]);
+  };
+
+  const removeSlot = (slotIdx) => {
+    const next = docs.filter((_, i) => i !== slotIdx);
+    onChange(next);
+  };
+
+  const updateSlot = (slotIdx, patch) => {
+    const next = [...docs];
+    next[slotIdx] = { ...next[slotIdx], ...patch };
+    onChange(next);
+  };
+
+  return (
+    <>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {otherSlots.map(({ d, i }) => {
+          const files = Array.isArray(d.files) ? d.files : [];
+          return (
+            <div key={d.type} style={{ background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, padding:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                <span style={{ fontSize:14 }}>📎</span>
+                <input
+                  style={{ ...INP, flex:1 }}
+                  value={d.name || ''}
+                  onChange={e => updateSlot(i, { name: e.target.value })}
+                  placeholder="Document name (e.g. Bonafide Certificate)"
+                />
+                <button type="button" onClick={() => removeSlot(i)}
+                  style={{ width:32, height:32, border:'1px solid #FECACA', background:'#FEF2F2', color:'#DC2626', borderRadius:8, cursor:'pointer', fontSize:13 }}>
+                  ✕
+                </button>
+              </div>
+              <OtherDocFileRow files={files} onChange={nextFiles => updateSlot(i, { files: nextFiles })} />
+            </div>
+          );
+        })}
+      </div>
+      <button type="button" onClick={addSlot}
+        style={{ marginTop:12, padding:'8px 16px', background:'#F0F4FF', color:'#3B5BDB', border:'1.5px dashed #C7D2FE', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+        + Add custom document
+      </button>
+    </>
+  );
+}
+
+// Helper used inside OtherDocumentsList for the per-slot file upload area.
+function OtherDocFileRow({ files, onChange }) {
+  const inputRef = React.useRef();
+  const handlePick = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (!picked.length) return;
+    const oversized = picked.filter(f => f.size > MAX_FILE_MB * 1024 * 1024);
+    if (oversized.length) {
+      toast.error(`${oversized.length} file(s) exceed ${MAX_FILE_MB} MB and were skipped`);
+    }
+    const usable = picked.filter(f => f.size <= MAX_FILE_MB * 1024 * 1024);
+    try {
+      const read = await Promise.all(usable.map(readFileAsDataURL));
+      onChange([...files, ...read]);
+    } catch {
+      toast.error('Could not read one or more files');
+    }
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  return (
+    <div>
+      {files.length === 0 ? (
+        <div style={{ fontSize:11, color:'#9CA3AF', marginBottom:6 }}>No file uploaded — you can attach multiple</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:8 }}>
+          {files.map((f, j) => (
+            <FileChip
+              key={j}
+              file={f}
+              onView={() => viewFile(f)}
+              onDownload={() => downloadFile(f)}
+              onRemove={() => onChange(files.filter((_, k) => k !== j))}
+            />
+          ))}
+        </div>
+      )}
+      <button type="button"
+        onClick={() => inputRef.current?.click()}
+        style={{ width:'100%', padding:'8px 10px', border:'1.5px dashed #D1D5DB', background:'#FAFAFA', color:'#3B5BDB', fontSize:12, fontWeight:600, borderRadius:6, cursor:'pointer' }}>
+        + Click to upload (multiple allowed)
+      </button>
+      <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" multiple style={{ display:'none' }} onChange={handlePick}/>
+    </div>
+  );
+}
 
 // ── Employee Card ─────────────────────────────────────────────────────────────
 function EmployeeCard({ t, onView, onEdit, onDelete, isAdmin }) {
@@ -274,9 +503,9 @@ function EditModal({ open, onClose, onSave, initial }) {
                 <input style={INP} value={form.employeeId||''} onChange={e=>set('employeeId',e.target.value)} placeholder="auto-generated if blank"/>
               </div>
               <div>
-                <label style={LBL}>Designation <span style={{ color:'red' }}>*</span></label>
+                <label style={LBL}>Designation</label>
                 <select style={INP} value={form.designation||''} onChange={e=>set('designation',e.target.value)}>
-                  <option value="">Select*</option>
+                  <option value="">Select</option>
                   {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
@@ -318,7 +547,7 @@ function EditModal({ open, onClose, onSave, initial }) {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <div>
-                <label style={LBL}>Monthly Salary <span style={{ color:'red' }}>*</span></label>
+                <label style={LBL}>Monthly Salary</label>
                 <input style={INP} type="number" value={form.salary||''} onChange={e=>set('salary',e.target.value)} placeholder="₹"/>
               </div>
               <div>
@@ -355,44 +584,40 @@ function EditModal({ open, onClose, onSave, initial }) {
             </div>
           </div>
 
-          {/* Section 4: Documents — links / URLs for each doc.
-              Full file-upload would need cloud storage wiring (S3/Cloudinary).
-              For now we capture URLs the admin can host or paste from Drive. */}
+          {/* Section 4: Documents — real file uploads (multi-file per slot).
+              Files are stored as base64 data URLs in the document object, which
+              ships to MongoDB. Same pattern as the admission form. Cap each
+              file at 5 MB to stay well under typical request-size limits. */}
           <div>
             <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ width:22, height:22, borderRadius:'50%', background:'#0B1F4A', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>4</div>
               Documents
               <span style={{ fontSize:11, color:'#9CA3AF', fontWeight:500, marginLeft:6 }}>
-                Paste a Google Drive / Dropbox / image URL for each document
+                Upload PDFs or images — you can attach multiple files per document
               </span>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {DOC_TYPES.map(d => {
-                // Documents are stored as an array; find the slot for this type.
-                const docs = Array.isArray(form.documents) ? form.documents : [];
-                const idx = docs.findIndex(x => x?.type === d.key);
-                const url = idx >= 0 ? (docs[idx].url || '') : '';
-                const updateDoc = (newUrl) => {
-                  const next = [...(Array.isArray(form.documents) ? form.documents : [])];
-                  if (newUrl) {
-                    const entry = { type: d.key, url: newUrl, name: d.label };
-                    if (idx >= 0) next[idx] = { ...next[idx], ...entry };
-                    else next.push(entry);
-                  } else if (idx >= 0) {
-                    next.splice(idx, 1);
-                  }
-                  set('documents', next);
-                };
-                return (
-                  <div key={d.key}>
-                    <label style={LBL}>
-                      {d.label}
-                      {url && <a href={url} target="_blank" rel="noreferrer" style={{ marginLeft:8, fontSize:10, color:'#1D4ED8', fontWeight:600 }}>↗ open</a>}
-                    </label>
-                    <input style={INP} value={url} onChange={e=>updateDoc(e.target.value)} placeholder="https://..."/>
-                  </div>
-                );
-              })}
+              {DOC_TYPES.map(d => (
+                <DocumentSlot
+                  key={d.key}
+                  docKey={d.key}
+                  label={d.label}
+                  documents={form.documents}
+                  onChange={next => set('documents', next)}
+                />
+              ))}
+            </div>
+
+            {/* Other documents — multi-file, named by admin. Useful for things
+                not in the predefined list (bonafide certificate, NOC, etc.). */}
+            <div style={{ marginTop:18, background:'#F9FAFB', borderRadius:12, padding:'14px 16px' }}>
+              <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:4 }}>
+                Other documents <span style={{ fontWeight:500, color:'#9CA3AF', fontSize:12 }}>— for any document not listed above</span>
+              </div>
+              <OtherDocumentsList
+                documents={form.documents}
+                onChange={next => set('documents', next)}
+              />
             </div>
           </div>
 
