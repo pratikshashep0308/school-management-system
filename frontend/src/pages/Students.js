@@ -25,11 +25,12 @@ function QRPlaceholder({ value, size = 80 }) {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'all',         label: 'All Students', icon: '👥' },
-  { id: 'active',      label: 'Active',       icon: '✅' },
-  { id: 'inactive',    label: 'Inactive',     icon: '⭕' },
-  { id: 'alumni',      label: 'Alumni',       icon: '🎓' },
-  { id: 'managelogin', label: 'Manage Login', icon: '🔑' },
+  { id: 'all',           label: 'All Students',          icon: '👥' },
+  { id: 'active',        label: 'Active',                icon: '✅' },
+  { id: 'inactive',      label: 'Inactive',              icon: '⭕' },
+  { id: 'alumni',        label: 'Alumni',                icon: '🎓' },
+  { id: 'managelogin',   label: 'Manage Student Login',  icon: '🔑' },
+  { id: 'manageparents', label: 'Manage Parent Login',   icon: '👨‍👩‍👧' },
 ];
 
 const BLOOD_GROUPS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
@@ -163,7 +164,7 @@ export default function Students() {
     const q = search.toLowerCase();
     const matchSearch = !q || s.user?.name?.toLowerCase().includes(q) || s.admissionNumber?.toLowerCase().includes(q) || s.class?.name?.toLowerCase().includes(q);
     const matchClass  = !filterClass || s.class?._id === filterClass;
-    const matchTab    = tab === 'all' || tab === 'managelogin' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
+    const matchTab    = tab === 'all' || tab === 'managelogin' || tab === 'manageparents' || (tab === 'active' && s.isActive) || (tab === 'inactive' && !s.isActive) || (tab === 'alumni' && s.status === 'alumni');
     const matchGender = !filterGender || (s.gender||'').toLowerCase() === filterGender;
     return matchSearch && matchClass && matchTab && matchGender;
   });
@@ -303,6 +304,124 @@ export default function Students() {
     }
   };
 
+  // ── Parent login state ──────────────────────────────────────────────────────
+  // Mirrors the student-side knownPwd: we only know a parent's password if we
+  // created the account in this session. sessionStorage so it survives refresh
+  // but not browser close.
+  const [knownParentPwd, setKnownParentPwd] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('knownParentPwds') || '{}'); }
+    catch { return {}; }
+  });
+  const rememberParentPwd = (studentId, pwd) => {
+    setKnownParentPwd(prev => {
+      const next = { ...prev, [studentId]: pwd };
+      try { sessionStorage.setItem('knownParentPwds', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const [bulkLinking, setBulkLinking] = useState(false);
+  const [bulkLinkProgress, setBulkLinkProgress] = useState({ done: 0, total: 0 });
+  const [linkingParent, setLinkingParent] = useState({}); // {studentId: bool}
+
+  // Parent email resolver — checks all the places it might live across older
+  // and newer records (Student.parentEmail, admissionSnapshot, father/mother).
+  const getParentEmail = (s) => (
+    s.parentEmail
+    || s.admissionSnapshot?.parentEmail
+    || s.admissionSnapshot?.fatherEmail
+    || s.admissionSnapshot?.motherEmail
+    || ''
+  );
+
+  // Create or link a single parent account for a student.
+  const linkParentForStudent = async (s) => {
+    const parentEmail = getParentEmail(s);
+    if (!parentEmail) {
+      toast.error(`No parent email on file for ${s.user?.name}. Edit student to add one.`);
+      return null;
+    }
+    setLinkingParent(p => ({ ...p, [s._id]: true }));
+    try {
+      const res = await studentAPI.linkParent(s._id, {
+        parentEmail,
+        parentName:  s.parentName || s.admissionSnapshot?.parentName || s.admissionSnapshot?.fatherName || '',
+        parentPhone: s.parentPhone || s.admissionSnapshot?.parentPhone || '',
+      });
+      const acct = res.data?.parentAccount;
+      if (acct?.isNew && acct?.defaultPassword) {
+        rememberParentPwd(s._id, acct.defaultPassword);
+      } else if (!acct?.isNew) {
+        // Existing parent account — we don't know the password; clear any stale
+        // value in case we previously had something cached.
+        rememberParentPwd(s._id, null);
+      }
+      load(); // refresh so parentId on the student shows up next render
+      return acct;
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Failed to link parent for ${s.user?.name}`);
+      return null;
+    } finally {
+      setLinkingParent(p => { const n = { ...p }; delete n[s._id]; return n; });
+    }
+  };
+
+  // Bulk: create/link parents for every active student that has an email.
+  const handleBulkLinkParents = async () => {
+    const eligible = students.filter(s => s.isActive && getParentEmail(s) && !(s.parentId || s.parent));
+    if (!eligible.length) {
+      toast.error('No students need a new parent link (all already linked, or missing parent email).');
+      return;
+    }
+    if (!window.confirm(
+      `Create / link parent accounts for ${eligible.length} student(s)?\n\n` +
+      `New parent accounts get the default password "Parent@123".\n` +
+      `Existing parent accounts (same email already in system) are linked without changing their password.`
+    )) return;
+
+    setBulkLinking(true);
+    setBulkLinkProgress({ done: 0, total: eligible.length });
+    let ok = 0, failed = 0;
+    for (const s of eligible) {
+      const acct = await linkParentForStudent(s);
+      if (acct) ok++; else failed++;
+      setBulkLinkProgress(p => ({ ...p, done: p.done + 1 }));
+    }
+    setBulkLinking(false);
+    if (failed === 0) toast.success(`Linked ${ok} parent account(s)`);
+    else toast.error(`${ok} linked, ${failed} failed — check console`);
+  };
+
+  // Bulk: reset every linked parent account's password to Parent@123.
+  const handleBulkResetParents = async () => {
+    const eligible = students.filter(s => s.isActive && (s.parentId || s.parent));
+    if (!eligible.length) {
+      toast.error('No linked parent accounts to reset. Create / link parents first.');
+      return;
+    }
+    if (!window.confirm(
+      `Reset password for ${eligible.length} linked parent account(s) to "Parent@123"?\n\n` +
+      `Any password each parent set themselves will be overwritten.`
+    )) return;
+
+    setBulkLinking(true);
+    setBulkLinkProgress({ done: 0, total: eligible.length });
+    let ok = 0, failed = 0;
+    for (const s of eligible) {
+      try {
+        await studentAPI.resetParentPassword(s._id, { password: 'Parent@123' });
+        rememberParentPwd(s._id, 'Parent@123');
+        ok++;
+      } catch (err) {
+        console.error('Parent reset failed for', s.user?.name, err);
+        failed++;
+      }
+      setBulkLinkProgress(p => ({ ...p, done: p.done + 1 }));
+    }
+    setBulkLinking(false);
+    if (failed === 0) toast.success(`Reset ${ok} parent password(s) to Parent@123`);
+    else toast.error(`${ok} reset, ${failed} failed — check console`);
+  };
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* Header */}
@@ -343,11 +462,12 @@ export default function Students() {
               background: tab === t.id ? '#6366F1' : 'transparent',
               color:      tab === t.id ? '#fff'    : '#6B7280' }}>
             {t.icon} {t.label} ({
-              t.id === 'all'         ? total :
-              t.id === 'active'      ? active :
-              t.id === 'inactive'    ? (total - active) :
-              t.id === 'alumni'      ? students.filter(s=>s.status==='alumni').length :
-              t.id === 'managelogin' ? active : 0
+              t.id === 'all'           ? total :
+              t.id === 'active'        ? active :
+              t.id === 'inactive'      ? (total - active) :
+              t.id === 'alumni'        ? students.filter(s=>s.status==='alumni').length :
+              t.id === 'managelogin'   ? active :
+              t.id === 'manageparents' ? active : 0
             })
           </button>
         ))}
@@ -372,7 +492,7 @@ export default function Students() {
       </div>
 
       {/* Student list table */}
-      {tab !== 'managelogin' && (loading ? <LoadingState /> : !filtered.length ? (
+      {tab !== 'managelogin' && tab !== 'manageparents' && (loading ? <LoadingState /> : !filtered.length ? (
         <div style={{ padding:'40px', textAlign:'center', color:'#9CA3AF' }}>
           <div style={{ fontSize:40, marginBottom:12 }}>👥</div>
           <div style={{ fontSize:15, fontWeight:700, color:'#374151', marginBottom:6 }}>No students found</div>
@@ -594,6 +714,176 @@ export default function Students() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+          {!students.filter(s=>s.isActive).length && (
+            <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>No active students found</div>
+          )}
+        </div>
+      )}
+
+      {/* ──────────────────────────────────────────────────────────────────────
+          Manage Parent Login Tab
+          One row per active student. Each row shows whether a parent User
+          exists, the parent email, the password (only if we set it this
+          session), and action buttons to create-or-link / reset.
+          ────────────────────────────────────────────────────────────────────── */}
+      {tab === 'manageparents' && (
+        <div className="card overflow-hidden" style={{ padding:0 }}>
+          <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:15, color:'#111827' }}>👨‍👩‍👧 Manage Parent Login</div>
+              <div style={{ fontSize:12, color:'#9CA3AF', marginTop:2 }}>Create parent accounts and reset their passwords. Parents can see their child's attendance, fees, and report card.</div>
+            </div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <button
+                onClick={handleBulkLinkParents}
+                disabled={bulkLinking}
+                style={{
+                  fontSize:12, fontWeight:700,
+                  color: bulkLinking ? '#9CA3AF' : '#fff',
+                  background: bulkLinking ? '#E5E7EB' : '#1D4ED8',
+                  border:'none', padding:'8px 14px', borderRadius:8,
+                  cursor: bulkLinking ? 'wait' : 'pointer',
+                  whiteSpace:'nowrap',
+                }}>
+                {bulkLinking
+                  ? `Working… ${bulkLinkProgress.done}/${bulkLinkProgress.total}`
+                  : '➕ Create / Link All'}
+              </button>
+              <button
+                onClick={handleBulkResetParents}
+                disabled={bulkLinking}
+                style={{
+                  fontSize:12, fontWeight:700,
+                  color: bulkLinking ? '#9CA3AF' : '#fff',
+                  background: bulkLinking ? '#E5E7EB' : '#DC2626',
+                  border:'none', padding:'8px 14px', borderRadius:8,
+                  cursor: bulkLinking ? 'wait' : 'pointer',
+                  whiteSpace:'nowrap',
+                }}>
+                {bulkLinking
+                  ? `Working… ${bulkLinkProgress.done}/${bulkLinkProgress.total}`
+                  : '🔄 Reset all to Parent@123'}
+              </button>
+            </div>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#0B1F4A' }}>
+                  {['#','Student','Class','Parent Email','Password','Status','Actions'].map(h=>(
+                    <th key={h} style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {students.filter(s=>s.isActive).map((s,i)=>{
+                  const parentEmail   = getParentEmail(s);
+                  const hasParentUser = !!(s.parentId || s.parent);
+                  const isLinking     = !!linkingParent[s._id];
+                  const known         = knownParentPwd[s._id];
+                  const copy = (text, label) => {
+                    if (!text) return;
+                    navigator.clipboard?.writeText(text).then(
+                      () => toast.success(`${label} copied`),
+                      () => toast.error('Could not copy')
+                    );
+                  };
+                  return (
+                    <tr key={s._id} style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff' }}>
+                      <td style={{ padding:'11px 16px', color:'#9CA3AF' }}>{i+1}</td>
+                      <td style={{ padding:'11px 16px' }}>
+                        <div style={{ fontWeight:700, color:'#111827' }}>{s.user?.name}</div>
+                        <div style={{ fontSize:11, color:'#9CA3AF' }}>Roll: {s.rollNumber || s.admissionNumber}</div>
+                      </td>
+                      <td style={{ padding:'11px 16px', color:'#374151' }}>{s.class?.name || '—'}</td>
+                      <td style={{ padding:'11px 16px' }}>
+                        {parentEmail ? (
+                          <div style={{ fontFamily:'monospace', fontSize:12, color:'#1D4ED8', background:'#EFF6FF', padding:'4px 10px', borderRadius:6, display:'inline-block' }}>
+                            {parentEmail}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize:11, color:'#DC2626', fontStyle:'italic' }}>
+                            ⚠️ No email — edit student first
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding:'11px 16px' }}>
+                        {!hasParentUser ? (
+                          <div style={{ fontFamily:'monospace', fontSize:11, color:'#9CA3AF', background:'#F9FAFB', padding:'4px 10px', borderRadius:6, fontStyle:'italic', display:'inline-block' }}>
+                            no account yet
+                          </div>
+                        ) : known ? (
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <div style={{ fontFamily:'monospace', fontSize:12, color:'#374151', background:'#F3F4F6', padding:'4px 10px', borderRadius:6 }}>
+                              {showPwd['p_'+s._id] ? known : '••••••••••'}
+                            </div>
+                            <button onClick={()=>setShowPwd(p=>({...p,['p_'+s._id]:!p['p_'+s._id]}))}
+                              style={{ fontSize:11, color:'#6B7280', background:'none', border:'none', cursor:'pointer' }}>
+                              {showPwd['p_'+s._id] ? '🙈' : '👁'}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ fontFamily:'monospace', fontSize:11, color:'#9CA3AF', background:'#F9FAFB', padding:'4px 10px', borderRadius:6, fontStyle:'italic', display:'inline-block' }}>
+                            unknown — reset to set
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding:'11px 16px' }}>
+                        {hasParentUser ? (
+                          <span style={{ fontSize:11, fontWeight:700, color:'#065F46', background:'#D1FAE5', padding:'3px 10px', borderRadius:20 }}>
+                            Linked
+                          </span>
+                        ) : (
+                          <span style={{ fontSize:11, fontWeight:700, color:'#92400E', background:'#FEF3C7', padding:'3px 10px', borderRadius:20 }}>
+                            Not linked
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding:'11px 16px' }}>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                          {!hasParentUser ? (
+                            <button
+                              onClick={() => linkParentForStudent(s)}
+                              disabled={!parentEmail || isLinking}
+                              style={{ fontSize:11, fontWeight:700,
+                                color: (!parentEmail||isLinking) ? '#9CA3AF' : '#fff',
+                                background: (!parentEmail||isLinking) ? '#E5E7EB' : '#1D4ED8',
+                                border:'none', padding:'5px 12px', borderRadius:7,
+                                cursor: (!parentEmail||isLinking) ? 'not-allowed' : 'pointer' }}>
+                              {isLinking ? 'Creating…' : '➕ Create Login'}
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await studentAPI.resetParentPassword(s._id, { password: 'Parent@123' });
+                                    rememberParentPwd(s._id, 'Parent@123');
+                                    toast.success(`Reset to Parent@123`);
+                                  } catch (err) {
+                                    toast.error(err.response?.data?.message || 'Failed to reset');
+                                  }
+                                }}
+                                style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FEF3C7', border:'1px solid #FDE68A', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
+                                🔑 Reset Password
+                              </button>
+                              {known && (
+                                <button
+                                  onClick={() => copy(`Email: ${parentEmail}\nPassword: ${known}`, 'Credentials')}
+                                  style={{ fontSize:11, fontWeight:700, color:'#065F46', background:'#D1FAE5', border:'1px solid #86EFAC', padding:'5px 12px', borderRadius:7, cursor:'pointer' }}>
+                                  📋 Copy Both
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

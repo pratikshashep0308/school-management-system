@@ -344,6 +344,26 @@ exports.resetStudentPassword = async (req, res) => {
   res.json({ success: true, message: 'Password reset successfully' });
 };
 
+// Reset the password of the parent User linked to the given student.
+// Scoped through the student so admins can only touch parents of their school's
+// students — keeps auth tight without adding a separate /users admin namespace.
+exports.resetParentPassword = async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.length < 6)
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+
+  const student = await Student.findOne({ _id: req.params.id, school: req.user.school });
+  if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+  const parentUserId = student.parentId || student.parent;
+  if (!parentUserId) return res.status(404).json({ success: false, message: 'No parent account linked to this student' });
+
+  const bcrypt = require('bcryptjs');
+  const hashed = await bcrypt.hash(password, 10);
+  await User.findByIdAndUpdate(parentUserId, { password: hashed });
+
+  res.json({ success: true, message: 'Parent password reset successfully' });
+};
+
 // ── MY PROFILE (student role) ─────────────────────────────────────────────────
 exports.getMyProfile = async (req, res) => {
   const student = await Student.findOne({ user: req.user.id })

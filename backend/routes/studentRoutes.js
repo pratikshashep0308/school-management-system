@@ -3,7 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const {
   getStudents, getStudent, createStudent, updateStudent, deleteStudent,
-  getMyProfile, getStudentStats, linkParent, resetStudentPassword, seedTestStudent,
+  getMyProfile, getStudentStats, linkParent, resetStudentPassword, resetParentPassword, seedTestStudent,
 } = require('../controllers/studentController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -20,7 +20,8 @@ router.post('/:id/link-parent', authorize('superAdmin', 'schoolAdmin'), linkPare
 router.post('/',    authorize('superAdmin','schoolAdmin'), createStudent);
 router.put('/:id',  authorize('superAdmin','schoolAdmin'), updateStudent);
 router.delete('/:id', authorize('superAdmin','schoolAdmin'), deleteStudent);
-router.put('/:id/reset-password', authorize('superAdmin','schoolAdmin'), resetStudentPassword);
+router.put('/:id/reset-password',         authorize('superAdmin','schoolAdmin'), resetStudentPassword);
+router.put('/:id/reset-parent-password',  authorize('superAdmin','schoolAdmin'), resetParentPassword);
 router.post('/seed-test', authorize('superAdmin','schoolAdmin'), seedTestStudent);
 
 module.exports = router;
