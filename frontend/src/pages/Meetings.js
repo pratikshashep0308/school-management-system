@@ -15,7 +15,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { meetingAPI, teacherAPI, studentAPI } from '../utils/api';
+import { meetingAPI, teacherAPI, studentAPI, classAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 
@@ -362,20 +362,22 @@ function CreateMeetingModal({ onClose, onCreated }) {
     agenda:'',
     groups: [],
     participantUserIds: [],
+    classId: '',                            // ← class-wise meetings target this class
   });
   const [users,   setUsers]   = useState([]);    // pickable people
+  const [classes, setClasses] = useState([]);    // for class-wise meeting picker
   const [saving,  setSaving]  = useState(false);
   const [search,  setSearch]  = useState('');
   const set = (k,v) => setForm(f => ({ ...f, [k]: v }));
 
-  // Load all teachers + students+parents from existing endpoints so we don't
-  // need a new "users" listing endpoint.
+  // Load all teachers + students+parents + classes for the picker.
   useEffect(() => {
     (async () => {
       try {
-        const [ts, ss] = await Promise.all([
+        const [ts, ss, cs] = await Promise.all([
           teacherAPI.getAll().catch(()=>({ data:{ data:[] }})),
           studentAPI.getAll().catch(()=>({ data:{ data:[] }})),
+          classAPI.getAll().catch(()=>({ data:{ data:[] }})),
         ]);
         const teachers = (ts.data?.data || []).map(t => ({
           id: t.user?._id || t.user,
@@ -388,12 +390,14 @@ function CreateMeetingModal({ onClose, onCreated }) {
           name: s.user?.name || '—',
           role: 'student',
           email: s.user?.email,
+          classId: s.class?._id || s.class,                  // remembered for class filter
         })).filter(u => u.id);
         const parentUsers = (ss.data?.data || []).map(s => s.parentId && ({
           id: typeof s.parentId === 'object' ? s.parentId._id : s.parentId,
           name: s.parentName || s.admissionSnapshot?.parentName || `Parent of ${s.user?.name||'student'}`,
           role: 'parent',
           email: s.parentEmail || s.admissionSnapshot?.parentEmail,
+          classId: s.class?._id || s.class,                  // remembered for class filter
         })).filter(Boolean);
 
         // Dedupe by id
@@ -404,8 +408,9 @@ function CreateMeetingModal({ onClose, onCreated }) {
           seen.add(k); return true;
         });
         setUsers(merged);
+        setClasses(cs.data?.data || []);
       } catch (err) {
-        console.error('Failed to load users for picker:', err);
+        console.error('Failed to load users / classes for picker:', err);
       }
     })();
   }, []);
@@ -446,10 +451,12 @@ function CreateMeetingModal({ onClose, onCreated }) {
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', flexDirection:'column' }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:880, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
-        <div style={{ position:'sticky', top:0, zIndex:1, background:'#0B1F4A', padding:'18px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background:'#fff', width:'100%', maxWidth:980, margin:'0 auto', height:'100vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+
+        {/* Fixed header — always visible at top, even when body scrolls */}
+        <div style={{ flexShrink:0, background:'#0B1F4A', padding:'18px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div>
             <div style={{ fontWeight:800, fontSize:16, color:'#fff' }}>📅 New Meeting</div>
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Schedule and invite participants</div>
@@ -457,7 +464,8 @@ function CreateMeetingModal({ onClose, onCreated }) {
           <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.1)', color:'#fff', cursor:'pointer', fontSize:18 }}>×</button>
         </div>
 
-        <div style={{ padding:24, display:'flex', flexDirection:'column', gap:18 }}>
+        {/* Scrollable body */}
+        <div style={{ flex:1, overflowY:'auto', padding:24, display:'flex', flexDirection:'column', gap:18 }}>
 
           {/* Basic info */}
           <div>
@@ -504,9 +512,52 @@ function CreateMeetingModal({ onClose, onCreated }) {
           <div>
             <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:12 }}>Participants</div>
 
-            {/* Quick groups */}
+            {/* Class-wise meeting picker — choose a class, then use class-scoped
+                group buttons below to invite that class's parents or students.
+                When a class is selected, the individual list also filters to
+                people from that class for faster manual picking. */}
+            <div style={{ marginBottom:14, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:'12px 14px' }}>
+              <div style={{ fontSize:11, color:'#1E40AF', fontWeight:700, marginBottom:6 }}>📚 Class-wise Meeting (optional)</div>
+              <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                <select style={{ ...INP, width:220 }} value={form.classId} onChange={e=>set('classId',e.target.value)}>
+                  <option value="">-- No class selected --</option>
+                  {classes.map(c => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}{c.section ? ` - ${c.section}` : ''}{c.grade ? ` (Grade ${c.grade})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {form.classId && (
+                  <>
+                    <button type="button" onClick={()=>toggleGroup('parents_of_class')}
+                      style={{ padding:'6px 12px', borderRadius:20, border:'1px solid',
+                        borderColor: form.groups.includes('parents_of_class') ? '#1D4ED8' : '#BFDBFE',
+                        background:  form.groups.includes('parents_of_class') ? '#1D4ED8' : '#fff',
+                        color:       form.groups.includes('parents_of_class') ? '#fff' : '#1E40AF',
+                        fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                      👪 Parents of this class
+                    </button>
+                    <button type="button" onClick={()=>toggleGroup('students_of_class')}
+                      style={{ padding:'6px 12px', borderRadius:20, border:'1px solid',
+                        borderColor: form.groups.includes('students_of_class') ? '#1D4ED8' : '#BFDBFE',
+                        background:  form.groups.includes('students_of_class') ? '#1D4ED8' : '#fff',
+                        color:       form.groups.includes('students_of_class') ? '#fff' : '#1E40AF',
+                        fontSize:11, fontWeight:700, cursor:'pointer' }}>
+                      🎓 Students of this class
+                    </button>
+                  </>
+                )}
+              </div>
+              {form.classId && (
+                <div style={{ fontSize:10, color:'#1E40AF', marginTop:6, fontStyle:'italic' }}>
+                  💡 Use this for PTM, class-specific announcements, or class teacher meetings. Combine with individual picks below for guest invites.
+                </div>
+              )}
+            </div>
+
+            {/* Quick groups (school-wide) */}
             <div style={{ marginBottom:12 }}>
-              <div style={{ fontSize:11, color:'#6B7280', fontWeight:600, marginBottom:6 }}>Quick add groups</div>
+              <div style={{ fontSize:11, color:'#6B7280', fontWeight:600, marginBottom:6 }}>Or quick-add school-wide groups</div>
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                 {[
                   ['all_teachers','👨‍🏫 All Teachers'],
@@ -552,14 +603,14 @@ function CreateMeetingModal({ onClose, onCreated }) {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div style={{ display:'flex', gap:10, justifyContent:'center', paddingTop:4 }}>
-            <button onClick={onClose} style={{ padding:'10px 28px', borderRadius:24, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', color:'#374151' }}>Cancel</button>
-            <button onClick={submit} disabled={saving} style={{ padding:'10px 32px', borderRadius:24, border:'none', background:'#3B5BDB', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', opacity:saving?0.7:1 }}>
-              {saving ? '⏳ Creating…' : '✔ Create & Send Invites'}
-            </button>
-          </div>
+        {/* Fixed footer — always visible at bottom so user can submit from anywhere */}
+        <div style={{ flexShrink:0, padding:'14px 24px', borderTop:'1px solid #E5E7EB', background:'#fff', display:'flex', gap:10, justifyContent:'center' }}>
+          <button onClick={onClose} style={{ padding:'10px 28px', borderRadius:24, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', color:'#374151' }}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={{ padding:'10px 32px', borderRadius:24, border:'none', background:'#3B5BDB', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', opacity:saving?0.7:1 }}>
+            {saving ? '⏳ Creating…' : '✔ Create & Send Invites'}
+          </button>
         </div>
       </div>
     </div>
