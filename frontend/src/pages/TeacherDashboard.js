@@ -2,8 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { classAPI, attendanceAPI, examAPI, assignmentAPI, studentAPI, teacherAPI, timetableAPI } from '../utils/api';
-import { LoadingState, Badge } from '../components/ui';
+import { classAPI, examAPI, assignmentAPI, studentAPI, teacherAPI, timetableAPI } from '../utils/api';
+import { LoadingState } from '../components/ui';
+import MeetingsWidget from '../components/MeetingsWidget';
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const DAY_COLORS = { Monday:'#d4522a', Tuesday:'#c9a84c', Wednesday:'#4a7c59', Thursday:'#7c6af5', Friday:'#2d9cdb', Saturday:'#f2994a' };
@@ -105,6 +106,14 @@ export default function TeacherDashboard() {
             <div className="text-[11px] text-muted/70">{s.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Meetings — embedded widget so teachers can see and RSVP without navigating away */}
+      <div className="card p-5 mb-5">
+        <MeetingsWidget
+          portalLabel="My Meetings"
+          emptyHint="No meetings scheduled. Create one from the Meetings page or wait for an invite."
+        />
       </div>
 
       {/* Today's Timetable */}

@@ -5,9 +5,10 @@ import toast from 'react-hot-toast';
 import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { timetableAPI, classAPI } from '../utils/api';
+import api, { timetableAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
+import MeetingsWidget from '../components/MeetingsWidget';
 
 // ─── Attendance Ring ────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -43,16 +44,6 @@ function CardHeader({ title, subtitle, action, onAction }) {
   );
 }
 
-const TABS = [
-  { id: 'overview',    label: 'Overview',    icon: '🏠' },
-  { id: 'attendance',  label: 'Attendance',  icon: '📅' },
-  { id: 'timetable',   label: 'Timetable',   icon: '🗓' },
-  { id: 'exams',       label: 'Exams',       icon: '📝' },
-  { id: 'assignments', label: 'Assignments', icon: '📋' },
-  { id: 'fees',        label: 'Fees',        icon: '💰' },
-  { id: 'transport',   label: 'Transport',   icon: '🚌' },
-];
-
 const DAYS  = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const TIMES = ['9:00','9:45','10:30','11:15','12:00','12:45','1:30','2:15'];
 const DAY_COLORS = {
@@ -61,12 +52,14 @@ const DAY_COLORS = {
 };
 
 
+// Hoisted outside so it's stable across renders and doesn't trigger the
+// react-hooks/exhaustive-deps warning when used inside useEffect.
+const SUB_COLORS = ['#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444','#06B6D4','#F59E0B','#EC4899','#6366F1','#14B8A6'];
+
 // ─── StudentTimetableView — shows only student's own class timetable ──────────
 function StudentTimetableView({ classId, className }) {
   const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const TIMES = ['9:00–9:45','9:45–10:30','10:30–11:15','11:15–12:00','12:00–12:45','12:45–1:30','1:30–2:15','2:15–3:00'];
   const DAY_COLORS = { Monday:'#D4522A',Tuesday:'#C9A84C',Wednesday:'#4A7C59',Thursday:'#7C6AF5',Friday:'#2D9CDB',Saturday:'#F2994A' };
-  const SUB_COLORS = ['#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444','#06B6D4','#F59E0B','#EC4899','#6366F1','#14B8A6'];
 
   const [ttData,   setTtData]   = useState([]);
   const [colorMap, setColorMap] = useState({});
@@ -695,7 +688,6 @@ export default function StudentDashboard() {
                   <tbody>
                     {[...upcoming].sort((a,b)=>new Date(a.date)-new Date(b.date)).map((exam,i) => {
                       const d    = new Date(exam.date);
-                      const diff = Math.ceil((d - new Date()) / 86400000);
                       const isToday = d.toDateString() === new Date().toDateString();
                       const typeColors = { unit:{bg:'#FEF3C7',color:'#92400E',border:'#F59E0B'}, midterm:{bg:'#FEE2E2',color:'#991B1B',border:'#EF4444'}, final:{bg:'#EDE9FE',color:'#5B21B6',border:'#8B5CF6'}, practical:{bg:'#D1FAE5',color:'#065F46',border:'#10B981'}, assignment:{bg:'#DBEAFE',color:'#1E40AF',border:'#3B82F6'} };
                       const tc = typeColors[exam.examType]||typeColors.unit;
@@ -1006,6 +998,14 @@ export default function StudentDashboard() {
         </div>
       )}
 
+      {/* ════════════════════ MEETINGS ════════════════════ */}
+      {tab === 'meetings' && (
+        <MeetingsWidget
+          portalLabel="My Meetings"
+          emptyHint="No meetings have been scheduled for you yet. PTMs, counseling sessions, and class meetings will show here."
+        />
+      )}
+
     </div>
   );
-}                                                     
+}

@@ -112,6 +112,7 @@ const routes = [
   ['/api/dashboard',      './routes/dashboardRoutes'],
   ['/api/reports',        './routes/reportRoutes'],        // ← Report Module
   ['/api/class-fee-templates', './routes/classFeeTemplateRoutes'],  // ← Class default fees
+  ['/api/meetings',       './routes/meetingRoutes'],                  // ← Meeting management
 ];
 
 routes.forEach(([path, file]) => {

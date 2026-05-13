@@ -36,6 +36,7 @@ import Notifications from './pages/Notifications';
 import Profile      from './pages/Profile';
 import Admissions   from './pages/Admissions';
 import Expenses     from './pages/Expenses';
+import Meetings     from './pages/Meetings';
 
 // Pages — Report Module
 import ReportsDashboard from './pages/Reports/ReportsDashboard';
@@ -53,13 +54,6 @@ function ProtectedRoute({ children }) {
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
-  return children;
-}
-
-// ── RoleRoute: redirect if role not allowed ───────────────────────────────────
-function RoleRoute({ children, roles }) {
-  const { user } = useAuth();
-  if (!roles.includes(user?.role)) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -127,6 +121,7 @@ export default function App() {
               <Route path="notifications" element={<AdminRoute><Notifications /></AdminRoute>} />
               <Route path="admissions"    element={<AdminRoute><Admissions /></AdminRoute>} />
               <Route path="expenses"     element={<AdminRoute><Expenses /></AdminRoute>} />
+              <Route path="meetings"     element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
 
               <Route path="homework"      element={<ProtectedRoute><Homework /></ProtectedRoute>} />
               <Route path="settings"   element={<AdminRoute><Settings /></AdminRoute>} />

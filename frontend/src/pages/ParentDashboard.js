@@ -4,9 +4,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { timetableAPI, classAPI } from '../utils/api';
+import api from '../utils/api';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
+import MeetingsWidget from '../components/MeetingsWidget';
 import DateRangePicker from './Attendance/DateRangePicker';
 import { studentPortalAPI } from '../utils/studentPortalAPI';
 
@@ -44,17 +45,6 @@ function CardHeader({ title, subtitle, action, onAction }) {
   );
 }
 
-const TABS = [
-  { id: 'overview',    label: 'Overview',    icon: '🏠' },
-  { id: 'attendance',  label: 'Attendance',  icon: '📅' },
-  { id: 'timetable',   label: 'Timetable',   icon: '🗓' },
-  { id: 'exams',       label: 'Exams',       icon: '📝' },
-  { id: 'assignments', label: 'Assignments', icon: '📋' },
-  { id: 'fees',        label: 'Fees',        icon: '💰' },
-  { id: 'transport',   label: 'Transport',   icon: '🚌' },
-  { id: 'contact',     label: 'Contact',     icon: '📞' },
-];
-
 const DAYS  = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const TIMES = ['9:00','9:45','10:30','11:15','12:00','12:45','1:30','2:15'];
 const DAY_COLORS = {
@@ -62,172 +52,6 @@ const DAY_COLORS = {
   Thursday:'#7c6af5', Friday:'#2d9cdb', Saturday:'#f2994a',
 };
 
-
-// ─── AllClassesTimetable — parent sees all classes, student's class highlighted ──
-function AllClassesTimetable({ currentClassId }) {
-  const DAYS  = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const TIMES = ['9:00–9:45','9:45–10:30','10:30–11:15','11:15–12:00','12:00–12:45','12:45–1:30','1:30–2:15','2:15–3:00'];
-  const DAY_COLORS = { Monday:'#D4522A', Tuesday:'#C9A84C', Wednesday:'#4A7C59', Thursday:'#7C6AF5', Friday:'#2D9CDB', Saturday:'#F2994A' };
-  const SUB_COLORS = ['#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444','#06B6D4','#F59E0B','#EC4899','#6366F1','#14B8A6','#84CC16','#A855F7'];
-
-  const [classes,    setClasses]    = React.useState([]);
-  const [selClass,   setSelClass]   = React.useState('');
-  const [ttData,     setTtData]     = React.useState([]);
-  const [loading,    setLoading]    = React.useState(false);
-  const [colorMap,   setColorMap]   = React.useState({});
-
-  React.useEffect(() => {
-    classAPI.getAll().then(r => {
-      const cls = r.data.data || [];
-      setClasses(cls);
-      // Default to current student's class
-      const def = currentClassId || cls[0]?._id || '';
-      setSelClass(def);
-    }).catch(() => {});
-  }, [currentClassId]);
-
-  React.useEffect(() => {
-    if (!selClass) return;
-    setLoading(true);
-    timetableAPI.getClass(selClass).then(r => {
-      const tt = r.data.data;
-      const schedule = tt?.schedule || [];
-      setTtData(schedule);
-      // Build color map from subjects
-      const subs = {};
-      schedule.forEach(ds => ds.periods?.forEach(p => { if(p.subject?._id) subs[p.subject._id] = p.subject; }));
-      const cm = {};
-      Object.keys(subs).forEach((id, i) => { cm[id] = SUB_COLORS[i % SUB_COLORS.length]; });
-      setColorMap(cm);
-    }).catch(() => { setTtData([]); })
-     .finally(() => setLoading(false));
-  }, [selClass]);
-
-  // Build ttMap: { day: { period: entry } }
-  const ttMap = {};
-  ttData.forEach(ds => {
-    ttMap[ds.day] = {};
-    ds.periods?.forEach(p => { ttMap[ds.day][p.period] = p; });
-  });
-
-  const selectedClass = classes.find(c => c._id === selClass);
-  const isMyClass = selClass === currentClassId;
-
-  return (
-    <div>
-      {/* Class selector */}
-      <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
-        <div style={{ fontSize:13, fontWeight:700, color:'#374151' }}>Select Class:</div>
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {classes.map(c => {
-            const isMine = c._id === currentClassId;
-            const isSel  = c._id === selClass;
-            return (
-              <button key={c._id} onClick={() => setSelClass(c._id)} style={{
-                padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer',
-                border:`1.5px solid ${isSel?'#1D4ED8':isMine?'#F59E0B':'#E5E7EB'}`,
-                background: isSel?'#1D4ED8':isMine?'#FFFBEB':'#fff',
-                color: isSel?'#fff':isMine?'#92400E':'#6B7280',
-              }}>
-                {c.name} {c.section||''}{isMine?' ★':''}
-              </button>
-            );
-          })}
-        </div>
-        {isMyClass && (
-          <span style={{ fontSize:11, fontWeight:700, color:'#D97706', background:'#FFFBEB', border:'1px solid #F59E0B', padding:'3px 10px', borderRadius:20 }}>
-            ★ Your child's class
-          </span>
-        )}
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign:'center', padding:32, color:'#9CA3AF' }}>Loading timetable…</div>
-      ) : !ttData.length ? (
-        <div style={{ textAlign:'center', padding:32, background:'#F9FAFB', borderRadius:14 }}>
-          <div style={{ fontSize:36, marginBottom:10 }}>🗓</div>
-          <div style={{ fontWeight:700, fontSize:15, color:'#374151' }}>No timetable configured</div>
-          <div style={{ fontSize:13, color:'#9CA3AF', marginTop:4 }}>
-            Timetable for {selectedClass?.name} {selectedClass?.section||''} hasn't been set up yet
-          </div>
-        </div>
-      ) : (
-        <div style={{ background:'#fff', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 16px rgba(0,0,0,0.06)', border:'1px solid #E5E7EB' }}>
-          {/* Header */}
-          <div style={{ background:'#0B1F4A', padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ fontWeight:700, fontSize:15, color:'#fff' }}>
-              🗓 {selectedClass?.name} {selectedClass?.section||''} — Weekly Timetable
-              {isMyClass && <span style={{ marginLeft:8, fontSize:11, color:'#FCD34D' }}>★ Your child's class</span>}
-            </div>
-          </div>
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:700 }}>
-              <thead>
-                <tr style={{ background:'#F8FAFC', borderBottom:'2px solid #E5E7EB' }}>
-                  <th style={{ padding:'10px 16px', textAlign:'left', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', width:100, position:'sticky', left:0, background:'#F8FAFC', zIndex:2 }}>Day</th>
-                  {[1,2,3,4,5,6,7,8].map((p,i) => (
-                    <th key={p} style={{ padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', minWidth:110 }}>
-                      <div>Period {p}</div>
-                      <div style={{ fontSize:9, fontWeight:400, color:'#9CA3AF', marginTop:2 }}>{TIMES[i]}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {DAYS.map((day, di) => (
-                  <tr key={day} style={{ borderBottom:'1px solid #F3F4F6', background:di%2?'#FAFAFA':'#fff' }}>
-                    <td style={{ padding:'12px 16px', position:'sticky', left:0, background:di%2?'#FAFAFA':'#fff', zIndex:1, borderRight:'2px solid #E5E7EB' }}>
-                      <div style={{ fontWeight:800, fontSize:12, color:DAY_COLORS[day]||'#374151', textTransform:'uppercase' }}>{day.slice(0,3)}</div>
-                      <div style={{ fontSize:10, color:'#9CA3AF' }}>{day}</div>
-                    </td>
-                    {[1,2,3,4,5,6,7,8].map(p => {
-                      const period = ttMap[day]?.[p];
-                      const subColor = period?.subject?._id ? (colorMap[period.subject._id]||'#6B7280') : null;
-                      return (
-                        <td key={p} style={{ padding:'8px 10px', textAlign:'center', borderLeft:'1px solid #F3F4F6' }}>
-                          {period?.subject ? (
-                            <div style={{ background:`${subColor}15`, border:`1px solid ${subColor}40`, borderRadius:8, padding:'6px 8px' }}>
-                              <div style={{ fontSize:12, fontWeight:700, color:subColor, lineHeight:1.2 }}>{period.subject.name}</div>
-                              {period.teacher?.user?.name && (
-                                <div style={{ fontSize:10, color:'#9CA3AF', marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                                  {period.teacher.user.name.split(' ')[0]}
-                                </div>
-                              )}
-                            </div>
-                          ) : period?.type && period.type !== 'regular' ? (
-                            <div style={{ background:'#F3F4F6', borderRadius:8, padding:'4px 6px', fontSize:10, color:'#9CA3AF', fontWeight:600 }}>
-                              {period.type === 'break'?'☕ Break':period.type==='lunch'?'🍽 Lunch':period.type==='free'?'Free':'—'}
-                            </div>
-                          ) : (
-                            <span style={{ color:'#E5E7EB', fontSize:16 }}>—</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {/* Color legend */}
-          {Object.keys(colorMap).length > 0 && (
-            <div style={{ padding:'10px 20px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10, flexWrap:'wrap', background:'#F8FAFC' }}>
-              {Object.entries(colorMap).map(([id, color]) => {
-                const subName = ttData.flatMap(ds=>ds.periods||[]).find(p=>p.subject?._id===id)?.subject?.name||id;
-                return (
-                  <div key={id} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                    <div style={{ width:10, height:10, borderRadius:3, background:color }}/>
-                    <span style={{ fontSize:11, color:'#6B7280' }}>{subName}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function ParentAssignmentsSection({ assignments, dueAssignments, childName }) {
   const [filter, setFilter] = React.useState('all');
@@ -1290,6 +1114,14 @@ export default function ParentDashboard() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ════════════════════ MEETINGS ════════════════════ */}
+          {tab === 'meetings' && (
+            <MeetingsWidget
+              portalLabel="Meetings & PTM"
+              emptyHint="No upcoming meetings or PTMs. School staff will notify you when one is scheduled."
+            />
           )}
 
         </>

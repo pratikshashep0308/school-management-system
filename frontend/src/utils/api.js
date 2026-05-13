@@ -313,4 +313,17 @@ export const salaryAPI = {
   remove:   (id)       => api.delete(`/salary/${id}`),
 };
 
+// ── Meetings ─────────────────────────────────────────────────────────────────
+export const meetingAPI = {
+  list:               (params)   => api.get('/meetings', { params }),
+  get:                (id)       => api.get(`/meetings/${id}`),
+  create:             (data)     => api.post('/meetings', data),
+  update:             (id, data) => api.put(`/meetings/${id}`, data),
+  remove:             (id)       => api.delete(`/meetings/${id}`),
+  rsvp:               (id, status) => api.post(`/meetings/${id}/rsvp`, { status }),
+  markAttendance:     (id, entries) => api.post(`/meetings/${id}/attendance`, { entries }),
+  updateParticipants: (id, userIds) => api.put(`/meetings/${id}/participants`, { userIds }),
+  conflictCheck:      (params)   => api.get('/meetings/conflict-check', { params }),
+};
+
 export default api;
