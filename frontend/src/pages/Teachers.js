@@ -2,7 +2,7 @@
 // frontend/src/pages/Teachers.js — eSkooly-style Employees module
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { teacherAPI, subjectAPI } from '../utils/api';
+import { teacherAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
@@ -11,6 +11,26 @@ const ROLES = ['Teacher','Principal','Vice Principal','Accountant','Librarian','
 const GENDERS = ['Male','Female','Other'];
 const BLOOD_GROUPS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
 const RELIGIONS = ['Hindu','Muslim','Christian','Sikh','Jain','Buddhist','Other'];
+const MARITAL_STATUSES = ['Single','Married','Divorced','Widowed'];
+const EMPLOYMENT_TYPES = ['Full-time','Part-time','Contract'];
+const SALARY_METHODS = ['Bank Transfer','Cash','Cheque','UPI'];
+// Document types the school typically collects from employees. Keep the
+// values stable — they become the `type` field on each Teacher.documents[].
+const DOC_TYPES = [
+  { key:'photo',           label:'Passport-size Photo' },
+  { key:'aadhaar',         label:'Aadhaar Card' },
+  { key:'pan',             label:'PAN Card' },
+  { key:'ssc',             label:'SSC / 10th Marksheet' },
+  { key:'hsc',             label:'HSC / 12th Marksheet' },
+  { key:'graduation',      label:'Graduation Certificate' },
+  { key:'bed',             label:'B.Ed / D.Ed / M.Ed' },
+  { key:'experience_cert', label:'Experience Certificate' },
+  { key:'resume',          label:'Resume / CV' },
+  { key:'address_proof',   label:'Address Proof' },
+  { key:'bank_proof',      label:'Cancelled Cheque / Passbook' },
+  { key:'police_verif',    label:'Police Verification' },
+  { key:'medical',         label:'Medical Fitness Certificate' },
+];
 
 const INP = { width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:10,
   fontSize:13, outline:'none', background:'#fff', color:'#111827', boxSizing:'border-box' };
@@ -143,7 +163,7 @@ function EditModal({ open, onClose, onSave, initial }) {
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:680, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:980, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
         {/* Header */}
         <div style={{ background:'#0B1F4A', padding:'18px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div>
@@ -156,53 +176,16 @@ function EditModal({ open, onClose, onSave, initial }) {
         </div>
 
         <div style={{ padding:24, display:'flex', flexDirection:'column', gap:20 }}>
-          {/* Section 1: Basic Information */}
+          {/* Section 1: Basic Personal Information */}
           <div>
             <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ width:22, height:22, borderRadius:'50%', background:'#0B1F4A', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>1</div>
-              Basic Information
+              Basic Personal Information
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <div style={{ gridColumn:'span 1' }}>
-                <label style={LBL}>Employee Name <span style={{ color:'red' }}>*</span></label>
+              <div>
+                <label style={LBL}>Full Name <span style={{ color:'red' }}>*</span></label>
                 <input style={INP} value={form.name} onChange={e=>set('name',e.target.value)} placeholder="Name of Employee"/>
-              </div>
-              <div>
-                <label style={LBL}>Mobile No <span style={{ color:'#9CA3AF', fontSize:10 }}>(SMS/WhatsApp)</span></label>
-                <PhoneInput value={form.phone} onChange={v=>set('phone',v)}/>
-              </div>
-              <div>
-                <label style={LBL}>Employee Role <span style={{ color:'red' }}>*</span></label>
-                <select style={INP} value={form.designation} onChange={e=>set('designation',e.target.value)}>
-                  <option value="">Select*</option>
-                  {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={LBL}>Email Address <span style={{ color:'red' }}>*</span></label>
-                <input style={INP} type="email" value={form.email} onChange={e=>set('email',e.target.value)} placeholder="email@school.com"/>
-              </div>
-              <div>
-                <label style={LBL}>Date of Joining</label>
-                <input style={INP} type="date" value={form.joiningDate} onChange={e=>set('joiningDate',e.target.value)}/>
-              </div>
-              <div>
-                <label style={LBL}>Monthly Salary <span style={{ color:'red' }}>*</span></label>
-                <input style={INP} type="number" value={form.salary} onChange={e=>set('salary',e.target.value)} placeholder="Monthly Salary"/>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Other Information */}
-          <div>
-            <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:22, height:22, borderRadius:'50%', background:'#6B7280', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>2</div>
-              Other Information
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <div>
-                <label style={LBL}>Father / Husband Name</label>
-                <input style={INP} value={form.fatherName||''} onChange={e=>set('fatherName',e.target.value)} placeholder="Father / Husband Name"/>
               </div>
               <div>
                 <label style={LBL}>Gender</label>
@@ -212,23 +195,27 @@ function EditModal({ open, onClose, onSave, initial }) {
                 </select>
               </div>
               <div>
-                <label style={LBL}>Experience (years)</label>
-                <input style={INP} type="number" value={form.experience||''} onChange={e=>set('experience',e.target.value)} placeholder="Experience"/>
+                <label style={LBL}>Date of Birth</label>
+                <input style={INP} type="date" value={form.dateOfBirth||''} onChange={e=>set('dateOfBirth',e.target.value)}/>
               </div>
               <div>
-                <label style={LBL}>Employee ID</label>
-                <input style={INP} value={form.employeeId||''} onChange={e=>set('employeeId',e.target.value)} placeholder="EMP-001"/>
+                <label style={LBL}>Mobile No <span style={{ color:'#9CA3AF', fontSize:10 }}>(SMS/WhatsApp)</span></label>
+                <PhoneInput value={form.phone} onChange={v=>set('phone',v)}/>
               </div>
               <div>
-                <label style={LBL}>Religion</label>
-                <select style={INP} value={form.religion||''} onChange={e=>set('religion',e.target.value)}>
+                <label style={LBL}>Email Address <span style={{ color:'red' }}>*</span></label>
+                <input style={INP} type="email" value={form.email} onChange={e=>set('email',e.target.value)} placeholder="email@school.com"/>
+              </div>
+              <div>
+                <label style={LBL}>Father / Husband Name</label>
+                <input style={INP} value={form.fatherName||''} onChange={e=>set('fatherName',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>Marital Status</label>
+                <select style={INP} value={form.maritalStatus||''} onChange={e=>set('maritalStatus',e.target.value)}>
                   <option value="">Select</option>
-                  {RELIGIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                  {MARITAL_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
-              </div>
-              <div>
-                <label style={LBL}>Education / Qualification</label>
-                <input style={INP} value={form.qualification||''} onChange={e=>set('qualification',e.target.value)} placeholder="Education"/>
               </div>
               <div>
                 <label style={LBL}>Blood Group</label>
@@ -238,17 +225,174 @@ function EditModal({ open, onClose, onSave, initial }) {
                 </select>
               </div>
               <div>
-                <label style={LBL}>Date of Birth</label>
-                <input style={INP} type="date" value={form.dateOfBirth||''} onChange={e=>set('dateOfBirth',e.target.value)}/>
+                <label style={LBL}>Religion</label>
+                <select style={INP} value={form.religion||''} onChange={e=>set('religion',e.target.value)}>
+                  <option value="">Select</option>
+                  {RELIGIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
-              <div style={{ gridColumn:'span 1' }}>
-                <label style={LBL}>National ID</label>
-                <input style={INP} value={form.nationalId||''} onChange={e=>set('nationalId',e.target.value)} placeholder="National ID"/>
+              <div>
+                <label style={LBL}>Aadhaar Number</label>
+                <input style={INP} value={form.nationalId||''} onChange={e=>set('nationalId',e.target.value)} placeholder="XXXX XXXX XXXX" maxLength={14}/>
+              </div>
+              <div>
+                <label style={LBL}>Emergency Contact Name</label>
+                <input style={INP} value={form.emergencyContactName||''} onChange={e=>set('emergencyContactName',e.target.value)} placeholder="Spouse / Parent name"/>
+              </div>
+              <div>
+                <label style={LBL}>Emergency Contact Number</label>
+                <PhoneInput value={form.emergencyContactNumber||''} onChange={v=>set('emergencyContactNumber',v)}/>
               </div>
               <div style={{ gridColumn:'span 3' }}>
                 <label style={LBL}>Home Address</label>
-                <input style={INP} value={form.address||''} onChange={e=>set('address',e.target.value)} placeholder="Home Address"/>
+                <input style={INP} value={form.address||''} onChange={e=>set('address',e.target.value)} placeholder="House no., Street"/>
               </div>
+              <div>
+                <label style={LBL}>City</label>
+                <input style={INP} value={form.city||''} onChange={e=>set('city',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>State</label>
+                <input style={INP} value={form.state||''} onChange={e=>set('state',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>PIN Code</label>
+                <input style={INP} value={form.pincode||''} onChange={e=>set('pincode',e.target.value)} maxLength={6}/>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Professional Information */}
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:22, height:22, borderRadius:'50%', background:'#0B1F4A', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>2</div>
+              Professional Information
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+              <div>
+                <label style={LBL}>Employee ID</label>
+                <input style={INP} value={form.employeeId||''} onChange={e=>set('employeeId',e.target.value)} placeholder="auto-generated if blank"/>
+              </div>
+              <div>
+                <label style={LBL}>Designation <span style={{ color:'red' }}>*</span></label>
+                <select style={INP} value={form.designation||''} onChange={e=>set('designation',e.target.value)}>
+                  <option value="">Select*</option>
+                  {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={LBL}>Department / Subject</label>
+                <input style={INP} value={form.department||''} onChange={e=>set('department',e.target.value)} placeholder="e.g. Mathematics"/>
+              </div>
+              <div>
+                <label style={LBL}>Qualification</label>
+                <input style={INP} value={form.qualification||''} onChange={e=>set('qualification',e.target.value)} placeholder="B.Ed, M.Sc, etc."/>
+              </div>
+              <div>
+                <label style={LBL}>Experience (years)</label>
+                <input style={INP} type="number" min="0" value={form.experience||''} onChange={e=>set('experience',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>Previous School / Organization</label>
+                <input style={INP} value={form.previousSchool||''} onChange={e=>set('previousSchool',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>Date of Joining</label>
+                <input style={INP} type="date" value={form.joiningDate||''} onChange={e=>set('joiningDate',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>Employment Type</label>
+                <select style={INP} value={form.employmentType||''} onChange={e=>set('employmentType',e.target.value)}>
+                  <option value="">Select</option>
+                  {EMPLOYMENT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Bank & Payroll Details */}
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:22, height:22, borderRadius:'50%', background:'#0B1F4A', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>3</div>
+              Bank & Payroll Details
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+              <div>
+                <label style={LBL}>Monthly Salary <span style={{ color:'red' }}>*</span></label>
+                <input style={INP} type="number" value={form.salary||''} onChange={e=>set('salary',e.target.value)} placeholder="₹"/>
+              </div>
+              <div>
+                <label style={LBL}>Salary Payment Method</label>
+                <select style={INP} value={form.salaryMethod||''} onChange={e=>set('salaryMethod',e.target.value)}>
+                  <option value="">Select</option>
+                  {SALARY_METHODS.map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={LBL}>Bank Name</label>
+                <input style={INP} value={form.bankName||''} onChange={e=>set('bankName',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>Account Number</label>
+                <input style={INP} value={form.bankAccountNumber||''} onChange={e=>set('bankAccountNumber',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>IFSC Code</label>
+                <input style={INP} value={form.ifscCode||''} onChange={e=>set('ifscCode',(e.target.value||'').toUpperCase())} maxLength={11} placeholder="ABCD0123456"/>
+              </div>
+              <div>
+                <label style={LBL}>PAN Number</label>
+                <input style={INP} value={form.panNumber||''} onChange={e=>set('panNumber',(e.target.value||'').toUpperCase())} maxLength={10} placeholder="ABCDE1234F"/>
+              </div>
+              <div>
+                <label style={LBL}>UAN Number <span style={{ color:'#9CA3AF', fontSize:10 }}>(optional)</span></label>
+                <input style={INP} value={form.uanNumber||''} onChange={e=>set('uanNumber',e.target.value)}/>
+              </div>
+              <div>
+                <label style={LBL}>PF Number <span style={{ color:'#9CA3AF', fontSize:10 }}>(optional)</span></label>
+                <input style={INP} value={form.pfNumber||''} onChange={e=>set('pfNumber',e.target.value)}/>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Documents — links / URLs for each doc.
+              Full file-upload would need cloud storage wiring (S3/Cloudinary).
+              For now we capture URLs the admin can host or paste from Drive. */}
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#374151', marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:22, height:22, borderRadius:'50%', background:'#0B1F4A', color:'#fff', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>4</div>
+              Documents
+              <span style={{ fontSize:11, color:'#9CA3AF', fontWeight:500, marginLeft:6 }}>
+                Paste a Google Drive / Dropbox / image URL for each document
+              </span>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {DOC_TYPES.map(d => {
+                // Documents are stored as an array; find the slot for this type.
+                const docs = Array.isArray(form.documents) ? form.documents : [];
+                const idx = docs.findIndex(x => x?.type === d.key);
+                const url = idx >= 0 ? (docs[idx].url || '') : '';
+                const updateDoc = (newUrl) => {
+                  const next = [...(Array.isArray(form.documents) ? form.documents : [])];
+                  if (newUrl) {
+                    const entry = { type: d.key, url: newUrl, name: d.label };
+                    if (idx >= 0) next[idx] = { ...next[idx], ...entry };
+                    else next.push(entry);
+                  } else if (idx >= 0) {
+                    next.splice(idx, 1);
+                  }
+                  set('documents', next);
+                };
+                return (
+                  <div key={d.key}>
+                    <label style={LBL}>
+                      {d.label}
+                      {url && <a href={url} target="_blank" rel="noreferrer" style={{ marginLeft:8, fontSize:10, color:'#1D4ED8', fontWeight:600 }}>↗ open</a>}
+                    </label>
+                    <input style={INP} value={url} onChange={e=>updateDoc(e.target.value)} placeholder="https://..."/>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

@@ -52,8 +52,7 @@ router.get('/:id', async (req, res) => {
 // ── Create teacher ────────────────────────────────────────────────────────────
 router.post('/', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
   try {
-    const { name, email, phone, employeeId, subjects, qualification,
-            experience, designation, password } = req.body;
+    const { name, email, phone, employeeId, password, ...rest } = req.body;
 
     if (!name?.trim())  return res.status(400).json({ success: false, message: 'Name is required' });
     if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email is required' });
@@ -76,15 +75,23 @@ router.post('/', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
       school:   req.user.school,
     });
 
-    // Create teacher profile
+    // Create teacher profile — `...rest` carries any HR fields the form sends
+    // (qualification, designation, salary, bankName, documents, etc.) without
+    // forcing this route to know about every one. Anything unknown to the
+    // schema is still stored because the model is strict:false.
+    // Coerce experience to a number if present.
+    if (rest.experience !== undefined) {
+      rest.experience = rest.experience === '' ? 0 : Number(rest.experience);
+    }
+    if (rest.salary !== undefined && rest.salary !== '') {
+      rest.salary = Number(rest.salary);
+    }
+
     const teacher = await Teacher.create({
-      user:          user._id,
-      employeeId:    empId,
-      subjects:      subjects || [],
-      qualification: qualification || '',
-      experience:    experience ? Number(experience) : 0,
-      designation:   designation || '',
-      school:        req.user.school,
+      ...rest,
+      user:       user._id,
+      employeeId: empId,
+      school:     req.user.school,
     });
 
     await teacher.populate('user', 'name email phone');
