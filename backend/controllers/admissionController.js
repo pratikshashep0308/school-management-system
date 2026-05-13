@@ -605,6 +605,43 @@ exports.enrollFromAdmission = async (req, res) => {
     // Create Student document
     const student = await Student.create(studentDoc);
 
+    // ── Auto-create / link Parent User account ───────────────────────────────
+    // We need a User record with role='parent' so parents can log into the
+    // portal. Match by email; if one already exists for another sibling, link
+    // to it (don't duplicate).
+    let parentUser = null;
+    let parentLoginInfo = null;
+    try {
+      const parentEmailRaw = (admission.parentEmail || admission.fatherEmail || admission.motherEmail || '').trim().toLowerCase();
+      if (parentEmailRaw) {
+        parentUser = await User.findOne({ email: parentEmailRaw });
+        if (!parentUser) {
+          const parentName = (admission.parentName || admission.fatherName || admission.motherName || `Parent of ${admission.studentName}`).trim();
+          const parentPhone = (admission.parentPhone || admission.fatherPhone || admission.motherPhone || '').trim();
+          const hashedParent = await bcrypt.hash('Parent@123', 10);
+          parentUser = await User.create({
+            name:     parentName,
+            email:    parentEmailRaw,
+            phone:    parentPhone,
+            password: hashedParent,
+            role:     'parent',
+            school:   req.user.school,
+            isActive: true,
+          });
+          parentLoginInfo = { email: parentEmailRaw, password: 'Parent@123', isNew: true };
+        } else {
+          parentLoginInfo = { email: parentEmailRaw, password: '(existing account — password unchanged)', isNew: false };
+        }
+        // Link student to parent (used by parent-portal queries)
+        if (parentUser) {
+          await Student.findByIdAndUpdate(student._id, { parentId: parentUser._id });
+        }
+      }
+    } catch (e) {
+      // Non-fatal — student is enrolled, parent linking can be retried later
+      console.error('Parent account auto-create failed:', e.message);
+    }
+
     // Update admission status
     await Admission.findByIdAndUpdate(admission._id, {
       status: 'enrolled',
@@ -635,6 +672,7 @@ exports.enrollFromAdmission = async (req, res) => {
       data: student,
       loginEmail:    studentEmail,
       loginPassword: 'Student@123',
+      parentLogin:   parentLoginInfo,
     });
   } catch (err) {
     console.error('Enroll error:', err);

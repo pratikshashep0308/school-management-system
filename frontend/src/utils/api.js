@@ -60,6 +60,7 @@ export const studentAPI = {
   update:       (id, data)   => api.put(`/students/${id}`, data),
   delete:       (id)         => api.delete(`/students/${id}`),
   resetPassword:(id, data)   => api.put(`/students/${id}/reset-password`, data),
+  linkParent:   (id, data)   => api.post(`/students/${id}/link-parent`, data),
   seedTest:     ()             => api.post('/students/seed-test'),
 };
 

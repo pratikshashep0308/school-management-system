@@ -267,6 +267,42 @@ export default function Students() {
     finally { setResetting(false); }
   };
 
+  // Bulk reset every active student's password to Student@123.
+  // Runs sequentially (not Promise.all) so one bad response doesn't tank the
+  // whole batch — and so we can show a live progress count.
+  const [bulkResetting, setBulkResetting] = useState(false);
+  const [bulkProgress,  setBulkProgress]  = useState({ done: 0, total: 0 });
+  const handleBulkReset = async () => {
+    const active = students.filter(s => s.isActive);
+    if (!active.length) return toast.error('No active students to reset');
+    if (!window.confirm(
+      `Reset password for all ${active.length} active students to "Student@123"?\n\n` +
+      `Any password each student set themselves will be overwritten.\n` +
+      `This cannot be undone.`
+    )) return;
+
+    setBulkResetting(true);
+    setBulkProgress({ done: 0, total: active.length });
+    let ok = 0, failed = 0;
+    for (const s of active) {
+      try {
+        await studentAPI.resetPassword(s._id, { password: 'Student@123' });
+        rememberPwd(s._id, 'Student@123');
+        ok++;
+      } catch (err) {
+        console.error('Bulk reset failed for', s.user?.name, err);
+        failed++;
+      }
+      setBulkProgress(p => ({ ...p, done: p.done + 1 }));
+    }
+    setBulkResetting(false);
+    if (failed === 0) {
+      toast.success(`Reset ${ok} student passwords to Student@123`);
+    } else {
+      toast.error(`${ok} reset, ${failed} failed — check console for details`);
+    }
+  };
+
   return (
     <div className="animate-fade-in space-y-5">
       {/* Header */}
@@ -439,11 +475,30 @@ export default function Students() {
       {/* Manage Login Tab */}
       {tab === 'managelogin' && (
         <div className="card overflow-hidden" style={{ padding:0 }}>
-          <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap' }}>
             <div>
               <div style={{ fontWeight:700, fontSize:15, color:'#111827' }}>🔑 Manage Student Login</div>
               <div style={{ fontSize:12, color:'#9CA3AF', marginTop:2 }}>View credentials and reset passwords for student portal access</div>
             </div>
+            {/* Bulk reset — useful right after import or when admin needs every
+                student on a known default. Shows a live progress count while running. */}
+            <button
+              onClick={handleBulkReset}
+              disabled={bulkResetting}
+              style={{
+                fontSize:12, fontWeight:700,
+                color: bulkResetting ? '#9CA3AF' : '#fff',
+                background: bulkResetting ? '#E5E7EB' : '#DC2626',
+                border: 'none',
+                padding: '8px 14px', borderRadius: 8,
+                cursor: bulkResetting ? 'wait' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {bulkResetting
+                ? `Resetting… ${bulkProgress.done}/${bulkProgress.total}`
+                : '🔄 Reset all to Student@123'}
+            </button>
           </div>
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
@@ -703,6 +758,11 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
   const [fees,        setFees]        = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
+  // Track newly-linked parent account info — backend returns whether a new
+  // account was created (with default password) vs. linking to an existing
+  // account (where we shouldn't reveal a password we don't know).
+  const [parentLink, setParentLink] = useState(null); // { email, isNew, defaultPassword? }
+  const [linkingParent, setLinkingParent] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -723,6 +783,32 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
     };
     fetchData();
   }, [s._id]);
+
+  // Create-or-link a parent User for this student. Uses the parent email/name
+  // already on the student record; if the email is missing, the admin needs
+  // to add it via the Edit form first.
+  const handleLinkParent = async () => {
+    const parentEmail = s.parentEmail || s.admissionSnapshot?.parentEmail
+      || s.admissionSnapshot?.fatherEmail || s.admissionSnapshot?.motherEmail || '';
+    if (!parentEmail) {
+      toast.error('No parent email on file. Edit the student first to add one.');
+      return;
+    }
+    setLinkingParent(true);
+    try {
+      const res = await studentAPI.linkParent(s._id, {
+        parentEmail,
+        parentName:  s.parentName || s.admissionSnapshot?.parentName || s.admissionSnapshot?.fatherName || '',
+        parentPhone: s.parentPhone || s.admissionSnapshot?.parentPhone || '',
+      });
+      setParentLink(res.data?.parentAccount || null);
+      toast.success(res.data?.message || 'Parent linked');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to link parent');
+    } finally {
+      setLinkingParent(false);
+    }
+  };
 
   const presentDays = attendance.filter(a => a.status === 'present').length;
   const attPct = attendance.length > 0 ? Math.round((presentDays / attendance.length) * 100) : 0;
@@ -888,6 +974,89 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                     <div style={{ marginTop:10, fontSize:11, color:'#92400E', lineHeight:1.5 }}>
                       Student should log in at <strong>https://school-management-system-eight-nu.vercel.app/login</strong> using the email + password above. We recommend they change the password after first login.
                     </div>
+                  </div>
+                );
+              })()}
+
+              {/* Parent login — Most parents won't have a User account because
+                  enrollment historically skipped that step. The 'Create / Link
+                  Parent Login' button calls /students/:id/link-parent which
+                  either creates a new parent User (with default Parent@123) or
+                  links to an existing one with the same email. Reveals the
+                  default password only when a NEW account is created. */}
+              {canManage && (() => {
+                const parentEmail = s.parentEmail
+                  || s.admissionSnapshot?.parentEmail
+                  || s.admissionSnapshot?.fatherEmail
+                  || s.admissionSnapshot?.motherEmail
+                  || '';
+                const hasParentUser = !!(s.parentId || s.parent || parentLink);
+                const copy = (text, label) => {
+                  if (!text) return;
+                  navigator.clipboard?.writeText(text).then(
+                    () => toast.success(`${label} copied`),
+                    () => toast.error('Could not copy')
+                  );
+                };
+                return (
+                  <div style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:12, padding:'14px 16px', marginTop:12 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                      <div style={{ fontSize:12, fontWeight:800, color:'#1E40AF', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                        👨‍👩‍👧 Parent Login
+                      </div>
+                      {!hasParentUser && parentEmail && (
+                        <button onClick={handleLinkParent} disabled={linkingParent}
+                          style={{ fontSize:11, fontWeight:700, color:'#fff', background:'#1D4ED8', border:'none', padding:'6px 12px', borderRadius:6, cursor: linkingParent?'wait':'pointer' }}>
+                          {linkingParent ? 'Creating…' : '+ Create / Link Parent Login'}
+                        </button>
+                      )}
+                    </div>
+
+                    {!parentEmail ? (
+                      <div style={{ fontSize:12, color:'#1E40AF', fontStyle:'italic' }}>
+                        No parent email on file. Edit the student to add a parent email first, then come back here to create their login.
+                      </div>
+                    ) : !hasParentUser ? (
+                      <div style={{ fontSize:12, color:'#1E40AF', lineHeight:1.5 }}>
+                        No parent account yet for <strong>{parentEmail}</strong>. Click the button above to create one — default password will be <code style={{ background:'#fff', padding:'1px 5px', borderRadius:4, fontFamily:'monospace' }}>Parent@123</code>.
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                          <div>
+                            <div style={{ fontSize:10, color:'#1E40AF', fontWeight:700, marginBottom:3 }}>PARENT EMAIL</div>
+                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                              <div style={{ flex:1, fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#0B1F4A', background:'#fff', border:'1px solid #BFDBFE', padding:'7px 10px', borderRadius:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                {parentLink?.email || parentEmail}
+                              </div>
+                              <button onClick={() => copy(parentLink?.email || parentEmail, 'Parent Email')}
+                                style={{ fontSize:11, fontWeight:700, color:'#1E40AF', background:'#DBEAFE', border:'1px solid #BFDBFE', padding:'7px 10px', borderRadius:6, cursor:'pointer' }}>
+                                📋 Copy
+                              </button>
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize:10, color:'#1E40AF', fontWeight:700, marginBottom:3 }}>
+                              PASSWORD {parentLink?.isNew ? '(default)' : '(existing)'}
+                            </div>
+                            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                              <div style={{ flex:1, fontFamily:'monospace', fontSize:13, fontWeight:700, color: parentLink?.defaultPassword ? '#0B1F4A' : '#9CA3AF', background:'#fff', border:'1px solid #BFDBFE', padding:'7px 10px', borderRadius:6, fontStyle: parentLink?.defaultPassword ? 'normal' : 'italic' }}>
+                                {parentLink?.defaultPassword || 'unknown — parent uses existing password'}
+                              </div>
+                              {parentLink?.defaultPassword && (
+                                <button onClick={() => copy(parentLink.defaultPassword, 'Password')}
+                                  style={{ fontSize:11, fontWeight:700, color:'#1E40AF', background:'#DBEAFE', border:'1px solid #BFDBFE', padding:'7px 10px', borderRadius:6, cursor:'pointer' }}>
+                                  📋 Copy
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop:10, fontSize:11, color:'#1E40AF', lineHeight:1.5 }}>
+                          Parent should log in at <strong>https://school-management-system-eight-nu.vercel.app/login</strong>. They'll see their child's attendance, fees, and report card.
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })()}
