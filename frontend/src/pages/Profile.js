@@ -1,9 +1,10 @@
 // frontend/src/pages/Profile.js
 import PhoneInput from '../components/ui/PhoneInput';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../utils/api';
+import { studentPortalAPI } from '../utils/studentPortalAPI';
 import { FormGroup } from '../components/ui';
 
 const ROLE_LABELS = {
@@ -116,6 +117,29 @@ export default function Profile() {
   const [savingPwd,     setSavingPwd]     = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
 
+  // Student/parent-only: fetch the full Student record so the profile page can
+  // show class, parent details, address, DOB, etc. — not just the bare User row.
+  // Admin/teacher accounts don't have a Student record; we skip the fetch for them.
+  const isStudentOrParent = user?.role === 'student' || user?.role === 'parent';
+  const [studentRec, setStudentRec] = useState(null);
+  const [studentLoading, setStudentLoading] = useState(isStudentOrParent);
+
+  useEffect(() => {
+    if (!isStudentOrParent) return;
+    let cancelled = false;
+    studentPortalAPI.getProfile()
+      .then(res => { if (!cancelled) setStudentRec(res.data?.data || null); })
+      .catch(err => {
+        if (!cancelled) {
+          console.error('Failed to load student profile:', err);
+          // Silent — the basic User info still shows. Toast would be noisy on
+          // every page load if backend ever 404s.
+        }
+      })
+      .finally(() => { if (!cancelled) setStudentLoading(false); });
+    return () => { cancelled = true; };
+  }, [isStudentOrParent]);
+
   const handleProfileSave = async (e) => {
     e.preventDefault();
     if (!profileForm.name.trim()) { toast.error('Name is required'); return; }
@@ -165,7 +189,24 @@ export default function Profile() {
 
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, paddingTop: 4, flexWrap: 'wrap' }}>
           {/* Avatar */}
-          <ProfileAvatar name={user?.name} color={avatarColor} size={80} src={user?.studentPhoto} />
+          {/* Profile photo can live in several places depending on which path
+              created the record. Check the Student record first (it's where the
+              admission form saves it), then fall back to the User row. */}
+          <ProfileAvatar
+            name={user?.name}
+            color={avatarColor}
+            size={80}
+            src={
+              studentRec?.studentPhoto
+              || studentRec?.photo
+              || studentRec?.profilePhoto
+              || studentRec?.admissionSnapshot?.studentPhoto
+              || studentRec?.admissionSnapshot?.photo
+              || user?.profileImage
+              || user?.studentPhoto
+              || user?.photo
+            }
+          />
 
           {/* Info */}
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -217,6 +258,25 @@ export default function Profile() {
 
       {/* ── Personal Info Tab ── */}
       {activeTab === 'profile' && (
+        <>
+          {/* Read-only Student Details — only for student/parent accounts where
+              a Student record exists. Shows the data captured at admission so
+              students/parents can verify what the school has on file. Edits go
+              through the school admin (data correctness > self-service here). */}
+          {isStudentOrParent && (
+            <div className="card p-6 mb-5">
+              {studentLoading ? (
+                <div style={{ color:'#9CA3AF', fontSize:13, textAlign:'center', padding:'20px 0' }}>Loading student details…</div>
+              ) : !studentRec ? (
+                <div style={{ color:'#9CA3AF', fontSize:13, textAlign:'center', padding:'20px 0' }}>
+                  No student record linked to this account. Contact the school office to set this up.
+                </div>
+              ) : (
+                <StudentDetailsPanel rec={studentRec} />
+              )}
+            </div>
+          )}
+
         <div className="card p-6">
           <form onSubmit={handleProfileSave}>
             <FormGroup label="Full Name">
@@ -247,6 +307,7 @@ export default function Profile() {
             </button>
           </form>
         </div>
+        </>
       )}
 
       {/* ── Password Tab ── */}
@@ -296,6 +357,121 @@ export default function Profile() {
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── StudentDetailsPanel ──────────────────────────────────────────────────────
+// Read-only view of the full Student record. Sources data from `snapshot`
+// (admission-time copy) first, then from top-level Student fields. The schema
+// has `strict: false`, so values can land under varying field names depending
+// on which form created the record — `pick()` handles those fallbacks.
+function StudentDetailsPanel({ rec }) {
+  const snap = rec.admissionSnapshot || {};
+  // Pick the first non-empty value from a list of candidate paths.
+  const pick = (...candidates) => {
+    for (const v of candidates) {
+      if (v === 0 || v === false) return v;
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    return null;
+  };
+  const fmtDate = (d) => {
+    if (!d) return null;
+    const date = new Date(d);
+    if (isNaN(date)) return null;
+    return date.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const fmtAddress = (a) => {
+    if (!a) return null;
+    if (typeof a === 'string') return a;
+    const parts = [a.street, a.city, a.state, a.pincode, a.country].filter(p => p && typeof p === 'string');
+    return parts.length ? parts.join(', ') : null;
+  };
+
+  const cls = rec.class;
+  const className = cls?.name
+    ? `${cls.name}${cls.section ? ' - ' + cls.section : ''}${cls.grade ? ' (Grade ' + cls.grade + ')' : ''}`
+    : null;
+
+  // Section rows: [label, value]. Null/empty values render as "—".
+  const sections = [
+    {
+      title: '🎓 Academic',
+      rows: [
+        ['Admission No',     rec.admissionNumber],
+        ['Roll Number',      rec.rollNumber],
+        ['Class',            className],
+        ['Academic Year',    pick(snap.academicYear, rec.academicYear)],
+        ['Date of Admission', fmtDate(pick(snap.dateOfAdmission, rec.dateOfAdmission, rec.admissionDate))],
+        ['Status',           rec.status],
+      ],
+    },
+    {
+      title: '👤 Personal',
+      rows: [
+        ['Date of Birth',    fmtDate(pick(snap.dateOfBirth, rec.dateOfBirth, rec.dob))],
+        ['Gender',           pick(snap.gender, rec.gender)],
+        ['Blood Group',      pick(snap.bloodGroup, rec.bloodGroup)],
+        ['Religion',         pick(snap.religion, rec.religion)],
+        ['Caste',            pick(snap.caste, rec.caste)],
+        ['Category',         pick(snap.category, rec.category)],
+        ['Mother Tongue',    pick(snap.motherTongue, rec.motherTongue)],
+        ['Nationality',      pick(snap.nationality, rec.nationality)],
+        ['Aadhaar Number',   pick(snap.aadhaarNumber, rec.aadhaarNumber)],
+      ],
+    },
+    {
+      title: '👨‍👩‍👧 Parent / Guardian',
+      rows: [
+        ['Father Name',      pick(snap.fatherName, rec.fatherName)],
+        ['Father Phone',     pick(snap.fatherPhone, rec.fatherPhone)],
+        ['Father Occupation',pick(snap.fatherOccupation, rec.fatherOccupation)],
+        ['Mother Name',      pick(snap.motherName, rec.motherName)],
+        ['Mother Phone',     pick(snap.motherPhone, rec.motherPhone)],
+        ['Mother Occupation',pick(snap.motherOccupation, rec.motherOccupation)],
+        ['Guardian Email',   pick(snap.parentEmail, rec.parentEmail)],
+      ],
+    },
+    {
+      title: '🏠 Contact',
+      rows: [
+        ['Mobile (SMS)',     pick(snap.smsMobile, rec.smsMobile, rec.user?.phone)],
+        ['Address',          fmtAddress(pick(snap.address, rec.address))],
+      ],
+    },
+  ];
+
+  return (
+    <div>
+      <div style={{ fontFamily: "'Merriweather', Georgia, serif", fontSize:18, fontWeight:900, color:'#111827', marginBottom:4 }}>
+        Student Details
+      </div>
+      <div style={{ fontSize:12, color:'#6B7280', marginBottom:16 }}>
+        Information on file with the school. Contact the school office to update.
+      </div>
+
+      {sections.map(sec => {
+        const visibleRows = sec.rows.filter(([, v]) => v !== null && v !== '');
+        if (!visibleRows.length) return null;
+        return (
+          <div key={sec.title} style={{ marginBottom:18 }}>
+            <div style={{ fontSize:12, fontWeight:800, color:'#4F46E5', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8, paddingBottom:6, borderBottom:'1px solid #E5E7EB' }}>
+              {sec.title}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'10px 24px' }}>
+              {visibleRows.map(([label, value]) => (
+                <div key={label}>
+                  <div style={{ fontSize:11, color:'#9CA3AF', fontWeight:600, marginBottom:2 }}>{label}</div>
+                  <div style={{ fontSize:13, color:'#111827', fontWeight:500, textTransform: typeof value === 'string' && value.length < 30 ? 'capitalize' : 'none' }}>
+                    {String(value)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
