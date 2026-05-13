@@ -317,18 +317,88 @@ function ViewModal({ t, onClose, onEdit, isAdmin }) {
   if (!t) return null;
   const name = t.user?.name || '—';
   const bg   = avatarBg(name);
+
+  // Build sections from whatever data we have. Each row only renders when
+  // the value is non-empty — keeps the modal compact for sparse records.
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : null;
+  const fmtMoney = (n) => (n !== undefined && n !== null && n !== '') ? `₹${Number(n).toLocaleString('en-IN')}` : null;
+  const addressLine = [t.address, t.city, t.state, t.pincode].filter(Boolean).join(', ');
+
+  const sections = [
+    {
+      title: '👤 Personal Information',
+      rows: [
+        ['Email',                  t.user?.email],
+        ['Phone',                  t.user?.phone],
+        ['Gender',                 t.gender],
+        ['Date of Birth',          fmtDate(t.dateOfBirth)],
+        ['Father / Husband',       t.fatherName],
+        ['Marital Status',         t.maritalStatus],
+        ['Blood Group',            t.bloodGroup],
+        ['Religion',               t.religion],
+        ['Aadhaar Number',         t.nationalId],
+        ['Emergency Contact',      t.emergencyContactName],
+        ['Emergency Number',       t.emergencyContactNumber],
+        ['Address',                addressLine],
+      ],
+    },
+    {
+      title: '💼 Professional',
+      rows: [
+        ['Employee ID',            t.employeeId],
+        ['Designation',            t.designation],
+        ['Department',             t.department],
+        ['Qualification',          t.qualification],
+        ['Experience',             t.experience ? `${t.experience} years` : null],
+        ['Previous School',        t.previousSchool],
+        ['Joining Date',           fmtDate(t.joiningDate)],
+        ['Employment Type',        t.employmentType],
+      ],
+    },
+    {
+      title: '💰 Payroll & Bank',
+      rows: [
+        ['Monthly Salary',         fmtMoney(t.salary)],
+        ['Payment Method',         t.salaryMethod],
+        ['Bank Name',              t.bankName],
+        ['Account Number',         t.bankAccountNumber],
+        ['IFSC Code',              t.ifscCode],
+        ['PAN Number',             t.panNumber],
+        ['UAN Number',             t.uanNumber],
+        ['PF Number',              t.pfNumber],
+      ],
+    },
+  ];
+
+  // Documents: sort predefined first (in DOC_TYPES order), then custom 'other:N'.
+  const allDocs = Array.isArray(t.documents) ? t.documents : [];
+  const predefinedOrder = DOC_TYPES.map(d => d.key);
+  const sortedDocs = [...allDocs].sort((a, b) => {
+    const ai = predefinedOrder.indexOf(a?.type);
+    const bi = predefinedOrder.indexOf(b?.type);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+  const docsWithFiles = sortedDocs.filter(d => Array.isArray(d?.files) && d.files.length > 0);
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:560, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
-        <div style={{ background:'#0B1F4A', padding:'20px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:760, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+
+        {/* Sticky header */}
+        <div style={{ position:'sticky', top:0, zIndex:1, background:'#0B1F4A', padding:'20px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:14 }}>
             <div style={{ width:56, height:56, borderRadius:'50%', background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:700, color:'#fff' }}>
               {initials(name)}
             </div>
             <div>
               <div style={{ fontWeight:800, fontSize:16, color:'#fff' }}>{name}</div>
-              <div style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>{t.designation||'Teacher'} · {t.employeeId||'—'}</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>
+                {[t.designation || 'Staff', t.employeeId].filter(Boolean).join(' · ')}
+              </div>
             </div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
@@ -336,37 +406,100 @@ function ViewModal({ t, onClose, onEdit, isAdmin }) {
             <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.1)', color:'#fff', cursor:'pointer', fontSize:18 }}>×</button>
           </div>
         </div>
-        <div style={{ padding:24, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-          {[
-            { label:'Email',       val:t.user?.email },
-            { label:'Phone',       val:t.user?.phone },
-            { label:'Employee ID', val:t.employeeId },
-            { label:'Designation', val:t.designation },
-            { label:'Salary',      val:t.salary?`₹${Number(t.salary).toLocaleString('en-IN')}`:null },
-            { label:'Experience',  val:t.experience?`${t.experience} years`:null },
-            { label:'Qualification',val:t.qualification },
-            { label:'Joining Date',val:t.joiningDate?new Date(t.joiningDate).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):null },
-            { label:'Address',     val:t.address },
-            { label:'Status',      val:t.isActive?'Active':'Inactive' },
-          ].map(row=>(
-            <div key={row.label} style={{ background:'#F8FAFC', borderRadius:10, padding:'10px 14px' }}>
-              <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>{row.label}</div>
-              <div style={{ fontSize:13, fontWeight:600, color:'#111827' }}>{row.val||'—'}</div>
+
+        <div style={{ padding:24, display:'flex', flexDirection:'column', gap:20 }}>
+
+          {/* Status pill row */}
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+            <span style={{ fontSize:11, fontWeight:700, color: t.isActive?'#065F46':'#991B1B', background: t.isActive?'#D1FAE5':'#FEE2E2', padding:'4px 12px', borderRadius:20 }}>
+              {t.isActive ? '✓ Active' : '○ Inactive'}
+            </span>
+            {t.employmentType && (
+              <span style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', background:'#EFF6FF', padding:'4px 12px', borderRadius:20 }}>
+                {t.employmentType}
+              </span>
+            )}
+          </div>
+
+          {/* Render each section. Every row renders — empty values show as '—'
+              so the admin always knows what fields exist and which are missing. */}
+          {sections.map(sec => (
+            <div key={sec.title}>
+              <div style={{ fontSize:12, fontWeight:700, color:'#0B1F4A', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:10, paddingBottom:6, borderBottom:'1px solid #E5E7EB' }}>
+                {sec.title}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                {sec.rows.map(([label, val]) => {
+                  const isEmpty = val === null || val === undefined || val === '';
+                  return (
+                    <div key={label} style={{ background:'#F8FAFC', borderRadius:10, padding:'10px 14px' }}>
+                      <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>{label}</div>
+                      <div style={{ fontSize:13, fontWeight: isEmpty?500:600, color: isEmpty?'#9CA3AF':'#111827', wordBreak:'break-word', fontStyle: isEmpty?'italic':'normal' }}>
+                        {isEmpty ? '—' : val}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
-          {t.subjects?.length>0 && (
-            <div style={{ gridColumn:'span 2', background:'#F8FAFC', borderRadius:10, padding:'10px 14px' }}>
-              <div style={{ fontSize:10, color:'#9CA3AF', fontWeight:700, textTransform:'uppercase', marginBottom:8 }}>Subjects</div>
+
+          {/* Subjects (chips) */}
+          {t.subjects?.length > 0 && (
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:'#0B1F4A', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:10, paddingBottom:6, borderBottom:'1px solid #E5E7EB' }}>
+                📚 Subjects
+              </div>
               <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {t.subjects.map(s=><span key={s._id} style={{ fontSize:12, fontWeight:600, color:'#1D4ED8', background:'#EFF6FF', padding:'3px 10px', borderRadius:20 }}>{s.name}</span>)}
+                {t.subjects.map(s => (
+                  <span key={s._id} style={{ fontSize:12, fontWeight:600, color:'#1D4ED8', background:'#EFF6FF', padding:'4px 12px', borderRadius:20 }}>
+                    {s.name}
+                  </span>
+                ))}
               </div>
             </div>
           )}
-          <div style={{ gridColumn:'span 2', background:'#FFF7ED', borderRadius:10, padding:'10px 14px', border:'1px solid #FED7AA' }}>
-            <div style={{ fontSize:10, color:'#92400E', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>Login Credentials</div>
+
+          {/* Documents — view/download for each saved file */}
+          {docsWithFiles.length > 0 && (
+            <div>
+              <div style={{ fontSize:12, fontWeight:700, color:'#0B1F4A', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:10, paddingBottom:6, borderBottom:'1px solid #E5E7EB' }}>
+                📎 Documents ({docsWithFiles.reduce((acc, d) => acc + (d.files?.length || 0), 0)} files)
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {docsWithFiles.map(d => (
+                  <div key={d.type} style={{ background:'#F8FAFC', borderRadius:10, padding:'10px 14px' }}>
+                    <div style={{ fontSize:11, color:'#374151', fontWeight:700, marginBottom:6 }}>
+                      {d.name || d.type}
+                      <span style={{ marginLeft:6, fontSize:10, color:'#9CA3AF', fontWeight:500 }}>· {d.files.length} file{d.files.length>1?'s':''}</span>
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                      {d.files.map((f, i) => (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:6, background:'#fff', border:'1px solid #E5E7EB', borderRadius:8, padding:'5px 8px', fontSize:11 }}>
+                          <span>📄</span>
+                          <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.name}</span>
+                          {f.size && <span style={{ color:'#9CA3AF', fontSize:10 }}>{(f.size/1024).toFixed(0)} KB</span>}
+                          <button onClick={() => viewFile(f)}     title="View"     style={{ border:'none', background:'none', cursor:'pointer', color:'#1D4ED8', fontSize:14 }}>👁</button>
+                          <button onClick={() => downloadFile(f)} title="Download" style={{ border:'none', background:'none', cursor:'pointer', color:'#16A34A', fontSize:14 }}>⬇</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Login credentials */}
+          <div style={{ background:'#FFF7ED', borderRadius:10, padding:'10px 14px', border:'1px solid #FED7AA' }}>
+            <div style={{ fontSize:10, color:'#92400E', fontWeight:700, textTransform:'uppercase', marginBottom:4 }}>🔑 Login Credentials</div>
             <div style={{ fontSize:12, color:'#374151' }}>Email: <b>{t.user?.email}</b></div>
             <div style={{ fontSize:12, color:'#374151', marginTop:2 }}>Default Password: <b>Teacher@123</b></div>
+            <div style={{ fontSize:11, color:'#92400E', marginTop:6, fontStyle:'italic' }}>
+              Share with employee — they should change it after first login.
+            </div>
           </div>
+
         </div>
       </div>
     </div>
