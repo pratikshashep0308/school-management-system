@@ -453,7 +453,7 @@ function CreateMeetingModal({ onClose, onCreated }) {
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:1000, display:'flex', flexDirection:'column' }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:'#fff', width:'100%', maxWidth:980, margin:'0 auto', height:'100vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ background:'#fff', width:'100vw', height:'100vh', display:'flex', flexDirection:'column', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
 
         {/* Fixed header — always visible at top, even when body scrolls */}
         <div style={{ flexShrink:0, background:'#0B1F4A', padding:'18px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -464,8 +464,10 @@ function CreateMeetingModal({ onClose, onCreated }) {
           <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.2)', background:'rgba(255,255,255,0.1)', color:'#fff', cursor:'pointer', fontSize:18 }}>×</button>
         </div>
 
-        {/* Scrollable body */}
-        <div style={{ flex:1, overflowY:'auto', padding:24, display:'flex', flexDirection:'column', gap:18 }}>
+        {/* Scrollable body — content centered with comfortable max-width so
+            form fields don't stretch to 1920px on wide monitors */}
+        <div style={{ flex:1, overflowY:'auto', padding:'24px 24px' }}>
+          <div style={{ maxWidth:980, margin:'0 auto', display:'flex', flexDirection:'column', gap:18 }}>
 
           {/* Basic info */}
           <div>
@@ -602,6 +604,7 @@ function CreateMeetingModal({ onClose, onCreated }) {
                 ))}
               </div>
             </div>
+          </div>
           </div>
         </div>
 
