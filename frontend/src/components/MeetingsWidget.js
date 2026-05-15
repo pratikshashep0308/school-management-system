@@ -238,10 +238,10 @@ function MiniDetailDrawer({ meeting: m, currentUserId, onClose }) {
   const me = m.participants?.find(p => (p.user?._id || p.user) === currentUserId);
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', justifyContent:'flex-end' }}>
-      <div style={{ flex:1, background:'rgba(0,0,0,0.4)' }} onClick={onClose} />
-      <div style={{ width:480, maxWidth:'100%', background:'#fff', height:'100vh', overflowY:'auto', boxShadow:'-20px 0 60px rgba(0,0,0,0.2)' }}>
-        <div style={{ background:'#0B1F4A', padding:'18px 22px', color:'#fff' }}>
+    <div style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.5)', display:'flex', flexDirection:'column' }}
+      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{ width:'100vw', height:'100vh', background:'#fff', display:'flex', flexDirection:'column', overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ background:'#0B1F4A', padding:'18px 22px', color:'#fff', flexShrink:0 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
             <div style={{ flex:1, minWidth:0 }}>
               <span style={{ fontSize:10, fontWeight:700, background: TYPE_COLORS[m.type], padding:'2px 8px', borderRadius:10, textTransform:'uppercase' }}>{TYPE_LABELS[m.type]}</span>
@@ -252,7 +252,8 @@ function MiniDetailDrawer({ meeting: m, currentUserId, onClose }) {
           </div>
         </div>
 
-        <div style={{ padding:'18px 22px', display:'flex', flexDirection:'column', gap:14 }}>
+        <div style={{ flex:1, overflowY:'auto', padding:'18px 22px' }}>
+          <div style={{ maxWidth:760, margin:'0 auto', display:'flex', flexDirection:'column', gap:14 }}>
           {m.status === 'cancelled' && (
             <div style={{ background:'#FEE2E2', border:'1px solid #FCA5A5', color:'#991B1B', padding:'10px 14px', borderRadius:8, fontWeight:700, fontSize:13 }}>
               ✕ This meeting has been cancelled
@@ -311,6 +312,7 @@ function MiniDetailDrawer({ meeting: m, currentUserId, onClose }) {
               <div style={{ fontSize:13, whiteSpace:'pre-wrap', background:'#F9FAFB', padding:12, borderRadius:8, border:'1px solid #E5E7EB' }}>{m.notes}</div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
