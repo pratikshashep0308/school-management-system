@@ -1,5 +1,5 @@
 // frontend/src/components/admissions/AdmissionDetailModal.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../utils/admissionUtils';
 import { studentAPI, classAPI } from '../../utils/api';
