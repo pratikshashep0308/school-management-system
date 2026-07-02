@@ -1,0 +1,321 @@
+ INFO  Accepting connections at http://localhost:3000
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+node:internal/modules/cjs/loader:1459
+  throw err;
+  ^
+
+Error: Cannot find module 'C:\Users\Admin\Desktop\school-management-systems\frontend\build'
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v24.14.0
+ HTTP  6/27/2026 5:17:55 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:17:55 PM 192.168.0.184 Returned 200 in 23 ms
+ HTTP  6/27/2026 5:17:59 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:17:59 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:17:59 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:17:59 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:00 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:00 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:18:00 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:00 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:18:00 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:00 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:01 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:01 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:18:01 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:01 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:18:01 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:01 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:23 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:18:24 PM 192.168.0.184 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:19:16 PM 192.168.0.113 GET /
+ HTTP  6/27/2026 5:19:16 PM 192.168.0.113 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:19:16 PM 192.168.0.113 GET /favicon.ico
+ HTTP  6/27/2026 5:19:16 PM 192.168.0.113 Returned 404 in 2 ms
+ HTTP  6/27/2026 5:19:17 PM 192.168.0.113 GET /
+ HTTP  6/27/2026 5:19:17 PM 192.168.0.113 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:19:18 PM 192.168.0.113 GET /
+ HTTP  6/27/2026 5:19:18 PM 192.168.0.113 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:19:19 PM 192.168.0.113 GET /
+ HTTP  6/27/2026 5:19:19 PM 192.168.0.113 Returned 200 in 2 ms
+ HTTP  6/27/2026 5:19:48 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:19:48 PM 192.168.0.184 Returned 200 in 3 ms
+ HTTP  6/27/2026 5:19:58 PM 192.168.0.184 GET /
+ HTTP  6/27/2026 5:19:58 PM 192.168.0.184 Returned 200 in 3 ms

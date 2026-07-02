@@ -35,28 +35,30 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 // ─────────────────────────────────────────────────────────────────────────────
 // ✅ CORS — shared config used by both Express and Socket.IO
 // ─────────────────────────────────────────────────────────────────────────────
+
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://school-management-system-eight-nu.vercel.app',
-  'https://school-management-system-k2ncy6iy6-pratikshashep0308s-projects.vercel.app',
+  'http://127.0.0.1:3000',
+  process.env.FRONTEND_URL,
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (Postman, mobile apps, server-to-server)
     if (!origin) return callback(null, true);
-    // Allow all Vercel preview deployments dynamically
     if (origin.includes('vercel.app')) return callback(null, true);
-    // Allow explicit origins
     if (allowedOrigins.includes(origin)) return callback(null, true);
-
+    if (/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(origin)) {
+      return callback(null, true);
+    }
     console.log('❌ Blocked by CORS:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 📦 Body Parsers
@@ -67,7 +69,7 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 // ─────────────────────────────────────────────────────────────────────────────
 // 🪵 Logger (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development') { 
   app.use(morgan('dev'));
 }
 
