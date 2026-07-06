@@ -72,7 +72,7 @@ function LogoBadge({ size = 80, ring = '#5C6BC0', shadow = 'rgba(57,73,171,0.45)
 export default function Login() {
   const { login } = useAuth();
   const navigate  = useNavigate();
-  const [form,     setForm]     = useState({ email: 'admin@school.com', password: 'Admin@123' });
+  const [form,     setForm]     = useState({ email: '', password: '' });     
   const [loading,  setLoading]  = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState({});
@@ -308,23 +308,7 @@ export default function Login() {
             </div>
           </form>
 
-          {/* Quick accounts */}
-          <div style={{
-            marginTop: 22, padding: '14px 16px',
-            borderRadius: 16, border: '2px solid #e8edf5',
-            background: '#f0f4ff',
-          }}>
-            <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 10 }}>
-              Quick Fill — Test Accounts
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-              {QUICK_ACCOUNTS.map(acc => (
-                <button key={acc.email} className="tfs-quick" onClick={() => setForm({ email: acc.email, password: acc.password })}>
-                  {acc.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          
 
           <div style={{ marginTop: 18, textAlign: 'center' }}>
             <a href="/home" style={{ fontSize: 12.5, fontWeight: 600, color: '#94a3b8', textDecoration: 'none' }}>
