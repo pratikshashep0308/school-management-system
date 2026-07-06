@@ -303,6 +303,14 @@ export const schoolAPI = {
   update: (data) => api.put('/school', data),
 };
 
+// ── Admin Management ─────────────────────────────────────────────────────────
+export const adminAPI = {
+  getAll:        ()           => api.get('/admins'),
+  create:        (data)       => api.post('/admins', data),
+  setStatus:     (id, isActive) => api.put(`/admins/${id}/status`, { isActive }),
+  resetPassword: (id, password) => api.put(`/admins/${id}/reset-password`, { password }),
+};
+
 // ── Salary ───────────────────────────────────────────────────────────────────
 export const salaryAPI = {
   getAll:   (params)   => api.get('/salary', { params }),

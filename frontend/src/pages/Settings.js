@@ -2,7 +2,7 @@
 // frontend/src/pages/Settings.js — Academic Year & School Settings
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { schoolAPI } from '../utils/api';
+import { schoolAPI, adminAPI } from '../utils/api';
 
 const INP = { width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:10,
   fontSize:13, outline:'none', background:'#fff', color:'#111827', boxSizing:'border-box' };
@@ -16,6 +16,57 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [tab,     setTab]     = useState('general');
+
+  // ── Admin management state ──
+  const [admins,      setAdmins]      = useState([]);
+  const [adminsLoad,  setAdminsLoad]  = useState(false);
+  const [newAdmin,    setNewAdmin]    = useState({ name:'', email:'', phone:'', password:'' });
+  const [creating,    setCreating]    = useState(false);
+
+  const loadAdmins = async () => {
+    setAdminsLoad(true);
+    try {
+      const r = await adminAPI.getAll();
+      setAdmins(r.data.data || []);
+    } catch { toast.error('Failed to load admins'); }
+    finally { setAdminsLoad(false); }
+  };
+
+  useEffect(() => { if (tab === 'admins') loadAdmins(); }, [tab]);
+
+  const setNA = (k,v) => setNewAdmin(a=>({...a,[k]:v}));
+
+  const createAdmin = async () => {
+    if (!newAdmin.name.trim())  return toast.error('Name is required');
+    if (!newAdmin.email.trim()) return toast.error('Email is required');
+    if ((newAdmin.password||'').length < 6) return toast.error('Password must be at least 6 characters');
+    setCreating(true);
+    try {
+      await adminAPI.create(newAdmin);
+      toast.success('Admin created successfully!');
+      setNewAdmin({ name:'', email:'', phone:'', password:'' });
+      loadAdmins();
+    } catch(e) { toast.error(e?.response?.data?.message || 'Failed to create admin'); }
+    finally { setCreating(false); }
+  };
+
+  const toggleAdminStatus = async (a) => {
+    try {
+      await adminAPI.setStatus(a._id, !a.isActive);
+      toast.success(a.isActive ? 'Admin deactivated' : 'Admin activated');
+      loadAdmins();
+    } catch(e) { toast.error(e?.response?.data?.message || 'Failed to update status'); }
+  };
+
+  const resetAdminPassword = async (a) => {
+    const pwd = window.prompt(`Enter a new password for ${a.name} (min 6 chars):`);
+    if (pwd === null) return;
+    if (pwd.length < 6) return toast.error('Password must be at least 6 characters');
+    try {
+      await adminAPI.resetPassword(a._id, pwd);
+      toast.success('Password reset successfully');
+    } catch(e) { toast.error(e?.response?.data?.message || 'Failed to reset password'); }
+  };
 
   useEffect(() => {
     schoolAPI.get().then(r => {
@@ -43,6 +94,7 @@ export default function Settings() {
     { key:'academic', icon:'📅', label:'Academic Year' },
     { key:'contact',  icon:'📞', label:'Contact & Info' },
     { key:'print',    icon:'🖨️', label:'Print Settings' },
+    { key:'admins',   icon:'👤', label:'Admins' },
   ];
 
   if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>⏳ Loading settings…</div>;
@@ -192,7 +244,86 @@ export default function Settings() {
         </div>
       )}
 
-      {/* Save Button */}
+      {/* ── Admins Tab ── */}
+      {tab==='admins' && (
+        <div style={{ display:'grid', gap:20 }}>
+          {/* Add new admin */}
+          <div style={{ background:'#fff', borderRadius:16, border:'1px solid #E5E7EB', overflow:'hidden' }}>
+            <div style={{ background:'#0B1F4A', padding:'16px 24px' }}>
+              <div style={{ fontWeight:800, fontSize:15, color:'#fff' }}>➕ Add New Admin</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:2 }}>New admins can log in with the email and password you set here</div>
+            </div>
+            <div style={{ padding:24, display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+              <div>
+                <label style={LBL}>Full Name *</label>
+                <input style={INP} value={newAdmin.name} onChange={e=>setNA('name',e.target.value)} placeholder="Admin's full name"/>
+              </div>
+              <div>
+                <label style={LBL}>Phone</label>
+                <input style={INP} value={newAdmin.phone} onChange={e=>setNA('phone',e.target.value)} placeholder="+91 XXXXXXXXXX"/>
+              </div>
+              <div>
+                <label style={LBL}>Email *</label>
+                <input style={INP} type="email" value={newAdmin.email} onChange={e=>setNA('email',e.target.value)} placeholder="admin@example.com"/>
+              </div>
+              <div>
+                <label style={LBL}>Password *</label>
+                <input style={INP} type="text" value={newAdmin.password} onChange={e=>setNA('password',e.target.value)} placeholder="Min 6 characters"/>
+              </div>
+              <div style={{ gridColumn:'span 2', display:'flex', justifyContent:'flex-end' }}>
+                <button onClick={createAdmin} disabled={creating}
+                  style={{ padding:'10px 28px', borderRadius:10, background:'#0B1F4A', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:creating?0.7:1 }}>
+                  {creating ? '⏳ Creating…' : '➕ Create Admin'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Existing admins list */}
+          <div style={{ background:'#fff', borderRadius:16, border:'1px solid #E5E7EB', overflow:'hidden' }}>
+            <div style={{ background:'#0B1F4A', padding:'16px 24px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontWeight:800, fontSize:15, color:'#fff' }}>👥 Admin Accounts</div>
+              <button onClick={loadAdmins} style={{ background:'rgba(255,255,255,0.15)', color:'#fff', border:'none', borderRadius:8, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }}>↻ Refresh</button>
+            </div>
+            <div style={{ padding:24 }}>
+              {adminsLoad ? (
+                <div style={{ textAlign:'center', color:'#9CA3AF', padding:20 }}>⏳ Loading…</div>
+              ) : admins.length === 0 ? (
+                <div style={{ textAlign:'center', color:'#9CA3AF', padding:20 }}>No admins found</div>
+              ) : (
+                <div style={{ display:'grid', gap:10 }}>
+                  {admins.map(a=>(
+                    <div key={a._id} style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', border:'1px solid #E5E7EB', borderRadius:12, background:a.isActive?'#fff':'#FEF2F2' }}>
+                      <div style={{ width:40, height:40, borderRadius:'50%', background:'#0B1F4A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:15, flexShrink:0 }}>
+                        {a.name?.[0]?.toUpperCase() || 'A'}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontWeight:700, fontSize:14, color:'#0B1F4A' }}>
+                          {a.name}
+                          <span style={{ marginLeft:8, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:a.role==='superAdmin'?'#FEF3C7':'#DBEAFE', color:a.role==='superAdmin'?'#92400E':'#1D4ED8' }}>
+                            {a.role==='superAdmin'?'SUPER ADMIN':'ADMIN'}
+                          </span>
+                          {!a.isActive && <span style={{ marginLeft:6, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:'#FEE2E2', color:'#B91C1C' }}>INACTIVE</span>}
+                        </div>
+                        <div style={{ fontSize:12, color:'#6B7280', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.email}{a.phone?` · ${a.phone}`:''}</div>
+                      </div>
+                      <button onClick={()=>resetAdminPassword(a)} style={{ padding:'7px 12px', borderRadius:8, border:'1.5px solid #E5E7EB', background:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', color:'#374151', flexShrink:0 }}>
+                        🔑 Reset
+                      </button>
+                      <button onClick={()=>toggleAdminStatus(a)} style={{ padding:'7px 12px', borderRadius:8, border:'none', background:a.isActive?'#FEE2E2':'#DCFCE7', fontSize:12, fontWeight:700, cursor:'pointer', color:a.isActive?'#B91C1C':'#166534', flexShrink:0 }}>
+                        {a.isActive?'Deactivate':'Activate'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Button — only for school-settings tabs */}
+      {tab!=='admins' && (
       <div style={{ marginTop:20, display:'flex', justifyContent:'flex-end', gap:10 }}>
         <button onClick={()=>window.location.reload()} style={{ padding:'10px 24px', borderRadius:10, border:'1.5px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', color:'#374151' }}>
           ↺ Reset
@@ -202,6 +333,7 @@ export default function Settings() {
           {saving ? '⏳ Saving…' : '💾 Save Settings'}
         </button>
       </div>
+      )}
     </div>
   );
 }

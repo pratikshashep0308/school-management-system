@@ -30,7 +30,14 @@ app.set('trust proxy', 1);
 // 🔒 Security Middleware
 // ─────────────────────────────────────────────────────────────────────────────
 app.use(helmet());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { message: 'Too many requests, please try again in a few minutes.' },
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ✅ CORS — shared config used by both Express and Socket.IO
@@ -115,6 +122,7 @@ const routes = [
   ['/api/reports',        './routes/reportRoutes'],        // ← Report Module
   ['/api/class-fee-templates', './routes/classFeeTemplateRoutes'],  // ← Class default fees
   ['/api/meetings',       './routes/meetingRoutes'],                  // ← Meeting management
+  ['/api/admins',         './routes/adminRoutes'],                    // ← Admin management
 ];
 
 routes.forEach(([path, file]) => {
