@@ -8,4 +8,4 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
-TheFutureStepSchool-win32-x64/
+TheFutureStepSchool-win32-x64/frontend/.env.production

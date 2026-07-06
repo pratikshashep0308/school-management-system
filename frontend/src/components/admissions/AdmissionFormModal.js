@@ -2,6 +2,7 @@
 // eSkooly-style admission form: numbered sections, floating labels, 3-col grid
 
 import PhoneInput from '../ui/PhoneInput';
+import { createPortal } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { admissionAPI } from '../../utils/admissionUtils';
@@ -785,8 +786,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
     return true; // legacy single-object value counts as one uploaded file
   }).length + customNonEmpty;
 
-  return (
-    <div style={{ position:'fixed', inset:0, zIndex:50, display:'flex', alignItems:'stretch', justifyContent:'stretch', padding:0, background:'rgba(0,0,0,0.5)', overflowY:'auto' }}>
+  return createPortal(
+    <div style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'stretch', justifyContent:'stretch', padding:0, background:'rgba(0,0,0,0.5)', overflowY:'auto' }}>
       <div style={{ background:'#F8F8FF', borderRadius:0, width:'100%', maxWidth:'none', minHeight:'100vh', margin:0, display:'flex', flexDirection:'column', boxShadow:'none', overflow:'hidden' }}>
 
         {/* Header */}
@@ -1715,7 +1716,7 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ── Hydrate backend record into flat form shape ─────────────────────────────

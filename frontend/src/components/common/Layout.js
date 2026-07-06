@@ -26,15 +26,12 @@ const SCHOOL_LETTER_COLORS = [
 const SCHOOL_NAME_TEXT = 'The Future Step School';
 
 function RainbowSchoolName({ size = 'md' }) {
-  const sizes = { sm:13, md:16, lg:22, xl:30, hero:42 };
-  const fs = sizes[size] || 16;
+  const heights = { sm:30, md:48, lg:56, xl:64, hero:72 };
+  const h = heights[size] || 48;
   return (
-    <span style={{ fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, lineHeight:1.1 }}>
-      {SCHOOL_NAME_TEXT.split('').map((ch, i) => {
-        if (ch === ' ') return <span key={i} style={{ display:'inline-block', width: fs*0.28 }}>&nbsp;</span>;
-        return <span key={i} style={{ color: SCHOOL_LETTER_COLORS[i], fontSize: fs }}>{ch}</span>;
-      })}
-    </span>
+    <img src="/app-logo.png" alt="The Future Step School"
+      style={{ height:h, width:'auto', maxWidth:340, display:'block', objectFit:'contain',
+               background:'#fff', padding:'6px 12px', borderRadius:8 }} />
   );
 }
 

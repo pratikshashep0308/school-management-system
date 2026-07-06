@@ -74,13 +74,10 @@ const SIDEBAR_LETTER_COLORS = [
 function SidebarSchoolName() {
   return (
     <div style={{ lineHeight: 1.15 }}>
-      <div style={{ fontFamily: "'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight: 900, fontSize: 13.5, display: 'flex', flexWrap: 'wrap' }}>
-        {'The Future Step School'.split('').map((ch, i) => {
-          if (ch === ' ') return <span key={i} style={{ display:'inline-block', width: 4 }}>&nbsp;</span>;
-          return <span key={i} style={{ color: SIDEBAR_LETTER_COLORS[i] }}>{ch}</span>;
-        })}
-      </div>
-      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.55)', marginTop: 2, letterSpacing: '0.04em', fontWeight: 600 }}>
+      <img src="/app-logo.png" alt="The Future Step School"
+        style={{ width:'100%', maxWidth:180, height:'auto', display:'block',
+                 objectFit:'contain', background:'#fff', padding:'5px 8px', borderRadius:8 }} />
+      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.55)', marginTop: 6, letterSpacing: '0.04em', fontWeight: 600 }}>
         Management Portal
       </div>
     </div>

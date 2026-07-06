@@ -92,7 +92,7 @@ export default function App() {
           <Toaster position="top-right" />
           <Routes>
             {/* Public */}
-            <Route path="/"      element={<Landing />} />
+            <Route path="/" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/login" element={<Login />}   />

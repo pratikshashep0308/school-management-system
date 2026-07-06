@@ -31,16 +31,13 @@ const SCHOOL_LETTER_COLORS = [
 ];
 const SCHOOL_NAME_TEXT = 'The Future Step School';
 
-function RainbowName({ size = 'md' }) {
-  const sizes = { sm:13, md:18, lg:26, hero:32 };
-  const fs = sizes[size] || 18;
+function RainbowName({ size = 'lg' }) {
+  const heights = { sm:34, md:44, lg:56, xl:64 };
+  const h = heights[size] || 56;
   return (
-    <div style={{ display:'flex', flexWrap:'wrap', alignItems:'baseline' }}>
-      {SCHOOL_NAME_TEXT.split('').map((ch, i) => {
-        if (ch === ' ') return <span key={i} style={{ display:'inline-block', width: fs*0.28 }}>&nbsp;</span>;
-        return <span key={i} style={{ color: SCHOOL_LETTER_COLORS[i], fontSize: fs, fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, lineHeight:1.1 }}>{ch}</span>;
-      })}
-    </div>
+    <img src="/app-logo.png" alt="The Future Step School"
+      style={{ height:h, width:'auto', maxWidth:360, display:'block', objectFit:'contain',
+               background:'#fff', padding:'8px 14px', borderRadius:10 }} />
   );
 }
 
@@ -151,10 +148,10 @@ export default function Login() {
       {/* ── LEFT PANEL ── */}
       <div
         className="hidden lg:flex lg:w-[54%] flex-col justify-between relative overflow-hidden"
-        style={{ background: 'linear-gradient(150deg, #06112b 0%, #0d2050 50%, #112460 100%)' }}
+        style={{ background: 'radial-gradient(ellipse at 30% 20%, #0a1a3a 0%, #050912 55%, #04060f 100%)' }}
       >
         {/* Background decorations */}
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1.5px)', backgroundSize: '28px 28px' }} />
         <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(57,73,171,0.25) 0%, transparent 70%)' }} />
         <div style={{ position: 'absolute', top: '-60px', left: '-60px', width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(92,107,192,0.15) 0%, transparent 70%)' }} />
 
@@ -165,7 +162,7 @@ export default function Login() {
             <div>
               <RainbowName size="lg" />
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                K V P S Sanstha Bhaler
+                
               </div>
             </div>
           </div>
@@ -229,7 +226,7 @@ export default function Login() {
             <div className="text-center">
               <RainbowName size="md" />
               <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                K V P S Sanstha Bhaler
+                
               </div>
             </div>
           </div>
@@ -330,7 +327,7 @@ export default function Login() {
           </div>
 
           <div style={{ marginTop: 18, textAlign: 'center' }}>
-            <a href="/" style={{ fontSize: 12.5, fontWeight: 600, color: '#94a3b8', textDecoration: 'none' }}>
+            <a href="/home" style={{ fontSize: 12.5, fontWeight: 600, color: '#94a3b8', textDecoration: 'none' }}>
               ← Back to School Website
             </a>
           </div>
