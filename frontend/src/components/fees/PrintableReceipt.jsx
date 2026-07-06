@@ -81,7 +81,7 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
         <div id="printable-receipt" style={{ padding:'24px', fontFamily:'Arial, sans-serif' }}>
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, marginBottom:8 }}>
             <img
-              src="/school-logo.jpeg"
+              src={process.env.PUBLIC_URL + "/school-logo.jpeg"}
               alt="School logo"
               style={{ width:90, height:90, objectFit:'contain', flexShrink:0 }}
               onError={(e) => { e.target.style.display = 'none'; }}

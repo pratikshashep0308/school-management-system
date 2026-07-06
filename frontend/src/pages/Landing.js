@@ -287,7 +287,7 @@ export default function Landing() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div style={{ width: 48, height: 48, borderRadius: '50%', padding: 3, background: 'linear-gradient(135deg, #e87722, #f59e0b)', boxShadow: '0 4px 12px rgba(232,119,34,0.4)', flexShrink: 0 }}>
-              <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
+              <img src={process.env.PUBLIC_URL + "/school-logo.jpeg"} alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
             </div>
             <div>
               <div style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontWeight: 900, fontSize: 13.5, fontStyle: 'italic', lineHeight: 1.15, display: 'flex', flexWrap: 'wrap' }}>
@@ -678,7 +678,7 @@ export default function Landing() {
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-4">
                 <div style={{ width: 52, height: 52, borderRadius: '50%', padding: 3, background: 'linear-gradient(135deg, #e87722, #f59e0b)', flexShrink: 0 }}>
-                  <img src="/school-logo.jpeg" alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
+                  <img src={process.env.PUBLIC_URL + "/school-logo.jpeg"} alt="School Logo" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display='none'; }} />
                 </div>
                 <div>
                   <div className="font-bold text-lg" style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

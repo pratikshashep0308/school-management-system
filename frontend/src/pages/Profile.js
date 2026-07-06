@@ -35,7 +35,7 @@ function SchoolLogoSmall() {
       background: 'linear-gradient(135deg, #5C6BC0, #3949AB)',
       boxShadow: '0 2px 8px rgba(57,73,171,0.3)',
     }}>
-      <img src="/school-logo.jpeg" alt="School"
+      <img src={process.env.PUBLIC_URL + "/school-logo.jpeg"} alt="School"
         style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
         onError={e => { e.target.style.display='none'; e.target.parentElement.innerHTML='💎'; e.target.parentElement.style.display='flex'; e.target.parentElement.style.alignItems='center'; e.target.parentElement.style.justifyContent='center'; e.target.parentElement.style.fontSize='14px'; }}
       />
@@ -99,7 +99,7 @@ function ProfileAvatar({ name, color, size = 80, src }) {
           border: '2px solid #fff',
           boxShadow: '0 2px 8px rgba(57,73,171,0.4)',
         }}>
-          <img src="/school-logo.jpeg" alt=""
+          <img src={process.env.PUBLIC_URL + "/school-logo.jpeg"} alt=""
             style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
             onError={e => { e.target.style.display='none'; e.target.parentElement.innerHTML='💎'; e.target.parentElement.style.display='flex'; e.target.parentElement.style.alignItems='center'; e.target.parentElement.style.justifyContent='center'; e.target.parentElement.style.fontSize='11px'; }}
           />

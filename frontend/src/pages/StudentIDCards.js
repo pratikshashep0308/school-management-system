@@ -162,7 +162,7 @@ function IDCardPreview({ student }) {
       {/* Header */}
       <div style={{ background:'#0B1F4A', padding:'8px 10px', display:'flex', alignItems:'center', gap:8 }}>
         <img
-          src="/school-logo.jpeg"
+          src={process.env.PUBLIC_URL + "/school-logo.jpeg"}
           alt=""
           style={{ width:32, height:32, borderRadius:5, background:'#fff', objectFit:'contain', padding:2, flexShrink:0 }}
           onError={(e) => { e.target.style.display = 'none'; }}
