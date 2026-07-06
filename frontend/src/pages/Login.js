@@ -4,15 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-const QUICK_ACCOUNTS = [
-  { label: 'School Admin', email: 'admin@school.com',      password: 'Admin@123',   color: '#1a3a6b' },
-  { label: 'Teacher',      email: 'teacher@school.com',    password: 'Teacher@123', color: '#16a34a' },
-  { label: 'Student',      email: 'student@school.com',    password: 'Student@123', color: '#2563eb' },
-  { label: 'Parent',       email: 'parent@school.com',     password: 'Parent@123',  color: '#9333ea' },
-  { label: 'Accountant',   email: 'accountant@school.com', password: 'Admin@123',   color: '#dc2626' },
-  { label: 'Super Admin',  email: 'superadmin@school.com', password: 'Admin@123',   color: '#e87722' },
-];
-
 const FEATURES = [
   { icon: '👥', text: 'Student & Staff Management' },
   { icon: '📊', text: 'Attendance & Analytics' },
@@ -30,6 +21,32 @@ const SCHOOL_LETTER_COLORS = [
   '#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0',
 ];
 const SCHOOL_NAME_TEXT = 'The Future Step School';
+
+// ── Floating education symbols for the animated login background ──────────────
+const EDU_SYMBOLS = [
+  { ch: 'A',  top: '9%',  left: '12%', size: 44, color: '#93c5fd', anim: 'eduFloat', dur: '7s',  delay: '0s',   rot: '-8deg' },
+  { ch: 'क',  top: '15%', left: '78%', size: 52, color: '#fca5a5', anim: 'eduDrift', dur: '9s',  delay: '0.6s', rot: '6deg'  },
+  { ch: '+',  top: '30%', left: '34%', size: 40, color: '#fcd34d', anim: 'eduFloat', dur: '6s',  delay: '1.2s', rot: '0deg'  },
+  { ch: '7',  top: '24%', left: '58%', size: 46, color: '#6ee7b7', anim: 'eduDrift', dur: '8s',  delay: '0.3s', rot: '10deg' },
+  { ch: '×',  top: '46%', left: '82%', size: 42, color: '#c4b5fd', anim: 'eduFloat', dur: '7.5s',delay: '0.9s', rot: '-6deg' },
+  { ch: 'ग',  top: '52%', left: '18%', size: 50, color: '#7dd3fc', anim: 'eduDrift', dur: '9.5s',delay: '1.5s', rot: '4deg'  },
+  { ch: '÷',  top: '64%', left: '46%', size: 40, color: '#f9a8d4', anim: 'eduFloat', dur: '6.5s',delay: '0.5s', rot: '8deg'  },
+  { ch: 'B',  top: '70%', left: '74%', size: 44, color: '#fdba74', anim: 'eduDrift', dur: '8.5s',delay: '1.0s', rot: '-10deg'},
+  { ch: '=',  top: '80%', left: '28%', size: 40, color: '#a7f3d0', anim: 'eduFloat', dur: '7s',  delay: '0.7s', rot: '0deg'  },
+  { ch: 'ब',  top: '82%', left: '60%', size: 48, color: '#fca5a5', anim: 'eduDrift', dur: '9s',  delay: '1.3s', rot: '6deg'  },
+  { ch: '3',  top: '38%', left: '10%', size: 42, color: '#93c5fd', anim: 'eduFloat', dur: '6.8s',delay: '0.4s', rot: '-4deg' },
+  { ch: 'π',  top: '10%', left: '46%', size: 44, color: '#c4b5fd', anim: 'eduDrift', dur: '8.2s',delay: '1.1s', rot: '8deg'  },
+  { ch: '−',  top: '58%', left: '66%', size: 44, color: '#fcd34d', anim: 'eduFloat', dur: '7.2s',delay: '0.2s', rot: '0deg'  },
+  { ch: 'अ',  top: '40%', left: '52%', size: 46, color: '#6ee7b7', anim: 'eduDrift', dur: '9.2s',delay: '0.8s', rot: '-6deg' },
+];
+
+// Rising symbols that float upward and fade
+const EDU_RISERS = [
+  { ch: '√',  left: '22%', size: 34, color: 'rgba(147,197,253,0.8)', dur: '11s', delay: '0s'   },
+  { ch: '%',  left: '48%', size: 32, color: 'rgba(252,211,77,0.8)',  dur: '13s', delay: '3s'   },
+  { ch: 'ॐ',  left: '68%', size: 34, color: 'rgba(196,181,253,0.8)', dur: '12s', delay: '6s'   },
+  { ch: '9',  left: '84%', size: 32, color: 'rgba(110,231,183,0.8)', dur: '14s', delay: '1.5s' },
+];
 
 function RainbowName({ size = 'lg' }) {
   const heights = { sm:34, md:44, lg:56, xl:64 };
@@ -127,13 +144,6 @@ export default function Login() {
         .tfs-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(26,58,107,0.42); }
         .tfs-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .tfs-quick {
-          padding: 7px 13px; border-radius: 10px; font-size: 12px; font-weight: 700;
-          border: 2px solid #e2e8f0; background: white; cursor: pointer;
-          transition: all 0.18s; font-family: 'Nunito', sans-serif; color: #475569;
-        }
-        .tfs-quick:hover { border-color: #3949AB; color: #3949AB; transform: translateY(-1px); }
-
         @keyframes floatBadge { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
         .floating-badge { animation: floatBadge 3s ease-in-out infinite; }
         .floating-badge:nth-child(2) { animation-delay: 0.6s; }
@@ -143,17 +153,78 @@ export default function Login() {
           0%   { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
+
+        /* ── Education / floating symbols animations ── */
+        @keyframes eduFloat {
+          0%,100% { transform: translateY(0) rotate(var(--rot,0deg)); }
+          50%     { transform: translateY(-22px) rotate(var(--rot,0deg)); }
+        }
+        @keyframes eduDrift {
+          0%   { transform: translate(0,0) rotate(var(--rot,0deg)); }
+          50%  { transform: translate(18px,-14px) rotate(calc(var(--rot,0deg) + 8deg)); }
+          100% { transform: translate(0,0) rotate(var(--rot,0deg)); }
+        }
+        @keyframes eduRise {
+          0%   { transform: translateY(30px); opacity: 0; }
+          15%  { opacity: 0.9; }
+          85%  { opacity: 0.9; }
+          100% { transform: translateY(-60px); opacity: 0; }
+        }
+        @keyframes eduPulse {
+          0%,100% { opacity: 0.35; transform: scale(1); }
+          50%     { opacity: 0.9; transform: scale(1.12); }
+        }
+        .edu-scene { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+        .edu-sym {
+          position: absolute; font-weight: 800;
+          font-family: 'Nunito','Segoe UI',sans-serif;
+          text-shadow: 0 2px 10px rgba(0,0,0,0.25);
+          filter: blur(2.5px);
+          will-change: transform;
+        }
       `}</style>
+      {/* keep old space class harmless */}
+      <span style={{ display: 'none' }} className="tfs-space tfs-planet tfs-orbit-wrap tfs-orbit-ring tfs-moon tfs-star" />
 
       {/* ── LEFT PANEL ── */}
       <div
         className="hidden lg:flex lg:w-[54%] flex-col justify-between relative overflow-hidden"
-        style={{ background: 'radial-gradient(ellipse at 30% 20%, #0a1a3a 0%, #050912 55%, #04060f 100%)' }}
+        style={{ background: 'radial-gradient(ellipse at 25% 15%, #1e3a8a 0%, #14245e 40%, #0a1638 70%, #060d24 100%)' }}
       >
-        {/* Background decorations */}
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1.5px)', backgroundSize: '28px 28px' }} />
-        <div style={{ position: 'absolute', bottom: '-60px', right: '-60px', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(57,73,171,0.25) 0%, transparent 70%)' }} />
-        <div style={{ position: 'absolute', top: '-60px', left: '-60px', width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, rgba(92,107,192,0.15) 0%, transparent 70%)' }} />
+        {/* Background glow decorations */}
+        <div style={{ position: 'absolute', bottom: '-80px', right: '-80px', width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.28) 0%, transparent 70%)' }} />
+        <div style={{ position: 'absolute', top: '-70px', left: '-70px', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(56,189,248,0.20) 0%, transparent 70%)' }} />
+        <div style={{ position: 'absolute', top: '45%', right: '30%', width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.16) 0%, transparent 70%)' }} />
+
+        {/* ── Animated education scene ── */}
+        <div className="edu-scene" aria-hidden="true">
+          {EDU_SYMBOLS.map((s, i) => (
+            <span
+              key={i}
+              className="edu-sym"
+              style={{
+                top: s.top, left: s.left,
+                fontSize: s.size, color: s.color,
+                ['--rot']: s.rot,
+                animation: `${s.anim} ${s.dur} ease-in-out infinite`,
+                animationDelay: s.delay,
+                opacity: 0.85,
+              }}
+            >{s.ch}</span>
+          ))}
+          {EDU_RISERS.map((s, i) => (
+            <span
+              key={`r${i}`}
+              className="edu-sym"
+              style={{
+                bottom: 0, left: s.left,
+                fontSize: s.size, color: s.color,
+                animation: `eduRise ${s.dur} linear infinite`,
+                animationDelay: s.delay,
+              }}
+            >{s.ch}</span>
+          ))}
+        </div>
 
         {/* Top: Logo + School name */}
         <div className="relative z-10" style={{ padding: '44px 48px 0' }}>
@@ -167,7 +238,7 @@ export default function Login() {
             </div>
           </div>
 
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: 360, marginBottom: 36 }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.92)', lineHeight: 1.7, maxWidth: 360, marginBottom: 36 }}>
             A complete school management platform — manage students, attendance, fees, exams, and more from one unified portal.
           </div>
 
@@ -177,12 +248,12 @@ export default function Login() {
               <div key={f.text} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
                   width: 34, height: 34, borderRadius: 10,
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.18)',
+                  border: '1px solid rgba(255,255,255,0.28)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 16, flexShrink: 0,
                 }}>{f.icon}</div>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>{f.text}</span>
+                <span style={{ fontSize: 13, color: '#ffffff', fontWeight: 600 }}>{f.text}</span>
               </div>
             ))}
           </div>
@@ -198,19 +269,19 @@ export default function Login() {
             ].map((b, i) => (
               <div key={b.label} className="floating-badge" style={{
                 padding: '12px 20px', borderRadius: 18,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.16)',
+                border: '1px solid rgba(255,255,255,0.28)',
                 display: 'flex', alignItems: 'center', gap: 12,
               }}>
                 <span style={{ fontSize: 20 }}>{b.icon}</span>
                 <div>
                   <div style={{ fontWeight: 900, color: '#fff', fontSize: 18, lineHeight: 1 }}>{b.val}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{b.label}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>{b.label}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.18)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.75)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Bhaler, Nandurbar, Maharashtra · inquiry@thefuturestepschool.in
           </div>
         </div>
