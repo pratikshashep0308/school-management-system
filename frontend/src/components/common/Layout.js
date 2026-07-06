@@ -73,7 +73,6 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [portalTab, setPortalTab]   = useState('overview');
 
-  const pageTitle = PAGE_TITLES[location.pathname] || '';
   const now       = new Date();
   const dateStr   = now.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -114,20 +113,11 @@ export default function Layout() {
                 onClick={() => setMobileOpen(true)}
               >☰</button>
 
-              {/* Logo + School name */}
+              {/* Logo + School name — centered on the same line */}
               <div className="flex items-center gap-2.5">
                 <SchoolLogo size={36} />
-                <div className="hidden sm:block">
+                <div className="hidden sm:flex items-center">
                   <RainbowSchoolName size="md" />
-                  {pageTitle && (
-                    <div style={{ fontSize: 10, color: isDark ? 'rgba(255,255,255,0.35)' : '#94A3B8', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', marginTop: 1 }}>
-                      {pageTitle}
-                    </div>
-                  )}
-                </div>
-                {/* On mobile, just show page title */}
-                <div className="sm:hidden">
-                  <div className={`font-bold text-base ${isDark ? 'text-white' : 'text-ink'}`}>{pageTitle || 'EduCore'}</div>
                 </div>
               </div>
             </div>
