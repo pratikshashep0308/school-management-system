@@ -9,7 +9,6 @@ import { ThemeProvider } from './context/ThemeContext';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword  from './pages/ResetPassword';
 import Login            from './pages/Login';
-import Landing          from './pages/Landing';
 
 // Pages — Role Dashboards
 import AdminDashboard   from './pages/AdminDashboard';
@@ -25,6 +24,7 @@ import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
 import Subjects     from './pages/Subjects';
+import AccessControl from './pages/AccessControl';
 import Attendance   from './pages/Attendance';
 import Salary from './pages/Salary';
 import Exams        from './pages/Exams';
@@ -112,6 +112,7 @@ export default function App() {
               <Route path="teachers"      element={<AdminRoute><Teachers /></AdminRoute>} />
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
               <Route path="subjects"      element={<AdminRoute><Subjects /></AdminRoute>} />
+              <Route path="access-control" element={<AdminRoute><AccessControl /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
               <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />

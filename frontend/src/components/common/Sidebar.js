@@ -1,7 +1,21 @@
 // frontend/src/components/common/Sidebar.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { permissionAPI } from '../../utils/api';
+
+// Maps each sidebar path to the module key used in the permission matrix.
+const PATH_TO_MODULE = {
+  '/dashboard': 'dashboard', '/settings': 'settings', '/access-control': 'accessControl',
+  '/id-cards': 'idCards', '/students': 'students', '/teachers': 'teachers',
+  '/classes': 'classes', '/subjects': 'subjects', '/salary': 'salary',
+  '/attendance': 'attendance', '/exams': 'exams', '/assignments': 'assignments',
+  '/fees': 'fees', '/expenses': 'expenses', '/library': 'library',
+  '/transport': 'transport', '/homework': 'homework', '/timetable': 'timetable',
+  '/meetings': 'meetings', '/notifications': 'notifications', '/admissions': 'admissions',
+  '/reports': 'reports',
+  // '/profile' has no module key — always visible.
+};
 
 const ADMIN_ROLES = ['superAdmin', 'schoolAdmin'];
 const STAFF_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'librarian', 'transportManager'];
@@ -9,6 +23,7 @@ const STAFF_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'libr
 const MENU_ITEMS = [
   { path: '/dashboard',     icon: '⊞',  label: 'Dashboard',     roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
   { path: '/settings',      icon: '⚙️', label: 'Settings',          roles: ['superAdmin','schoolAdmin'] },
+  { path: '/access-control', icon: '🔐', label: 'Access Control',   roles: ['superAdmin','schoolAdmin'] },
   { path: '/id-cards',       icon: '🪪', label: 'ID Cards',         roles: ['superAdmin','schoolAdmin'] },
   { path: '/students',      icon: '👥', label: 'Students',      roles: ['superAdmin','schoolAdmin','teacher','accountant'] },
   { path: '/teachers',      icon: '👤', label: 'Employees',      roles: ADMIN_ROLES },
@@ -64,14 +79,6 @@ const ROLE_META = {
 };
 
 // ── Sidebar rainbow name — compact version ────────────────────────────────────
-// Exact letter colors from SchoolName.jpeg
-const SIDEBAR_LETTER_COLORS = [
-  '#E53935','#F57C00','#43A047',null,
-  '#43A047','#1565C0','#7B1FA2','#E53935','#43A047','#0097A7',null,
-  '#43A047','#E53935','#7B1FA2','#F57C00',null,
-  '#43A047','#1565C0','#7B1FA2','#E53935','#F57C00','#1565C0',
-];
-
 function SidebarSchoolName() {
   return (
     <div style={{ lineHeight: 1.15 }}>
@@ -90,7 +97,32 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
   const navigate = useNavigate();
   const meta = ROLE_META[user?.role] || { label: user?.role, emoji: '👤', color: '#64748b' };
   const isPortalUser = user?.role === 'student' || user?.role === 'parent';
-  const visibleItems = MENU_ITEMS.filter(item => item.roles.includes(user?.role));
+
+  // Saved access-control matrix for this school. superAdmin bypasses it entirely.
+  const [permMatrix, setPermMatrix] = useState(null);
+  useEffect(() => {
+    if (!user || user.role === 'superAdmin') return;
+    let active = true;
+    permissionAPI.get()
+      .then(r => { if (active) setPermMatrix(r.data?.matrix || null); })
+      .catch(() => { if (active) setPermMatrix(null); });
+    return () => { active = false; };
+  }, [user]);
+
+  // Base filter: role must be allowed on the item (hardcoded baseline).
+  // Extra filter: if a saved permission matrix exists for this role, also
+  // require the module to be enabled there. superAdmin always sees everything.
+  const visibleItems = MENU_ITEMS.filter(item => {
+    if (!item.roles.includes(user?.role)) return false;
+    if (user?.role === 'superAdmin') return true;
+    const modKey = PATH_TO_MODULE[item.path];
+    if (!modKey) return true; // items without a module key (e.g. profile) always show
+    const rolePerms = permMatrix?.[user?.role];
+    if (!rolePerms) return true; // matrix not loaded yet or role absent → don't hide
+    const lvl = rolePerms[modKey];
+    // Hide when access is explicitly none / disabled (supports legacy boolean false).
+    return !(lvl === 'none' || lvl === false || lvl == null);
+  });
   // logout() now performs a hard redirect to /login so the navigate is redundant.
   // Still using await to make sure backend logout call completes if reachable.
   const handleLogout = async () => {

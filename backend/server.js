@@ -123,6 +123,7 @@ const routes = [
   ['/api/class-fee-templates', './routes/classFeeTemplateRoutes'],  // ← Class default fees
   ['/api/meetings',       './routes/meetingRoutes'],                  // ← Meeting management
   ['/api/admins',         './routes/adminRoutes'],                    // ← Admin management
+  ['/api/permissions',    './routes/permissionRoutes'],               // ← Matrix access control
 ];
 
 routes.forEach(([path, file]) => {

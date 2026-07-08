@@ -312,6 +312,13 @@ export const adminAPI = {
   resetPassword: (id, password) => api.put(`/admins/${id}/reset-password`, { password }),
 };
 
+// ── Access Control (role-permission matrix) ──────────────────────────────────
+export const permissionAPI = {
+  get:   ()        => api.get('/permissions'),
+  save:  (matrix)  => api.put('/permissions', { matrix }),
+  reset: ()        => api.post('/permissions/reset'),
+};
+
 // ── Salary ───────────────────────────────────────────────────────────────────
 export const salaryAPI = {
   getAll:   (params)   => api.get('/salary', { params }),
