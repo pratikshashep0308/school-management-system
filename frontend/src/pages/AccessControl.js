@@ -76,7 +76,7 @@ export default function AccessControl() {
     } catch(e) { toast.error(e?.response?.data?.message || 'Failed to reset'); }
   };
 
-  const roleCount = (roleKey) => modules.filter(m => (matrix[roleKey]?.[m.key] || 'none') !== 'none').length;
+  const moduleCount = (modKey) => roles.filter(r => (matrix[r.key]?.[modKey] || 'none') !== 'none').length;
 
   if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>⏳ Loading access matrix…</div>;
 
@@ -110,35 +110,35 @@ export default function AccessControl() {
         <table style={{ borderCollapse:'separate', borderSpacing:0, width:'100%', minWidth: 720 }}>
           <thead>
             <tr>
-              <th style={{ position:'sticky', left:0, zIndex:2, background:'#0B1F4A', color:'#fff', textAlign:'left', padding:'12px 16px', fontSize:12, fontWeight:800, minWidth:150 }}>
-                Role \ Module
+              <th style={{ position:'sticky', left:0, zIndex:2, background:'#0B1F4A', color:'#fff', textAlign:'left', padding:'12px 16px', fontSize:12, fontWeight:800, minWidth:160 }}>
+                Module \ Role
               </th>
-              {modules.map(mod => (
-                <th key={mod.key} style={{ background:'#0B1F4A', color:'#fff', padding:'10px 8px', fontSize:11, fontWeight:700, whiteSpace:'nowrap', textAlign:'center', verticalAlign:'bottom' }}>
-                  <div style={{ marginBottom:4 }}>{mod.label}</div>
+              {roles.map(r => (
+                <th key={r.key} style={{ background:'#0B1F4A', color:'#fff', padding:'10px 8px', fontSize:11, fontWeight:700, whiteSpace:'nowrap', textAlign:'center', verticalAlign:'bottom', minWidth:100 }}>
+                  <div style={{ marginBottom:4 }}>{r.label}</div>
                   <div style={{ display:'flex', gap:3, justifyContent:'center' }}>
-                    <button onClick={()=>setColAll(mod.key, 'admin')} title="Set all to Admin" style={colBtn('#DCFCE7','#166534')}>✓</button>
-                    <button onClick={()=>setColAll(mod.key, 'none')}  title="Set all to No Access" style={colBtn('rgba(255,255,255,0.15)','#fff')}>✕</button>
+                    <button onClick={()=>setRoleAll(r.key, 'admin')} title="Set all modules to Admin" style={colBtn('#DCFCE7','#166534')}>✓</button>
+                    <button onClick={()=>setRoleAll(r.key, 'none')}  title="Set all modules to No Access" style={colBtn('rgba(255,255,255,0.15)','#fff')}>✕</button>
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {roles.map((r, ri) => (
-              <tr key={r.key} style={{ background: ri % 2 ? '#F9FAFB' : '#fff' }}>
-                <td style={{ position:'sticky', left:0, zIndex:1, background: ri % 2 ? '#F9FAFB' : '#fff', padding:'10px 16px', borderRight:'1px solid #E5E7EB' }}>
-                  <div style={{ fontWeight:700, fontSize:13, color:'#0B1F4A' }}>{r.label}</div>
-                  <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>{roleCount(r.key)}/{modules.length} modules</div>
+            {modules.map((mod, mi) => (
+              <tr key={mod.key} style={{ background: mi % 2 ? '#F9FAFB' : '#fff' }}>
+                <td style={{ position:'sticky', left:0, zIndex:1, background: mi % 2 ? '#F9FAFB' : '#fff', padding:'10px 16px', borderRight:'1px solid #E5E7EB' }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:'#0B1F4A' }}>{mod.label}</div>
+                  <div style={{ fontSize:11, color:'#9CA3AF', marginTop:2 }}>{moduleCount(mod.key)}/{roles.length} roles</div>
                   <div style={{ display:'flex', gap:4, marginTop:4 }}>
-                    <button onClick={()=>setRoleAll(r.key, 'admin')} style={rowBtn('#DCFCE7','#166534')}>All Admin</button>
-                    <button onClick={()=>setRoleAll(r.key, 'none')}  style={rowBtn('#FEE2E2','#B91C1C')}>None</button>
+                    <button onClick={()=>setColAll(mod.key, 'admin')} style={rowBtn('#DCFCE7','#166534')}>All Admin</button>
+                    <button onClick={()=>setColAll(mod.key, 'none')}  style={rowBtn('#FEE2E2','#B91C1C')}>None</button>
                   </div>
                 </td>
-                {modules.map(mod => {
+                {roles.map(r => {
                   const val = matrix[r.key]?.[mod.key] || 'none';
                   return (
-                    <td key={mod.key} style={{ textAlign:'center', padding:'6px', borderRight:'1px solid #F3F4F6' }}>
+                    <td key={r.key} style={{ textAlign:'center', padding:'6px', borderRight:'1px solid #F3F4F6' }}>
                       <select
                         value={val}
                         onChange={(e)=>setLevel(r.key, mod.key, e.target.value)}
