@@ -6,6 +6,7 @@ import { studentAPI, classAPI } from '../utils/api';
 
 const SCHOOL = {
   name:    'The Future Step School',
+  marathiName: 'काकेश्वर विद्या प्रसारक संस्था संचलित',
   address: 'K V P S Sanstha Bhaler',
   phone:   '+91 7006555543',
   website: 'thefuturestepschool.in'
@@ -49,7 +50,7 @@ function cardHTML(s) {
     <div style="background:#0B1F4A;padding:7px 10px;display:flex;align-items:center;gap:8px">
       <img src="${logoUrl}" style="width:32px;height:32px;border-radius:5px;background:#fff;object-fit:contain;padding:2px;flex-shrink:0" />
       <div>
-        <div style="font-size:7px;color:rgba(255,255,255,0.7);line-height:1.2;letter-spacing:0.04em;font-weight:600">${SCHOOL.address}</div>
+        <div style="font-size:7px;color:rgba(255,255,255,0.7);line-height:1.2;letter-spacing:0.04em;font-weight:600">${SCHOOL.marathiName}</div>
         <div style="font-family:'Georgia','Times New Roman',serif;font-style:italic;font-weight:900;font-size:11px;line-height:1.1;margin-top:1px">${rainbowName}</div>
       </div>
     </div>
@@ -168,7 +169,7 @@ function IDCardPreview({ student }) {
           onError={(e) => { e.target.style.display = 'none'; }}
         />
         <div>
-          <div style={{ fontSize:7, color:'rgba(255,255,255,0.7)', lineHeight:1.2, letterSpacing:'0.04em', fontWeight:600 }}>{SCHOOL.address}</div>
+          <div style={{ fontSize:7, color:'rgba(255,255,255,0.7)', lineHeight:1.2, letterSpacing:'0.04em', fontWeight:600 }}>{SCHOOL.marathiName}</div>
           {/* Rainbow letter colors matching SchoolName.jpeg. Inline so it survives
               the cardHTML() innerHTML copy used by the print path. */}
           <div style={{ fontFamily:"'Georgia','Times New Roman',serif", fontStyle:'italic', fontWeight:900, fontSize:11, lineHeight:1.1, marginTop:1 }}>
