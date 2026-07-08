@@ -1215,9 +1215,9 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
       style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:0, overflowY:"auto", backdropFilter:"blur(2px)" }}
       onClick={onClose}
     >
-      {/* Full-screen modal — uses entire viewport width and height. */}
+      {/* Full-screen modal — uses entire viewport width, grows with content. */}
       <div
-        style={{ maxWidth:"none", width:"100%", margin:0, background:"#fff", borderRadius:0, overflow:"hidden", boxShadow:"none", minHeight:"100vh" }}
+        style={{ maxWidth:"none", width:"100%", margin:0, background:"#fff", borderRadius:0, boxShadow:"none", minHeight:"auto", paddingBottom:40 }}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal header */}
@@ -1812,7 +1812,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
                   {/* Real attendance calendar for the current month */}
                   <Section title={'This Month — ' + new Date().toLocaleDateString('en-IN', { month:'long', year:'numeric' })}>
-                    <div className="grid grid-cols-7 gap-1.5">
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 40px)', gap:6, justifyContent:'start' }}>
                       {['S','M','T','W','T','F','S'].map((d,i) => (
                         <div key={'h'+i} className="text-center text-[10px] text-muted font-bold pb-1">{d}</div>
                       ))}
@@ -1831,7 +1831,8 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                               : 'bg-gray-50 text-gray-300 dark:bg-gray-800/40 dark:text-gray-600';
                         return (
                           <div key={i} title={a.status ? ('Day ' + a.day + ': ' + a.status) : ('Day ' + a.day + ': not marked')}
-                            className={'w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold cursor-default ' + cls}>
+                            style={{ width:40, height:40 }}
+                            className={'rounded-lg flex items-center justify-center text-xs font-bold cursor-default ' + cls}>
                             {a.day}
                           </div>
                         );
