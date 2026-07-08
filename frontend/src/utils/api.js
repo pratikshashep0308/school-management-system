@@ -119,6 +119,7 @@ export const feeAPI = {
   getPayments:     (params) => api.get('/fees/payments', { params }),
   recordPayment:   (data)   => api.post('/fees/payments', data),
   getSummary:      ()       => api.get('/fees/summary'),
+  getStudentFee:   (studentId) => api.get(`/fees/student/${studentId}`),
 };
 
 // ── TIMETABLE ─────────────────────────────────────────────────────────────────

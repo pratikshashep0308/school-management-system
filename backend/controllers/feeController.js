@@ -110,13 +110,17 @@ exports.getStudentFee = async (req, res) => {
     .populate('class', 'name grade section')
     .populate('paymentHistory.collectedBy', 'name')
     .populate('paymentHistory.feeStructure', 'name');
-  if (!record) return res.status(404).json({ success: false, message: 'Fee record not found' });
 
-  // Also fetch FeeAssignments for this student
+  // Fetch FeeAssignments for this student regardless of whether a ledger exists
   const assignments = await FeeAssignment.find({ student: studentId, school: req.user.school })
     .populate('feeType', 'name category')
     .populate('transportRoute', 'routeName routeNumber')
     .sort({ createdAt: -1 });
+
+  // If there's neither a ledger nor any assignments, then truly nothing on file
+  if (!record && (!assignments || assignments.length === 0)) {
+    return res.status(404).json({ success: false, message: 'Fee record not found' });
+  }
 
   res.json({ success: true, data: record, assignments });
 };

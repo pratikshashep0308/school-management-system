@@ -1046,6 +1046,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
   const [exams,       setExams]       = useState([]);
   const [attendance,  setAttendance]  = useState([]);
   const [fees,        setFees]        = useState([]);
+  const [feeSummary,  setFeeSummary]  = useState({ total: 0, paid: 0, pending: 0 });
   const [assignments, setAssignments] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
   // Track newly-linked parent account info — backend returns whether a new
@@ -1061,11 +1062,54 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
         const [eRes, aRes, fRes] = await Promise.allSettled([
           examAPI.getAll().catch(() => ({ data: { data: [] } })),
           assignmentAPI.getAll().catch(() => ({ data: { data: [] } })),
-          feeAPI.getPayments({ student: s._id }).catch(() => ({ data: { data: [] } })),
+          feeAPI.getStudentFee(s._id).catch(() => ({ data: {} })),
         ]);
         if (eRes.status === 'fulfilled') setExams(eRes.value.data.data || []);
         if (aRes.status === 'fulfilled') setAssignments(aRes.value.data.data || []);
-        if (fRes.status === 'fulfilled') setFees(fRes.value.data.data || []);
+        if (fRes.status === 'fulfilled') {
+          const ledger      = fRes.value.data?.data || null;
+          const assigns     = fRes.value.data?.assignments || [];
+
+          // Build a unified fee list from FeeAssignments (per fee type)
+          let feeList = assigns.map(a => ({
+            _id:     a._id,
+            feeType: a.feeType?.name || 'Fee',
+            dueDate: a.dueDate,
+            amount:  a.finalAmount || 0,
+            paid:    a.paidAmount || 0,
+            pending: a.pendingAmount != null ? a.pendingAmount : Math.max(0, (a.finalAmount || 0) - (a.paidAmount || 0)),
+            status:  a.status || 'pending',
+          }));
+
+          // If no assignments but the ledger has payment history, show those payments
+          if (feeList.length === 0 && ledger?.paymentHistory?.length) {
+            feeList = ledger.paymentHistory
+              .slice()
+              .sort((a, b) => new Date(b.paidOn) - new Date(a.paidOn))
+              .map(p => ({
+                _id:     p._id || p.receiptNumber,
+                feeType: p.periodLabel || (p.month ? `Fee — ${p.month} ${p.year || ''}`.trim() : 'Fee Payment'),
+                dueDate: p.paidOn,
+                amount:  p.amount || 0,
+                paid:    p.amount || 0,
+                pending: 0,
+                status:  'paid',
+              }));
+          }
+
+          // Totals: prefer ledger figures when present, else sum the assignments
+          const totalFromLedger = ledger?.totalFees;
+          const paidFromLedger  = ledger?.paidAmount;
+          const assignTotal = feeList.reduce((s2, f) => s2 + (f.amount || 0), 0);
+          const assignPaid  = feeList.reduce((s2, f) => s2 + (f.paid  || 0), 0);
+
+          const total = (totalFromLedger != null ? totalFromLedger : assignTotal) || 0;
+          const paid  = (paidFromLedger  != null ? paidFromLedger  : assignPaid)  || 0;
+          const pending = Math.max(0, total - paid);
+
+          setFees(feeList);
+          setFeeSummary({ total, paid, pending });
+        }
         // Mock attendance
         setAttendance(Array.from({ length: 30 }, (_, i) => ({ day: i + 1, status: Math.random() > 0.15 ? 'present' : 'absent' })));
       } catch {}
@@ -1183,7 +1227,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                   <p className="text-xs text-muted mt-2">Avg Score</p>
                 </div>
                 <div className="card p-4 text-center flex flex-col items-center justify-center">
-                  <div className="text-2xl font-display text-ink dark:text-white">{fees.filter(f => f.status === 'pending').length}</div>
+                  <div className="text-2xl font-display text-ink dark:text-white">₹{feeSummary.pending.toLocaleString('en-IN')}</div>
                   <p className="text-xs text-muted mt-1">Pending Fees</p>
                 </div>
               </div>
@@ -1729,15 +1773,19 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
           {/* ── FEES ── */}
           {activeTab === 'fees' && (
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-              {fees.length === 0 ? <EmptyState icon="💰" title="No fee records found" /> : (
+              {fees.length === 0 && feeSummary.total === 0 ? <EmptyState icon="💰" title="No fee records found" /> : (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="card p-4 text-center">
-                      <div className="text-xl font-display text-green-600">₹{fees.filter(f => f.status === 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
+                      <div className="text-xl font-display text-ink dark:text-white">₹{feeSummary.total.toLocaleString('en-IN')}</div>
+                      <div className="text-xs text-muted">Total</div>
+                    </div>
+                    <div className="card p-4 text-center">
+                      <div className="text-xl font-display text-green-600">₹{feeSummary.paid.toLocaleString('en-IN')}</div>
                       <div className="text-xs text-muted">Paid</div>
                     </div>
                     <div className="card p-4 text-center">
-                      <div className="text-xl font-display text-amber-500">₹{fees.filter(f => f.status !== 'paid').reduce((s, f) => s + (f.amount || 0), 0).toLocaleString('en-IN')}</div>
+                      <div className="text-xl font-display text-amber-500">₹{feeSummary.pending.toLocaleString('en-IN')}</div>
                       <div className="text-xs text-muted">Pending</div>
                     </div>
                   </div>
@@ -1745,11 +1793,17 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                     <div key={f._id} className="card p-4 flex items-center justify-between">
                       <div>
                         <p className="font-medium text-sm text-ink dark:text-white">{f.feeType || 'Fee'}</p>
-                        <p className="text-xs text-muted">{f.dueDate ? new Date(f.dueDate).toLocaleDateString('en-IN') : '—'}</p>
+                        <p className="text-xs text-muted">
+                          {f.dueDate ? `Due ${new Date(f.dueDate).toLocaleDateString('en-IN')}` : '—'}
+                          {f.pending > 0 && f.paid > 0 ? ` · ₹${f.paid.toLocaleString('en-IN')} paid` : ''}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-ink dark:text-white">₹{(f.amount || 0).toLocaleString('en-IN')}</p>
-                        <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (f.status === 'paid' ? 'bg-green-100 text-green-700' : f.status === 'overdue' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                        {f.pending > 0 && (
+                          <p className="text-[11px] text-amber-600">₹{f.pending.toLocaleString('en-IN')} due</p>
+                        )}
+                        <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + (f.status === 'paid' ? 'bg-green-100 text-green-700' : f.status === 'overdue' ? 'bg-red-100 text-red-600' : f.status === 'partial' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700')}>
                           {f.status}
                         </span>
                       </div>
