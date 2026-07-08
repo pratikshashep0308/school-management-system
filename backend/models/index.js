@@ -40,6 +40,19 @@ const AttendanceSchema = new mongoose.Schema({
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt: { type: Date, default: Date.now }
 });
+
+// ── TEACHER / EMPLOYEE ATTENDANCE ──
+const TeacherAttendanceSchema = new mongoose.Schema({
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
+  date:    { type: Date, required: true },
+  status:  { type: String, enum: ['present', 'absent', 'leave'], required: true },
+  markedBy:{ type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  remarks: String,
+  school:  { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt:{ type: Date, default: Date.now },
+});
+// One record per teacher per day per school
+TeacherAttendanceSchema.index({ teacher: 1, date: 1, school: 1 }, { unique: true });
 AttendanceSchema.index({ student: 1, date: 1 }, { unique: true });
 
 // ── EXAM ──
@@ -283,6 +296,7 @@ const NotificationSchema = new mongoose.Schema({
 module.exports.Class        = mongoose.model('Class',        ClassSchema);
 module.exports.Subject      = mongoose.model('Subject',      SubjectSchema);
 module.exports.Attendance   = mongoose.model('Attendance',   AttendanceSchema);
+module.exports.TeacherAttendance = mongoose.model('TeacherAttendance', TeacherAttendanceSchema);
 module.exports.Exam         = mongoose.model('Exam',         ExamSchema);
 module.exports.Result       = mongoose.model('Result',       ResultSchema);
 module.exports.FeeStructure = mongoose.model('FeeStructure', FeeStructureSchema);

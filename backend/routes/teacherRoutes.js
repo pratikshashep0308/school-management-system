@@ -4,8 +4,63 @@ const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const Teacher = require('../models/Teacher');
 const User    = require('../models/User');
+const { TeacherAttendance } = require('../models/index');
 
 router.use(protect);
+
+// ── Employee / teacher attendance: save (upsert) ──────────────────────────────
+// Body: { date, records: [{ teacherId, status }] }
+// Placed BEFORE '/:id' so '/attendance' isn't treated as a teacher id.
+router.post('/attendance', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
+  try {
+    const { date, records } = req.body;
+    if (!date || !Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ success: false, message: 'date and records are required' });
+    }
+    const day = new Date(date);
+    day.setHours(0, 0, 0, 0);
+
+    const ops = records.map(r => ({
+      updateOne: {
+        filter: { teacher: r.teacherId, date: day, school: req.user.school },
+        update: {
+          $set: {
+            teacher:  r.teacherId,
+            date:     day,
+            status:   r.status || 'present',
+            remarks:  r.remarks || '',
+            markedBy: req.user._id,
+            school:   req.user.school,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    await TeacherAttendance.bulkWrite(ops);
+    res.json({ success: true, message: 'Employee attendance saved', count: records.length });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Employee / teacher attendance: fetch for a date ───────────────────────────
+router.get('/attendance', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const { date } = req.query;
+    const filter = { school: req.user.school };
+    if (date) {
+      const day = new Date(date);
+      day.setHours(0, 0, 0, 0);
+      filter.date = day;
+    }
+    const records = await TeacherAttendance.find(filter)
+      .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } });
+    res.json({ success: true, count: records.length, data: records });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // ── My profile (teacher role) ─────────────────────────────────────────────────
 router.get('/my-profile', async (req, res) => {
