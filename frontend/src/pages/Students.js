@@ -1047,6 +1047,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
   const [attendance,  setAttendance]  = useState([]);
   const [fees,        setFees]        = useState([]);
   const [feeSummary,  setFeeSummary]  = useState({ total: 0, paid: 0, pending: 0 });
+  const [feeHistory,  setFeeHistory]  = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
   // Track newly-linked parent account info — backend returns whether a new
@@ -1109,6 +1110,39 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
           setFees(feeList);
           setFeeSummary({ total, paid, pending });
+
+          // ── Build a full payment history (all individual payments) ──
+          const history = [];
+          // From the ledger's paymentHistory
+          (ledger?.paymentHistory || []).forEach(p => {
+            history.push({
+              _id:     p._id || p.receiptNumber || Math.random().toString(36),
+              date:    p.paidOn,
+              amount:  p.amount || 0,
+              method:  p.method || 'cash',
+              receipt: p.receiptNumber || '',
+              label:   p.periodLabel || (p.month ? `${p.month} ${p.year || ''}`.trim() : ''),
+              remarks: p.remarks || '',
+              by:      p.collectedBy?.name || '',
+            });
+          });
+          // From each assignment's own payments array
+          assigns.forEach(a => {
+            (a.payments || []).forEach(p => {
+              history.push({
+                _id:     p._id || p.receiptNumber || Math.random().toString(36),
+                date:    p.paidOn,
+                amount:  p.amount || 0,
+                method:  p.method || 'cash',
+                receipt: p.receiptNumber || '',
+                label:   a.feeType?.name || 'Fee',
+                remarks: p.remarks || '',
+                by:      p.collectedBy?.name || '',
+              });
+            });
+          });
+          history.sort((x, y) => new Date(y.date) - new Date(x.date));
+          setFeeHistory(history);
         }
         // Mock attendance
         setAttendance(Array.from({ length: 30 }, (_, i) => ({ day: i + 1, status: Math.random() > 0.15 ? 'present' : 'absent' })));
@@ -1809,6 +1843,32 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                       </div>
                     </div>
                   ))}
+
+                  {/* ── Payment History ── */}
+                  {feeHistory.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-bold text-muted uppercase tracking-wide mb-2">Payment History</p>
+                      <div className="flex flex-col gap-2">
+                        {feeHistory.map(h => (
+                          <div key={h._id} className="card p-3 flex items-center justify-between">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm text-ink dark:text-white">
+                                ₹{(h.amount || 0).toLocaleString('en-IN')}
+                                <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 uppercase">{h.method}</span>
+                              </p>
+                              <p className="text-xs text-muted truncate">
+                                {h.date ? new Date(h.date).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '—'}
+                                {h.label ? ` · ${h.label}` : ''}
+                                {h.receipt ? ` · #${h.receipt}` : ''}
+                                {h.by ? ` · by ${h.by}` : ''}
+                              </p>
+                            </div>
+                            <div className="text-green-600 text-lg flex-shrink-0 ml-3">✓</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
