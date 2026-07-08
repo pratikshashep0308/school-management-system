@@ -24,6 +24,7 @@ import StudentIDCards    from './pages/StudentIDCards';
 import Students     from './pages/Students';
 import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
+import Subjects     from './pages/Subjects';
 import Attendance   from './pages/Attendance';
 import Salary from './pages/Salary';
 import Exams        from './pages/Exams';
@@ -110,6 +111,7 @@ export default function App() {
               <Route path="students"      element={<AdminRoute><Students /></AdminRoute>} />
               <Route path="teachers"      element={<AdminRoute><Teachers /></AdminRoute>} />
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
+              <Route path="subjects"      element={<AdminRoute><Subjects /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
               <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />

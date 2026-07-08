@@ -21,7 +21,7 @@ ClassSchema.index({ name: 1, section: 1, school: 1 }, { unique: true, sparse: tr
 // ── SUBJECT ──
 const SubjectSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  code: { type: String, unique: true },
+  code: { type: String, unique: true, sparse: true },
   description: String,
   type: { type: String, enum: ['theory', 'practical', 'both'], default: 'theory' },
   classes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
