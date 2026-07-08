@@ -16,14 +16,25 @@ const COLORS = ['#185FA5','#534AB7','#0F6E56','#993556','#BA7517','#0369A1','#7C
 function cardColor(name) { return COLORS[(name||'').charCodeAt(0) % COLORS.length]; }
 function initials(name)  { return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
 
-// Format a student's address whether it's an object {street,city,state,pincode}
-// or a plain string (from admissionSnapshot). Returns '' if nothing usable.
+// Format a student's address across the many historical storage shapes:
+//  · snap.address = "anand nagar" (string) with snap.city/state/pincode flat siblings
+//  · snap.address = { street, city, state, pincode } (object)
+//  · s.address    = { street, city, state, pincode } (top-level object)
+// Returns a joined string, or '' if nothing usable.
 function formatStudentAddress(s) {
-  const a = s.address || s.admissionSnapshot?.address;
-  if (!a) return '';
-  if (typeof a === 'string') return a.trim();
-  const parts = [a.street, a.city, a.state, a.pincode].filter(Boolean);
-  return parts.join(', ');
+  const snap = s.admissionSnapshot || {};
+  const toStr = (v) => {
+    if (!v) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'object') return (v.street || v.text || '').toString().trim();
+    return String(v).trim();
+  };
+  const snapAddrIsObj = snap.address && typeof snap.address === 'object';
+  const street  = toStr(snapAddrIsObj ? snap.address.street  : (snap.address  || s.address?.street));
+  const city    = toStr(snapAddrIsObj ? snap.address.city    : (snap.city     || s.address?.city));
+  const state   = toStr(snapAddrIsObj ? snap.address.state   : (snap.state    || s.address?.state));
+  const pincode = toStr(snapAddrIsObj ? snap.address.pincode : (snap.pincode  || s.address?.pincode));
+  return [street, city, state, pincode].filter(Boolean).join(', ');
 }
 
 // ── Single card HTML string (for print) ──────────────────────────────────────
