@@ -285,7 +285,7 @@ exports.getDashboard = async (req, res) => {
     StudentFee.findOne({ student: student._id })
       .populate('class', 'name grade section'),
     // Note: no isPublished field in schema — fetch all assignments for the student's class
-    Assignment.find({ class: student.class?._id || student.class, school: student.school }).sort({ dueDate: 1 })
+    Assignment.find({ class: student.class?._id || student.class }).sort({ dueDate: 1 })
       .populate('subject', 'name code')
       .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } }),
     Notification.find({

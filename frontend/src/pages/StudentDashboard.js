@@ -269,6 +269,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const { activeTab: tab, setTab } = usePortalTab();
   const [data,    setData]    = useState(null);
+  const [feeHistory, setFeeHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
@@ -284,6 +285,11 @@ export default function StudentDashboard() {
     try {
       const res = await api.get('/student-portal/dashboard');
       setData(res.data.data);
+      // Also fetch the full fee payment history (dashboard only returns a summary)
+      try {
+        const feeRes = await api.get('/student-portal/fees');
+        setFeeHistory(feeRes.data?.data?.payments || []);
+      } catch { setFeeHistory([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load your data.');
     } finally { setLoading(false); }
@@ -878,9 +884,28 @@ export default function StudentDashboard() {
 
           <div className="card overflow-hidden">
             <CardHeader title="Fee Records" subtitle={`Academic year ${new Date().getFullYear()}`} />
-            {!fees.length ? <EmptyState icon="💰" title="No fee records" /> : (
+            {(!feeHistory.length && !fees.length) ? <EmptyState icon="💰" title="No fee records" /> : (
               <div className="divide-y divide-border dark:divide-gray-700">
-                {fees.map((f, i) => (
+                {/* Real payment history — one row per payment */}
+                {feeHistory.length > 0 ? feeHistory.map((p, i) => (
+                  <div key={p._id || i} className="px-6 py-4 flex items-center gap-4 hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 bg-green-100 dark:bg-green-900/30">✅</div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-ink dark:text-white">
+                        {p.month ? `${p.month} ${p.year || ''}`.trim() : 'Fee Payment'}
+                        {p.method ? <span className="ml-2 text-[10px] font-bold uppercase text-muted">{p.method}</span> : null}
+                      </p>
+                      <p className="text-xs text-muted">
+                        Paid: {p.paidOn ? new Date(p.paidOn).toLocaleDateString('en-IN') : '—'}
+                        {p.receiptNumber ? ` · #${p.receiptNumber}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-sm text-ink dark:text-white">₹{(p.amount || 0).toLocaleString('en-IN')}</div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">paid</span>
+                    </div>
+                  </div>
+                )) : fees.map((f, i) => (
                   <div key={f._id || i} className="px-6 py-4 flex items-center gap-4 hover:bg-warm/40 dark:hover:bg-gray-800/50 transition-colors">
                     <div className={'w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ' +
                       (f.status === 'paid' ? 'bg-green-100 dark:bg-green-900/30' :
@@ -892,9 +917,7 @@ export default function StudentDashboard() {
                         {f.month ? `${f.month} ${f.year || ''}` : f.feeType || 'Fee Record'}
                       </p>
                       <p className="text-xs text-muted">
-                        {f.status === 'paid'
-                          ? `Paid: ${f.paymentDate ? new Date(f.paymentDate).toLocaleDateString('en-IN') : '—'}`
-                          : f.dueDate ? `Due: ${new Date(f.dueDate).toLocaleDateString('en-IN')}` : '—'}
+                        Paid ₹{(f.paidAmount || 0).toLocaleString('en-IN')} of ₹{(f.totalAmount || 0).toLocaleString('en-IN')}
                       </p>
                     </div>
                     <div className="text-right">
