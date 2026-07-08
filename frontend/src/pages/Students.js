@@ -2,7 +2,7 @@
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI } from '../utils/api';
+import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI, attendanceAPI } from '../utils/api';
 import { admissionAPI } from '../utils/admissionUtils';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
@@ -1045,6 +1045,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
   const [activeTab, setActiveTab] = useState('overview');
   const [exams,       setExams]       = useState([]);
   const [attendance,  setAttendance]  = useState([]);
+  const [attSummary,  setAttSummary]  = useState({ total:0, present:0, absent:0, percentage:0 });
   const [fees,        setFees]        = useState([]);
   const [feeSummary,  setFeeSummary]  = useState({ total: 0, paid: 0, pending: 0 });
   const [feeHistory,  setFeeHistory]  = useState([]);
@@ -1144,8 +1145,28 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
           history.sort((x, y) => new Date(y.date) - new Date(x.date));
           setFeeHistory(history);
         }
-        // Mock attendance
-        setAttendance(Array.from({ length: 30 }, (_, i) => ({ day: i + 1, status: Math.random() > 0.15 ? 'present' : 'absent' })));
+        // ── Real attendance for the current month ──
+        try {
+          const now = new Date();
+          const month = now.getMonth() + 1;   // 1-based
+          const year  = now.getFullYear();
+          const attRes = await attendanceAPI.getByStudent(s._id, { month, year });
+          const sum = attRes.data?.summary || { total:0, present:0, absent:0, percentage:0 };
+          const calMap = attRes.data?.calendar || {};   // { 'YYYY-MM-DD': 'present'|'absent'|... }
+          setAttSummary(sum);
+
+          // Build a day-by-day array for this month (only days that have a record)
+          const daysInMonth = new Date(year, month, 0).getDate();
+          const cal = [];
+          for (let d = 1; d <= daysInMonth; d++) {
+            const key = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            cal.push({ day: d, status: calMap[key] || null }); // null = not marked
+          }
+          setAttendance(cal);
+        } catch {
+          setAttSummary({ total:0, present:0, absent:0, percentage:0 });
+          setAttendance([]);
+        }
       } catch {}
       finally { setLoadingData(false); }
     };
@@ -1178,8 +1199,8 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
     }
   };
 
-  const presentDays = attendance.filter(a => a.status === 'present').length;
-  const attPct = attendance.length > 0 ? Math.round((presentDays / attendance.length) * 100) : 0;
+  const presentDays = attSummary.present || 0;
+  const attPct = attSummary.percentage || 0;
 
   // Exam stats
   const examResults = exams.filter(e => e.results?.length).map(e => {
@@ -1770,7 +1791,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                   <div className="text-xs text-muted">Present</div>
                 </div>
                 <div className="card p-4 text-center">
-                  <div className="text-2xl font-display text-red-500">{attendance.length - presentDays}</div>
+                  <div className="text-2xl font-display text-red-500">{attSummary.absent || 0}</div>
                   <div className="text-xs text-muted">Absent</div>
                 </div>
                 <div className="card p-4 text-center">
@@ -1779,28 +1800,52 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                 </div>
               </div>
 
-              {attPct < 75 && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700 dark:text-amber-300">
-                  ⚠️ Attendance below 75%. Minimum required: 75% for exam eligibility.
-                </div>
-              )}
-
-              {/* Calendar heat-map simulation */}
-              <Section title="This Month — Attendance Calendar">
-                <div className="grid grid-cols-7 gap-1.5">
-                  {['S','M','T','W','T','F','S'].map(d => (
-                    <div key={d} className="text-center text-[10px] text-muted font-bold">{d}</div>
-                  ))}
-                  {Array.from({ length: 2 }, (_, i) => <div key={'pad-'+i} />)}
-                  {attendance.map((a, i) => (
-                    <div key={i} title={'Day ' + a.day + ': ' + a.status}
-                      className={'w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold cursor-default ' +
-                        (a.status === 'present' ? 'bg-green-100 text-green-700 dark:bg-green-900/40' : 'bg-red-100 text-red-600 dark:bg-red-900/40')}>
-                      {a.day}
+              {attSummary.total === 0 ? (
+                <EmptyState icon="🗓️" title="No attendance marked this month" />
+              ) : (
+                <>
+                  {attPct < 75 && (
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-xs text-amber-700 dark:text-amber-300">
+                      ⚠️ Attendance below 75%. Minimum required: 75% for exam eligibility.
                     </div>
-                  ))}
-                </div>
-              </Section>
+                  )}
+
+                  {/* Real attendance calendar for the current month */}
+                  <Section title={'This Month — ' + new Date().toLocaleDateString('en-IN', { month:'long', year:'numeric' })}>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {['S','M','T','W','T','F','S'].map((d,i) => (
+                        <div key={'h'+i} className="text-center text-[10px] text-muted font-bold pb-1">{d}</div>
+                      ))}
+                      {(() => {
+                        const now = new Date();
+                        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay(); // 0=Sun
+                        return Array.from({ length: firstDay }, (_, i) => <div key={'pad-'+i} />);
+                      })()}
+                      {attendance.map((a, i) => {
+                        const cls = a.status === 'present' || a.status === 'late'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40'
+                          : a.status === 'absent'
+                            ? 'bg-red-100 text-red-600 dark:bg-red-900/40'
+                            : a.status === 'excused'
+                              ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40'
+                              : 'bg-gray-50 text-gray-300 dark:bg-gray-800/40 dark:text-gray-600';
+                        return (
+                          <div key={i} title={a.status ? ('Day ' + a.day + ': ' + a.status) : ('Day ' + a.day + ': not marked')}
+                            className={'w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold cursor-default ' + cls}>
+                            {a.day}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-muted">
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-100 inline-block" />Present</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block" />Absent</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100 inline-block" />Excused</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-100 inline-block" />Not marked</span>
+                    </div>
+                  </Section>
+                </>
+              )}
             </div>
           )}
 
