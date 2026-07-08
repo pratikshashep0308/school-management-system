@@ -16,6 +16,16 @@ const COLORS = ['#185FA5','#534AB7','#0F6E56','#993556','#BA7517','#0369A1','#7C
 function cardColor(name) { return COLORS[(name||'').charCodeAt(0) % COLORS.length]; }
 function initials(name)  { return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
 
+// Format a student's address whether it's an object {street,city,state,pincode}
+// or a plain string (from admissionSnapshot). Returns '' if nothing usable.
+function formatStudentAddress(s) {
+  const a = s.address || s.admissionSnapshot?.address;
+  if (!a) return '';
+  if (typeof a === 'string') return a.trim();
+  const parts = [a.street, a.city, a.state, a.pincode].filter(Boolean);
+  return parts.join(', ');
+}
+
 // ── Single card HTML string (for print) ──────────────────────────────────────
 function cardHTML(s) {
   const name  = s.user?.name || '—';
@@ -65,11 +75,15 @@ function cardHTML(s) {
         <div style="font-size:8px;color:#374151;margin-bottom:3px"><span style="color:#9CA3AF;font-weight:700;text-transform:uppercase;min-width:34px;display:inline-block">ROLL:</span> ${s.rollNumber||'—'}</div>
         <div style="font-size:8px;color:#374151;margin-bottom:3px"><span style="color:#9CA3AF;font-weight:700;text-transform:uppercase;min-width:34px;display:inline-block">ADM:</span> ${s.admissionNumber||'—'}</div>
         ${s.parentPhone||s.user?.phone ? `<div style="font-size:8px;color:#374151"><span style="color:#9CA3AF;font-weight:700;text-transform:uppercase;min-width:34px;display:inline-block">PH:</span> ${s.parentPhone||s.user?.phone}</div>` : ''}
+        ${formatStudentAddress(s) ? `<div style="font-size:8px;color:#374151;margin-top:3px;line-height:1.3"><span style="color:#9CA3AF;font-weight:700;text-transform:uppercase;min-width:34px;display:inline-block;vertical-align:top">ADDR:</span> <span style="display:inline-block;max-width:150px">${formatStudentAddress(s)}</span></div>` : ''}
       </div>
     </div>
-    <div style="background:#0B1F4A;padding:5px 10px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:7px;color:rgba(255,255,255,0.7)">${SCHOOL.phone}</span>
-      <span style="font-size:7px;color:rgba(255,255,255,0.5);letter-spacing:0.5px">STUDENT ID</span>
+    <div style="background:#0B1F4A;padding:5px 10px">
+      <div style="font-size:6.5px;color:rgba(255,255,255,0.7);line-height:1.3;margin-bottom:2px">${SCHOOL.address}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:7px;color:rgba(255,255,255,0.7)">${SCHOOL.phone}</span>
+        <span style="font-size:7px;color:rgba(255,255,255,0.5);letter-spacing:0.5px">STUDENT ID</span>
+      </div>
     </div>
   </div>`;
 }
@@ -204,18 +218,22 @@ function IDCardPreview({ student }) {
             { l:'Roll',   v:student.rollNumber||'—' },
             { l:'Adm',    v:student.admissionNumber||'—' },
             { l:'Ph',     v:student.parentPhone||student.user?.phone||'' },
+            { l:'Addr',   v:formatStudentAddress(student) },
           ].filter(r=>r.v&&r.v!=='—').map(r=>(
             <div key={r.l} style={{ display:'flex', gap:4, marginBottom:3 }}>
-              <span style={{ fontSize:7, color:'#9CA3AF', fontWeight:700, minWidth:30, textTransform:'uppercase' }}>{r.l}:</span>
-              <span style={{ fontSize:8, color:'#374151', fontWeight:600 }}>{r.v}</span>
+              <span style={{ fontSize:7, color:'#9CA3AF', fontWeight:700, minWidth:30, textTransform:'uppercase', flexShrink:0 }}>{r.l}:</span>
+              <span style={{ fontSize:8, color:'#374151', fontWeight:600, lineHeight:1.3 }}>{r.v}</span>
             </div>
           ))}
         </div>
       </div>
       {/* Footer */}
-      <div style={{ background:'#0B1F4A', padding:'5px 10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontSize:7, color:'rgba(255,255,255,0.7)' }}>{SCHOOL.phone}</span>
-        <span style={{ fontSize:7, color:'rgba(255,255,255,0.5)', letterSpacing:'0.5px' }}>STUDENT ID</span>
+      <div style={{ background:'#0B1F4A', padding:'5px 10px' }}>
+        <div style={{ fontSize:6.5, color:'rgba(255,255,255,0.7)', lineHeight:1.3, marginBottom:2 }}>{SCHOOL.address}</div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontSize:7, color:'rgba(255,255,255,0.7)' }}>{SCHOOL.phone}</span>
+          <span style={{ fontSize:7, color:'rgba(255,255,255,0.5)', letterSpacing:'0.5px' }}>STUDENT ID</span>
+        </div>
       </div>
     </div>
   );
