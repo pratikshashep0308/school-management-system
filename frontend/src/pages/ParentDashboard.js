@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { homeworkAPI, libraryAPI } from '../utils/api';
+import api, { homeworkAPI, libraryAPI, behaviouralNoteAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
@@ -298,6 +298,7 @@ export default function ParentDashboard() {
   const [selected, setSelected] = useState(null); // selected child student object
   const [homework, setHomework] = useState([]);
   const [myBooks, setMyBooks] = useState([]);
+  const [behaviourNotes, setBehaviourNotes] = useState([]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -329,6 +330,14 @@ export default function ParentDashboard() {
           setMyBooks(libRes.data?.data || []);
         }
       } catch { setMyBooks([]); }
+      // Fetch the child's behavioural notes (read-only)
+      try {
+        const sid = kids[0]?._id;
+        if (sid) {
+          const bnRes = await behaviouralNoteAPI.getHistory(sid);
+          setBehaviourNotes(bnRes.data?.data || []);
+        }
+      } catch { setBehaviourNotes([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load data.');
     } finally {
@@ -576,7 +585,7 @@ export default function ParentDashboard() {
               {/* Notifications */}
               <div className="card overflow-hidden">
                 <CardHeader title="School Notifications" subtitle="Latest from school"
-                  action="View all" onAction={() => navigate('/notifications')} />
+                  action="View all" onAction={() => setTab('notifications')} />
                 {!notifications.length ? <EmptyState icon="🔔" title="No notifications" /> : (
                   <div className="divide-y divide-border dark:divide-gray-700">
                     {notifications.slice(0, 5).map(n => (
@@ -1213,6 +1222,54 @@ export default function ParentDashboard() {
               portalLabel="Meetings & PTM"
               emptyHint="No upcoming meetings or PTMs. School staff will notify you when one is scheduled."
             />
+          )}
+
+          {/* ════════════════════ BEHAVIOUR NOTES ════════════════════ */}
+          {tab === 'behaviour' && (
+            <div className="space-y-3">
+              <CardHeader title="📝 Behaviour Notes" subtitle={`${behaviourNotes.length} note${behaviourNotes.length===1?'':'s'} from teachers`} />
+              {!behaviourNotes.length ? <EmptyState icon="📝" title="No behaviour notes yet" /> : (
+                <div className="space-y-2">
+                  {behaviourNotes.map((n, i) => {
+                    const cat = n.category === 'positive' ? { bg:'bg-green-100', text:'text-green-700', label:'Positive' }
+                              : n.category === 'concern'  ? { bg:'bg-red-100',   text:'text-red-600',   label:'Concern' }
+                              : { bg:'bg-indigo-100', text:'text-indigo-700', label:'General' };
+                    return (
+                      <div key={n._id || i} className="card p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-muted">{new Date(n.date).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}</span>
+                          <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + cat.bg + ' ' + cat.text}>{cat.label}</span>
+                        </div>
+                        <p className="text-sm text-ink/90 dark:text-gray-300 whitespace-pre-wrap">{n.note}</p>
+                        {n.createdByName && <p className="text-[11px] text-muted mt-1.5">— {n.createdByName}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'notifications' && (
+            <div className="space-y-3">
+              <CardHeader title="🔔 Notifications" subtitle={`${notifications.length} notification${notifications.length===1?'':'s'}`} />
+              {!notifications.length ? <EmptyState icon="🔔" title="No notifications" /> : (
+                <div className="space-y-2">
+                  {notifications.map((n, i) => (
+                    <div key={n._id || i} className="card p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="text-lg flex-shrink-0">{n.type === 'urgent' ? '⚠️' : n.type === 'event' ? '📅' : '🔔'}</div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-sm text-ink dark:text-white">{n.title || 'Notification'}</p>
+                          {n.message && <p className="text-sm text-ink/80 dark:text-gray-300 mt-1 whitespace-pre-wrap">{n.message}</p>}
+                          {n.createdAt && <p className="text-[11px] text-muted mt-1.5">{new Date(n.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
         </>

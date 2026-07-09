@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { timetableAPI, homeworkAPI, libraryAPI } from '../utils/api';
+import api, { timetableAPI, homeworkAPI, libraryAPI, behaviouralNoteAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
@@ -272,6 +272,7 @@ export default function StudentDashboard() {
   const [feeHistory, setFeeHistory] = useState([]);
   const [homework, setHomework] = useState([]);
   const [myBooks, setMyBooks] = useState([]);
+  const [behaviourNotes, setBehaviourNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
@@ -305,12 +306,32 @@ export default function StudentDashboard() {
           setMyBooks(libRes.data?.data || []);
         }
       } catch { setMyBooks([]); }
+      // Fetch this student's behavioural notes (read-only)
+      try {
+        const sid = res.data?.data?.student?._id;
+        if (sid) {
+          const bnRes = await behaviouralNoteAPI.getHistory(sid);
+          setBehaviourNotes(bnRes.data?.data || []);
+        }
+      } catch { setBehaviourNotes([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load your data.');
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const updateMyHomeworkStatus = async (id, status) => {
+    // Optimistic update
+    setHomework(prev => prev.map(h => h._id === id ? { ...h, myStatus: status } : h));
+    try {
+      await homeworkAPI.setMyStatus(id, status);
+      toast.success('Status updated');
+    } catch {
+      toast.error('Failed to update');
+      load(); // revert on failure
+    }
+  };
 
   if (loading) return <LoadingState />;
   if (error) return (
@@ -491,7 +512,7 @@ export default function StudentDashboard() {
           {/* Notifications */}
           <div className="card overflow-hidden">
             <CardHeader title="School Notifications" subtitle="Latest announcements"
-              action="View all" onAction={() => navigate('/notifications')} />
+              action="View all" onAction={() => setTab('notifications')} />
             {!notifications.length ? <EmptyState icon="🔔" title="No notifications" /> : (
               <div className="divide-y divide-border dark:divide-gray-700">
                 {notifications.slice(0, 5).map(n => (
@@ -812,6 +833,22 @@ export default function StudentDashboard() {
                         ))}
                       </div>
                     )}
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className="text-[11px] text-muted font-semibold">My status:</span>
+                      <select
+                        value={h.myStatus || 'not_completed'}
+                        onChange={(e) => updateMyHomeworkStatus(h._id, e.target.value)}
+                        className="text-xs font-bold px-2 py-1 rounded-lg border cursor-pointer outline-none"
+                        style={{
+                          background: (h.myStatus === 'completed') ? '#DCFCE7' : (h.myStatus === 'not_applicable') ? '#F3F4F6' : '#FEF3C7',
+                          color:      (h.myStatus === 'completed') ? '#166534' : (h.myStatus === 'not_applicable') ? '#6B7280' : '#92400E',
+                          borderColor:(h.myStatus === 'completed') ? '#86EFAC' : (h.myStatus === 'not_applicable') ? '#E5E7EB' : '#FCD34D',
+                        }}>
+                        <option value="completed">Completed</option>
+                        <option value="not_completed">Not Completed</option>
+                        <option value="not_applicable">Not Applicable</option>
+                      </select>
+                    </div>
                   </div>
                 );
               })}
@@ -1115,6 +1152,53 @@ export default function StudentDashboard() {
           portalLabel="My Meetings"
           emptyHint="No meetings have been scheduled for you yet. PTMs, counseling sessions, and class meetings will show here."
         />
+      )}
+
+      {tab === 'behaviour' && (
+        <div className="space-y-3">
+          <CardHeader title="📝 Behaviour Notes" subtitle={`${behaviourNotes.length} note${behaviourNotes.length===1?'':'s'} from your teachers`} />
+          {!behaviourNotes.length ? <EmptyState icon="📝" title="No behaviour notes yet" /> : (
+            <div className="space-y-2">
+              {behaviourNotes.map((n, i) => {
+                const cat = n.category === 'positive' ? { bg:'bg-green-100', text:'text-green-700', label:'Positive' }
+                          : n.category === 'concern'  ? { bg:'bg-red-100',   text:'text-red-600',   label:'Concern' }
+                          : { bg:'bg-indigo-100', text:'text-indigo-700', label:'General' };
+                return (
+                  <div key={n._id || i} className="card p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-muted">{new Date(n.date).toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' })}</span>
+                      <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' + cat.bg + ' ' + cat.text}>{cat.label}</span>
+                    </div>
+                    <p className="text-sm text-ink/90 dark:text-gray-300 whitespace-pre-wrap">{n.note}</p>
+                    {n.createdByName && <p className="text-[11px] text-muted mt-1.5">— {n.createdByName}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'notifications' && (
+        <div className="space-y-3">
+          <CardHeader title="🔔 Notifications" subtitle={`${notifications.length} notification${notifications.length===1?'':'s'}`} />
+          {!notifications.length ? <EmptyState icon="🔔" title="No notifications" /> : (
+            <div className="space-y-2">
+              {notifications.map((n, i) => (
+                <div key={n._id || i} className="card p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-lg flex-shrink-0">{n.type === 'urgent' ? '⚠️' : n.type === 'event' ? '📅' : '🔔'}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm text-ink dark:text-white">{n.title || 'Notification'}</p>
+                      {n.message && <p className="text-sm text-ink/80 dark:text-gray-300 mt-1 whitespace-pre-wrap">{n.message}</p>}
+                      {n.createdAt && <p className="text-[11px] text-muted mt-1.5">{new Date(n.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
     </div>
