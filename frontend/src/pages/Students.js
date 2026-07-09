@@ -508,9 +508,9 @@ export default function Students() {
             ✕ Clear
           </button>
         )}
-        {canManage && filterClass && (
+        {canManage && (
           <button onClick={autoAssignRoll} disabled={assigningRoll}
-            title="Assign roll numbers 1,2,3… to this class by admission order"
+            title={filterClass ? 'Assign roll numbers 1,2,3… to this class by admission order' : 'Assign roll numbers 1,2,3… to every class (each class numbered separately)'}
             style={{ fontSize:12, color:'#0B1F4A', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:700, opacity:assigningRoll?0.7:1 }}>
             {assigningRoll ? '⏳ Assigning…' : '🔢 Auto Roll No'}
           </button>
