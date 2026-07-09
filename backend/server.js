@@ -125,6 +125,7 @@ const routes = [
   ['/api/admins',         './routes/adminRoutes'],                    // ← Admin management
   ['/api/permissions',    './routes/permissionRoutes'],               // ← Matrix access control
   ['/api/behavioural-notes', './routes/behaviouralNoteRoutes'],       // ← Behavioural notes
+  ['/api/uploads',        './routes/uploadRoutes'],                    // ← File attachments
 ];
 
 routes.forEach(([path, file]) => {

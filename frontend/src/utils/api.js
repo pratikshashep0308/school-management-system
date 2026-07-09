@@ -330,6 +330,15 @@ export const homeworkAPI = {
   setStatus:     (id, studentId, status) => api.put(`/homework/${id}/status/${studentId}`, { status }),
 };
 
+// ── File uploads (images / PDFs) ─────────────────────────────────────────────
+export const uploadAPI = {
+  attachment: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/uploads/attachment', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+};
+
 // ── Behavioural Notes ────────────────────────────────────────────────────────
 export const behaviouralNoteAPI = {
   getToday:   (studentId, date) => api.get(`/behavioural-notes/${studentId}`, { params: date ? { date } : {} }),
