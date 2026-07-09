@@ -55,6 +55,7 @@ const PORTAL_SECTIONS = [
       { id: 'timetable',   icon: '🗓',  label: 'Timetable' },
       { id: 'exams',       icon: '📝', label: 'Exams' },
       { id: 'assignments', icon: '📋', label: 'Assignments' },
+      { id: 'homework',    icon: '📚', label: 'Homework' },
       { id: 'meetings',    icon: '📅', label: 'Meetings' },
     ],
   },

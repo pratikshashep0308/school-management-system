@@ -319,6 +319,11 @@ export const permissionAPI = {
   reset: ()        => api.post('/permissions/reset'),
 };
 
+// ── Homework ─────────────────────────────────────────────────────────────────
+export const homeworkAPI = {
+  getAll: (params) => api.get('/homework', { params }),
+};
+
 // ── Salary ───────────────────────────────────────────────────────────────────
 export const salaryAPI = {
   getAll:   (params)   => api.get('/salary', { params }),

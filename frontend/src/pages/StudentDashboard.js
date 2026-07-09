@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { timetableAPI } from '../utils/api';
+import api, { timetableAPI, homeworkAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
@@ -270,6 +270,7 @@ export default function StudentDashboard() {
   const { activeTab: tab, setTab } = usePortalTab();
   const [data,    setData]    = useState(null);
   const [feeHistory, setFeeHistory] = useState([]);
+  const [homework, setHomework] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
@@ -290,6 +291,11 @@ export default function StudentDashboard() {
         const feeRes = await api.get('/student-portal/fees');
         setFeeHistory(feeRes.data?.data?.payments || []);
       } catch { setFeeHistory([]); }
+      // Fetch homework (backend filters to the student's class automatically)
+      try {
+        const hwRes = await homeworkAPI.getAll();
+        setHomework(hwRes.data?.data || hwRes.data || []);
+      } catch { setHomework([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load your data.');
     } finally { setLoading(false); }
@@ -765,6 +771,44 @@ export default function StudentDashboard() {
       )}
       {tab === 'assignments' && (
         <AssignmentsSection assignments={assignments} dueAssignments={dueAssignments}/>
+      )}
+      {tab === 'homework' && (
+        <div className="space-y-3">
+          <CardHeader title="📚 Homework" subtitle={`${homework.length} item${homework.length===1?'':'s'} for your class`} />
+          {!homework.length ? <EmptyState icon="📚" title="No homework assigned" /> : (
+            <div className="space-y-3">
+              {homework.map((h, i) => {
+                const overdue = h.dueDate && new Date(h.dueDate) < new Date();
+                return (
+                  <div key={h._id || i} className="card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-ink dark:text-white">{h.title || 'Homework'}</p>
+                        <p className="text-xs text-muted mt-0.5">
+                          {h.subject?.name ? `${h.subject.name}` : ''}
+                          {h.assignedDate ? ` · Assigned ${new Date(h.assignedDate).toLocaleDateString('en-IN')}` : ''}
+                        </p>
+                      </div>
+                      {h.dueDate && (
+                        <span className={'text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ' + (overdue ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                          Due {new Date(h.dueDate).toLocaleDateString('en-IN')}
+                        </span>
+                      )}
+                    </div>
+                    {h.description && <p className="text-sm text-ink/80 dark:text-gray-300 mt-2 whitespace-pre-wrap">{h.description}</p>}
+                    {Array.isArray(h.attachments) && h.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {h.attachments.map((a, ai) => (
+                          <a key={ai} href={a.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-accent hover:underline">📎 {a.name || 'Attachment'}</a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
       {false && tab === 'assignments_old' && (
         <div className="space-y-3">

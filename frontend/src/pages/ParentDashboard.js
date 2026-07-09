@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api, { homeworkAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
@@ -296,6 +296,7 @@ export default function ParentDashboard() {
   const [error,    setError]    = useState('');
   const [children, setChildren] = useState([]);
   const [selected, setSelected] = useState(null); // selected child student object
+  const [homework, setHomework] = useState([]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -314,6 +315,11 @@ export default function ParentDashboard() {
       const kids = d?.children || (d?.student ? [d.student] : []);
       setChildren(kids);
       if (kids.length) setSelected(kids[0]);
+      // Fetch homework (backend filters to the child's class automatically)
+      try {
+        const hwRes = await homeworkAPI.getAll();
+        setHomework(hwRes.data?.data || hwRes.data || []);
+      } catch { setHomework([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load data.');
     } finally {
@@ -912,6 +918,46 @@ export default function ParentDashboard() {
                     );
                   })}
                 </>
+              )}
+            </div>
+          )}
+
+          {/* ════════════════════ HOMEWORK ════════════════════ */}
+          {tab === 'homework' && (
+            <div className="space-y-3">
+              <CardHeader title="📚 Homework" subtitle={`${homework.length} item${homework.length===1?'':'s'} for your child's class`} />
+              {!homework.length ? <EmptyState icon="📚" title="No homework assigned" /> : (
+                <div className="space-y-3">
+                  {homework.map((h, i) => {
+                    const overdue = h.dueDate && new Date(h.dueDate) < new Date();
+                    return (
+                      <div key={h._id || i} className="card p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-ink dark:text-white">{h.title || 'Homework'}</p>
+                            <p className="text-xs text-muted mt-0.5">
+                              {h.subject?.name ? `${h.subject.name}` : ''}
+                              {h.assignedDate ? ` · Assigned ${new Date(h.assignedDate).toLocaleDateString('en-IN')}` : ''}
+                            </p>
+                          </div>
+                          {h.dueDate && (
+                            <span className={'text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ' + (overdue ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700')}>
+                              Due {new Date(h.dueDate).toLocaleDateString('en-IN')}
+                            </span>
+                          )}
+                        </div>
+                        {h.description && <p className="text-sm text-ink/80 dark:text-gray-300 mt-2 whitespace-pre-wrap">{h.description}</p>}
+                        {Array.isArray(h.attachments) && h.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {h.attachments.map((a, ai) => (
+                              <a key={ai} href={a.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-accent hover:underline">📎 {a.name || 'Attachment'}</a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
