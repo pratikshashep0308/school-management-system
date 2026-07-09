@@ -63,6 +63,7 @@ const PORTAL_SECTIONS = [
     group: 'FINANCE & SERVICES',
     items: [
       { id: 'fees',      icon: '💳', label: 'Fees' },
+      { id: 'library',   icon: '📖', label: 'Library' },
       { id: 'transport', icon: '🚌', label: 'Transport' },
     ],
   },

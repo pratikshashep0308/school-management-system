@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import StudentAttendanceSection from './Attendance/StudentAttendanceSection';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { timetableAPI, homeworkAPI } from '../utils/api';
+import api, { timetableAPI, homeworkAPI, libraryAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
@@ -271,6 +271,7 @@ export default function StudentDashboard() {
   const [data,    setData]    = useState(null);
   const [feeHistory, setFeeHistory] = useState([]);
   const [homework, setHomework] = useState([]);
+  const [myBooks, setMyBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
 
@@ -296,6 +297,14 @@ export default function StudentDashboard() {
         const hwRes = await homeworkAPI.getAll();
         setHomework(hwRes.data?.data || hwRes.data || []);
       } catch { setHomework([]); }
+      // Fetch this student's borrowed library books
+      try {
+        const sid = res.data?.data?.student?._id;
+        if (sid) {
+          const libRes = await libraryAPI.getIssues({ student: sid });
+          setMyBooks(libRes.data?.data || []);
+        }
+      } catch { setMyBooks([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load your data.');
     } finally { setLoading(false); }
@@ -886,6 +895,41 @@ export default function StudentDashboard() {
                 );
               })}
             </>
+          )}
+        </div>
+      )}
+
+      {tab === 'library' && (
+        <div className="space-y-3">
+          <CardHeader title="📖 My Library" subtitle={`${myBooks.length} book${myBooks.length===1?'':'s'} issued to you`} />
+          {!myBooks.length ? <EmptyState icon="📖" title="No books issued" /> : (
+            <div className="space-y-3">
+              {myBooks.map((b, i) => {
+                const overdue = b.dueDate && new Date(b.dueDate) < new Date() && b.status !== 'returned';
+                return (
+                  <div key={b._id || i} className="card p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-ink dark:text-white">{b.book?.title || 'Book'}</p>
+                      <p className="text-xs text-muted mt-0.5">
+                        {b.book?.author ? `by ${b.book.author}` : ''}
+                        {b.issueDate ? ` · Issued ${new Date(b.issueDate).toLocaleDateString('en-IN')}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {b.dueDate && (
+                        <div className={'text-[11px] font-bold ' + (overdue ? 'text-red-600' : 'text-amber-600')}>
+                          Due {new Date(b.dueDate).toLocaleDateString('en-IN')}
+                        </div>
+                      )}
+                      <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' +
+                        (b.status === 'returned' ? 'bg-green-100 text-green-700' : overdue ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-700')}>
+                        {b.status || 'issued'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

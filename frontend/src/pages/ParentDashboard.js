@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api, { homeworkAPI } from '../utils/api';
+import api, { homeworkAPI, libraryAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
@@ -297,6 +297,7 @@ export default function ParentDashboard() {
   const [children, setChildren] = useState([]);
   const [selected, setSelected] = useState(null); // selected child student object
   const [homework, setHomework] = useState([]);
+  const [myBooks, setMyBooks] = useState([]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -320,6 +321,14 @@ export default function ParentDashboard() {
         const hwRes = await homeworkAPI.getAll();
         setHomework(hwRes.data?.data || hwRes.data || []);
       } catch { setHomework([]); }
+      // Fetch the child's borrowed library books
+      try {
+        const sid = kids[0]?._id;
+        if (sid) {
+          const libRes = await libraryAPI.getIssues({ student: sid });
+          setMyBooks(libRes.data?.data || []);
+        }
+      } catch { setMyBooks([]); }
     } catch (e) {
       setError(e.response?.data?.message || 'Failed to load data.');
     } finally {
@@ -954,6 +963,42 @@ export default function ParentDashboard() {
                             ))}
                           </div>
                         )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ════════════════════ LIBRARY ════════════════════ */}
+          {tab === 'library' && (
+            <div className="space-y-3">
+              <CardHeader title="📖 Library" subtitle={`${myBooks.length} book${myBooks.length===1?'':'s'} issued to your child`} />
+              {!myBooks.length ? <EmptyState icon="📖" title="No books issued" /> : (
+                <div className="space-y-3">
+                  {myBooks.map((b, i) => {
+                    const overdue = b.dueDate && new Date(b.dueDate) < new Date() && b.status !== 'returned';
+                    return (
+                      <div key={b._id || i} className="card p-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm text-ink dark:text-white">{b.book?.title || 'Book'}</p>
+                          <p className="text-xs text-muted mt-0.5">
+                            {b.book?.author ? `by ${b.book.author}` : ''}
+                            {b.issueDate ? ` · Issued ${new Date(b.issueDate).toLocaleDateString('en-IN')}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          {b.dueDate && (
+                            <div className={'text-[11px] font-bold ' + (overdue ? 'text-red-600' : 'text-amber-600')}>
+                              Due {new Date(b.dueDate).toLocaleDateString('en-IN')}
+                            </div>
+                          )}
+                          <span className={'text-[10px] font-bold px-2 py-0.5 rounded-full ' +
+                            (b.status === 'returned' ? 'bg-green-100 text-green-700' : overdue ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-700')}>
+                            {b.status || 'issued'}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
