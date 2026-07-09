@@ -9,6 +9,50 @@ const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
 
+// POST /api/students/assign-roll-numbers  — admin: number a class's students 1,2,3…
+// body: { classId }  → assigns roll numbers by admission order (oldest first)
+router.post('/assign-roll-numbers', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
+  try {
+    const Student = require('../models/Student');
+    const { classId } = req.body;
+
+    // If a specific class is given, number just that class.
+    // If not, number every class in the school separately (each starts at 1).
+    let classIds;
+    if (classId) {
+      classIds = [classId];
+    } else {
+      const distinct = await Student.distinct('class', { school: req.user.school });
+      classIds = distinct.filter(Boolean);
+    }
+
+    if (!classIds.length) {
+      return res.status(404).json({ success: false, message: 'No students found' });
+    }
+
+    let total = 0;
+    for (const cid of classIds) {
+      const students = await Student.find({ class: cid, school: req.user.school })
+        .sort({ createdAt: 1, _id: 1 });
+      let n = 1;
+      for (const st of students) {
+        st.rollNumber = String(n);
+        await st.save();
+        n++;
+        total++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Assigned roll numbers to ${total} student(s) across ${classIds.length} class(es)`,
+      count: total,
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Student views own profile
 router.get('/my-profile', getMyProfile);
 

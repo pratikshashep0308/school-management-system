@@ -2,13 +2,14 @@
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI, attendanceAPI, behaviouralNoteAPI } from '../utils/api';
+import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI, attendanceAPI } from '../utils/api';
 import { admissionAPI } from '../utils/admissionUtils';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
 import AdmissionFormModal from '../components/admissions/AdmissionFormModal';
 import BehaviouralNotes from '../components/BehaviouralNotes';
+import RollNumberEditor from '../components/RollNumberEditor';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -239,6 +240,24 @@ export default function Students() {
       toast.error(err.response?.data?.message || 'Error saving student');
     }
     finally { setSaving(false); }
+  };
+
+  // eslint-disable-next-line no-unused-vars
+  const [assigningRoll, setAssigningRoll] = useState(false);
+  const autoAssignRoll = async () => {
+    const clsName = classes.find(c => c._id === filterClass);
+    const label = filterClass
+      ? (clsName ? `${clsName.name} ${clsName.section || ''}`.trim() : 'this class')
+      : 'ALL classes (each class numbered separately)';
+    if (!window.confirm(`Auto-assign roll numbers 1, 2, 3… to students in ${label} (by admission order)?\n\nThis will overwrite any existing roll numbers.`)) return;
+    setAssigningRoll(true);
+    try {
+      const r = await studentAPI.assignRollNumbers(filterClass || undefined);
+      toast.success(r.data?.message || 'Roll numbers assigned');
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to assign roll numbers');
+    } finally { setAssigningRoll(false); }
   };
 
   // eslint-disable-next-line no-unused-vars
@@ -487,6 +506,13 @@ export default function Students() {
           <button onClick={()=>{setSearch('');setFilterClass('');setFilterGender('');}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
             ✕ Clear
+          </button>
+        )}
+        {canManage && filterClass && (
+          <button onClick={autoAssignRoll} disabled={assigningRoll}
+            title="Assign roll numbers 1,2,3… to this class by admission order"
+            style={{ fontSize:12, color:'#0B1F4A', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:700, opacity:assigningRoll?0.7:1 }}>
+            {assigningRoll ? '⏳ Assigning…' : '🔢 Auto Roll No'}
           </button>
         )}
         <div style={{ marginLeft:'auto', fontSize:12, color:'#9CA3AF', fontWeight:600 }}>{filtered.length} results</div>
@@ -1721,6 +1747,9 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                   </>
                 );
               })()}
+
+              {/* Roll No — admin can set/edit */}
+              <RollNumberEditor studentId={s._id} initialValue={s.rollNumber} canEdit={!!canManage} onSaved={(r) => { s.rollNumber = r; }} />
 
               {/* Behavioural Notes for Today */}
               <BehaviouralNotes studentId={s._id} canEdit={!!canManage} />
