@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import api, { classAPI, subjectAPI, homeworkAPI as hwStatusAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import StatusRosterModal from '../components/StatusRosterModal';
+import { shareOnWhatsApp, shareFilesToWhatsApp, canShareFiles } from '../utils/whatsappShare';
+import { AttachmentUploader, AttachmentList } from '../components/Attachments';
 
 const homeworkAPI = {
   getAll:  (p)    => api.get('/homework', { params: p }),
@@ -62,7 +64,7 @@ export default function Homework() {
   const [filterSubject, setFilterSubject] = useState('');
 
   const [form, setForm] = useState({
-    date: today, classId: '', subjectId: '', detail: ''
+    date: today, classId: '', subjectId: '', detail: '', attachments: []
   });
 
   const load = useCallback(async () => {
@@ -99,10 +101,11 @@ export default function Homework() {
         subject:     form.subjectId || undefined,
         assignedDate:form.date,
         dueDate:     form.date,
+        attachments: form.attachments || [],
       });
       toast.success('Homework added!');
       setShowModal(false);
-      setForm({ date: today, classId: '', subjectId: '', detail: '' });
+      setForm({ date: today, classId: '', subjectId: '', detail: '', attachments: [] });
       load();
     } catch (e) { toast.error(e?.response?.data?.message || 'Failed'); }
     finally { setSaving(false); }
@@ -223,6 +226,7 @@ export default function Homework() {
                         {h.description && h.description !== h.title && (
                           <div style={{ fontSize:12, color:'#6B7280', lineHeight:1.5 }}>{h.description}</div>
                         )}
+                        {h.attachments?.length > 0 && <AttachmentList attachments={h.attachments} />}
                       </td>
                       <td style={{ padding:'12px 16px', color:'#374151', whiteSpace:'nowrap' }}>{tName}</td>
                       <td style={{ padding:'12px 16px' }}>
@@ -248,6 +252,18 @@ export default function Homework() {
                       {isStaff && (
                         <td style={{ padding:'12px 16px' }}>
                           <div style={{ display:'flex', gap:6 }}>
+                            <button onClick={() => shareOnWhatsApp({ kind:'Homework', title:h.title, subject:sub, class:cls, dueDate:h.dueDate, description:h.description, attachments:h.attachments })}
+                              title="Share text on WhatsApp"
+                              style={{ padding:'4px 10px', borderRadius:6, border:'1.5px solid #25D366', background:'#25D366', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                              🟢 WhatsApp
+                            </button>
+                            {h.attachments?.length > 0 && canShareFiles() && (
+                              <button onClick={() => shareFilesToWhatsApp({ kind:'Homework', title:h.title, subject:sub, class:cls, dueDate:h.dueDate, description:h.description, attachments:h.attachments })}
+                                title="Share file (image/PDF) via WhatsApp"
+                                style={{ padding:'4px 10px', borderRadius:6, border:'1.5px solid #128C7E', background:'#fff', color:'#128C7E', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                                📎 Send file
+                              </button>
+                            )}
                             <button onClick={() => setRosterHw(h)}
                               style={{ padding:'4px 10px', borderRadius:6, border:'1.5px solid #E5E7EB', background:'#fff', color:'#0B1F4A', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                               👥 Students
@@ -309,6 +325,10 @@ export default function Homework() {
                 <textarea style={{ ...INP, minHeight:120, resize:'vertical', fontFamily:'inherit' }}
                   value={form.detail} onChange={e => set('detail', e.target.value)}
                   placeholder="Enter homework details, instructions, or assignment description…"/>
+              </div>
+              <div style={{ gridColumn:'span 2' }}>
+                <label style={LBL}>Attachments (diagrams / tables / worksheets)</label>
+                <AttachmentUploader value={form.attachments} onChange={(a) => set('attachments', a)} />
               </div>
             </div>
 

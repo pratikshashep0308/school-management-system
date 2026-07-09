@@ -5,8 +5,10 @@ import { assignmentAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 import StatusRosterModal from '../components/StatusRosterModal';
+import { shareOnWhatsApp, shareFilesToWhatsApp, canShareFiles } from '../utils/whatsappShare';
+import { AttachmentUploader, AttachmentList } from '../components/Attachments';
 
-const FORM_EMPTY = { title: '', description: '', class: '', subject: '', dueDate: '', totalMarks: 10 };
+const FORM_EMPTY = { title: '', description: '', class: '', subject: '', dueDate: '', totalMarks: 10, attachments: [] };
 
 const INPUT = { width:'100%', border:'1.5px solid #E5E7EB', borderRadius:8, padding:'7px 10px', fontSize:13, outline:'none', boxSizing:'border-box', fontFamily:'inherit', background:'#fff' };
 
@@ -48,6 +50,7 @@ export default function Assignments() {
       subject: a.subject?._id || a.subject || '',
       dueDate: a.dueDate ? a.dueDate.split('T')[0] : '',
       totalMarks: a.totalMarks || 10,
+      attachments: a.attachments || [],
     });
     setModal({ open: true });
   };
@@ -131,6 +134,7 @@ export default function Assignments() {
                   {a.description && (
                     <p style={{ fontSize:13, color:'#374151', margin:'0 0 8px', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{a.description}</p>
                   )}
+                  {a.attachments?.length > 0 && <div onClick={e => e.stopPropagation()}><AttachmentList attachments={a.attachments} /></div>}
                   <div style={{ display:'flex', alignItems:'center', gap:16, fontSize:12, color:'#6B7280' }}>
                     <span>📅 Due: <strong style={{ color: isOverdue ? '#DC2626' : '#111827' }}>{due?.toLocaleDateString('en-IN') || 'TBD'}</strong></span>
                     <span>📊 Marks: <strong style={{ color:'#111827' }}>{a.totalMarks}</strong></span>
@@ -141,6 +145,14 @@ export default function Assignments() {
                 {/* Action buttons */}
                 {(isAdmin || isTeacher) && (
                   <div style={{ display:'flex', gap:6 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => shareOnWhatsApp({ kind:'Assignment', title:a.title, subject:a.subject?.name, class:`${a.class?.name || ''} ${a.class?.section || ''}`.trim(), dueDate:a.dueDate, description:a.description, attachments:a.attachments })}
+                      title="Share text on WhatsApp"
+                      style={{ height:32, padding:'0 10px', borderRadius:8, border:'1px solid #25D366', background:'#25D366', color:'#fff', cursor:'pointer', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', whiteSpace:'nowrap' }}>🟢 WhatsApp</button>
+                    {a.attachments?.length > 0 && canShareFiles() && (
+                      <button onClick={() => shareFilesToWhatsApp({ kind:'Assignment', title:a.title, subject:a.subject?.name, class:`${a.class?.name || ''} ${a.class?.section || ''}`.trim(), dueDate:a.dueDate, description:a.description, attachments:a.attachments })}
+                        title="Share file (image/PDF) via WhatsApp"
+                        style={{ height:32, padding:'0 10px', borderRadius:8, border:'1px solid #128C7E', background:'#fff', color:'#128C7E', cursor:'pointer', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', whiteSpace:'nowrap' }}>📎 Send file</button>
+                    )}
                     <button onClick={() => setRosterA(a)} title="Student completion status"
                       style={{ height:32, padding:'0 10px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', color:'#0B1F4A', cursor:'pointer', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', whiteSpace:'nowrap' }}>👥 Status</button>
                     <button onClick={() => openEdit(a)}
@@ -192,6 +204,9 @@ export default function Assignments() {
           </FormGroup>
           <FormGroup label="Total Marks">
             <input type="number" style={INPUT} value={form.totalMarks} onChange={e => set('totalMarks', +e.target.value)} placeholder="10" min="1" />
+          </FormGroup>
+          <FormGroup label="Attachments (diagrams / tables / worksheets)" style={{ gridColumn:'1/-1' }}>
+            <AttachmentUploader value={form.attachments} onChange={(a) => set('attachments', a)} />
           </FormGroup>
         </div>
       </Modal>
