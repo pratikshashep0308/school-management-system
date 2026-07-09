@@ -98,4 +98,51 @@ router.put('/:id/grade/:studentId', authorize('superAdmin', 'schoolAdmin', 'teac
   res.json({ success: true, message: 'Submission graded' });
 });
 
+// GET /:id/statuses — staff: full class roster with each student's status
+router.get('/:id/statuses', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.user.school });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    const students = await Student.find({ class: assignment.class, school: req.user.school })
+      .populate('user', 'name')
+      .sort({ rollNumber: 1 });
+
+    const statusMap = {};
+    (assignment.studentStatuses || []).forEach(s => { statusMap[s.student?.toString()] = s.status; });
+
+    const roster = students.map(st => ({
+      student:    st._id,
+      name:       st.user?.name || st.name || st.fullName || 'Student',
+      rollNumber: st.rollNumber || '',
+      status:     statusMap[st._id.toString()] || 'not_completed',
+    }));
+
+    res.json({ success: true, data: roster });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// PUT /:id/status/:studentId — staff sets a specific student's status
+router.put('/:id/status/:studentId', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['completed', 'not_completed', 'not_applicable'];
+    if (!allowed.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+
+    const assignment = await Assignment.findOne({ _id: req.params.id, school: req.user.school });
+    if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+
+    if (!assignment.studentStatuses) assignment.studentStatuses = [];
+    const existing = assignment.studentStatuses.find(s => s.student?.toString() === req.params.studentId);
+    if (existing) {
+      existing.status = status;
+      existing.updatedAt = new Date();
+    } else {
+      assignment.studentStatuses.push({ student: req.params.studentId, status, updatedAt: new Date() });
+    }
+    await assignment.save();
+    res.json({ success: true, message: 'Status updated' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 module.exports = router;

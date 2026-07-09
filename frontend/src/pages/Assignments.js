@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { assignmentAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
+import StatusRosterModal from '../components/StatusRosterModal';
 
 const FORM_EMPTY = { title: '', description: '', class: '', subject: '', dueDate: '', totalMarks: 10 };
 
@@ -19,6 +20,7 @@ export default function Assignments() {
   const [form,        setForm]        = useState(FORM_EMPTY);
   const [saving,      setSaving]      = useState(false);
   const [filterClass, setFilterClass] = useState('');
+  const [rosterA,     setRosterA]     = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -139,6 +141,8 @@ export default function Assignments() {
                 {/* Action buttons */}
                 {(isAdmin || isTeacher) && (
                   <div style={{ display:'flex', gap:6 }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setRosterA(a)} title="Student completion status"
+                      style={{ height:32, padding:'0 10px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', color:'#0B1F4A', cursor:'pointer', fontSize:12, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', whiteSpace:'nowrap' }}>👥 Status</button>
                     <button onClick={() => openEdit(a)}
                       style={{ width:32, height:32, borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', color:'#374151', cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>✎</button>
                     <button onClick={() => handleDelete(a._id)}
@@ -191,6 +195,17 @@ export default function Assignments() {
           </FormGroup>
         </div>
       </Modal>
+
+      {/* Per-student completion status */}
+      {rosterA && (
+        <StatusRosterModal
+          open={!!rosterA}
+          onClose={() => setRosterA(null)}
+          title={rosterA.title}
+          getStatuses={() => assignmentAPI.getStatuses(rosterA._id)}
+          setStatus={(studentId, status) => assignmentAPI.setStatus(rosterA._id, studentId, status)}
+        />
+      )}
     </div>
   );
 }

@@ -216,6 +216,12 @@ const AssignmentSchema = new mongoose.Schema({
     feedback: String,
     status: { type: String, enum: ['submitted', 'late', 'graded'], default: 'submitted' }
   }],
+  // Per-student completion status set by teacher/admin
+  studentStatuses: [{
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    status:  { type: String, enum: ['completed','not_completed','not_applicable'], default: 'not_completed' },
+    updatedAt: { type: Date, default: Date.now },
+  }],
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt: { type: Date, default: Date.now }
 });

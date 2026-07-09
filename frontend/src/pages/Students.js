@@ -2,12 +2,13 @@
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI, attendanceAPI } from '../utils/api';
+import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI, attendanceAPI, behaviouralNoteAPI } from '../utils/api';
 import { admissionAPI } from '../utils/admissionUtils';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
 import AdmissionFormModal from '../components/admissions/AdmissionFormModal';
+import BehaviouralNotes from '../components/BehaviouralNotes';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -1720,6 +1721,9 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                   </>
                 );
               })()}
+
+              {/* Behavioural Notes for Today */}
+              <BehaviouralNotes studentId={s._id} canEdit={!!canManage} />
             </div>
           )}
 

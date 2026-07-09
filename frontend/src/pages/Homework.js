@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import api, { classAPI, subjectAPI } from '../utils/api';
+import api, { classAPI, subjectAPI, homeworkAPI as hwStatusAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import StatusRosterModal from '../components/StatusRosterModal';
 
 const homeworkAPI = {
   getAll:  (p)    => api.get('/homework', { params: p }),
@@ -13,6 +14,19 @@ const homeworkAPI = {
 
 const INP = { width:'100%', padding:'10px 14px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, outline:'none', background:'#fff', boxSizing:'border-box', color:'#111827' };
 const LBL = { fontSize:11, fontWeight:700, color:'#6B7280', display:'block', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.3px' };
+
+const STATUS_LABEL = {
+  completed:      'Completed',
+  not_completed:  'Not Completed',
+  not_applicable: 'Not Applicable',
+  active:         'Not Completed',
+  cancelled:      'Not Applicable',
+};
+function statusColor(s) {
+  if (s === 'completed')      return { bg:'#DCFCE7', text:'#166534', border:'#86EFAC' };
+  if (s === 'not_applicable' || s === 'cancelled') return { bg:'#F3F4F6', text:'#6B7280', border:'#E5E7EB' };
+  return { bg:'#FEF3C7', text:'#92400E', border:'#FCD34D' }; // not_completed / active
+}
 
 function statusBadge(hw) {
   const now = new Date();
@@ -39,6 +53,7 @@ export default function Homework() {
   const [subjects,    setSubjects]    = useState([]);
   const [loading,     setLoading]     = useState(false);
   const [showModal,   setShowModal]   = useState(false);
+  const [rosterHw,    setRosterHw]    = useState(null); // homework whose per-student status is open
   const [saving,      setSaving]      = useState(false);
 
   // Filters (eSkooly style)
@@ -99,9 +114,9 @@ export default function Homework() {
     catch { toast.error('Failed'); }
   };
 
-  const markDone = async (id) => {
-    try { await homeworkAPI.update(id, { status:'completed' }); toast.success('Marked complete'); load(); }
-    catch { toast.error('Failed'); }
+  const setStatus = async (id, status) => {
+    try { await homeworkAPI.update(id, { status }); toast.success('Status updated'); load(); }
+    catch { toast.error('Failed to update status'); }
   };
 
   return (
@@ -211,19 +226,32 @@ export default function Homework() {
                       </td>
                       <td style={{ padding:'12px 16px', color:'#374151', whiteSpace:'nowrap' }}>{tName}</td>
                       <td style={{ padding:'12px 16px' }}>
-                        <span style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:20, background:sb.bg, color:sb.color }}>
-                          {sb.label}
-                        </span>
+                        {isStaff ? (
+                          <select
+                            value={h.status}
+                            onChange={e => setStatus(h._id, e.target.value)}
+                            style={{
+                              fontSize:12, fontWeight:700, padding:'5px 8px', borderRadius:8, cursor:'pointer', outline:'none',
+                              border:'1.5px solid ' + statusColor(h.status).border,
+                              background: statusColor(h.status).bg, color: statusColor(h.status).text,
+                            }}>
+                            <option value="completed">Completed</option>
+                            <option value="not_completed">Not Completed</option>
+                            <option value="not_applicable">Not Applicable</option>
+                          </select>
+                        ) : (
+                          <span style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:20, background:statusColor(h.status).bg, color:statusColor(h.status).text }}>
+                            {STATUS_LABEL[h.status] || sb.label}
+                          </span>
+                        )}
                       </td>
                       {isStaff && (
                         <td style={{ padding:'12px 16px' }}>
                           <div style={{ display:'flex', gap:6 }}>
-                            {h.status !== 'completed' && (
-                              <button onClick={() => markDone(h._id)}
-                                style={{ padding:'4px 10px', borderRadius:6, border:'none', background:'#DCFCE7', color:'#166534', fontSize:11, fontWeight:700, cursor:'pointer' }}>
-                                ✅
-                              </button>
-                            )}
+                            <button onClick={() => setRosterHw(h)}
+                              style={{ padding:'4px 10px', borderRadius:6, border:'1.5px solid #E5E7EB', background:'#fff', color:'#0B1F4A', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                              👥 Students
+                            </button>
                             <button onClick={() => remove(h._id)}
                               style={{ padding:'4px 10px', borderRadius:6, border:'none', background:'#FEF2F2', color:'#DC2626', fontSize:11, fontWeight:700, cursor:'pointer' }}>
                               🗑
@@ -297,6 +325,17 @@ export default function Homework() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Per-student completion status */}
+      {rosterHw && (
+        <StatusRosterModal
+          open={!!rosterHw}
+          onClose={() => setRosterHw(null)}
+          title={rosterHw.title}
+          getStatuses={() => hwStatusAPI.getStatuses(rosterHw._id)}
+          setStatus={(studentId, status) => hwStatusAPI.setStatus(rosterHw._id, studentId, status)}
+        />
       )}
     </div>
   );

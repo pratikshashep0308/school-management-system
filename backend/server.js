@@ -124,6 +124,7 @@ const routes = [
   ['/api/meetings',       './routes/meetingRoutes'],                  // ← Meeting management
   ['/api/admins',         './routes/adminRoutes'],                    // ← Admin management
   ['/api/permissions',    './routes/permissionRoutes'],               // ← Matrix access control
+  ['/api/behavioural-notes', './routes/behaviouralNoteRoutes'],       // ← Behavioural notes
 ];
 
 routes.forEach(([path, file]) => {

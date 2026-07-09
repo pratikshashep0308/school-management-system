@@ -186,6 +186,8 @@ export const assignmentAPI = {
   delete:  (id)                  => api.delete(`/assignments/${id}`),
   submit:  (id, data)            => api.post(`/assignments/${id}/submit`, data),
   grade:   (id, studentId, data) => api.put(`/assignments/${id}/grade/${studentId}`, data),
+  getStatuses: (id)              => api.get(`/assignments/${id}/statuses`),
+  setStatus:   (id, studentId, status) => api.put(`/assignments/${id}/status/${studentId}`, { status }),
 };
 
 // ── LIBRARY ───────────────────────────────────────────────────────────────────
@@ -321,7 +323,19 @@ export const permissionAPI = {
 
 // ── Homework ─────────────────────────────────────────────────────────────────
 export const homeworkAPI = {
-  getAll: (params) => api.get('/homework', { params }),
+  getAll:        (params)      => api.get('/homework', { params }),
+  updateStatus:  (id, status)  => api.put(`/homework/${id}`, { status }),          // staff: overall status
+  setMyStatus:   (id, status)  => api.put(`/homework/${id}/my-status`, { status }), // student: own status
+  getStatuses:   (id)          => api.get(`/homework/${id}/statuses`),              // staff: per-student roster
+  setStatus:     (id, studentId, status) => api.put(`/homework/${id}/status/${studentId}`, { status }),
+};
+
+// ── Behavioural Notes ────────────────────────────────────────────────────────
+export const behaviouralNoteAPI = {
+  getToday:   (studentId, date) => api.get(`/behavioural-notes/${studentId}`, { params: date ? { date } : {} }),
+  getHistory: (studentId)       => api.get(`/behavioural-notes/${studentId}`, { params: { history: 1 } }),
+  save:       (data)            => api.post('/behavioural-notes', data),
+  delete:     (id)              => api.delete(`/behavioural-notes/${id}`),
 };
 
 // ── Salary ───────────────────────────────────────────────────────────────────
