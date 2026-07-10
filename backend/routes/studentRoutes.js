@@ -15,6 +15,7 @@ router.post('/assign-roll-numbers', authorize('superAdmin', 'schoolAdmin'), asyn
   try {
     const Student = require('../models/Student');
     const { classId } = req.body;
+    console.log('[assign-roll] start — classId:', classId, 'school:', req.user.school);
 
     // If a specific class is given, number just that class.
     // If not, number every class in the school separately (each starts at 1).
@@ -25,45 +26,60 @@ router.post('/assign-roll-numbers', authorize('superAdmin', 'schoolAdmin'), asyn
       const distinct = await Student.distinct('class', { school: req.user.school });
       classIds = distinct.filter(Boolean);
     }
+    console.log('[assign-roll] classes to process:', classIds.length);
 
     if (!classIds.length) {
       return res.status(404).json({ success: false, message: 'No students found' });
     }
 
-    let total = 0;
     let filled = 0;
+    let failures = 0;
     for (const cid of classIds) {
-      const students = await Student.find({ class: cid, school: req.user.school })
-        .sort({ createdAt: 1, _id: 1 })
-        .select('_id rollNumber');
+      let students;
+      try {
+        students = await Student.find({ class: cid, school: req.user.school })
+          .sort({ createdAt: 1, _id: 1 })
+          .select('_id rollNumber')
+          .lean();
+      } catch (findErr) {
+        console.error('[assign-roll] find failed for class', cid, findErr.message);
+        continue;
+      }
 
-      // Find the highest roll number already used in this class, so new ones continue after it.
+      // Highest roll number already used in this class.
       let maxUsed = 0;
       for (const st of students) {
         const num = parseInt(st.rollNumber, 10);
         if (!isNaN(num) && num > maxUsed) maxUsed = num;
       }
 
-      // Assign only to students with a blank/missing roll number.
-      // Use updateOne (not save) so we only touch rollNumber and don't trip
-      // validation on other (possibly incomplete) fields.
+      // Fill only blanks. Raw collection update — bypasses all Mongoose validation.
       let n = maxUsed + 1;
       for (const st of students) {
-        total++;
         const hasRoll = st.rollNumber && String(st.rollNumber).trim() !== '';
-        if (hasRoll) continue; // keep existing
-        await Student.updateOne({ _id: st._id }, { $set: { rollNumber: String(n) } });
-        n++;
-        filled++;
+        if (hasRoll) continue;
+        try {
+          await Student.collection.updateOne(
+            { _id: st._id },
+            { $set: { rollNumber: String(n) } }
+          );
+          n++;
+          filled++;
+        } catch (upErr) {
+          failures++;
+          console.error('[assign-roll] update failed for student', st._id, upErr.message);
+        }
       }
     }
 
+    console.log('[assign-roll] done — filled:', filled, 'failures:', failures);
     res.json({
       success: true,
-      message: `Filled roll numbers for ${filled} student(s) without one (existing roll numbers kept), across ${classIds.length} class(es)`,
+      message: `Filled roll numbers for ${filled} student(s) (existing kept)` + (failures ? `, ${failures} failed` : ''),
       count: filled,
     });
   } catch (e) {
+    console.error('[assign-roll] FATAL:', e.message, e.stack);
     res.status(500).json({ success: false, message: e.message });
   }
 });
