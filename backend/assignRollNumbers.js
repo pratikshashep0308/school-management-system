@@ -1,13 +1,26 @@
-// assignRollNumbers.js — one-time script to fill roll numbers for existing students.
+// assignRollNumbers.js — one-time script to give every student an AUTO-format roll number.
+//
 // Run on the server:  node assignRollNumbers.js
 //
-// - Numbers students per class (each class starts at 1) by admission order (oldest first).
-// - ONLY fills blank roll numbers; keeps any existing ones and continues after the highest.
-// - Uses the raw MongoDB driver, so no Mongoose validation can block it.
+// Format matches the admission controller:  AUTO-<last 6 of admission no>-<random>
+//   e.g. AUTO-8-8971-ST24
+//
+// Behaviour:
+//   • Students with NO roll number      → get an AUTO roll number.
+//   • Students with a PLAIN number (1,2)→ get an AUTO roll number (converted).
+//   • Students already AUTO-xxxx         → kept as-is.
+//   • Uses the raw MongoDB driver, so no validation can block it.
 
 const mongoose = require('mongoose');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/school_management';
+
+function makeAutoRoll(admNo, seed) {
+  const base = String(admNo || '').slice(-6) || 'STU';
+  const rand = (Date.now() + seed).toString(36).slice(-4).toUpperCase();
+  const extra = Math.random().toString(36).slice(-2).toUpperCase();
+  return `AUTO-${base}-${rand}${extra}`;
+}
 
 (async () => {
   try {
@@ -17,44 +30,30 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/school_man
     const db = mongoose.connection.db;
     const students = db.collection('students');
 
-    // Get every distinct class that has students
-    const classIds = await students.distinct('class');
-    console.log(`Found ${classIds.length} class(es) with students`);
+    const list = await students
+      .find({})
+      .project({ _id: 1, rollNumber: 1, admissionNumber: 1, admissionNo: 1 })
+      .toArray();
 
-    let totalFilled = 0;
+    console.log(`Found ${list.length} student(s) total`);
 
-    for (const cid of classIds) {
-      if (!cid) continue;
+    let filled = 0;
+    let kept = 0;
+    let seed = 0;
+    for (const st of list) {
+      const current = st.rollNumber ? String(st.rollNumber).trim() : '';
 
-      // Oldest first (admission order)
-      const list = await students
-        .find({ class: cid })
-        .sort({ createdAt: 1, _id: 1 })
-        .project({ _id: 1, rollNumber: 1 })
-        .toArray();
+      // Already an AUTO roll number → keep it.
+      if (current.startsWith('AUTO-')) { kept++; continue; }
 
-      // Highest roll number already used in this class
-      let maxUsed = 0;
-      for (const st of list) {
-        const num = parseInt(st.rollNumber, 10);
-        if (!isNaN(num) && num > maxUsed) maxUsed = num;
-      }
-
-      // Fill only the blanks
-      let n = maxUsed + 1;
-      let filledInClass = 0;
-      for (const st of list) {
-        const hasRoll = st.rollNumber && String(st.rollNumber).trim() !== '';
-        if (hasRoll) continue;
-        await students.updateOne({ _id: st._id }, { $set: { rollNumber: String(n) } });
-        n++;
-        filledInClass++;
-        totalFilled++;
-      }
-      console.log(`  Class ${cid}: filled ${filledInClass} (started at ${maxUsed + 1})`);
+      // Everything else (blank OR plain number) → give an AUTO roll number.
+      const admNo = st.admissionNumber || st.admissionNo || String(st._id);
+      const roll = makeAutoRoll(admNo, seed++);
+      await students.updateOne({ _id: st._id }, { $set: { rollNumber: roll } });
+      filled++;
     }
 
-    console.log(`\n✅ Done. Filled roll numbers for ${totalFilled} student(s). Existing roll numbers kept.`);
+    console.log(`\n✅ Done. Generated AUTO roll numbers for ${filled} student(s). Kept ${kept} existing AUTO roll number(s).`);
     await mongoose.disconnect();
     process.exit(0);
   } catch (err) {
