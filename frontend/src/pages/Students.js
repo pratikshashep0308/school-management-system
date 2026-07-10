@@ -243,22 +243,6 @@ export default function Students() {
   };
 
   // eslint-disable-next-line no-unused-vars
-  const [assigningRoll, setAssigningRoll] = useState(false);
-  const autoAssignRoll = async () => {
-    const clsName = classes.find(c => c._id === filterClass);
-    const label = filterClass
-      ? (clsName ? `${clsName.name} ${clsName.section || ''}`.trim() : 'this class')
-      : 'ALL classes (each class numbered separately)';
-    if (!window.confirm(`Auto-assign roll numbers 1, 2, 3… to students in ${label} (by admission order)?\n\nThis will overwrite any existing roll numbers.`)) return;
-    setAssigningRoll(true);
-    try {
-      const r = await studentAPI.assignRollNumbers(filterClass || undefined);
-      toast.success(r.data?.message || 'Roll numbers assigned');
-      load();
-    } catch (e) {
-      toast.error(e?.response?.data?.message || 'Failed to assign roll numbers');
-    } finally { setAssigningRoll(false); }
-  };
 
   // eslint-disable-next-line no-unused-vars
   const handleDelete = async (id, name) => {
@@ -506,13 +490,6 @@ export default function Students() {
           <button onClick={()=>{setSearch('');setFilterClass('');setFilterGender('');}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
             ✕ Clear
-          </button>
-        )}
-        {canManage && (
-          <button onClick={autoAssignRoll} disabled={assigningRoll}
-            title={filterClass ? 'Assign roll numbers 1,2,3… to this class by admission order' : 'Assign roll numbers 1,2,3… to every class (each class numbered separately)'}
-            style={{ fontSize:12, color:'#0B1F4A', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:700, opacity:assigningRoll?0.7:1 }}>
-            {assigningRoll ? '⏳ Assigning…' : '🔢 Auto Roll No'}
           </button>
         )}
         <div style={{ marginLeft:'auto', fontSize:12, color:'#9CA3AF', fontWeight:600 }}>{filtered.length} results</div>
