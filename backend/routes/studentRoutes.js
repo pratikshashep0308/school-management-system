@@ -34,7 +34,8 @@ router.post('/assign-roll-numbers', authorize('superAdmin', 'schoolAdmin'), asyn
     let filled = 0;
     for (const cid of classIds) {
       const students = await Student.find({ class: cid, school: req.user.school })
-        .sort({ createdAt: 1, _id: 1 });
+        .sort({ createdAt: 1, _id: 1 })
+        .select('_id rollNumber');
 
       // Find the highest roll number already used in this class, so new ones continue after it.
       let maxUsed = 0;
@@ -44,13 +45,14 @@ router.post('/assign-roll-numbers', authorize('superAdmin', 'schoolAdmin'), asyn
       }
 
       // Assign only to students with a blank/missing roll number.
+      // Use updateOne (not save) so we only touch rollNumber and don't trip
+      // validation on other (possibly incomplete) fields.
       let n = maxUsed + 1;
       for (const st of students) {
         total++;
         const hasRoll = st.rollNumber && String(st.rollNumber).trim() !== '';
         if (hasRoll) continue; // keep existing
-        st.rollNumber = String(n);
-        await st.save();
+        await Student.updateOne({ _id: st._id }, { $set: { rollNumber: String(n) } });
         n++;
         filled++;
       }
