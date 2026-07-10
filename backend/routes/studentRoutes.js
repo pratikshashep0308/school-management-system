@@ -31,22 +31,35 @@ router.post('/assign-roll-numbers', authorize('superAdmin', 'schoolAdmin'), asyn
     }
 
     let total = 0;
+    let filled = 0;
     for (const cid of classIds) {
       const students = await Student.find({ class: cid, school: req.user.school })
         .sort({ createdAt: 1, _id: 1 });
-      let n = 1;
+
+      // Find the highest roll number already used in this class, so new ones continue after it.
+      let maxUsed = 0;
       for (const st of students) {
+        const num = parseInt(st.rollNumber, 10);
+        if (!isNaN(num) && num > maxUsed) maxUsed = num;
+      }
+
+      // Assign only to students with a blank/missing roll number.
+      let n = maxUsed + 1;
+      for (const st of students) {
+        total++;
+        const hasRoll = st.rollNumber && String(st.rollNumber).trim() !== '';
+        if (hasRoll) continue; // keep existing
         st.rollNumber = String(n);
         await st.save();
         n++;
-        total++;
+        filled++;
       }
     }
 
     res.json({
       success: true,
-      message: `Assigned roll numbers to ${total} student(s) across ${classIds.length} class(es)`,
-      count: total,
+      message: `Filled roll numbers for ${filled} student(s) without one (existing roll numbers kept), across ${classIds.length} class(es)`,
+      count: filled,
     });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
