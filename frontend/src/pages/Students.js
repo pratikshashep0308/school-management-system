@@ -1227,13 +1227,12 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
   return (
     <div
-      style={{ position:"fixed", inset:0, zIndex:300, background:"#F7F5F2", padding:0, overflowY:"auto" }}
+      style={{ position:"fixed", inset:0, zIndex:300, background:"#fff", overflowY:"auto", WebkitOverflowScrolling:"touch" }}
       onClick={onClose}
     >
-      {/* Content panel — white card that ends with its content.
-          The page-coloured backdrop behind it fills the rest, like a normal page. */}
+      {/* Content flows naturally inside the scrolling container. */}
       <div
-        style={{ maxWidth:"none", width:"100%", margin:0, background:"#fff", borderRadius:0, boxShadow:"none", paddingBottom:24 }}
+        style={{ width:"100%", paddingBottom:60 }}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal header */}
