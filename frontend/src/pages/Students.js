@@ -1227,7 +1227,8 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
   return (
     <div
-      style={{ position:"fixed", inset:0, zIndex:300, background:"#fff", overflowY:"auto", WebkitOverflowScrolling:"touch" }}
+      className="fixed inset-0 lg:left-64 z-[200] bg-white overflow-y-auto"
+      style={{ WebkitOverflowScrolling:"touch" }}
       onClick={onClose}
     >
       {/* Content flows naturally inside the scrolling container. */}
