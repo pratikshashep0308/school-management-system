@@ -1227,7 +1227,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
   return (
     <div
-      className="fixed inset-0 lg:left-64 z-[200] bg-white overflow-y-auto"
+      className="fixed inset-0 top-16 lg:left-64 z-[200] bg-white overflow-y-auto"
       style={{ WebkitOverflowScrolling:"touch" }}
       onClick={onClose}
     >
