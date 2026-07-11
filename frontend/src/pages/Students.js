@@ -1216,12 +1216,12 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
   return (
     <div
-      style={{ position:"fixed", inset:0, zIndex:300, background:"rgba(15,23,42,0.65)", padding:0, overflowY:"auto", backdropFilter:"blur(2px)" }}
+      style={{ position:"fixed", inset:0, zIndex:300, background:"#fff", padding:0, overflowY:"auto" }}
       onClick={onClose}
     >
-      {/* Full-screen modal — uses entire viewport width, grows with content. */}
+      {/* Full-screen modal — always covers the viewport, grows with content. */}
       <div
-        style={{ maxWidth:"none", width:"100%", margin:0, background:"#fff", borderRadius:0, boxShadow:"none", minHeight:"auto", paddingBottom:40 }}
+        style={{ maxWidth:"none", width:"100%", margin:0, background:"#fff", borderRadius:0, boxShadow:"none", minHeight:"100vh", paddingBottom:40 }}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal header */}
