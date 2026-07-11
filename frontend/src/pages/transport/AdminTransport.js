@@ -40,6 +40,7 @@ export default function AdminTransport() {
   const [buses,       setBuses]       = useState([]);
   const [routes,      setRoutes]      = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [assignSearch, setAssignSearch] = useState('');
   const [students,    setStudents]    = useState([]);
   const [routeStops,  setRouteStops]  = useState([]); // stops for currently-selected route
   const [loading,     setLoading]     = useState(true);
@@ -194,6 +195,27 @@ export default function AdminTransport() {
     try { await assignmentAPI.remove(id); toast.success('Assignment removed'); loadAll(); }
     catch { toast.error('Failed to remove assignment'); }
   };
+
+  // ── Search filter for assignments ──────────────────────────────────────────
+  // Matches on: student name, route name/code, bus number, pickup stop, drop stop.
+  const q = assignSearch.trim().toLowerCase();
+  const filteredAssignments = !q ? assignments : assignments.filter((a) => {
+    const route = a.routeId || a.route;
+    const bus   = a.busId   || a.bus;
+    const haystack = [
+      a.student?.user?.name,
+      a.student?.name,
+      route?.name,
+      route?.code,
+      bus?.busNumber,
+      bus?.registrationNo,
+      a.pickupStopId?.name,
+      a.pickupStop?.name,
+      a.dropStopId?.name,
+      a.dropStop?.name,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
 
   if (loading) {
     return (
@@ -370,6 +392,28 @@ export default function AdminTransport() {
       {/* ── ASSIGNMENTS ───────────────────────────────────────────────────── */}
       {tab === 'Assignments' && (
         <div style={{ background:"#fff", borderRadius:16, border:"1px solid #E5E7EB", overflow:"hidden" }}>
+          {/* Search bar — student, route, bus, pickup stop, drop stop */}
+          <div style={{ padding:"14px 16px", borderBottom:"1px solid #F3F4F6", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ position:"relative", flex:1, minWidth:260 }}>
+              <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#9CA3AF", fontSize:14 }}>🔍</span>
+              <input
+                value={assignSearch}
+                onChange={(e) => setAssignSearch(e.target.value)}
+                placeholder="Search by student, route, bus no., pickup or drop stop…"
+                style={{ width:"100%", padding:"9px 12px 9px 34px", borderRadius:10, border:"1.5px solid #E5E7EB", fontSize:13, outline:"none", boxSizing:"border-box" }}
+              />
+            </div>
+            {assignSearch && (
+              <button onClick={() => setAssignSearch('')}
+                style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #E5E7EB", background:"#fff", color:"#374151", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                Clear
+              </button>
+            )}
+            <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:600 }}>
+              {filteredAssignments.length} of {assignments.length}
+            </span>
+          </div>
+
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead style={{ background:"#0B1F4A" }}>
@@ -380,7 +424,14 @@ export default function AdminTransport() {
                 </tr>
               </thead>
               <tbody>
-                {assignments.map((a) => {
+                {filteredAssignments.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ padding:"32px 16px", textAlign:"center", color:"#9CA3AF", fontSize:13 }}>
+                      {assignments.length === 0 ? 'No students assigned to transport yet.' : 'No matches found. Try a different search.'}
+                    </td>
+                  </tr>
+                )}
+                {filteredAssignments.map((a) => {
                   // ✅ FIX: use routeId/busId populated fields
                   const route = a.routeId || a.route;
                   const bus   = a.busId   || a.bus;
