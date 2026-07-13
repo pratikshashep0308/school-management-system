@@ -9,25 +9,34 @@ function fmtDate(d) {
   } catch { return ''; }
 }
 
-// item: { kind: 'Homework'|'Assignment', title, subject, class, dueDate, description }
+// item: { kind: 'Homework'|'Assignment', title, subject, class, dueDate, description, attachments }
 export function buildWhatsAppMessage(item) {
   const lines = [];
-  lines.push(`\uD83D\uDCDA *${item.kind || 'Homework'}*`);
-  if (item.title)   lines.push(`\u2022 *Title:* ${item.title}`);
-  if (item.subject) lines.push(`\u2022 *Subject:* ${item.subject}`);
-  if (item.class)   lines.push(`\u2022 *Class:* ${item.class}`);
-  if (item.dueDate) lines.push(`\u2022 *Due Date:* ${fmtDate(item.dueDate)}`);
+
+  lines.push(`*${item.kind || 'Homework'}*`);
+  if (item.title)   lines.push(`Title: ${item.title}`);
+  if (item.subject) lines.push(`Subject: ${item.subject}`);
+  if (item.class)   lines.push(`Class: ${item.class}`);
+  if (item.dueDate) lines.push(`Due Date: ${fmtDate(item.dueDate)}`);
+
   if (item.description && item.description !== item.title) {
     lines.push('');
-    lines.push(`\uD83D\uDCDD ${item.description}`);
+    lines.push(item.description);
   }
-  if (Array.isArray(item.attachments) && item.attachments.length) {
+
+  // Attachments — each URL goes on its OWN line with nothing after it, so
+  // WhatsApp reliably detects it and renders a tappable link (and a preview).
+  const atts = Array.isArray(item.attachments) ? item.attachments.filter(a => a && a.url) : [];
+  if (atts.length) {
     lines.push('');
-    item.attachments.forEach((a) => {
-      if (a && a.url) lines.push(`\uD83D\uDCCE ${a.name || 'Attachment'}: ${a.url}`);
+    atts.forEach((a) => {
+      lines.push(`${a.name || 'Attachment'} — tap to view:`);
+      lines.push(a.url);          // URL alone on its own line
     });
   }
+
   if (item.school) { lines.push(''); lines.push(`_${item.school}_`); }
+
   return lines.join('\n');
 }
 
@@ -38,7 +47,7 @@ export function shareOnWhatsApp(item) {
 }
 
 // True if the device can share actual files via the native share sheet
-// (mobile Chrome/Safari). Desktop browsers generally can't share files.
+// (mobile Chrome/Safari over HTTPS). Desktop browsers generally cannot.
 export function canShareFiles() {
   return typeof navigator !== 'undefined'
     && !!navigator.canShare
@@ -47,11 +56,10 @@ export function canShareFiles() {
 
 // Fetch each attachment and open the native share sheet with the real files
 // (image/PDF). The teacher then taps WhatsApp and the actual file is sent.
-// Falls back to the text-only wa.me share if file sharing isn't supported.
+// Falls back to the text-only share if file sharing isn't supported.
 export async function shareFilesToWhatsApp(item) {
   const atts = Array.isArray(item.attachments) ? item.attachments.filter(a => a && a.url) : [];
   if (!atts.length || !canShareFiles()) {
-    // Nothing to share as a file, or unsupported → fall back to text share
     return shareOnWhatsApp(item);
   }
 
@@ -64,7 +72,6 @@ export async function shareFilesToWhatsApp(item) {
       files.push(new File([blob], name, { type: blob.type || 'application/octet-stream' }));
     }
 
-    // Some browsers only allow one file; try all first, then the first file.
     const payloadAll = { files, title: item.title || 'Homework', text: buildWhatsAppMessage(item) };
     if (navigator.canShare(payloadAll)) {
       await navigator.share(payloadAll);
@@ -75,11 +82,9 @@ export async function shareFilesToWhatsApp(item) {
       await navigator.share(payloadOne);
       return true;
     }
-    // Couldn't share files → fall back to text
     return shareOnWhatsApp(item);
   } catch (err) {
-    // User cancelled or fetch failed → fall back to text share
-    if (err && err.name === 'AbortError') return false;
+    if (err && err.name === 'AbortError') return false;   // user cancelled
     return shareOnWhatsApp(item);
   }
 }
