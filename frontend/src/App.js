@@ -18,6 +18,7 @@ import TeacherDashboard from './pages/TeacherDashboard';
 
 // Pages — Admin modules
 import Homework      from './pages/Homework';
+import BehaviourNotes from './pages/BehaviourNotes';
 import Settings      from './pages/Settings';
 import StudentIDCards    from './pages/StudentIDCards';
 import Students     from './pages/Students';
@@ -127,6 +128,7 @@ export default function App() {
               <Route path="meetings"     element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
 
               <Route path="homework"      element={<ProtectedRoute><Homework /></ProtectedRoute>} />
+              <Route path="behaviour-notes" element={<ProtectedRoute><BehaviourNotes /></ProtectedRoute>} />
               <Route path="settings"   element={<AdminRoute><Settings /></AdminRoute>} />
               <Route path="id-cards"   element={<AdminRoute><StudentIDCards /></AdminRoute>} />
 

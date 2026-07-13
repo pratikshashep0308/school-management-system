@@ -13,6 +13,49 @@ function startOfDay(d) {
   return x;
 }
 
+// GET /api/behavioural-notes  — staff: list all notes (for the Behaviour module)
+//   ?date=YYYY-MM-DD   → only that day
+//   ?classId=<id>      → only students in that class
+//   ?category=positive → filter by category
+// Returns newest first, with student + class populated.
+router.get('/', authorize(...STAFF), async (req, res) => {
+  try {
+    const Student = require('../models/Student');
+    const filter = { school: req.user.school };
+
+    if (req.query.date) {
+      const day = startOfDay(req.query.date);
+      const next = new Date(day);
+      next.setDate(next.getDate() + 1);
+      filter.date = { $gte: day, $lt: next };
+    }
+    if (req.query.category) filter.category = req.query.category;
+
+    // Narrow to a class by first finding that class's students
+    if (req.query.classId) {
+      const ids = await Student.find({ class: req.query.classId, school: req.user.school })
+        .distinct('_id');
+      filter.student = { $in: ids };
+    }
+
+    const notes = await BehaviouralNote.find(filter)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(500)
+      .populate({
+        path: 'student',
+        select: 'rollNumber class user',
+        populate: [
+          { path: 'user',  select: 'name' },
+          { path: 'class', select: 'name section' },
+        ],
+      });
+
+    res.json({ success: true, data: notes });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // GET /api/behavioural-notes/:studentId
 //   ?date=YYYY-MM-DD  → that day's note only (defaults to today)
 //   ?history=1        → full history for the student (newest first)

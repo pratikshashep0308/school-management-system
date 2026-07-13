@@ -12,6 +12,7 @@ const PATH_TO_MODULE = {
   '/attendance': 'attendance', '/exams': 'exams', '/assignments': 'assignments',
   '/fees': 'fees', '/expenses': 'expenses', '/library': 'library',
   '/transport': 'transport', '/homework': 'homework', '/timetable': 'timetable',
+  '/behaviour-notes': 'behaviourNotes',
   '/meetings': 'meetings', '/notifications': 'notifications', '/admissions': 'admissions',
   '/reports': 'reports',
   // '/profile' has no module key — always visible.
@@ -38,6 +39,7 @@ const MENU_ITEMS = [
   { path: '/library',       icon: '📚', label: 'Library',       roles: ['superAdmin','schoolAdmin','librarian'] },
   { path: '/transport',     icon: '🚌', label: 'Transport',     roles: ['superAdmin','schoolAdmin','transportManager'] },
   { path: '/homework',      icon: '📚', label: 'Homework',          roles: ['superAdmin','schoolAdmin','teacher','student','parent'] },
+  { path: '/behaviour-notes', icon: '📝', label: 'Behaviour Notes',  roles: ['superAdmin','schoolAdmin','teacher'] },
   { path: '/timetable',     icon: '🗓',  label: 'Timetable',     roles: STAFF_ROLES },
   { path: '/meetings',      icon: '📅', label: 'Meetings',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
   { path: '/notifications', icon: '🔔', label: 'Notifications', roles: ['superAdmin','schoolAdmin','teacher'] },

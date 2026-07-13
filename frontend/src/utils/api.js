@@ -63,6 +63,7 @@ export const studentAPI = {
   resetParentPassword:(id, data) => api.put(`/students/${id}/reset-parent-password`, data),
   linkParent:   (id, data)   => api.post(`/students/${id}/link-parent`, data),
   seedTest:     ()             => api.post('/students/seed-test'),
+  assignRollNumbers: (classId) => api.post('/students/assign-roll-numbers', { classId }),
 };
 
 // ── TEACHERS ──────────────────────────────────────────────────────────────────
@@ -341,6 +342,7 @@ export const uploadAPI = {
 
 // ── Behavioural Notes ────────────────────────────────────────────────────────
 export const behaviouralNoteAPI = {
+  getAll:     (params)          => api.get('/behavioural-notes', { params }),
   getToday:   (studentId, date) => api.get(`/behavioural-notes/${studentId}`, { params: date ? { date } : {} }),
   getHistory: (studentId)       => api.get(`/behavioural-notes/${studentId}`, { params: { history: 1 } }),
   save:       (data)            => api.post('/behavioural-notes', data),
