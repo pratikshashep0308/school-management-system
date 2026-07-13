@@ -56,6 +56,54 @@ router.get('/', authorize(...STAFF), async (req, res) => {
   }
 });
 
+// GET /api/behavioural-notes/roster?classId=<id>&date=YYYY-MM-DD
+// Staff: every student in the class, each with their note for that day (or null).
+// This powers the "Class Roster" daily-entry view.
+router.get('/roster', authorize(...STAFF), async (req, res) => {
+  try {
+    const Student = require('../models/Student');
+    const { classId } = req.query;
+    if (!classId) {
+      return res.status(400).json({ success: false, message: 'classId is required' });
+    }
+
+    const day  = startOfDay(req.query.date || new Date());
+    const next = new Date(day);
+    next.setDate(next.getDate() + 1);
+
+    const students = await Student.find({ class: classId, school: req.user.school })
+      .select('rollNumber user')
+      .populate('user', 'name')
+      .sort({ rollNumber: 1 });
+
+    const notes = await BehaviouralNote.find({
+      school:  req.user.school,
+      student: { $in: students.map(s => s._id) },
+      date:    { $gte: day, $lt: next },
+    });
+
+    const noteMap = {};
+    notes.forEach(n => { noteMap[n.student.toString()] = n; });
+
+    const roster = students.map(s => {
+      const n = noteMap[s._id.toString()];
+      return {
+        student:    s._id,
+        name:       s.user?.name || s.name || 'Student',
+        rollNumber: s.rollNumber || '',
+        noteId:     n ? n._id : null,
+        note:       n ? n.note : '',
+        category:   n ? n.category : 'general',
+        createdByName: n ? n.createdByName : '',
+      };
+    });
+
+    res.json({ success: true, data: roster, date: day });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // GET /api/behavioural-notes/:studentId
 //   ?date=YYYY-MM-DD  → that day's note only (defaults to today)
 //   ?history=1        → full history for the student (newest first)

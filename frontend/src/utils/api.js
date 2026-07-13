@@ -343,6 +343,7 @@ export const uploadAPI = {
 // ── Behavioural Notes ────────────────────────────────────────────────────────
 export const behaviouralNoteAPI = {
   getAll:     (params)          => api.get('/behavioural-notes', { params }),
+  getRoster:  (classId, date)   => api.get('/behavioural-notes/roster', { params: { classId, date } }),
   getToday:   (studentId, date) => api.get(`/behavioural-notes/${studentId}`, { params: date ? { date } : {} }),
   getHistory: (studentId)       => api.get(`/behavioural-notes/${studentId}`, { params: { history: 1 } }),
   save:       (data)            => api.post('/behavioural-notes', data),

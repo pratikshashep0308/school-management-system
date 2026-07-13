@@ -22,6 +22,10 @@ export default function BehaviourNotes() {
   const { user } = useAuth();
   const isStaff = ['teacher', 'schoolAdmin', 'superAdmin'].includes(user?.role);
 
+  const [view,    setView]    = useState('notes');   // 'notes' | 'roster'
+  const [roster,  setRoster]  = useState([]);
+  const [rosterDate, setRosterDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [savingId, setSavingId] = useState(null);
   const [notes,   setNotes]   = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +57,42 @@ export default function BehaviourNotes() {
   }, [fDate, fClass, fCategory]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load the class roster (all students + their note for the chosen day)
+  const loadRoster = useCallback(async () => {
+    if (!fClass) { setRoster([]); return; }
+    setLoading(true);
+    try {
+      const r = await behaviouralNoteAPI.getRoster(fClass, rosterDate);
+      setRoster(r.data?.data || []);
+    } catch {
+      toast.error('Failed to load class roster');
+    } finally { setLoading(false); }
+  }, [fClass, rosterDate]);
+
+  useEffect(() => { if (view === 'roster') loadRoster(); }, [view, loadRoster]);
+
+  // Save (or update) one student's note straight from the roster
+  const saveRosterNote = async (row) => {
+    if (!row.note.trim()) { toast.error('Note cannot be empty'); return; }
+    setSavingId(row.student);
+    try {
+      await behaviouralNoteAPI.save({
+        studentId: row.student,
+        note: row.note.trim(),
+        category: row.category,
+        date: rosterDate,
+      });
+      toast.success(`Saved for ${row.name}`);
+      loadRoster();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to save');
+    } finally { setSavingId(null); }
+  };
+
+  const updateRow = (studentId, patch) => {
+    setRoster(rs => rs.map(r => r.student === studentId ? { ...r, ...patch } : r));
+  };
 
   useEffect(() => {
     classAPI.getAll().then(r => setClasses(r.data?.data || [])).catch(() => {});
@@ -119,6 +159,24 @@ export default function BehaviourNotes() {
         )}
       </div>
 
+      {/* View toggle: browse existing notes vs daily class roster entry */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {[
+          { id: 'notes',  label: '📋 All Notes' },
+          { id: 'roster', label: '👥 Class Roster (daily entry)' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setView(t.id)}
+            style={{
+              padding: '8px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              border: view === t.id ? '1.5px solid #0B1F4A' : '1.5px solid #E5E7EB',
+              background: view === t.id ? '#0B1F4A' : '#fff',
+              color: view === t.id ? '#fff' : '#6B7280',
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Summary tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
         {CATS.map(c => (
@@ -165,7 +223,84 @@ export default function BehaviourNotes() {
         </button>
       </div>
 
+      {/* ══════════ CLASS ROSTER — daily entry for every student ══════════ */}
+      {view === 'roster' && (
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ background: '#0B1F4A', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ color: '#fff', fontWeight: 800, fontSize: 14 }}>👥 Class Roster</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Date:</span>
+              <input type="date" value={rosterDate} onChange={e => setRosterDate(e.target.value)}
+                style={{ padding: '5px 9px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700 }} />
+              <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{roster.length} students</span>
+            </div>
+          </div>
+
+          {!fClass ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>
+              <div style={{ fontSize: 36 }}>🏫</div>
+              <div style={{ marginTop: 8, fontSize: 13 }}>Select a <b>Class</b> above to see its students.</div>
+            </div>
+          ) : loading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>⏳ Loading students…</div>
+          ) : roster.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>No students found in this class.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10, padding: 16 }}>
+              {roster.map(r => {
+                const cs = catStyle(r.category);
+                return (
+                  <div key={r.student} style={{ border: '1px solid #E5E7EB', borderRadius: 12, padding: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#EEF2FF', color: '#0B1F4A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>
+                        {(r.name || 'S')[0].toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 140 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#0B1F4A' }}>{r.name}</div>
+                        {r.rollNumber && <div style={{ fontSize: 11, color: '#9CA3AF' }}>Roll: {r.rollNumber}</div>}
+                      </div>
+                      {r.noteId && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: cs.bg, color: cs.color, textTransform: 'uppercase' }}>
+                          {cs.label} · saved
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                      {CATS.map(c => (
+                        <button key={c.key} onClick={() => updateRow(r.student, { category: c.key })}
+                          style={{
+                            fontSize: 10, fontWeight: 700, padding: '4px 11px', borderRadius: 20, cursor: 'pointer',
+                            border: r.category === c.key ? `1.5px solid ${c.color}` : '1.5px solid #E5E7EB',
+                            background: r.category === c.key ? c.bg : '#fff',
+                            color: r.category === c.key ? c.color : '#9CA3AF',
+                          }}>
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <textarea rows={2}
+                        value={r.note}
+                        onChange={e => updateRow(r.student, { note: e.target.value })}
+                        placeholder={`Behaviour note for ${r.name}…`}
+                        style={{ ...INP, flex: 1, minWidth: 200, resize: 'vertical', fontFamily: 'inherit' }} />
+                      <button onClick={() => saveRosterNote(r)} disabled={savingId === r.student}
+                        style={{ padding: '9px 18px', borderRadius: 10, background: '#0B1F4A', color: '#fff', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: savingId === r.student ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+                        {savingId === r.student ? '⏳' : (r.noteId ? '💾 Update' : '➕ Save')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Notes table */}
+      {view === 'notes' && (
       <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ background: '#0B1F4A', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: '#fff', fontWeight: 800, fontSize: 14 }}>📋 Notes</span>
@@ -227,6 +362,8 @@ export default function BehaviourNotes() {
           </div>
         )}
       </div>
+
+      )}
 
       {/* Add-note modal */}
       {showModal && (
