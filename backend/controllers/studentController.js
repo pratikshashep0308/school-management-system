@@ -144,10 +144,18 @@ exports.createStudent = async (req, res) => {
   // 4. Create Student document
   const admNo = admissionNumber || await genAdmissionNo(req.user.school);
 
+  // Roll number — if the admin didn't provide one, auto-generate a unique
+  // AUTO-xxxx value (same format as the admission flow). An empty string would
+  // collide on the legacy unique index, so never store ''.
+  const trimmedRoll = (rollNumber || '').trim();
+  const finalRoll = trimmedRoll
+    ? trimmedRoll
+    : `AUTO-${String(admNo).slice(-6)}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+
   const student = await Student.create({
     user:             studentUser._id,
     admissionNumber:  admNo,
-    rollNumber,
+    rollNumber:       finalRoll,
     class:            classId,
     dateOfBirth,
     gender,
