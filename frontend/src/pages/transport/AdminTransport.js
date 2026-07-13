@@ -41,6 +41,11 @@ export default function AdminTransport() {
   const [routes,      setRoutes]      = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [assignSearch, setAssignSearch] = useState('');
+  const [fRoute,  setFRoute]  = useState('');   // filter by route
+  const [fBus,    setFBus]    = useState('');   // filter by bus
+  const [fStop,   setFStop]   = useState('');   // filter by stop (pickup OR drop)
+  const [showSummary, setShowSummary] = useState(false);
+  const [expanded, setExpanded] = useState(null);   // which summary row is expanded
   const [students,    setStudents]    = useState([]);
   const [loading,     setLoading]     = useState(true);
 
@@ -213,10 +218,49 @@ export default function AdminTransport() {
     catch { toast.error('Failed to remove assignment'); }
   };
 
+  // ── Student counts, derived from the loaded assignments ────────────────────
+  // How many students are assigned to each bus / route / stop.
+  const idOf = (v) => (v && typeof v === 'object' ? v._id : v) || '';
+
+  const countsByBus = {};
+  const countsByRoute = {};
+  const countsByStop = {};   // counts a student at BOTH their pickup and drop stop
+
+  assignments.forEach((a) => {
+    const busId   = idOf(a.busId   || a.bus);
+    const routeId = idOf(a.routeId || a.route);
+    const pickId  = idOf(a.pickupStopId || a.pickupStop);
+    const dropId  = idOf(a.dropStopId   || a.dropStop);
+
+    if (busId)   countsByBus[busId]     = (countsByBus[busId]   || 0) + 1;
+    if (routeId) countsByRoute[routeId] = (countsByRoute[routeId] || 0) + 1;
+    if (pickId)  countsByStop[pickId]   = (countsByStop[pickId]  || 0) + 1;
+    // Only count the drop stop separately when it differs from the pickup
+    if (dropId && dropId !== pickId) countsByStop[dropId] = (countsByStop[dropId] || 0) + 1;
+  });
+
   // ── Search filter for assignments ──────────────────────────────────────────
   // Matches on: student name, route name/code, bus number, pickup stop, drop stop.
+  // Helpers to read the populated refs consistently
+  const aRoute  = (a) => a.routeId || a.route;
+  const aBus    = (a) => a.busId   || a.bus;
+  const aPickup = (a) => a.pickupStopId || a.pickupStop;
+  const aDrop   = (a) => a.dropStopId   || a.dropStop;
+
   const q = assignSearch.trim().toLowerCase();
-  const filteredAssignments = !q ? assignments : assignments.filter((a) => {
+  const filteredAssignments = assignments.filter((a) => {
+    // Dropdown filters
+    if (fRoute && String(aRoute(a)?._id || '') !== fRoute) return false;
+    if (fBus   && String(aBus(a)?._id   || '') !== fBus)   return false;
+    if (fStop) {
+      const pid = String(aPickup(a)?._id || '');
+      const did = String(aDrop(a)?._id   || '');
+      if (pid !== fStop && did !== fStop) return false;   // match pickup OR drop
+    }
+    if (!q) return true;
+    return true;   // text search applied below
+  }).filter((a) => {
+    if (!q) return true;
     const route = a.routeId || a.route;
     const bus   = a.busId   || a.bus;
     const haystack = [
@@ -302,8 +346,32 @@ export default function AdminTransport() {
                     <span>🛣️</span><span>{bus.assignedRoute?.name || 'No route assigned'}</span>
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <span>💺</span><span>Cap: {bus.capacity} · {bus.type}</span>
+                    <span>💺</span>
+                    <span>Cap: {bus.capacity} · {bus.type}</span>
                   </div>
+                  {/* Students assigned to this bus, with a seats-filled indicator */}
+                  {(() => {
+                    const n   = countsByBus[bus._id] || 0;
+                    const cap = Number(bus.capacity) || 0;
+                    const pct = cap ? Math.min(100, Math.round((n / cap) * 100)) : 0;
+                    const full = cap && n >= cap;
+                    return (
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span>👥</span>
+                        <span style={{ fontWeight:700, color: full ? '#B91C1C' : '#0B1F4A' }}>
+                          {n} student{n === 1 ? '' : 's'}
+                        </span>
+                        {cap ? (
+                          <>
+                            <span style={{ flex:1, height:6, background:'#F3F4F6', borderRadius:20, overflow:'hidden', minWidth:50 }}>
+                              <span style={{ display:'block', height:'100%', width:`${pct}%`, background: full ? '#DC2626' : pct > 75 ? '#F59E0B' : '#22C55E' }} />
+                            </span>
+                            <span style={{ fontSize:11, color:'#9CA3AF', whiteSpace:'nowrap' }}>{cap - n} free</span>
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* GPS badge */}
@@ -409,27 +477,117 @@ export default function AdminTransport() {
       {/* ── ASSIGNMENTS ───────────────────────────────────────────────────── */}
       {tab === 'Assignments' && (
         <div style={{ background:"#fff", borderRadius:16, border:"1px solid #E5E7EB", overflow:"hidden" }}>
-          {/* Search bar — student, route, bus, pickup stop, drop stop */}
-          <div style={{ padding:"14px 16px", borderBottom:"1px solid #F3F4F6", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-            <div style={{ position:"relative", flex:1, minWidth:260 }}>
-              <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#9CA3AF", fontSize:14 }}>🔍</span>
-              <input
-                value={assignSearch}
-                onChange={(e) => setAssignSearch(e.target.value)}
-                placeholder="Search by student, route, bus no., pickup or drop stop…"
-                style={{ width:"100%", padding:"9px 12px 9px 34px", borderRadius:10, border:"1.5px solid #E5E7EB", fontSize:13, outline:"none", boxSizing:"border-box" }}
-              />
-            </div>
-            {assignSearch && (
-              <button onClick={() => setAssignSearch('')}
-                style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #E5E7EB", background:"#fff", color:"#374151", fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                Clear
+          {/* Search + filters */}
+          <div style={{ padding:"14px 16px", borderBottom:"1px solid #F3F4F6", display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+              <div style={{ position:"relative", flex:1, minWidth:240 }}>
+                <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#9CA3AF", fontSize:14 }}>🔍</span>
+                <input
+                  value={assignSearch}
+                  onChange={(e) => setAssignSearch(e.target.value)}
+                  placeholder="Search by student, route, bus no., pickup or drop stop…"
+                  style={{ width:"100%", padding:"9px 12px 9px 34px", borderRadius:10, border:"1.5px solid #E5E7EB", fontSize:13, outline:"none", boxSizing:"border-box" }}
+                />
+              </div>
+              <button onClick={() => setShowSummary(v => !v)}
+                style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid #0B1F4A", background: showSummary ? "#0B1F4A" : "#fff", color: showSummary ? "#fff" : "#0B1F4A", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+                📊 Summary
               </button>
-            )}
-            <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:600 }}>
-              {filteredAssignments.length} of {assignments.length}
-            </span>
+              <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:600, whiteSpace:"nowrap" }}>
+                {filteredAssignments.length} of {assignments.length}
+              </span>
+            </div>
+
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+              <select value={fRoute} onChange={(e) => setFRoute(e.target.value)}
+                style={{ padding:"8px 10px", borderRadius:8, border:"1.5px solid #E5E7EB", fontSize:12, minWidth:150, cursor:"pointer" }}>
+                <option value="">All Routes</option>
+                {routes.map(r => (
+                  <option key={r._id} value={r._id}>
+                    {r.code ? `${r.code} — ` : ''}{r.name} ({countsByRoute[r._id] || 0})
+                  </option>
+                ))}
+              </select>
+
+              <select value={fBus} onChange={(e) => setFBus(e.target.value)}
+                style={{ padding:"8px 10px", borderRadius:8, border:"1.5px solid #E5E7EB", fontSize:12, minWidth:150, cursor:"pointer" }}>
+                <option value="">All Buses</option>
+                {buses.map(b => (
+                  <option key={b._id} value={b._id}>
+                    Bus {b.busNumber} ({countsByBus[b._id] || 0})
+                  </option>
+                ))}
+              </select>
+
+              <select value={fStop} onChange={(e) => setFStop(e.target.value)}
+                style={{ padding:"8px 10px", borderRadius:8, border:"1.5px solid #E5E7EB", fontSize:12, minWidth:150, cursor:"pointer" }}>
+                <option value="">All Stops</option>
+                {allStops.map(st => (
+                  <option key={st._id} value={st._id}>
+                    {st.name} ({countsByStop[st._id] || 0})
+                  </option>
+                ))}
+              </select>
+
+              {(fRoute || fBus || fStop || assignSearch) && (
+                <button onClick={() => { setFRoute(''); setFBus(''); setFStop(''); setAssignSearch(''); }}
+                  style={{ padding:"8px 14px", borderRadius:8, border:"1px solid #E5E7EB", background:"#fff", color:"#374151", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Summary: student counts per bus / route / stop — click to expand */}
+          {showSummary && (
+            <div style={{ padding:16, borderBottom:"1px solid #F3F4F6", background:"#F9FAFB", display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:14 }}>
+              {[
+                { key:'bus',   title:'🚌 Students per Bus',   rows: buses.map(b  => ({ id:b._id,  label:`Bus ${b.busNumber}`, count: countsByBus[b._id]  || 0, match: a => idOf(aBus(a))    === b._id  })) },
+                { key:'route', title:'🛣️ Students per Route', rows: routes.map(r => ({ id:r._id,  label:`${r.code ? r.code+' — ' : ''}${r.name}`, count: countsByRoute[r._id] || 0, match: a => idOf(aRoute(a)) === r._id })) },
+                { key:'stop',  title:'📍 Students per Stop',  rows: allStops.map(st => ({ id:st._id, label:st.name, count: countsByStop[st._id] || 0, match: a => idOf(aPickup(a)) === st._id || idOf(aDrop(a)) === st._id })) },
+              ].map(group => (
+                <div key={group.key} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:12, overflow:"hidden" }}>
+                  <div style={{ background:"#0B1F4A", padding:"9px 14px", color:"#fff", fontWeight:800, fontSize:12 }}>{group.title}</div>
+                  <div style={{ maxHeight:260, overflowY:"auto" }}>
+                    {group.rows.length === 0 ? (
+                      <div style={{ padding:16, textAlign:"center", color:"#9CA3AF", fontSize:12 }}>None yet.</div>
+                    ) : group.rows.map(row => {
+                      const key = `${group.key}:${row.id}`;
+                      const isOpen = expanded === key;
+                      const members = assignments.filter(row.match);
+                      return (
+                        <div key={row.id} style={{ borderBottom:"1px solid #F3F4F6" }}>
+                          <button onClick={() => setExpanded(isOpen ? null : key)}
+                            style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 14px", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
+                            <span style={{ fontSize:12, fontWeight:700, color:"#0B1F4A" }}>
+                              {isOpen ? '▾' : '▸'} {row.label}
+                            </span>
+                            <span style={{ fontSize:11, fontWeight:800, padding:"2px 9px", borderRadius:20, background: row.count ? '#DCFCE7' : '#F3F4F6', color: row.count ? '#166534' : '#9CA3AF' }}>
+                              {row.count}
+                            </span>
+                          </button>
+                          {isOpen && (
+                            <div style={{ padding:"0 14px 10px 26px" }}>
+                              {members.length === 0 ? (
+                                <div style={{ fontSize:11, color:"#9CA3AF", padding:"4px 0" }}>No students assigned.</div>
+                              ) : members.map(m => (
+                                <div key={m._id} style={{ fontSize:12, color:"#374151", padding:"3px 0", display:"flex", justifyContent:"space-between", gap:8 }}>
+                                  <span>{m.student?.user?.name || m.student?.name || 'Student'}</span>
+                                  <span style={{ color:"#9CA3AF", fontSize:11, whiteSpace:"nowrap" }}>
+                                    {aPickup(m)?.name || '—'} → {aDrop(m)?.name || '—'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
