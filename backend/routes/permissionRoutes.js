@@ -24,6 +24,7 @@ const MODULES = [
   { key: 'library',       label: 'Library' },
   { key: 'transport',     label: 'Transport' },
   { key: 'homework',      label: 'Homework' },
+  { key: 'behaviourNotes', label: 'Behaviour Notes' },
   { key: 'timetable',     label: 'Timetable' },
   { key: 'meetings',      label: 'Meetings' },
   { key: 'notifications', label: 'Notifications' },
@@ -63,7 +64,7 @@ function toLevel(v) {
 // superAdmin is intentionally excluded — it always has admin access.
 const DEFAULT_GRANTS = {
   schoolAdmin:      MODULES.reduce((m, x) => (m[x.key] = 'admin', m), {}),
-  teacher:          { dashboard:'read', students:'edit', classes:'read', subjects:'read', attendance:'edit', exams:'edit', assignments:'edit', homework:'edit', timetable:'read', meetings:'edit', admissions:'read', reports:'read' },
+  teacher:          { dashboard:'read', students:'edit', classes:'read', subjects:'read', attendance:'edit', exams:'edit', assignments:'edit', homework:'edit', behaviourNotes:'edit', timetable:'read', meetings:'edit', admissions:'read', reports:'read' },
   accountant:       { dashboard:'read', students:'read', classes:'read', salary:'edit', exams:'read', fees:'edit', expenses:'edit', timetable:'read', meetings:'edit', reports:'read' },
   librarian:        { dashboard:'read', classes:'read', exams:'read', library:'edit', timetable:'read', meetings:'edit', reports:'read' },
   transportManager: { dashboard:'read', classes:'read', exams:'read', transport:'edit', timetable:'read', meetings:'edit', reports:'read' },

@@ -125,9 +125,15 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
     if (!modKey) return true; // items without a module key (e.g. profile) always show
     const rolePerms = permMatrix?.[user?.role];
     if (!rolePerms) return true; // matrix not loaded yet or role absent → don't hide
+
     const lvl = rolePerms[modKey];
-    // Hide when access is explicitly none / disabled (supports legacy boolean false).
-    return !(lvl === 'none' || lvl === false || lvl == null);
+    // If this module isn't in the saved matrix at all, it's a NEW module added
+    // after the matrix was last saved. Default it to visible — an admin can
+    // restrict it later from Access Control. (Previously this hid new modules.)
+    if (lvl === undefined || lvl == null) return true;
+
+    // Hide only when access is explicitly set to none (supports legacy boolean false).
+    return !(lvl === 'none' || lvl === false);
   });
   // logout() now performs a hard redirect to /login so the navigate is redundant.
   // Still using await to make sure backend logout call completes if reachable.
