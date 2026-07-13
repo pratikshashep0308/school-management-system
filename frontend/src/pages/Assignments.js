@@ -129,7 +129,7 @@ export default function Assignments() {
                   </div>
                   <div style={{ fontSize:13, color:'#6B7280', marginBottom:6 }}>
                     {a.class?.name} {a.class?.section} · {a.subject?.name}
-                    {a.teacher?.user?.name && <> · By: {a.teacher.user.name}</>}
+                    {(a.createdByName || a.teacher?.user?.name) && <> · By: {a.createdByName || a.teacher.user.name}</>}
                   </div>
                   {a.description && (
                     <p style={{ fontSize:13, color:'#374151', margin:'0 0 8px', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{a.description}</p>

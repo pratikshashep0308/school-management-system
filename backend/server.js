@@ -71,6 +71,14 @@ app.use(cors(corsOptions));
 // 📦 Body Parsers
 // ─────────────────────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '25mb' }));
+
+// Serve uploaded attachments (homework/assignment images & PDFs) from disk.
+// Files are written to backend/uploads by the upload middleware.
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '7d',          // let browsers cache them
+  fallthrough: true,
+}));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // ─────────────────────────────────────────────────────────────────────────────

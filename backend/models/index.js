@@ -205,6 +205,10 @@ const AssignmentSchema = new mongoose.Schema({
   class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
   subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
+  // Who actually created this (teacher OR admin). When an admin creates an
+  // assignment, `teacher` is only a fallback ref and does NOT reflect the author.
+  createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdByName: { type: String },
   dueDate: { type: Date, required: true },
   attachments: [{ name: String, url: String }],
   totalMarks: { type: Number, default: 10 },

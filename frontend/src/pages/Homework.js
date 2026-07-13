@@ -209,7 +209,7 @@ export default function Homework() {
                   const sb = statusBadge(h);
                   const cls = h.class ? `${h.class.name}${h.class.section ? ' '+h.class.section : ''}` : '—';
                   const sub = h.subject?.name || '—';
-                  const tName = h.teacher?.user?.name || 'Admin';
+                  const tName = h.teacher?.user?.name || h.createdByName || '—';
                   const date = h.assignedDate
                     ? new Date(h.assignedDate).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
                     : '—';

@@ -47,6 +47,11 @@ router.post('/', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, 
       }
     }
 
+    // Record who actually created this (teacher OR admin). The `teacher` ref
+    // above may be a fallback and must not be shown as the author.
+    payload.createdBy     = req.user._id || req.user.id;
+    payload.createdByName = req.user.name || '';
+
     const assignment = await Assignment.create(payload);
     res.status(201).json({ success: true, data: assignment });
   } catch (err) {

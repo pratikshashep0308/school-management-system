@@ -163,6 +163,8 @@ router.post('/', authorize(...STAFF), async (req, res) => {
     const hw = await Homework.create({
       ...req.body,
       teacher: teacherId || undefined,
+      createdBy: req.user._id,
+      createdByName: req.user.name || '',
       school:  req.user.school,
     });
     const populated = await Homework.findById(hw._id)
