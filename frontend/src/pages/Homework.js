@@ -66,6 +66,7 @@ export default function Homework() {
   const [form, setForm] = useState({
     date: today, classId: '', subjectId: '', detail: '', attachments: []
   });
+  const [editingId, setEditingId] = useState(null);   // null = creating, id = editing
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,13 +89,34 @@ export default function Homework() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  const resetForm = () => {
+    setForm({ date: today, classId: '', subjectId: '', detail: '', attachments: [] });
+    setEditingId(null);
+  };
+
+  // Open the modal ready to create a new homework
+  const openAdd = () => { resetForm(); setShowModal(true); };
+
+  // Open the modal pre-filled with an existing homework
+  const openEdit = (h) => {
+    setForm({
+      date:        h.assignedDate ? String(h.assignedDate).slice(0, 10) : today,
+      classId:     h.class?._id   || h.class   || '',
+      subjectId:   h.subject?._id || h.subject || '',
+      detail:      h.description  || h.title   || '',
+      attachments: h.attachments  || [],
+    });
+    setEditingId(h._id);
+    setShowModal(true);
+  };
+
   const save = async () => {
     if (!form.classId)  return toast.error('Select a class');
     if (!form.detail)   return toast.error('Enter homework detail');
     if (!form.date)     return toast.error('Select date');
     setSaving(true);
     try {
-      await homeworkAPI.create({
+      const payload = {
         title:       form.detail.substring(0, 60),
         description: form.detail,
         class:       form.classId,
@@ -102,10 +124,18 @@ export default function Homework() {
         assignedDate:form.date,
         dueDate:     form.date,
         attachments: form.attachments || [],
-      });
-      toast.success('Homework added!');
+      };
+
+      if (editingId) {
+        await homeworkAPI.update(editingId, payload);
+        toast.success('Homework updated!');
+      } else {
+        await homeworkAPI.create(payload);
+        toast.success('Homework added!');
+      }
+
       setShowModal(false);
-      setForm({ date: today, classId: '', subjectId: '', detail: '', attachments: [] });
+      resetForm();
       load();
     } catch (e) { toast.error(e?.response?.data?.message || 'Failed'); }
     finally { setSaving(false); }
@@ -134,7 +164,7 @@ export default function Homework() {
           </p>
         </div>
         {isStaff && (
-          <button onClick={() => setShowModal(true)}
+          <button onClick={openAdd}
             style={{ padding:'10px 20px', borderRadius:8, background:'#7C3AED', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
             + Add Homework
           </button>
@@ -264,6 +294,11 @@ export default function Homework() {
                                 📎 Send file
                               </button>
                             )}
+                            <button onClick={() => openEdit(h)}
+                              title="Edit homework"
+                              style={{ padding:'4px 10px', borderRadius:6, border:'1.5px solid #E5E7EB', background:'#fff', color:'#374151', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                              ✎ Edit
+                            </button>
                             <button onClick={() => setRosterHw(h)}
                               style={{ padding:'4px 10px', borderRadius:6, border:'1.5px solid #E5E7EB', background:'#fff', color:'#0B1F4A', fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                               👥 Students
@@ -291,7 +326,7 @@ export default function Homework() {
           <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:520, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
             {/* Modal Header */}
             <div style={{ background:'#7C3AED', padding:'16px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Add Homework or Assignment</span>
+              <span style={{ fontWeight:800, fontSize:15, color:'#fff' }}>{editingId ? 'Edit Homework' : 'Add Homework or Assignment'}</span>
               <button onClick={() => setShowModal(false)}
                 style={{ width:28, height:28, borderRadius:'50%', background:'rgba(255,255,255,0.2)', border:'none', color:'#fff', cursor:'pointer', fontSize:16, fontWeight:700 }}>×</button>
             </div>
@@ -334,13 +369,13 @@ export default function Homework() {
 
             {/* Modal Footer */}
             <div style={{ padding:'0 24px 20px', display:'flex', justifyContent:'flex-end', gap:10 }}>
-              <button onClick={() => setShowModal(false)}
+              <button onClick={() => { setShowModal(false); resetForm(); }}
                 style={{ padding:'10px 20px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', color:'#374151' }}>
                 Close
               </button>
               <button onClick={save} disabled={saving}
                 style={{ padding:'10px 24px', borderRadius:8, background:'#7C3AED', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:saving?0.7:1 }}>
-                {saving ? '⏳ Saving…' : '+ Add Homework'}
+                {saving ? '⏳ Saving…' : (editingId ? '💾 Update Homework' : '+ Add Homework')}
               </button>
             </div>
           </div>

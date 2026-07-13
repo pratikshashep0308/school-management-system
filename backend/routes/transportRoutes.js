@@ -63,6 +63,38 @@ router.delete('/routes/:id',       admin, ctrl.deleteRoute);
 
 // ─── Stops ───────────────────────────────────────────────────────────────────
 router.get('/stops',               admin, ctrl.getStops);
+
+// GET /api/transport/resolve-stop/:stopId
+// Given a stop, return the route it belongs to and that route's assigned bus.
+// Powers the "pick a stop → route & bus fill in automatically" flow.
+router.get('/resolve-stop/:stopId', admin, async (req, res) => {
+  try {
+    const { Stop, BusRoute, Bus } = require('../models/transportModels');
+
+    const stop = await Stop.findOne({ _id: req.params.stopId, school: req.user.school });
+    if (!stop) return res.status(404).json({ success: false, message: 'Stop not found' });
+
+    const route = await BusRoute.findOne({ _id: stop.route, school: req.user.school });
+    if (!route) return res.status(404).json({ success: false, message: 'This stop is not linked to any route' });
+
+    let bus = null;
+    if (route.assignedBus) {
+      bus = await Bus.findOne({ _id: route.assignedBus, school: req.user.school })
+        .select('busNumber registrationNo capacity driver');
+    }
+
+    res.json({
+      success: true,
+      data: {
+        stop:  { _id: stop._id, name: stop.name, morningArrivalTime: stop.morningArrivalTime, eveningArrivalTime: stop.eveningArrivalTime },
+        route: { _id: route._id, name: route.name, code: route.code, color: route.color },
+        bus:   bus ? { _id: bus._id, busNumber: bus.busNumber, registrationNo: bus.registrationNo, capacity: bus.capacity, driver: bus.driver } : null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 router.post('/stops',              admin, ctrl.createStop);
 router.put('/stops/:id',           admin, ctrl.updateStop);
 router.delete('/stops/:id',        admin, ctrl.deleteStop);

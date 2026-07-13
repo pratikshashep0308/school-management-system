@@ -30,7 +30,9 @@ export const routeAPI = {
 
 // ─── Stops ────────────────────────────────────────────────────────────────────
 export const stopAPI = {
+  getAll:     ()        => api.get('/transport/stops'),                       // every stop (all routes)
   getByRoute: (routeId) => api.get(`/transport/stops?route=${routeId}`),
+  resolve:    (stopId)  => api.get(`/transport/resolve-stop/${stopId}`),     // stop → route + bus
   create:     (data)    => api.post('/transport/stops', data),
   update:     (id, data)=> api.put(`/transport/stops/${id}`, data),
   delete:     (id)      => api.delete(`/transport/stops/${id}`),

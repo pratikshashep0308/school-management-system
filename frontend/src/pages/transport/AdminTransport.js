@@ -42,7 +42,6 @@ export default function AdminTransport() {
   const [assignments, setAssignments] = useState([]);
   const [assignSearch, setAssignSearch] = useState('');
   const [students,    setStudents]    = useState([]);
-  const [routeStops,  setRouteStops]  = useState([]); // stops for currently-selected route
   const [loading,     setLoading]     = useState(true);
 
   const [showBusModal,    setShowBusModal]    = useState(false);
@@ -55,6 +54,9 @@ export default function AdminTransport() {
   const [busForm,    setBusForm]    = useState(emptyBus());
   const [routeForm,  setRouteForm]  = useState(emptyRoute());
   const [assignForm, setAssignForm] = useState(emptyAssign());
+  const [allStops,   setAllStops]   = useState([]);   // every stop across all routes
+  const [resolved,   setResolved]   = useState(null); // { route, bus } detected from pickup stop
+  const [resolving,  setResolving]  = useState(false);
 
   // ── Load all data ────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
@@ -87,16 +89,31 @@ export default function AdminTransport() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   // ── Load stops when route changes in assign modal ──────────────────────────
+  // Load every stop, so pickup/drop can be chosen directly (no route needed first).
   useEffect(() => {
-    if (!assignForm.routeId) { setRouteStops([]); return; }
-    stopAPI.getByRoute(assignForm.routeId)
-      .then((r) => setRouteStops(r.data.data || []))
-      .catch(() => {
-        // Fallback: use stops embedded in route
-        const r = routes.find((rt) => rt._id === assignForm.routeId);
-        setRouteStops(r?.stops || []);
-      });
-  }, [assignForm.routeId, routes]);
+    stopAPI.getAll()
+      .then(r => setAllStops(r.data?.data || []))
+      .catch(() => setAllStops([]));
+  }, []);
+
+  // Choosing a PICKUP POINT auto-detects its route and that route's bus.
+  useEffect(() => {
+    const stopId = assignForm.pickupStopId;
+    if (!stopId) { setResolved(null); return; }
+    let active = true;
+    setResolving(true);
+    stopAPI.resolve(stopId)
+      .then(r => {
+        if (!active) return;
+        const d = r.data?.data;
+        setResolved(d || null);
+        // Fill the route/bus ids the backend still requires
+        setAssignForm(f => ({ ...f, routeId: d?.route?._id || '', busId: d?.bus?._id || '' }));
+      })
+      .catch(() => { if (active) { setResolved(null); toast.error('No route found for this stop'); } })
+      .finally(() => { if (active) setResolving(false); });
+    return () => { active = false; };
+  }, [assignForm.pickupStopId]);
 
   // ── BUS CRUD ────────────────────────────────────────────────────────────────
   const openBusModal = (bus = null) => {
@@ -592,7 +609,7 @@ export default function AdminTransport() {
 
       {/* ─── ASSIGN STUDENT MODAL ─────────────────────────────────────────── */}
       {showAssignModal && (
-        <Modal title="Assign Student to Transport" onClose={() => { setShowAssignModal(false); setAssignForm(emptyAssign()); }}>
+        <Modal title="Assign Student to Transport" onClose={() => { setShowAssignModal(false); setAssignForm(emptyAssign()); setResolved(null); }}>
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {/* Student */}
             <div>
@@ -614,70 +631,87 @@ export default function AdminTransport() {
               )}
             </div>
 
-            {/* Route — auto-fills bus */}
+            {/* ── PICKUP POINT — choosing this auto-detects route & bus ── */}
             <div>
-              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Route *</label>
-              <select value={assignForm.routeId}
-                onChange={(e) => {
-                  const r = routes.find((rt) => rt._id === e.target.value);
-                  setAssignForm({ ...assignForm, routeId: e.target.value, busId: r?.assignedBus?._id || '', pickupStopId: '', dropStopId: '' });
-                }}
+              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Pickup Point *</label>
+              <select value={assignForm.pickupStopId}
+                onChange={(e) => setAssignForm({ ...assignForm, pickupStopId: e.target.value, dropStopId: '' })}
                 style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
-                <option value="">— Select route —</option>
-                {routes.map((r) => (
-                  <option key={r._id} value={r._id}>{r.name} ({r.code}) · {r.stops?.length || 0} stops</option>
+                <option value="">— Select pickup point —</option>
+                {allStops.map((st) => (
+                  <option key={st._id} value={st._id}>
+                    {st.name}{st.morningArrivalTime ? ` \u00b7 ${st.morningArrivalTime}` : ''}
+                  </option>
                 ))}
               </select>
             </div>
 
-            {/* Bus (auto-filled, can override) */}
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>
-                Bus * {assignForm.busId && <span style={{ color:"#16A34A", fontWeight:400 }}>(auto-filled from route)</span>}
-              </label>
-              <select value={assignForm.busId} onChange={(e) => setAssignForm({...assignForm, busId: e.target.value})}
-                style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
-                <option value="">— Select bus —</option>
-                {buses.map((b) => (
-                  <option key={b._id} value={b._id}>{b.busNumber} — {b.driver?.name || 'No driver'} ({b.type})</option>
-                ))}
-              </select>
-            </div>
-
-            {/* ✅ FIX: Stop dropdowns now send _id not name */}
-            {routeStops.length > 0 ? (
-              <>
-                <div>
-                  <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Pickup Stop *</label>
-                  <select value={assignForm.pickupStopId} onChange={(e) => setAssignForm({...assignForm, pickupStopId: e.target.value})}
-                    style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
-                    <option value="">— Select pickup stop —</option>
-                    {routeStops.map((s) => (
-                      <option key={s._id || s.stop} value={s._id || s.stop}>
-                        {s.sequence}. {s.name} {s.morningArrivalTime || s.morningTime ? `(${s.morningArrivalTime || s.morningTime})` : ''}
-                        {s.studentCount > 0 ? ` · ${s.studentCount} students` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Drop Stop *</label>
-                  <select value={assignForm.dropStopId} onChange={(e) => setAssignForm({...assignForm, dropStopId: e.target.value})}
-                    style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
-                    <option value="">— Select drop stop —</option>
-                    {routeStops.map((s) => (
-                      <option key={s._id || s.stop} value={s._id || s.stop}>
-                        {s.sequence}. {s.name} {s.eveningArrivalTime || s.eveningTime ? `(${s.eveningArrivalTime || s.eveningTime})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            ) : assignForm.routeId ? (
-              <div style={{ padding:12, background:"#FFF7ED", border:"1px solid #FED7AA", borderRadius:10, fontSize:13, color:"#9A3412" }}>
-                ⚠️ This route has no stops. Please edit the route and add stops first.
+            {/* ── AUTO-DETECTED route & bus ── */}
+            {resolving && (
+              <div style={{ padding:12, background:"#F9FAFB", border:"1px solid #E5E7EB", borderRadius:10, fontSize:13, color:"#6B7280", textAlign:"center" }}>
+                Finding route &amp; bus...
               </div>
-            ) : null}
+            )}
+            {!resolving && resolved && (
+              <div style={{ padding:14, background:"#ECFDF5", border:"1px solid #A7F3D0", borderRadius:12 }}>
+                <div style={{ fontSize:10, fontWeight:800, color:"#047857", textTransform:"uppercase", marginBottom:8 }}>
+                  Auto-detected from pickup point
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+                  <div>
+                    <div style={{ fontSize:10, color:"#059669", textTransform:"uppercase", fontWeight:700 }}>Route</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:7, marginTop:3 }}>
+                      {resolved.route?.code && (
+                        <span style={{ padding:"2px 8px", borderRadius:6, fontSize:11, fontWeight:700, color:"#fff", background: resolved.route.color || '#3B82F6' }}>
+                          {resolved.route.code}
+                        </span>
+                      )}
+                      <span style={{ fontSize:13, fontWeight:700, color:"#065F46" }}>{resolved.route?.name || '-'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:10, color:"#059669", textTransform:"uppercase", fontWeight:700 }}>Bus</div>
+                    {resolved.bus ? (
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#065F46", marginTop:3, fontFamily:"monospace" }}>
+                          {resolved.bus.busNumber}
+                        </div>
+                        <div style={{ fontSize:11, color:"#059669" }}>
+                          {resolved.bus.registrationNo}
+                          {resolved.bus.driver?.name ? ` \u00b7 ${resolved.bus.driver.name}` : ''}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize:12, color:"#B45309", marginTop:3 }}>
+                        No bus assigned to this route yet
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── DROP POINT — only stops on the detected route ── */}
+            {resolved && (
+              <div>
+                <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Drop Point *</label>
+                <select value={assignForm.dropStopId}
+                  onChange={(e) => setAssignForm({ ...assignForm, dropStopId: e.target.value })}
+                  style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:9, padding:"8px 12px", fontSize:13, outline:"none", boxSizing:"border-box" }}>
+                  <option value="">— Select drop point —</option>
+                  {allStops
+                    .filter((st) => String(st.route) === String(resolved.route?._id))
+                    .map((st) => (
+                      <option key={st._id} value={st._id}>
+                        {st.name}{st.eveningArrivalTime ? ` \u00b7 ${st.eveningArrivalTime}` : ''}
+                      </option>
+                    ))}
+                </select>
+                <div style={{ fontSize:11, color:"#9CA3AF", marginTop:4 }}>
+                  Showing stops on {resolved.route?.name || 'this route'}.
+                </div>
+              </div>
+            )}
 
             {/* Pass type & fee */}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
