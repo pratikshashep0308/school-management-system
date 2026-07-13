@@ -10,7 +10,11 @@ import { studentAPI, classAPI } from '../../utils/api';
 const DOCS = [
   { key: 'birthCertificate',     label: 'Birth Certificate'           },
   { key: 'aadhaarStudent',       label: 'Aadhaar Card (Student)'      },
-  { key: 'aadhaarParent',        label: 'Aadhaar Card (Parent)'       },
+  { key: 'aadhaarMother',        label: 'Aadhaar Card (Mother)'       },
+  { key: 'aadhaarFather',        label: 'Aadhaar Card (Father)'       },
+  // Legacy: older admissions stored a single combined parent Aadhaar.
+  // Kept so those records still display their uploaded file.
+  { key: 'aadhaarParent',        label: 'Aadhaar Card (Parent — legacy)' },
   { key: 'photos',               label: 'Passport Photos (2–4)'       },
   { key: 'addressProof',         label: 'Address Proof'               },
   { key: 'apaarId',              label: 'APAAR ID'                    },
@@ -48,7 +52,7 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
 
   const [loadError, setLoadError] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoadError(null);
     try {
       const res = await admissionAPI.getById(id);
@@ -65,9 +69,12 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
       toast.error(msg);
     }
     finally { setLoading(false); }
-  };
+  }, [id]);
 
-  useEffect(() => { load(); classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, [id]);
+  useEffect(() => {
+    load();
+    classAPI.getAll().then(r => setClasses(r.data.data || [])).catch(() => {});
+  }, [load]);
 
   // Resolve applyingForClass to a friendly label.
   // Form can store the class ID (24-hex Mongo id) OR a free-text class name.

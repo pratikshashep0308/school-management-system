@@ -18,6 +18,7 @@ const EMPTY = {
   lastName:           '',
   studentName:        '', // kept as derived "First Middle Last"; do not edit directly
   registrationNo:     '',
+  rollNumber:         '',
   applyingForClass:   '',
   dateOfAdmission:    new Date().toISOString().split('T')[0],
   discountInFee:      '',
@@ -912,6 +913,9 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
             <FloatInput label="Registration No">
               <input style={INP} value={form.registrationNo} onChange={e=>set('registrationNo',e.target.value)} placeholder="Registration No"/>
             </FloatInput>
+            <FloatInput label="Roll Number">
+              <input style={INP} value={form.rollNumber} onChange={e=>set('rollNumber',e.target.value)} placeholder="e.g. 12"/>
+            </FloatInput>
             <FloatInput label="Select Class">
               <select style={SEL} value={form.applyingForClass} onChange={e=>set('applyingForClass',e.target.value)}>
                 <option value="">Select Class</option>
@@ -1330,7 +1334,8 @@ export default function AdmissionFormModal({ initial, onClose, onSuccess }) {
               {[
                 ['birthCertificate',    'Birth Certificate',          '📋', false],
                 ['aadhaarStudent',      'Aadhaar Card (Student)',      '🪪', false],
-                ['aadhaarParent',       'Aadhaar Card (Parent)',       '🪪', false],
+                ['aadhaarMother',       "Aadhaar Card (Mother)",       '🪪', false],
+                ['aadhaarFather',       "Aadhaar Card (Father)",       '🪪', false],
                 ['photos',             'Passport Photos (2–4)',        '📷', false],
                 ['addressProof',       'Address Proof',               '🏠', false],
                 ['apaarId',            'APAAR ID',                    '🆔', false],
