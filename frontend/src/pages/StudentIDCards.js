@@ -134,7 +134,7 @@ function printCards(students) {
 }
 
 // ── Print single card ─────────────────────────────────────────────────────────
-function printSingle(student) {
+export function printSingle(student) {
   const html = `<!DOCTYPE html>
 <html><head><title>ID Card — ${student.user?.name}</title>
 <style>
@@ -174,7 +174,7 @@ function printSingle(student) {
 }
 
 // ── Card Preview Component ────────────────────────────────────────────────────
-function IDCardPreview({ student }) {
+export function IDCardPreview({ student }) {
   const name  = student.user?.name || '—';
   const cls   = `${student.class?.name||''} ${student.class?.section||''}`.trim() || '—';
   const color = cardColor(name);

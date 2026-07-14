@@ -67,6 +67,7 @@ const PORTAL_SECTIONS = [
     group: 'FINANCE & SERVICES',
     items: [
       { id: 'fees',      icon: '💳', label: 'Fees' },
+      { id: 'idcard',    icon: '🪪', label: 'My ID Card', module: 'idCards' },
       { id: 'library',   icon: '📖', label: 'Library' },
       { id: 'transport', icon: '🚌', label: 'Transport' },
     ],
@@ -148,11 +149,26 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
     await logout();
   };
 
-  const portalSections = user?.role === 'parent'
+  // Portal items that carry a `module` key are gated by the Access Control
+  // matrix — e.g. "My ID Card" only appears once an admin grants student/parent
+  // access to the ID Cards module. Items without a module key always show.
+  const portalAllows = (item) => {
+    if (!item.module) return true;
+    const rolePerms = permMatrix?.[user?.role];
+    if (!rolePerms) return false;                 // no matrix → not granted yet
+    const lvl = rolePerms[item.module];
+    return !(lvl === undefined || lvl == null || lvl === 'none' || lvl === false);
+  };
+
+  const basePortalSections = user?.role === 'parent'
     ? PORTAL_SECTIONS.map((s, i) =>
         i === 1 ? { ...s, items: [...s.items, { id: 'contact', icon: '📞', label: 'Contact' }] } : s
       )
     : PORTAL_SECTIONS;
+
+  const portalSections = basePortalSections
+    .map(sec => ({ ...sec, items: sec.items.filter(portalAllows) }))
+    .filter(sec => sec.items.length > 0);
 
   return (
     <>

@@ -9,6 +9,7 @@ import api, { timetableAPI, homeworkAPI, libraryAPI, behaviouralNoteAPI } from '
 import { LoadingState, EmptyState, StatCard } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
+import { IDCardPreview, printSingle } from './StudentIDCards';
 
 // ─── Attendance Ring ────────────────────────────────────────────────────────────
 function Ring({ pct, size = 80, stroke = 8, color }) {
@@ -1174,6 +1175,25 @@ export default function StudentDashboard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'idcard' && (
+        <div className="space-y-3">
+          <CardHeader title="🪪 My ID Card" subtitle="Your official school identity card" />
+          {!student?._id ? (
+            <EmptyState icon="🪪" title="ID card not available" />
+          ) : (
+            <div className="card p-6 flex flex-col items-center gap-4">
+              <IDCardPreview student={student} />
+              <button
+                onClick={() => printSingle(student)}
+                className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
+                style={{ background: '#0B1F4A' }}>
+                🖨️ Print / Download
+              </button>
             </div>
           )}
         </div>

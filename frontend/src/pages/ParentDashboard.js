@@ -8,6 +8,7 @@ import api, { homeworkAPI, libraryAPI, behaviouralNoteAPI } from '../utils/api';
 import { LoadingState, EmptyState, StatCard, Avatar } from '../components/ui';
 import { usePortalTab } from '../components/common/Layout';
 import MeetingsWidget from '../components/MeetingsWidget';
+import { IDCardPreview, printSingle } from './StudentIDCards';
 import DateRangePicker from './Attendance/DateRangePicker';
 import { studentPortalAPI } from '../utils/studentPortalAPI';
 
@@ -1245,6 +1246,26 @@ export default function ParentDashboard() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ════════════════════ MY CHILD'S ID CARD ════════════════════ */}
+          {tab === 'idcard' && (
+            <div className="space-y-3">
+              <CardHeader title="🪪 ID Card" subtitle={`${selected?.user?.name || selected?.name || 'Your child'}'s school identity card`} />
+              {!selected?._id ? (
+                <EmptyState icon="🪪" title="ID card not available" />
+              ) : (
+                <div className="card p-6 flex flex-col items-center gap-4">
+                  <IDCardPreview student={selected} />
+                  <button
+                    onClick={() => printSingle(selected)}
+                    className="px-6 py-2.5 rounded-xl font-bold text-sm text-white"
+                    style={{ background: '#0B1F4A' }}>
+                    🖨️ Print / Download
+                  </button>
                 </div>
               )}
             </div>
