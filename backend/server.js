@@ -136,7 +136,9 @@ const routes = [
   ['/api/class-fee-templates', './routes/classFeeTemplateRoutes', 'fees'],
   ['/api/meetings',       './routes/meetingRoutes',      'meetings'],
   ['/api/admins',         './routes/adminRoutes',        'settings'],
-  ['/api/permissions',    './routes/permissionRoutes',   'accessControl'],
+  ['/api/permissions',    './routes/permissionRoutes'],   // NOT matrix-gated:
+  //   every role must be able to READ its own permissions or the sidebar breaks.
+  //   Write access (PUT/POST) is restricted inside the route by authorize().
   ['/api/behavioural-notes', './routes/behaviouralNoteRoutes', 'behaviourNotes'],
   ['/api/uploads',        './routes/uploadRoutes'],
 ];

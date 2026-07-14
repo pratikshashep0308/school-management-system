@@ -81,7 +81,11 @@ function defaultPermsFor(role) {
 }
 
 router.use(protect);
-router.use(authorize('superAdmin', 'schoolAdmin'));
+
+// NOTE: reading the matrix must be open to EVERY authenticated role — the
+// sidebar needs it to decide what to show. Blocking it here previously meant
+// non-admins always fell back to the hardcoded menu, so Access Control grants
+// appeared to do nothing. Writes stay admin-only (see PUT/POST below).
 
 // @desc   Get the full matrix (roles, modules, and saved permissions)
 // @route  GET /api/permissions
@@ -115,7 +119,7 @@ router.get('/', async (req, res) => {
 // @desc   Save the matrix
 // @route  PUT /api/permissions
 // Body: { matrix: { role: { moduleKey: bool, ... }, ... } }
-router.put('/', async (req, res) => {
+router.put('/', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
   try {
     const { matrix } = req.body;
     if (!matrix || typeof matrix !== 'object') {
@@ -154,7 +158,7 @@ router.put('/', async (req, res) => {
 
 // @desc   Reset the matrix to defaults
 // @route  POST /api/permissions/reset
-router.post('/reset', async (req, res) => {
+router.post('/reset', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
   try {
     await RolePermission.deleteMany({ school: req.user.school });
     clearPermissionCache();
