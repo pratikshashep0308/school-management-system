@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const RolePermission = require('../models/RolePermission');
+const { clearPermissionCache } = require('../middleware/checkPermission');
 const { protect, authorize } = require('../middleware/auth');
 
 // ── Canonical module list (columns of the matrix) ──
@@ -156,6 +157,7 @@ router.put('/', async (req, res) => {
 router.post('/reset', async (req, res) => {
   try {
     await RolePermission.deleteMany({ school: req.user.school });
+    clearPermissionCache();
     res.json({ success: true, message: 'Permissions reset to defaults' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

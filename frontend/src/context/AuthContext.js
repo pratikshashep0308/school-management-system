@@ -91,10 +91,51 @@ export const AuthProvider = ({ children }) => {
 
   const can = (roles) => roles.includes(user?.role);
 
+  // ── Access Control matrix ──────────────────────────────────────────────────
+  // Loaded once per session. Lets pages ask "may this user WRITE to <module>?"
+  // so Add / Edit / Delete buttons can be hidden for read-only roles.
+  // The backend enforces this too — this is purely for a coherent UI.
+  const [permMatrix, setPermMatrix] = useState(null);
+
+  useEffect(() => {
+    if (!user) { setPermMatrix(null); return; }
+    let active = true;
+    api.get('/permissions')
+      .then(r => { if (active) setPermMatrix(r.data?.matrix || null); })
+      .catch(() => { if (active) setPermMatrix(null); });
+    return () => { active = false; };
+  }, [user]);
+
+  // Access level for a module: 'none' | 'read' | 'edit' | 'admin' | null (unset)
+  const levelFor = (moduleKey) => {
+    if (!moduleKey) return null;
+    if (user?.role === 'superAdmin') return 'admin';
+    const rolePerms = permMatrix?.[user?.role];
+    if (!rolePerms) return null;                 // no matrix → don't restrict
+    const lvl = rolePerms[moduleKey];
+    return (lvl === undefined) ? null : lvl;
+  };
+
+  // May the user modify this module? (Add / Edit / Delete)
+  // Returns true when unset, so pages behave as before if no matrix is saved.
+  const canEdit = (moduleKey) => {
+    const lvl = levelFor(moduleKey);
+    if (lvl === null) return true;               // unset → fall back to old behaviour
+    return lvl === 'edit' || lvl === 'admin';
+  };
+
+  // May the user view this module at all?
+  const canView = (moduleKey) => {
+    const lvl = levelFor(moduleKey);
+    if (lvl === null) return true;
+    return lvl !== 'none' && lvl !== false;
+  };
+
   return (
     <AuthContext.Provider value={{
       user, loading, login, logout, updateUser,
       isAdmin, isTeacher, isStudent, isParent, can,
+      permMatrix, levelFor, canEdit, canView,
     }}>
       {children}
     </AuthContext.Provider>

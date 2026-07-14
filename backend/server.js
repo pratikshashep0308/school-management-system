@@ -106,39 +106,52 @@ require('./models/Salary');
 // ─────────────────────────────────────────────────────────────────────────────
 // 📁 Routes — load safely (won't crash server if one file has an error)
 // ─────────────────────────────────────────────────────────────────────────────
+// Third element = the Access Control module key. When present, the saved
+// permission matrix is enforced on that route group:
+//   'none' → 403 on everything      'read' → 403 on POST/PUT/PATCH/DELETE
+//   'edit'/'admin' → allowed        (superAdmin always bypasses)
+// Routes with no module key (auth, portals, uploads) are never matrix-gated.
 const routes = [
   ['/api/auth',           './routes/authRoutes'],
-  ['/api/students',       './routes/studentRoutes'],
+  ['/api/students',       './routes/studentRoutes',      'students'],
   ['/api/student-portal', './routes/studentPortalRoutes'],
-  ['/api/teachers',       './routes/teacherRoutes'],
-  ['/api/classes',        './routes/classRoutes'],
-  ['/api/subjects',       './routes/subjectRoutes'],
-  ['/api/attendance',     './routes/attendanceRoutes'],
-  ['/api/exams',          './routes/examRoutes'],
-  ['/api/fees',           './routes/feeRoutes'],
-  ['/api/expenses',       './routes/expenseRoutes'],
-  ['/api/homework',        './routes/homeworkRoutes'],
-  ['/api/school',           './routes/schoolRoutes'],
-  ['/api/salary',          './routes/salaryRoutes'],
-  ['/api/timetable',      './routes/timetableRoutes'],
-  ['/api/assignments',    './routes/assignmentRoutes'],
-  ['/api/library',        './routes/libraryRoutes'],
-  ['/api/transport',      './routes/transportRoutes'],
-  ['/api/notifications',  './routes/notificationRoutes'],
-  ['/api/admissions',     './routes/admissionRoutes'],
-  ['/api/dashboard',      './routes/dashboardRoutes'],
-  ['/api/reports',        './routes/reportRoutes'],        // ← Report Module
-  ['/api/class-fee-templates', './routes/classFeeTemplateRoutes'],  // ← Class default fees
-  ['/api/meetings',       './routes/meetingRoutes'],                  // ← Meeting management
-  ['/api/admins',         './routes/adminRoutes'],                    // ← Admin management
-  ['/api/permissions',    './routes/permissionRoutes'],               // ← Matrix access control
-  ['/api/behavioural-notes', './routes/behaviouralNoteRoutes'],       // ← Behavioural notes
-  ['/api/uploads',        './routes/uploadRoutes'],                    // ← File attachments
+  ['/api/teachers',       './routes/teacherRoutes',      'teachers'],
+  ['/api/classes',        './routes/classRoutes',        'classes'],
+  ['/api/subjects',       './routes/subjectRoutes',      'subjects'],
+  ['/api/attendance',     './routes/attendanceRoutes',   'attendance'],
+  ['/api/exams',          './routes/examRoutes',         'exams'],
+  ['/api/fees',           './routes/feeRoutes',          'fees'],
+  ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
+  ['/api/homework',       './routes/homeworkRoutes',     'homework'],
+  ['/api/school',         './routes/schoolRoutes'],
+  ['/api/salary',         './routes/salaryRoutes',       'salary'],
+  ['/api/timetable',      './routes/timetableRoutes',    'timetable'],
+  ['/api/assignments',    './routes/assignmentRoutes',   'assignments'],
+  ['/api/library',        './routes/libraryRoutes',      'library'],
+  ['/api/transport',      './routes/transportRoutes',    'transport'],
+  ['/api/notifications',  './routes/notificationRoutes', 'notifications'],
+  ['/api/admissions',     './routes/admissionRoutes',    'admissions'],
+  ['/api/dashboard',      './routes/dashboardRoutes',    'dashboard'],
+  ['/api/reports',        './routes/reportRoutes',       'reports'],
+  ['/api/class-fee-templates', './routes/classFeeTemplateRoutes', 'fees'],
+  ['/api/meetings',       './routes/meetingRoutes',      'meetings'],
+  ['/api/admins',         './routes/adminRoutes',        'settings'],
+  ['/api/permissions',    './routes/permissionRoutes',   'accessControl'],
+  ['/api/behavioural-notes', './routes/behaviouralNoteRoutes', 'behaviourNotes'],
+  ['/api/uploads',        './routes/uploadRoutes'],
 ];
 
-routes.forEach(([path, file]) => {
+const checkPermission = require('./middleware/checkPermission');
+
+routes.forEach(([path, file, moduleKey]) => {
   try {
-    app.use(path, require(file));
+    const router = require(file);
+    if (moduleKey) {
+      // Enforce the Access Control matrix, then the route's own authorize().
+      app.use(path, checkPermission(moduleKey), router);
+    } else {
+      app.use(path, router);
+    }
   } catch (err) {
     console.error('❌ Failed to load route', path + ':', err.message);
   }

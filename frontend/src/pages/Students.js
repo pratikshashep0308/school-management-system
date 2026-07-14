@@ -59,7 +59,7 @@ function Ring({ pct, size = 56, stroke = 6, color }) {
 // MAIN STUDENTS PAGE
 // =============================================================================
 export default function Students() {
-  const { can } = useAuth();
+  const { can, canEdit } = useAuth();
   const [students,     setStudents]    = useState([]);
   const [classes,      setClasses]     = useState([]);
   const [loading,      setLoading]     = useState(true);
@@ -93,7 +93,7 @@ export default function Students() {
     });
   };
 
-  const canManage = can(['superAdmin', 'schoolAdmin']);
+  const canManage = can(['superAdmin', 'schoolAdmin']) && canEdit('students');
 
   /**
    * Open the comprehensive AdmissionFormModal for editing a student.

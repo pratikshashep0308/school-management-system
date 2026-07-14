@@ -119,21 +119,27 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
   // Extra filter: if a saved permission matrix exists for this role, also
   // require the module to be enabled there. superAdmin always sees everything.
   const visibleItems = MENU_ITEMS.filter(item => {
-    if (!item.roles.includes(user?.role)) return false;
+    // superAdmin always sees everything.
     if (user?.role === 'superAdmin') return true;
-    const modKey = PATH_TO_MODULE[item.path];
-    if (!modKey) return true; // items without a module key (e.g. profile) always show
+
+    const modKey    = PATH_TO_MODULE[item.path];
     const rolePerms = permMatrix?.[user?.role];
-    if (!rolePerms) return true; // matrix not loaded yet or role absent → don't hide
 
-    const lvl = rolePerms[modKey];
-    // If this module isn't in the saved matrix at all, it's a NEW module added
-    // after the matrix was last saved. Default it to visible — an admin can
-    // restrict it later from Access Control. (Previously this hid new modules.)
-    if (lvl === undefined || lvl == null) return true;
+    // Items with no module key (e.g. My Profile) fall back to their hardcoded
+    // roles list — they aren't manageable from Access Control.
+    if (!modKey) return item.roles.includes(user?.role);
 
-    // Hide only when access is explicitly set to none (supports legacy boolean false).
-    return !(lvl === 'none' || lvl === false);
+    // If a saved matrix exists for this role, IT IS THE AUTHORITY.
+    // An admin who grants a module in Access Control expects the role to see it,
+    // even if the hardcoded `roles` list below predates that decision.
+    if (rolePerms && Object.prototype.hasOwnProperty.call(rolePerms, modKey)) {
+      const lvl = rolePerms[modKey];
+      return !(lvl === 'none' || lvl === false || lvl == null);
+    }
+
+    // No matrix entry for this module (e.g. a newly added module, or the matrix
+    // was never saved) → fall back to the hardcoded default roles.
+    return item.roles.includes(user?.role);
   });
   // logout() now performs a hard redirect to /login so the navigate is redundant.
   // Still using await to make sure backend logout call completes if reachable.
