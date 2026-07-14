@@ -165,6 +165,18 @@
 }
 
 /* ── Dark mode CSS variables ── */
+
+/* ── Light mode colour variables (were missing — only .dark had them) ────────
+   Chosen for solid contrast on white so text never looks faded/blurred.     */
+:root {
+  --color-ink:    #111827;   /* primary text — near-black */
+  --color-paper:  #ffffff;   /* row background */
+  --color-warm:   #F9FAFB;   /* striped row background */
+  --color-border: #E5E7EB;
+  --color-muted:  #6B7280;   /* secondary text — darkened from #9CA3AF */
+  --color-slate:  #374151;   /* body text */
+}
+
 .dark {
   --color-ink: #f9fafb;
   --color-paper: #111827;
@@ -236,3 +248,11 @@
     -webkit-overflow-scrolling: touch;
   }
 }
+/* ── Theme-aware table rows ───────────────────────────────────────────────────
+   Table text used to be hardcoded dark grey, which vanished in dark mode.
+   These variables flip with the theme so text stays readable in BOTH modes.
+   Contrast has also been raised so light-mode text no longer looks faded.  */
+.student-row              { background: var(--color-paper); }
+.student-row:nth-child(even) { background: var(--color-warm); }
+.student-row:hover        { background: rgba(59, 130, 246, 0.08) !important; }
+.dark .student-row:hover  { background: rgba(96, 165, 250, 0.14) !important; }

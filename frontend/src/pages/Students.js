@@ -539,14 +539,13 @@ export default function Students() {
                     : { bg:'#FEE2E2', color:'#991B1B' };
                   return (
                     <tr key={s._id}
-                      style={{ borderBottom:'0.5px solid #F3F4F6', background:i%2?'#FAFAFA':'#fff', cursor:'pointer', transition:'background 0.1s' }}
-                      onMouseEnter={e=>e.currentTarget.style.background='#F0F7FF'}
-                      onMouseLeave={e=>e.currentTarget.style.background=i%2?'#FAFAFA':'#fff'}
+                      className="student-row"
+                      style={{ borderBottom:'0.5px solid var(--color-border)', cursor:'pointer', transition:'background 0.1s' }}
                       onClick={()=>setViewStudent(s)}>
-                      <td style={{ padding:'10px 14px', color:'#9CA3AF', fontSize:12 }}>{i+1}</td>
+                      <td style={{ padding:'10px 14px', color:'var(--color-muted)', fontSize:12 }}>{i+1}</td>
                       <td style={{ padding:'10px 14px' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                          <div style={{ width:36, height:36, borderRadius:10, background:photo ? '#F3F4F6' : bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                          <div style={{ width:36, height:36, borderRadius:10, background:photo ? 'var(--color-warm)' : bg, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
                             {photo ? (
                               <img src={photo} alt={name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                             ) : (
@@ -554,20 +553,20 @@ export default function Students() {
                             )}
                           </div>
                           <div>
-                            <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{name}</div>
-                            <div style={{ fontSize:11, color:'#9CA3AF' }}>{s.admissionNumber || s.studentId || ''}</div>
+                            <div style={{ fontWeight:700, fontSize:13, color:'var(--color-ink)' }}>{name}</div>
+                            <div style={{ fontSize:11, color:'var(--color-muted)' }}>{s.admissionNumber || s.studentId || ''}</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding:'10px 14px', fontWeight:600, color:'#374151' }}>{s.rollNumber || '—'}</td>
-                      <td style={{ padding:'10px 14px', color:'#374151' }}>{s.class?.name} {s.class?.section||''}</td>
-                      <td style={{ padding:'10px 14px', color:'#6B7280' }}>{s.gender || '—'}</td>
+                      <td style={{ padding:'10px 14px', fontWeight:600, color:'var(--color-slate)' }}>{s.rollNumber || '—'}</td>
+                      <td style={{ padding:'10px 14px', color:'var(--color-slate)' }}>{s.class?.name} {s.class?.section||''}</td>
+                      <td style={{ padding:'10px 14px', color:'var(--color-muted)' }}>{s.gender || '—'}</td>
                       <td style={{ padding:'10px 14px' }}>
                         {s.bloodGroup ? (
                           <span style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', padding:'2px 8px', borderRadius:20 }}>{s.bloodGroup}</span>
-                        ) : <span style={{ color:'#D1D5DB' }}>—</span>}
+                        ) : <span style={{ color:'var(--color-muted)' }}>—</span>}
                       </td>
-                      <td style={{ padding:'10px 14px', color:'#6B7280', fontSize:12 }}>{s.parentName || s.fatherName || '—'}</td>
+                      <td style={{ padding:'10px 14px', color:'var(--color-muted)', fontSize:12 }}>{s.parentName || s.fatherName || '—'}</td>
                       <td style={{ padding:'10px 14px' }}>
                         <span style={{ fontSize:11, fontWeight:700, color:statusStyle.color, background:statusStyle.bg, padding:'3px 10px', borderRadius:20, textTransform:'capitalize' }}>
                           {s.status || 'active'}
