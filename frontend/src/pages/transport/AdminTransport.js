@@ -278,6 +278,110 @@ export default function AdminTransport() {
     return haystack.includes(q);
   });
 
+
+  // ── Printable Transport Report ─────────────────────────────────────────────
+  // Opens a clean, print-ready page: totals, students grouped by bus & route,
+  // and per-stop counts. Uses window.print() so it can be saved as a PDF.
+  const printTransportReport = () => {
+    const esc = (v) => String(v ?? '—')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const rowsFor = (matchFn) => assignments.filter(matchFn);
+
+    const section = (title, groups) => `
+      <h2>${esc(title)}</h2>
+      ${groups.map(g => `
+        <div class="grp">
+          <div class="grp-head">
+            <span>${esc(g.label)}</span>
+            <span class="count">${g.rows.length} student${g.rows.length === 1 ? '' : 's'}</span>
+          </div>
+          ${g.rows.length === 0 ? '<p class="empty">No students assigned.</p>' : `
+            <table>
+              <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Pickup</th><th>Drop</th><th>Fee/Month</th></tr></thead>
+              <tbody>
+                ${g.rows.map((a, i) => `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td>${esc(a.student?.user?.name || a.student?.name)}</td>
+                    <td>${esc(a.student?.class?.name || '')} ${esc(a.student?.class?.section || '')}</td>
+                    <td>${esc(aPickup(a)?.name)}</td>
+                    <td>${esc(aDrop(a)?.name)}</td>
+                    <td>₹${Number(a.monthlyFee || 0).toLocaleString('en-IN')}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`}
+        </div>`).join('')}
+    `;
+
+    const byBus = buses.map(b => ({
+      label: `Bus ${b.busNumber}${b.registrationNo ? ` (${b.registrationNo})` : ''}`,
+      rows: rowsFor(a => idOf(aBus(a)) === b._id),
+    }));
+    const byRoute = routes.map(r => ({
+      label: `${r.code ? r.code + ' — ' : ''}${r.name}`,
+      rows: rowsFor(a => idOf(aRoute(a)) === r._id),
+    }));
+
+    const stopRows = allStops
+      .map(st => ({ name: st.name, count: countsByStop[st._id] || 0 }))
+      .sort((x, y) => y.count - x.count);
+
+    const totalFee = assignments.reduce((sum, a) => sum + Number(a.monthlyFee || 0), 0);
+
+    const html = `
+      <html><head><title>Transport Report</title><style>
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, Arial, sans-serif; margin: 24px; color: #111827; }
+        h1 { font-size: 20px; margin: 0 0 2px; color: #0B1F4A; }
+        .sub { color: #6B7280; font-size: 12px; margin-bottom: 18px; }
+        h2 { font-size: 14px; margin: 22px 0 8px; color: #0B1F4A;
+             border-bottom: 2px solid #0B1F4A; padding-bottom: 4px; }
+        .tiles { display: flex; gap: 10px; margin-bottom: 8px; }
+        .tile { flex: 1; border: 1px solid #E5E7EB; border-radius: 8px; padding: 10px; text-align: center; }
+        .tile .n { font-size: 18px; font-weight: 800; color: #0B1F4A; }
+        .tile .l { font-size: 10px; color: #6B7280; text-transform: uppercase; }
+        .grp { margin-bottom: 12px; break-inside: avoid; }
+        .grp-head { display: flex; justify-content: space-between; background: #F3F4F6;
+                    padding: 6px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+        .count { color: #6B7280; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
+        th { background: #0B1F4A; color: #fff; text-align: left; padding: 5px 8px; font-size: 10px; }
+        td { padding: 5px 8px; border-bottom: 1px solid #F3F4F6; }
+        .empty { font-size: 11px; color: #9CA3AF; padding: 6px 10px; margin: 0; }
+        @media print { body { margin: 12mm; } }
+      </style></head><body>
+        <h1>🚌 Transport Report</h1>
+        <div class="sub">The Future Step School · Generated ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+
+        <div class="tiles">
+          <div class="tile"><div class="n">${buses.length}</div><div class="l">Buses</div></div>
+          <div class="tile"><div class="n">${routes.length}</div><div class="l">Routes</div></div>
+          <div class="tile"><div class="n">${allStops.length}</div><div class="l">Stops</div></div>
+          <div class="tile"><div class="n">${assignments.length}</div><div class="l">Students</div></div>
+          <div class="tile"><div class="n">₹${totalFee.toLocaleString('en-IN')}</div><div class="l">Monthly Fees</div></div>
+        </div>
+
+        ${section('Students by Bus', byBus)}
+        ${section('Students by Route', byRoute)}
+
+        <h2>Students per Stop</h2>
+        <table>
+          <thead><tr><th>Stop</th><th>Students</th></tr></thead>
+          <tbody>
+            ${stopRows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.count}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { toast.error('Please allow pop-ups to print the report'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
+  };
+
   if (loading) {
     return (
       <div style={{ padding:32, textAlign:"center", color:"#9CA3AF" }}>⏳ Loading transport data...</div>
@@ -493,6 +597,11 @@ export default function AdminTransport() {
                 style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid #0B1F4A", background: showSummary ? "#0B1F4A" : "#fff", color: showSummary ? "#fff" : "#0B1F4A", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
                 📊 Summary
               </button>
+              <button onClick={printTransportReport}
+                title="Print / download a full transport report"
+                style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid #7C3AED", background:"#7C3AED", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
+                🖨️ Report
+              </button>
               <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:600, whiteSpace:"nowrap" }}>
                 {filteredAssignments.length} of {assignments.length}
               </span>
@@ -538,9 +647,12 @@ export default function AdminTransport() {
             </div>
           </div>
 
-          {/* Summary: student counts per bus / route / stop — click to expand */}
+          {/* Table (left) + Summary (right) side by side */}
+          <div style={{ display:"flex", gap:0, alignItems:"stretch", flexWrap:"wrap" }}>
+
+          {/* ── Summary rail — sits to the RIGHT of the assignments table ── */}
           {showSummary && (
-            <div style={{ padding:16, borderBottom:"1px solid #F3F4F6", background:"#F9FAFB", display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:14 }}>
+            <div style={{ order:2, width:300, flexShrink:0, padding:14, borderLeft:"1px solid #F3F4F6", background:"#F9FAFB", display:"flex", flexDirection:"column", gap:12, maxHeight:600, overflowY:"auto" }}>
               {[
                 { key:'bus',   title:'🚌 Students per Bus',   rows: buses.map(b  => ({ id:b._id,  label:`Bus ${b.busNumber}`, count: countsByBus[b._id]  || 0, match: a => idOf(aBus(a))    === b._id  })) },
                 { key:'route', title:'🛣️ Students per Route', rows: routes.map(r => ({ id:r._id,  label:`${r.code ? r.code+' — ' : ''}${r.name}`, count: countsByRoute[r._id] || 0, match: a => idOf(aRoute(a)) === r._id })) },
@@ -589,7 +701,7 @@ export default function AdminTransport() {
             </div>
           )}
 
-          <div style={{ overflowX:"auto" }}>
+          <div style={{ order:1, flex:1, minWidth:0, overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead style={{ background:"#0B1F4A" }}>
                 <tr>
@@ -670,6 +782,8 @@ export default function AdminTransport() {
               </tbody>
             </table>
           </div>
+
+          </div>{/* /flex: table + summary */}
         </div>
       )}
 
