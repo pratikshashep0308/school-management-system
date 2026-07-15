@@ -98,9 +98,13 @@ router.get('/resolve-stop/:stopId', admin, async (req, res) => {
 router.post('/stops',              admin, ctrl.createStop);
 router.put('/stops/:id',           admin, ctrl.updateStop);
 router.delete('/stops/:id',        admin, ctrl.deleteStop);
+router.put('/stops/:id/restore',   admin, ctrl.restoreStop);
 
 // ─── Assignments ─────────────────────────────────────────────────────────────
 router.get('/assignments',         admin, ctrl.getAssignments);
+// Student-profile transport (save/get in one call, auto-syncs to Transport Module)
+router.get('/student/:studentId',  admin, ctrl.getStudentTransport);
+router.put('/student/:studentId',  admin, ctrl.saveStudentTransport);
 router.post('/assignments',        admin, ctrl.assignStudent);
 router.delete('/assignments/:id',  admin, ctrl.removeAssignment);
 

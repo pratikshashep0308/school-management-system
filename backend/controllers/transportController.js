@@ -305,10 +305,12 @@ exports.deleteRoute = async (req, res) => {
 // STOP CONTROLLERS
 // =============================================================================
 exports.getStops = async (req, res) => {
-  const filter = { school: req.user.school, isActive: true };
+  const filter = { school: req.user.school };
+  // Stop Master needs inactive stops too (to show/restore). Default = active only.
+  if (req.query.includeInactive !== 'true') filter.isActive = true;
   if (req.query.route) filter.route = req.query.route;
 
-  const stops = await Stop.find(filter).sort({ sequence: 1 });
+  const stops = await Stop.find(filter).sort({ name: 1, sequence: 1 });
 
   // ✅ FIX: use pickupStopId for accurate counting
   const assignments = await TransportAssignment.find({
@@ -327,16 +329,29 @@ exports.getStops = async (req, res) => {
 };
 
 exports.createStop = async (req, res) => {
+  // Prevent duplicate stop names within the same route.
+  if (req.body.name && req.body.route) {
+    const dup = await Stop.findOne({
+      school: req.user.school,
+      route: req.body.route,
+      name: new RegExp(`^${String(req.body.name).trim()}$`, 'i'),
+    });
+    if (dup) {
+      return res.status(409).json({ success: false, message: `A stop named "${req.body.name}" already exists on this route.` });
+    }
+  }
   const stop = await Stop.create({ ...req.body, school: req.user.school });
-  await BusRoute.findByIdAndUpdate(req.body.route, {
-    $push: {
-      stops: {
-        stop: stop._id, name: stop.name, sequence: stop.sequence,
-        morningTime: stop.morningArrivalTime, eveningTime: stop.eveningArrivalTime,
-        lat: stop.location?.lat, lng: stop.location?.lng,
+  if (req.body.route) {
+    await BusRoute.findByIdAndUpdate(req.body.route, {
+      $push: {
+        stops: {
+          stop: stop._id, name: stop.name, sequence: stop.sequence,
+          morningTime: stop.morningArrivalTime, eveningTime: stop.eveningArrivalTime,
+          lat: stop.location?.lat, lng: stop.location?.lng,
+        },
       },
-    },
-  });
+    });
+  }
   res.status(201).json({ success: true, data: stop });
 };
 
@@ -357,8 +372,27 @@ exports.updateStop = async (req, res) => {
 };
 
 exports.deleteStop = async (req, res) => {
+  // Never hard-delete. Refuse if the stop is currently used by an active
+  // assignment (pickup or drop); otherwise mark it inactive.
+  const inUse = await TransportAssignment.countDocuments({
+    school: req.user.school,
+    isActive: true,
+    $or: [{ pickupStopId: req.params.id }, { dropStopId: req.params.id }],
+  });
+  if (inUse > 0) {
+    return res.status(409).json({
+      success: false,
+      message: `This stop is used by ${inUse} active student assignment(s). Reassign those students before deactivating the stop.`,
+    });
+  }
   await Stop.findOneAndUpdate({ _id: req.params.id, school: req.user.school }, { isActive: false });
-  res.json({ success: true, message: 'Stop removed' });
+  res.json({ success: true, message: 'Stop deactivated' });
+};
+
+// Reactivate a soft-deleted stop
+exports.restoreStop = async (req, res) => {
+  await Stop.findOneAndUpdate({ _id: req.params.id, school: req.user.school }, { isActive: true });
+  res.json({ success: true, message: 'Stop reactivated' });
 };
 
 
@@ -392,11 +426,26 @@ exports.assignStudent = async (req, res) => {
   const resolvedPickupStopId = pickupStopId || pickupStop?.stopId;
   const resolvedDropStopId   = dropStopId   || dropStop?.stopId;
 
-  if (!studentId || !routeId || !busId || !resolvedPickupStopId || !resolvedDropStopId) {
-    return res.status(400).json({
-      success: false,
-      message: 'studentId, routeId, busId, pickupStopId and dropStopId are required',
-    });
+  // Specific, actionable validation (never a vague "failed to save").
+  if (!studentId) return res.status(400).json({ success: false, message: 'Student is required.' });
+  if (!routeId)   return res.status(400).json({ success: false, message: 'Please select a route.' });
+  if (!resolvedPickupStopId) return res.status(400).json({ success: false, message: 'Please select a pickup stop.' });
+  if (!resolvedDropStopId)   return res.status(400).json({ success: false, message: 'Please select a drop stop.' });
+
+  // Resolve the bus. Prefer the one sent, otherwise take the route's assigned bus.
+  // This means a student can be assigned as long as the ROUTE has a bus — the
+  // client no longer has to compute it (which was the cause of save failures).
+  let resolvedBusId = busId;
+  if (!resolvedBusId) {
+    const route = await BusRoute.findById(routeId).select('assignedBus name code');
+    if (!route) return res.status(400).json({ success: false, message: 'Selected route no longer exists.' });
+    resolvedBusId = route.assignedBus || null;
+    if (!resolvedBusId) {
+      return res.status(400).json({
+        success: false,
+        message: `Route "${route.name || route.code}" has no bus assigned. Go to Transport → Routes and assign a bus to this route first.`,
+      });
+    }
   }
 
   // Deactivate any existing assignment for this student
@@ -412,14 +461,14 @@ exports.assignStudent = async (req, res) => {
   ]);
 
   if (!pStop || !dStop) {
-    return res.status(400).json({ success: false, message: 'Invalid stop ID(s)' });
+    return res.status(400).json({ success: false, message: 'The selected pickup or drop stop no longer exists. Please re-select.' });
   }
 
   const assignmentData = {
     school:       req.user.school,
     student:      studentId,
     routeId,
-    busId,
+    busId:        resolvedBusId,
     pickupStopId: pStop._id,
     dropStopId:   dStop._id,
     pickupStop: {

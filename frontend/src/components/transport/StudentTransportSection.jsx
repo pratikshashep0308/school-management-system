@@ -92,15 +92,15 @@ export default function StudentTransportSection({ studentId, canEdit = true }) {
     if (!form.routeId)      return toast.error('Select a route');
     if (!form.pickupStopId) return toast.error('Select a pickup stop');
     if (!form.dropStopId)   return toast.error('Select a drop stop');
-    if (!form.busId) {
-      return toast.error('The selected route has no bus assigned. Go to Transport → Routes and assign a bus to this route first.');
-    }
+    // Note: busId is intentionally NOT required here. The backend resolves the
+    // bus from the route automatically, and returns a clear message if the route
+    // itself has no bus. This prevents a client-side mismatch blocking the save.
     setSaving(true);
     try {
       await assignmentAPI.assign({
         studentId,
         routeId:      form.routeId,
-        busId:        form.busId,
+        busId:        form.busId || undefined,   // let backend resolve if empty
         pickupStopId: form.pickupStopId,
         dropStopId:   form.dropStopId,
         monthlyFee:   Number(form.monthlyFee) || 0,

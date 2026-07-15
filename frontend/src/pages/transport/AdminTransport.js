@@ -12,9 +12,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { busAPI, routeAPI, assignmentAPI, stopAPI } from '../../utils/transportAPI';
+import StopMaster from '../../components/transport/StopMaster';
 import api from '../../utils/api';
 
-const TABS = ['Buses', 'Routes', 'Assignments', 'Summary', 'Report'];
+const TABS = ['Buses', 'Routes', 'Stop Master', 'Assignments', 'Summary', 'Report'];
 const BUS_COLORS = ['#3B82F6','#E87722','#4A7C59','#7C6AF5','#EF4444','#F59E0B','#0284C7','#DB2777'];
 
 const emptyBus = () => ({
@@ -676,6 +677,9 @@ export default function AdminTransport() {
           )}
         </div>
       )}
+
+      {/* ── STOP MASTER ───────────────────────────────────────────────────── */}
+      {tab === 'Stop Master' && <StopMaster />}
 
       {/* ── ASSIGNMENTS ───────────────────────────────────────────────────── */}
       {tab === 'Assignments' && (
