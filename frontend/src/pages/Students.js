@@ -231,6 +231,19 @@ export default function Students() {
         });
       }
 
+      // Aadhaar is mandatory for NEW admissions (existing students grandfathered).
+      if (!_id) {
+        const aadhaar = String(body.aadhaarNumber || '').replace(/\D/g, '');
+        if (!aadhaar) {
+          toast.error('Aadhaar number is required for new admissions.');
+          return;
+        }
+        if (aadhaar.length !== 12) {
+          toast.error('Aadhaar number must be exactly 12 digits.');
+          return;
+        }
+      }
+
       console.log('[Save Student] PUT body keys:', Object.keys(body));
 
       if (_id) { await studentAPI.update(_id, body); toast.success('Student updated'); }
@@ -572,6 +585,12 @@ export default function Students() {
                         <span style={{ fontSize:11, fontWeight:700, color:statusStyle.color, background:statusStyle.bg, padding:'3px 10px', borderRadius:20, textTransform:'capitalize' }}>
                           {s.status || 'active'}
                         </span>
+                        {!s.aadhaarNumber && (
+                          <div title="Aadhaar number missing — please update"
+                            style={{ marginTop:4, fontSize:9, fontWeight:700, color:'#B45309', background:'#FEF3C7', padding:'2px 7px', borderRadius:20, display:'inline-block' }}>
+                            ⚠ Aadhaar update needed
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding:'10px 14px' }} onClick={e=>e.stopPropagation()}>
                         <div style={{ display:'flex', gap:5 }}>
@@ -2008,7 +2027,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
   const EMPTY_FORM = {
     // Top-level student fields (also synced to the User doc)
     name: '', email: '', phone: '',
-    admissionNumber: '', rollNumber: '',
+    admissionNumber: '', rollNumber: '', aadhaarNumber: '',
     classId: '',
     // Section 1 — Student Information
     firstName: '', middleName: '', lastName: '',
@@ -2077,6 +2096,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         email: data.user?.email || data.email || '',
         phone: data.user?.phone || data.phone || '',
         admissionNumber: data.admissionNumber || '',
+        aadhaarNumber: data.aadhaarNumber || '',
         rollNumber: data.rollNumber || '',
         classId: data.class?._id || data.classId || '',
         // Section 1
@@ -2243,6 +2263,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
       phone: form.phone,
       admissionNumber: form.admissionNumber,
       rollNumber: form.rollNumber,
+      aadhaarNumber: form.aadhaarNumber,
       classId: form.classId,
       gender: form.gender,
       dateOfBirth: form.dateOfBirth || null,
@@ -2353,6 +2374,11 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
           <FormGroup label="Last Name *"><input className="form-input" value={form.lastName} onChange={e => set('lastName', e.target.value)} placeholder="Shep" /></FormGroup>
           <FormGroup label="Registration No"><input className="form-input" value={form.registrationNo} onChange={e => set('registrationNo', e.target.value)} placeholder="REG-0042" /></FormGroup>
           <FormGroup label="Admission No"><input className="form-input" value={form.admissionNumber} onChange={e => set('admissionNumber', e.target.value)} placeholder="ADM-2026-XXXX" /></FormGroup>
+          <FormGroup label="Aadhaar Number *">
+            <input className="form-input" value={form.aadhaarNumber || ''} inputMode="numeric" maxLength={12}
+              onChange={e => set('aadhaarNumber', e.target.value.replace(/\D/g, '').slice(0, 12))}
+              placeholder="12-digit Aadhaar (required)" />
+          </FormGroup>
           <FormGroup label="Roll Number"><input className="form-input" value={form.rollNumber} onChange={e => set('rollNumber', e.target.value)} placeholder="01" /></FormGroup>
           <FormGroup label="Class">
             <select className="form-input" value={form.classId} onChange={e => set('classId', e.target.value)}>

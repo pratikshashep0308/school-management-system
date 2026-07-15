@@ -93,11 +93,32 @@ exports.createStudent = async (req, res) => {
     name, email, phone, password,
     admissionNumber, rollNumber, classId,
     dateOfBirth, gender, bloodGroup, address,
+    aadhaarNumber,
     // Accept both naming conventions from the frontend form
     parentName,    parentEmail,    parentPhone,
     guardianName,  guardianEmail,  guardianPhone, guardianRelation,
     medicalInfo, hobbies, category, religion,
   } = req.body;
+
+  // ── Aadhaar validation & duplicate prevention (mandatory for NEW students) ──
+  const aadhaar = (aadhaarNumber || '').replace(/\s|-/g, '').trim();
+  if (!aadhaar) {
+    return res.status(400).json({
+      success: false,
+      message: 'Aadhaar number is required for new student admissions.',
+    });
+  }
+  if (!/^\d{12}$/.test(aadhaar)) {
+    return res.status(400).json({ success: false, message: 'Aadhaar number must be exactly 12 digits.' });
+  }
+  // Reject if this Aadhaar already belongs to another student (no duplicates).
+  const clash = await Student.findOne({ aadhaarNumber: aadhaar });
+  if (clash) {
+    return res.status(409).json({
+      success: false,
+      message: `A student with this Aadhaar number already exists (Admission No: ${clash.admissionNumber}). Duplicate students are not allowed.`,
+    });
+  }
 
   // Resolve guardian fields (form may use either naming convention)
   const resolvedParentName  = (parentName  || guardianName  || '').trim() || null;
@@ -156,6 +177,7 @@ exports.createStudent = async (req, res) => {
     user:             studentUser._id,
     admissionNumber:  admNo,
     rollNumber:       finalRoll,
+    aadhaarNumber:    aadhaar || undefined,
     class:            classId,
     dateOfBirth,
     gender,
@@ -225,6 +247,28 @@ exports.createStudent = async (req, res) => {
 exports.updateStudent = async (req, res) => {
   const student = await Student.findOne({ _id: req.params.id, school: req.user.school });
   if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+  // Aadhaar on update: not forced (existing students are grandfathered), but if
+  // provided it must be valid and must not clash with a DIFFERENT student.
+  if (req.body.aadhaarNumber !== undefined) {
+    const aadhaar = (req.body.aadhaarNumber || '').replace(/\s|-/g, '').trim();
+    if (aadhaar) {
+      if (!/^\d{12}$/.test(aadhaar)) {
+        return res.status(400).json({ success: false, message: 'Aadhaar number must be exactly 12 digits.' });
+      }
+      const clash = await Student.findOne({ aadhaarNumber: aadhaar, _id: { $ne: student._id } });
+      if (clash) {
+        return res.status(409).json({
+          success: false,
+          message: `This Aadhaar number is already used by another student (Admission No: ${clash.admissionNumber}).`,
+        });
+      }
+      req.body.aadhaarNumber = aadhaar;
+    } else {
+      // Don't overwrite an existing value with a blank on a partial update.
+      delete req.body.aadhaarNumber;
+    }
+  }
 
   // If parentEmail is being updated, sync the parent User link
   const { parentEmail, guardianEmail } = req.body;

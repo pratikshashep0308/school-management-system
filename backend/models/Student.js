@@ -11,6 +11,23 @@ const StudentSchema = new mongoose.Schema({
 
   // Personal
   dateOfBirth:  Date,
+  // Aadhaar number — 12 digits. Stored as a string to preserve leading digits.
+  // `sparse` so existing records without one don't clash on the unique index;
+  // once all students are backfilled, set required:true (see aadhaarNumber
+  // enforcement in the controller) and the index guarantees no duplicates.
+  aadhaarNumber: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true,          // allows multiple docs with NO aadhaar during rollout
+    validate: {
+      validator: function (v) {
+        if (v === undefined || v === null || v === '') return true;  // optional until backfilled
+        return /^\d{12}$/.test(v);
+      },
+      message: 'Aadhaar number must be exactly 12 digits.',
+    },
+  },
   gender:       { type: String, enum: ['male', 'female', 'other'] },
   bloodGroup:   { type: String, enum: ['A+','A-','B+','B-','AB+','AB-','O+','O-'] },
   nationality:  { type: String, default: 'Indian' },

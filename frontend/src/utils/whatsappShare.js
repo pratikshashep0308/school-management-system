@@ -2,6 +2,25 @@
 // Uses the standard wa.me endpoint — opens WhatsApp (app or web) so the user
 // can pick a contact/group and send. No API keys needed.
 
+// Rewrite any legacy/insecure attachment URL to the current public HTTPS domain.
+// Old homework saved links like http://80.225.252.56/uploads/x.jpg — those are
+// blocked as mixed-content on an HTTPS page, so we upgrade them here.
+const PUBLIC_ORIGIN = 'https://portal.thefuturestepschool.in';
+function normalizeUrl(url) {
+  if (!url) return url;
+  try {
+    // Replace the old IP origin (http or https) with the public domain.
+    let u = url.replace(/^https?:\/\/80\.225\.252\.56/i, PUBLIC_ORIGIN);
+    // If it's a bare /uploads path, prefix the domain.
+    if (u.startsWith('/uploads/')) u = PUBLIC_ORIGIN + u;
+    // If page is HTTPS but link is http on the same host, upgrade to https.
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && u.startsWith('http://')) {
+      u = u.replace(/^http:\/\//i, 'https://');
+    }
+    return u;
+  } catch { return url; }
+}
+
 function fmtDate(d) {
   if (!d) return '';
   try {
@@ -31,7 +50,7 @@ export function buildWhatsAppMessage(item) {
     lines.push('');
     atts.forEach((a) => {
       lines.push(`${a.name || 'Attachment'} — tap to view:`);
-      lines.push(a.url);          // URL alone on its own line
+      lines.push(normalizeUrl(a.url));   // URL alone on its own line (domain, https)
     });
   }
 
@@ -66,7 +85,7 @@ export async function shareFilesToWhatsApp(item) {
   try {
     const files = [];
     for (const a of atts) {
-      const res = await fetch(a.url);
+      const res = await fetch(normalizeUrl(a.url));
       const blob = await res.blob();
       const name = a.name || (/\.pdf($|\?)/i.test(a.url) ? 'attachment.pdf' : 'attachment.jpg');
       files.push(new File([blob], name, { type: blob.type || 'application/octet-stream' }));
