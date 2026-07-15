@@ -19,11 +19,16 @@ router.post(
         return res.status(400).json({ success: false, message: 'No file uploaded' });
       }
 
-      // Build an absolute URL (e.g. http://80.225.252.56/uploads/123-diagram.jpg)
-      // so the link works when shared outside the app.
-      const base = process.env.PUBLIC_URL
-        || `${req.protocol}://${req.get('host')}`;
-      const url = `${base}/uploads/${req.file.filename}`;
+      // Build an absolute URL for the uploaded file.
+      // Prefer PUBLIC_URL (set to the public https domain in production) so the
+      // link is always correct when shared outside the app (e.g. WhatsApp).
+      // Fall back to the forwarded host/proto that nginx passes through.
+      const proto = process.env.PUBLIC_URL
+        ? null
+        : (req.get('x-forwarded-proto') || req.protocol);
+      const host = req.get('x-forwarded-host') || req.get('host');
+      const base = process.env.PUBLIC_URL || `${proto}://${host}`;
+      const url = `${base.replace(/\/$/, '')}/uploads/${req.file.filename}`;
 
       res.status(201).json({
         success: true,
