@@ -71,6 +71,7 @@ const BusRouteSchema = new Schema({
     studentCount: { type: Number, default: 0 },
   }],
   assignedBus:          { type: Schema.Types.ObjectId, ref: 'Bus' },
+  monthlyFee:           { type: Number, default: 0 },   // default transport fee for this route
   morningDepartureTime: { type: String, default: '07:00' },
   eveningDepartureTime: { type: String, default: '13:30' },
   totalStudents:        { type: Number, default: 0 },
@@ -102,6 +103,16 @@ const TransportAssignmentSchema = new Schema({
   },
   passType:     { type: String, enum: ['morning','evening','both'], default: 'both' },
   monthlyFee:   { type: Number, required: true, min: 0 },
+  // Extra details captured from the student profile transport section:
+  startDate:       { type: Date },
+  endDate:         { type: Date },     // optional
+  securityDeposit: { type: Number, default: 0 },
+  remarks:         { type: String },
+  // Additional details captured from the Student Profile transport section.
+  startDate:    { type: Date },
+  endDate:      { type: Date },          // optional
+  securityDeposit: { type: Number, default: 0 },
+  remarks:      { type: String, default: '' },
   assignedDate: { type: Date, default: Date.now },
   isActive:     { type: Boolean, default: true },
 }, { timestamps: true });

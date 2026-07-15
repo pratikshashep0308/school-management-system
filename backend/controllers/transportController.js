@@ -385,7 +385,8 @@ exports.getAssignments = async (req, res) => {
 // ✅ FIX: assignStudent populates all 4 required fields
 exports.assignStudent = async (req, res) => {
   const { studentId, routeId, busId, pickupStop, dropStop, monthlyFee, passType,
-          pickupStopId, dropStopId } = req.body;
+          pickupStopId, dropStopId,
+          startDate, endDate, securityDeposit, remarks } = req.body;
 
   // Resolve stop IDs from body (accept both formats)
   const resolvedPickupStopId = pickupStopId || pickupStop?.stopId;
@@ -435,6 +436,10 @@ exports.assignStudent = async (req, res) => {
     },
     monthlyFee:   monthlyFee || 0,
     passType:     passType   || 'both',
+    startDate:       startDate ? new Date(startDate) : new Date(),
+    endDate:         endDate ? new Date(endDate) : undefined,
+    securityDeposit: securityDeposit || 0,
+    remarks:         remarks || '',
     isActive:     true,
     assignedDate: new Date(),
   };
@@ -876,4 +881,104 @@ exports.getTransportDashboard = async (req, res) => {
       recentBuses,
     },
   });
+};
+// ── Student-profile transport: save (or clear) a student's transport in one call.
+// Called from the Student Profile "Transport Details" section.
+//   body: { required: true|false, routeId, busId, pickupStopId, dropStopId,
+//           monthlyFee, startDate, endDate, securityDeposit, remarks, isActive }
+// When required=false → deactivate any assignment (fees stop automatically).
+// When required=true  → upsert the assignment so the student shows in Transport.
+exports.saveStudentTransport = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const {
+      required, routeId, busId, pickupStopId, dropStopId,
+      monthlyFee, startDate, endDate, securityDeposit, remarks,
+      passType, isActive,
+    } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ success: false, message: 'studentId is required' });
+    }
+
+    // Transport NOT required → deactivate any active assignment for this student.
+    if (!required) {
+      await TransportAssignment.updateMany(
+        { student: studentId, school: req.user.school, isActive: true },
+        { isActive: false, endDate: new Date() }
+      );
+      return res.json({ success: true, data: null, message: 'Transport removed for student' });
+    }
+
+    // Required → validate the key refs.
+    if (!routeId || !busId || !pickupStopId || !dropStopId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Route, bus, pickup stop and drop stop are required when transport is enabled',
+      });
+    }
+
+    const [pStop, dStop] = await Promise.all([
+      Stop.findById(pickupStopId),
+      Stop.findById(dropStopId),
+    ]);
+    if (!pStop || !dStop) {
+      return res.status(400).json({ success: false, message: 'Invalid stop ID(s)' });
+    }
+
+    const data = {
+      school:       req.user.school,
+      student:      studentId,
+      routeId, busId,
+      pickupStopId: pStop._id,
+      dropStopId:   dStop._id,
+      pickupStop: {
+        stopId: pStop._id, name: pStop.name,
+        time: pStop.morningArrivalTime || '',
+        sequence: pStop.sequence,
+        lat: pStop.location?.lat, lng: pStop.location?.lng,
+      },
+      dropStop: {
+        stopId: dStop._id, name: dStop.name,
+        time: dStop.eveningArrivalTime || dStop.morningArrivalTime || '',
+        sequence: dStop.sequence,
+        lat: dStop.location?.lat, lng: dStop.location?.lng,
+      },
+      monthlyFee:      Number(monthlyFee) || 0,
+      passType:        passType || 'both',
+      startDate:       startDate || undefined,
+      endDate:         endDate || undefined,
+      securityDeposit: Number(securityDeposit) || 0,
+      remarks:         remarks || '',
+      isActive:        isActive === false ? false : true,
+      assignedDate:    new Date(),
+    };
+
+    // One active assignment per student → upsert.
+    const assignment = await TransportAssignment.findOneAndUpdate(
+      { student: studentId, school: req.user.school },
+      data,
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ success: true, data: assignment, message: 'Transport details saved' });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// GET a student's current transport (for pre-filling the profile section)
+exports.getStudentTransport = async (req, res) => {
+  try {
+    const a = await TransportAssignment.findOne({
+      student: req.params.studentId, school: req.user.school,
+    })
+      .populate('routeId', 'name code monthlyFee assignedBus')
+      .populate('busId', 'busNumber registrationNo driver')
+      .populate('pickupStopId', 'name morningArrivalTime')
+      .populate('dropStopId', 'name eveningArrivalTime');
+    res.json({ success: true, data: a || null });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
 };

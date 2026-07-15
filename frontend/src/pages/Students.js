@@ -10,6 +10,7 @@ import PhoneInput from '../components/ui/PhoneInput';
 import AdmissionFormModal from '../components/admissions/AdmissionFormModal';
 import BehaviouralNotes from '../components/BehaviouralNotes';
 import RollNumberEditor from '../components/RollNumberEditor';
+import StudentTransportSection from '../components/transport/StudentTransportSection';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -1050,6 +1051,7 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
   const [exams,       setExams]       = useState([]);
   const [attendance,  setAttendance]  = useState([]);
   const [attSummary,  setAttSummary]  = useState({ total:0, present:0, absent:0, percentage:0 });
+  // eslint-disable-next-line no-unused-vars
   const [transport,   setTransport]   = useState(null);
   const [fees,        setFees]        = useState([]);
   const [feeSummary,  setFeeSummary]  = useState({ total: 0, paid: 0, pending: 0 });
@@ -1970,78 +1972,11 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
           {/* ── TRANSPORT ── */}
           {activeTab === 'transport' && (
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-              {!transport ? (
-                <EmptyState icon="🚌" title="No transport assigned" />
-              ) : (
-                <>
-                  {/* Route + Bus header */}
-                  <Section title="Route & Bus">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-[10px] text-muted uppercase tracking-wide">Route</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {(transport.routeId || transport.route)?.code && (
-                            <span style={{ padding:"2px 8px", borderRadius:6, fontSize:11, fontWeight:700, color:"#fff", background:(transport.routeId || transport.route)?.color || '#3B82F6' }}>
-                              {(transport.routeId || transport.route)?.code}
-                            </span>
-                          )}
-                          <span className="text-sm font-medium text-ink dark:text-white">
-                            {(transport.routeId || transport.route)?.name || '—'}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted uppercase tracking-wide">Bus Number</p>
-                        <p className="text-sm font-medium text-ink dark:text-white mt-1" style={{ fontFamily:"monospace" }}>
-                          {(transport.busId || transport.bus)?.busNumber || '—'}
-                        </p>
-                        {(transport.busId || transport.bus)?.registrationNo && (
-                          <p className="text-[11px] text-muted">{(transport.busId || transport.bus).registrationNo}</p>
-                        )}
-                      </div>
-                    </div>
-                  </Section>
-
-                  {/* Pickup & Drop */}
-                  <Section title="Pickup & Drop Points">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 rounded-xl" style={{ background:"#ECFDF5", border:"1px solid #A7F3D0" }}>
-                        <p className="text-[10px] uppercase tracking-wide" style={{ color:"#047857", fontWeight:700 }}>🔼 Pickup Point</p>
-                        <p className="text-sm font-semibold mt-1" style={{ color:"#065F46" }}>
-                          {transport.pickupStopId?.name || transport.pickupStop?.name || '—'}
-                        </p>
-                        {(transport.pickupStopId?.morningArrivalTime || transport.pickupStop?.time) && (
-                          <p className="text-xs mt-0.5" style={{ color:"#059669" }}>
-                            🕐 {transport.pickupStopId?.morningArrivalTime || transport.pickupStop?.time}
-                          </p>
-                        )}
-                      </div>
-                      <div className="p-3 rounded-xl" style={{ background:"#FEF3C7", border:"1px solid #FCD34D" }}>
-                        <p className="text-[10px] uppercase tracking-wide" style={{ color:"#B45309", fontWeight:700 }}>🔽 Drop Point</p>
-                        <p className="text-sm font-semibold mt-1" style={{ color:"#92400E" }}>
-                          {transport.dropStopId?.name || transport.dropStop?.name || '—'}
-                        </p>
-                        {(transport.dropStopId?.eveningArrivalTime || transport.dropStop?.time) && (
-                          <p className="text-xs mt-0.5" style={{ color:"#D97706" }}>
-                            🕐 {transport.dropStopId?.eveningArrivalTime || transport.dropStop?.time}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </Section>
-
-                  {/* Fee & Pass */}
-                  <Section title="Fee & Pass">
-                    <InfoGrid items={[
-                      { label: 'Monthly Fee', value: transport.monthlyFee ? `₹${Number(transport.monthlyFee).toLocaleString('en-IN')}` : '—' },
-                      { label: 'Pass Type',   value: transport.passType || 'both' },
-                      { label: 'Status',      value: transport.isActive === false ? 'Inactive' : 'Active' },
-                    ]} />
-                  </Section>
-                </>
-              )}
+              {/* Editable Transport Details — saves straight to the Transport Module */}
+              <StudentTransportSection studentId={s._id} canEdit={!!canManage} />
             </div>
           )}
+
 
           {activeTab === 'health' && (
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>

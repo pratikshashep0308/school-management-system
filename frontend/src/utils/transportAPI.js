@@ -31,7 +31,7 @@ export const routeAPI = {
 // ─── Stops ────────────────────────────────────────────────────────────────────
 export const stopAPI = {
   getAll:     ()        => api.get('/transport/stops'),                       // every stop (all routes)
-  getByRoute: (routeId) => api.get(`/transport/stops?route=${routeId}`),
+  getByRoute: (routeId) => api.get('/transport/stops', { params: { route: routeId } }),
   resolve:    (stopId)  => api.get(`/transport/resolve-stop/${stopId}`),     // stop → route + bus
   create:     (data)    => api.post('/transport/stops', data),
   update:     (id, data)=> api.put(`/transport/stops/${id}`, data),
@@ -43,6 +43,9 @@ export const assignmentAPI = {
   getAll:  (params) => api.get('/transport/assignments', { params }),
   assign:  (data)   => api.post('/transport/assignments', data),
   remove:  (id)     => api.delete(`/transport/assignments/${id}`),
+  // Student-profile transport (auto-syncs to the Transport Module)
+  getForStudent:  (studentId)        => api.get(`/transport/student/${studentId}`),
+  saveForStudent: (studentId, data)  => api.put(`/transport/student/${studentId}`, data),
 };
 
 // ─── Trips ────────────────────────────────────────────────────────────────────
