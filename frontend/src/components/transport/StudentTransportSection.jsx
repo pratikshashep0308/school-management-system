@@ -92,10 +92,12 @@ export default function StudentTransportSection({ studentId, canEdit = true }) {
     if (!form.routeId)      return toast.error('Select a route');
     if (!form.pickupStopId) return toast.error('Select a pickup stop');
     if (!form.dropStopId)   return toast.error('Select a drop stop');
-    if (!form.busId)        return toast.error('This route has no bus assigned. Assign a bus to the route first.');
+    if (!form.busId) {
+      return toast.error('The selected route has no bus assigned. Go to Transport → Routes and assign a bus to this route first.');
+    }
     setSaving(true);
     try {
-      await assignmentAPI.create({
+      await assignmentAPI.assign({
         studentId,
         routeId:      form.routeId,
         busId:        form.busId,
@@ -110,7 +112,16 @@ export default function StudentTransportSection({ studentId, canEdit = true }) {
       toast.success('Transport details saved — student added to Transport Module');
       load();
     } catch (e) {
-      toast.error(e?.response?.data?.message || 'Failed to save transport details');
+      // Distinguish a server rejection (has response) from a network/CORS
+      // failure (no response) so the real cause is obvious.
+      let msg;
+      if (e?.response) {
+        msg = e.response.data?.message || `Server error (${e.response.status})`;
+      } else {
+        msg = `Could not reach the server (network/CORS). Detail: ${e?.message || 'unknown'}`;
+      }
+      console.error('Transport save failed:', e?.response?.data || e?.message || e, e);
+      toast.error(msg);
     } finally { setSaving(false); }
   };
 
@@ -168,6 +179,11 @@ export default function StudentTransportSection({ studentId, canEdit = true }) {
                 <option key={r._id} value={r._id}>{r.code ? `${r.code} — ` : ''}{r.name}</option>
               ))}
             </select>
+            {form.routeId && !form.busId && (
+              <div style={{ marginTop:6, fontSize:11, color:'#B45309', background:'#FEF3C7', padding:'6px 9px', borderRadius:8 }}>
+                ⚠ This route has no bus assigned. Assign a bus to it under Transport → Routes before saving.
+              </div>
+            )}
           </div>
 
           <div>

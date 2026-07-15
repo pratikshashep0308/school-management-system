@@ -60,14 +60,24 @@ const corsOptions = {
     if (/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(origin)) {
       return callback(null, true);
     }
+    // Also accept the school's own domain (any subdomain) over http/https.
+    if (/^https?:\/\/([a-z0-9-]+\.)?thefuturestepschool\.in$/i.test(origin)) {
+      return callback(null, true);
+    }
     console.log('❌ Blocked by CORS:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
 };
 
 // Apply CORS middleware
 app.use(cors(corsOptions));
+// Explicitly answer preflight (OPTIONS) for every route, so POST/PUT with an
+// Authorization header aren't blocked by a failing preflight.
+app.options('*', cors(corsOptions));
 
 
 // ─────────────────────────────────────────────────────────────────────────────
