@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import { busAPI, routeAPI, assignmentAPI, stopAPI } from '../../utils/transportAPI';
 import api from '../../utils/api';
 
-const TABS = ['Buses', 'Routes', 'Assignments'];
+const TABS = ['Buses', 'Routes', 'Assignments', 'Summary', 'Report'];
 const BUS_COLORS = ['#3B82F6','#E87722','#4A7C59','#7C6AF5','#EF4444','#F59E0B','#0284C7','#DB2777'];
 
 const emptyBus = () => ({
@@ -44,7 +44,6 @@ export default function AdminTransport() {
   const [fRoute,  setFRoute]  = useState('');   // filter by route
   const [fBus,    setFBus]    = useState('');   // filter by bus
   const [fStop,   setFStop]   = useState('');   // filter by stop (pickup OR drop)
-  const [showSummary, setShowSummary] = useState(false);
   const [expanded, setExpanded] = useState(null);   // which summary row is expanded
   const [students,    setStudents]    = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -278,6 +277,106 @@ export default function AdminTransport() {
     return haystack.includes(q);
   });
 
+
+
+  // ── Transport report data sets ─────────────────────────────────────────────
+  // Each returns { columns: [...], rows: [[...]] } used for PDF/CSV/print.
+  const reportData = {
+    students: () => ({
+      title: 'Student Transport List',
+      columns: ['#', 'Student', 'Class', 'Route', 'Bus', 'Pickup', 'Drop', 'Fee/Month', 'Status'],
+      rows: assignments.map((a, i) => [
+        i + 1,
+        a.student?.user?.name || a.student?.name || '—',
+        `${a.student?.class?.name || ''} ${a.student?.class?.section || ''}`.trim() || '—',
+        `${aRoute(a)?.code ? aRoute(a).code + ' - ' : ''}${aRoute(a)?.name || '—'}`,
+        aBus(a)?.busNumber || '—',
+        aPickup(a)?.name || '—',
+        aDrop(a)?.name || '—',
+        `${Number(a.monthlyFee || 0).toLocaleString('en-IN')}`,
+        a.isActive === false ? 'Inactive' : 'Active',
+      ]),
+    }),
+    byBus: () => ({
+      title: 'Bus-wise Student Count',
+      columns: ['Bus', 'Registration', 'Capacity', 'Students Assigned'],
+      rows: buses.map(b => [
+        `Bus ${b.busNumber}`,
+        b.registrationNo || '—',
+        b.capacity ?? '—',
+        countsByBus[b._id] || 0,
+      ]),
+    }),
+    byRoute: () => ({
+      title: 'Route-wise Student Count',
+      columns: ['Route Code', 'Route Name', 'Students'],
+      rows: routes.map(r => [ r.code || '—', r.name || '—', countsByRoute[r._id] || 0 ]),
+    }),
+    byStop: () => ({
+      title: 'Stop-wise Student Count',
+      columns: ['Stop', 'Students'],
+      rows: allStops
+        .map(st => [st.name, countsByStop[st._id] || 0])
+        .sort((a, b) => b[1] - a[1]),
+    }),
+    fees: () => ({
+      title: 'Transport Fee Summary',
+      columns: ['Student', 'Route', 'Monthly Fee', 'Status'],
+      rows: assignments.map(a => [
+        a.student?.user?.name || a.student?.name || '—',
+        aRoute(a)?.name || '—',
+        `${Number(a.monthlyFee || 0).toLocaleString('en-IN')}`,
+        a.isActive === false ? 'Inactive' : 'Active',
+      ]),
+    }),
+  };
+
+  const escCsv = (v) => {
+    const str = String(v ?? '');
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+
+  // Excel-compatible CSV download (opens in Excel, no library needed)
+  const exportCSV = (key) => {
+    const d = reportData[key]();
+    const lines = [d.columns.map(escCsv).join(','), ...d.rows.map(r => r.map(escCsv).join(','))];
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${d.title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Excel (CSV) downloaded');
+  };
+
+  // PDF (via print dialog → Save as PDF) and Print share the same renderer
+  const exportPDF = (key, autoPrint = true) => {
+    const d = reportData[key]();
+    const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const html = `
+      <html><head><title>${esc(d.title)}</title><style>
+        body { font-family: system-ui, Arial, sans-serif; margin: 24px; color:#111827; }
+        h1 { font-size:18px; color:#0B1F4A; margin:0 0 2px; }
+        .sub { color:#6B7280; font-size:12px; margin-bottom:16px; }
+        table { width:100%; border-collapse:collapse; font-size:11px; }
+        th { background:#0B1F4A; color:#fff; text-align:left; padding:6px 8px; }
+        td { padding:6px 8px; border-bottom:1px solid #F3F4F6; }
+        tr:nth-child(even) td { background:#F9FAFB; }
+        @media print { body { margin:12mm; } }
+      </style></head><body>
+        <h1>🚌 ${esc(d.title)}</h1>
+        <div class="sub">The Future Step School · ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})} · ${d.rows.length} record(s)</div>
+        <table>
+          <thead><tr>${d.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+          <tbody>${d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) { toast.error('Please allow pop-ups'); return; }
+    w.document.write(html); w.document.close(); w.focus();
+    if (autoPrint) setTimeout(() => w.print(), 400);
+  };
 
   // ── Printable Transport Report ─────────────────────────────────────────────
   // Opens a clean, print-ready page: totals, students grouped by bus & route,
@@ -593,15 +692,6 @@ export default function AdminTransport() {
                   style={{ width:"100%", padding:"9px 12px 9px 34px", borderRadius:10, border:"1.5px solid #E5E7EB", fontSize:13, outline:"none", boxSizing:"border-box" }}
                 />
               </div>
-              <button onClick={() => setShowSummary(v => !v)}
-                style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid #0B1F4A", background: showSummary ? "#0B1F4A" : "#fff", color: showSummary ? "#fff" : "#0B1F4A", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
-                📊 Summary
-              </button>
-              <button onClick={printTransportReport}
-                title="Print / download a full transport report"
-                style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid #7C3AED", background:"#7C3AED", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>
-                🖨️ Report
-              </button>
               <span style={{ fontSize:12, color:"#9CA3AF", fontWeight:600, whiteSpace:"nowrap" }}>
                 {filteredAssignments.length} of {assignments.length}
               </span>
@@ -651,7 +741,7 @@ export default function AdminTransport() {
           <div style={{ display:"flex", gap:0, alignItems:"stretch", flexWrap:"wrap" }}>
 
           {/* ── Summary rail — sits to the RIGHT of the assignments table ── */}
-          {showSummary && (
+          {false && (
             <div style={{ order:2, width:300, flexShrink:0, padding:14, borderLeft:"1px solid #F3F4F6", background:"#F9FAFB", display:"flex", flexDirection:"column", gap:12, maxHeight:600, overflowY:"auto" }}>
               {[
                 { key:'bus',   title:'🚌 Students per Bus',   rows: buses.map(b  => ({ id:b._id,  label:`Bus ${b.busNumber}`, count: countsByBus[b._id]  || 0, match: a => idOf(aBus(a))    === b._id  })) },
@@ -784,6 +874,99 @@ export default function AdminTransport() {
           </div>
 
           </div>{/* /flex: table + summary */}
+        </div>
+      )}
+
+      {/* ─── SUMMARY TAB ──────────────────────────────────────────────────── */}
+      {tab === 'Summary' && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:16 }}>
+          {[
+            { key:'bus',   title:'🚌 Students per Bus',   rows: buses.map(b  => ({ id:b._id,  label:`Bus ${b.busNumber}`, count: countsByBus[b._id]  || 0, match: a => idOf(aBus(a))    === b._id  })) },
+            { key:'route', title:'🛣️ Students per Route', rows: routes.map(r => ({ id:r._id,  label:`${r.code ? r.code+' — ' : ''}${r.name}`, count: countsByRoute[r._id] || 0, match: a => idOf(aRoute(a)) === r._id })) },
+            { key:'stop',  title:'📍 Students per Stop',  rows: allStops.map(st => ({ id:st._id, label:st.name, count: countsByStop[st._id] || 0, match: a => idOf(aPickup(a)) === st._id || idOf(aDrop(a)) === st._id })) },
+          ].map(group => (
+            <div key={group.key} style={{ background:"#fff", border:"1px solid #E5E7EB", borderRadius:14, overflow:"hidden" }}>
+              <div style={{ background:"#0B1F4A", padding:"11px 16px", color:"#fff", fontWeight:800, fontSize:13 }}>{group.title}</div>
+              <div style={{ maxHeight:420, overflowY:"auto" }}>
+                {group.rows.length === 0 ? (
+                  <div style={{ padding:20, textAlign:"center", color:"#9CA3AF", fontSize:13 }}>None yet.</div>
+                ) : group.rows.map(row => {
+                  const key = `${group.key}:${row.id}`;
+                  const isOpen = expanded === key;
+                  const members = assignments.filter(row.match);
+                  return (
+                    <div key={row.id} style={{ borderBottom:"1px solid #F3F4F6" }}>
+                      <button onClick={() => setExpanded(isOpen ? null : key)}
+                        style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
+                        <span style={{ fontSize:13, fontWeight:700, color:"#0B1F4A" }}>{isOpen ? '▾' : '▸'} {row.label}</span>
+                        <span style={{ fontSize:12, fontWeight:800, padding:"2px 10px", borderRadius:20, background: row.count ? '#DCFCE7' : '#F3F4F6', color: row.count ? '#166534' : '#9CA3AF' }}>{row.count}</span>
+                      </button>
+                      {isOpen && (
+                        <div style={{ padding:"0 16px 12px 30px" }}>
+                          {members.length === 0 ? (
+                            <div style={{ fontSize:12, color:"#9CA3AF", padding:"4px 0" }}>No students assigned.</div>
+                          ) : members.map(m => (
+                            <div key={m._id} style={{ fontSize:13, color:"#374151", padding:"4px 0", display:"flex", justifyContent:"space-between", gap:8 }}>
+                              <span>{m.student?.user?.name || m.student?.name || 'Student'}</span>
+                              <span style={{ color:"#9CA3AF", fontSize:12, whiteSpace:"nowrap" }}>{aPickup(m)?.name || '—'} → {aDrop(m)?.name || '—'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ─── REPORTS TAB ──────────────────────────────────────────────────── */}
+      {tab === 'Report' && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(300px, 1fr))', gap:16 }}>
+          {[
+            { key:'students', icon:'👥', title:'Student Transport List', desc:'All students with route, bus, stops, fee & status.' },
+            { key:'byBus',    icon:'🚌', title:'Bus-wise Report',        desc:'Student count per bus, with capacity.' },
+            { key:'byRoute',  icon:'🛣️', title:'Route-wise Report',      desc:'Student count per route.' },
+            { key:'byStop',   icon:'📍', title:'Stop-wise Report',       desc:'Student count per pickup/drop stop.' },
+            { key:'fees',     icon:'💰', title:'Transport Fee Summary',  desc:'Monthly transport fee per student.' },
+          ].map(rep => (
+            <div key={rep.key} style={{ background:'#fff', border:'1px solid #E5E7EB', borderRadius:14, padding:18, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ fontSize:26 }}>{rep.icon}</div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:15, color:'#0B1F4A' }}>{rep.title}</div>
+                <div style={{ fontSize:12, color:'#6B7280', marginTop:2 }}>{rep.desc}</div>
+              </div>
+              <div style={{ display:'flex', gap:8, marginTop:6, flexWrap:'wrap' }}>
+                <button onClick={() => exportPDF(rep.key, true)}
+                  style={{ flex:1, minWidth:80, padding:'8px 12px', borderRadius:8, border:'none', background:'#DC2626', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📄 PDF
+                </button>
+                <button onClick={() => exportCSV(rep.key)}
+                  style={{ flex:1, minWidth:80, padding:'8px 12px', borderRadius:8, border:'none', background:'#16A34A', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📊 Excel
+                </button>
+                <button onClick={() => exportPDF(rep.key, true)}
+                  style={{ flex:1, minWidth:80, padding:'8px 12px', borderRadius:8, border:'1.5px solid #0B1F4A', background:'#fff', color:'#0B1F4A', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  🖨️ Print
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Full combined report */}
+          <div style={{ background:'#0B1F4A', borderRadius:14, padding:18, display:'flex', flexDirection:'column', gap:10, justifyContent:'center' }}>
+            <div style={{ fontSize:26 }}>📋</div>
+            <div>
+              <div style={{ fontWeight:800, fontSize:15, color:'#fff' }}>Full Transport Report</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.7)', marginTop:2 }}>Everything: totals, students grouped by bus & route, per-stop counts.</div>
+            </div>
+            <button onClick={printTransportReport}
+              style={{ padding:'9px 16px', borderRadius:8, border:'none', background:'#fff', color:'#0B1F4A', fontSize:12, fontWeight:800, cursor:'pointer', marginTop:6 }}>
+              🖨️ Generate Full Report (PDF)
+            </button>
+          </div>
         </div>
       )}
 
