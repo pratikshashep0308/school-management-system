@@ -46,6 +46,9 @@ app.use(rateLimit({
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
+  'https://portal.thefuturestepschool.in',
+  'http://portal.thefuturestepschool.in',
+  'http://80.225.252.56',
   process.env.FRONTEND_URL,
 ];
 
