@@ -96,17 +96,34 @@ export default function CollectFees() {
     }
 
     // 2. Try to fetch student's existing ledger (may not exist yet — that's OK)
+    let studentAssignments = [];
     try {
       const r = await feeAPI.getStudentFee(student._id);
       setFeeRecord(r.data.data);
-      setAssignments(r.data.assignments || []);
+      studentAssignments = r.data.assignments || [];
+      setAssignments(studentAssignments);
     } catch {
       // No ledger yet — first-time fee collection for this student. Not an error.
       setFeeRecord(null);
       setAssignments([]);
     }
 
-    // 3. Build the fee table — template lines + adjustment rows
+    // Individual fee assignments for THIS student (e.g. auto-created transport fee)
+    // that aren't part of the class template — pull them in as their own rows so
+    // they show up and can be collected. Match by fee-type name to avoid dupes.
+    const templateNames = new Set(templateLines.map(l => (l.label || '').toLowerCase()));
+    const individualLines = studentAssignments
+      .filter(a => a.finalAmount > 0 && !templateNames.has((a.feeType?.name || '').toLowerCase()))
+      .map((a, i) => ({
+        key:    `asg-${a._id || i}`,
+        label:  a.feeType?.name || 'Fee',
+        amount: Math.round(a.finalAmount || 0),
+        // Transport (and other recurring individual fees) are MONTHLY amounts,
+        // so they multiply by months directly instead of yearly ÷ 12.
+        isMonthly: (a.feeType?.category === 'transport') || (a.feeType?.isRecurring === true),
+      }));
+
+    // 3. Build the fee table — template lines + individual assignments + adjustment rows
     const extras = [
       { key:'fine',        label:'Fine',             amount:0 },
       { key:'others',      label:'Others',           amount:0 },
@@ -114,13 +131,16 @@ export default function CollectFees() {
       { key:'discount',    label:'Discount',         amount:0, isDiscount:true },
     ];
 
-    if (templateLines.length > 0) {
-      setFeeItems([...templateLines, ...extras]);
-      toast.success(`Loaded ${templateLines.length} fee(s) from ${student.class?.name||'class'} defaults`);
+    if (templateLines.length > 0 || individualLines.length > 0) {
+      setFeeItems([...templateLines, ...individualLines, ...extras]);
+      const parts = [];
+      if (templateLines.length) parts.push(`${templateLines.length} class fee(s)`);
+      if (individualLines.length) parts.push(`${individualLines.length} individual fee(s) incl. transport`);
+      toast.success(`Loaded ${parts.join(' + ')}`);
     } else {
-      // No class template — empty manual sheet
+      // No class template and no individual fees — empty manual sheet
       setFeeItems(DEFAULT_FEE_ITEMS.map(f=>({...f})));
-      toast(`No class defaults set for ${student.class?.name||'this class'} — enter fees manually`, { icon:'ℹ️' });
+      toast(`No fees on file for ${student.class?.name||'this class'} — enter manually`, { icon:'ℹ️' });
     }
   };
 
@@ -136,9 +156,15 @@ export default function CollectFees() {
     return months;
   };
 
+  // Period total for one fee row. Monthly fees (e.g. transport) multiply by the
+  // number of months directly; annual fees are yearly ÷ 12 × months.
+  const periodTotalFor = (f) => {
+    const amt = +f.amount || 0;
+    return f.isMonthly ? amt * pd.months : amt * pd.months / 12;
+  };
+
   const baseTotal = feeItems.reduce((s,f) => {
-    // f.amount is the YEARLY amount per fee. Period total = yearly × months ÷ 12.
-    const periodTotal = (+f.amount || 0) * pd.months / 12;
+    const periodTotal = periodTotalFor(f);
     const v = f.total !== undefined && f.total !== '' ? +f.total : periodTotal;
     return f.isDiscount ? s - v : s + v;
   }, 0);
@@ -177,7 +203,7 @@ export default function CollectFees() {
         periodMonths:  pd.months,
         periodCovered,
         items:         feeItems.filter(f=>f.amount>0).map(f=>{
-          const periodTotal = +f.amount * pd.months / 12;
+          const periodTotal = periodTotalFor(f);
           return { label:f.label, perMonth:+f.amount, total: f.isDiscount ? -periodTotal : periodTotal, payingNow: +f.paid || 0 };
         }),
         subtotal,
@@ -229,7 +255,7 @@ export default function CollectFees() {
         balance:        dueBalance,
         date:           new Date(payDate).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}),
         items:          feeItems.filter(f=>f.amount>0).map(f=>{
-          const periodTotal = +f.amount * pd.months / 12;
+          const periodTotal = periodTotalFor(f);
           return { label:f.label, perMonth:f.amount, total: f.isDiscount ? -periodTotal : periodTotal, payingNow: +f.paid || 0 };
         }),
         history: [...history.map(h=>({ date:new Date(h.paidOn).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}), period:h.month||'—', total:totalAmount, deposit:h.amount, due:totalAmount-h.amount })),
@@ -371,7 +397,7 @@ export default function CollectFees() {
             <tbody>
               {feeItems.map((item,i)=>{
                 const hasVal = item.amount !== '' && +item.amount > 0;
-                const autoTotal = hasVal ? +item.amount * pd.months / 12 : null;
+                const autoTotal = hasVal ? periodTotalFor(item) : null;
                 const rowTotal = item.total !== undefined && item.total !== '' ? +item.total : autoTotal;
                 return (
                 <tr key={item.key} style={{ borderBottom:'0.5px solid #F3F4F6', background:hasVal?'#FAFFFE':'#fff' }}>
@@ -382,6 +408,7 @@ export default function CollectFees() {
                       style={{ width:'100%', padding:'5px 9px', border:'1px solid transparent', borderRadius:6, fontSize:12, textTransform:'uppercase', fontWeight:hasVal?700:400, color:'#374151', background:'transparent', outline:'none', cursor:'text' }}
                       onFocus={e=>e.target.style.borderColor='#BFDBFE'}
                       onBlur={e=>e.target.style.borderColor='transparent'}/>
+                    {item.isMonthly && <span style={{ fontSize:9, background:'#DCFCE7', color:'#166534', padding:'1px 6px', borderRadius:20, fontWeight:700, marginLeft:4 }}>/month</span>}
                   </td>
                   <td style={{ padding:'6px 10px', textAlign:'right' }}>
                     <input type="number" min="0" value={item.amount} placeholder="—"

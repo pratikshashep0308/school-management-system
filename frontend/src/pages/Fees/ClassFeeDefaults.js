@@ -80,15 +80,18 @@ export default function ClassFeeDefaults() {
   const removeLine = (i) => setLines(prev => prev.filter((_, idx) => idx !== i));
 
   const handleSave = async () => {
-    const valid = lines.filter(l => l.feeType && Number(l.annualAmount) > 0);
-    if (!valid.length) return toast.error('Add at least one valid fee line');
+    // Keep any line that has a fee type selected — the amount is optional.
+    // Lines with no amount are saved as 0 so they still appear at collection
+    // (the collector types the amount then). Only truly blank rows are dropped.
+    const valid = lines.filter(l => l.feeType);
+    if (!valid.length) return toast.error('Add at least one fee line (select a fee type)');
     setSaving(true);
     try {
       await feeAPI.saveClassTemplate({
         classId,
         lines: valid.map(l => ({
           feeType:      l.feeType,
-          annualAmount: Number(l.annualAmount),
+          annualAmount: Number(l.annualAmount) || 0,
           notes:        l.notes || '',
         })),
       });
