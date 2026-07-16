@@ -197,7 +197,7 @@ export default function AdminTransport() {
   const saveRoute = async () => {
     setSaving(true);
     try {
-      const { _nameEdited, ...routeData } = routeForm;
+      const { _nameEdited, _customName, ...routeData } = routeForm;
       const payload = { ...routeData, stops: routeForm.stops.filter((s) => s.name.trim()) };
       if (editingRoute) { await routeAPI.update(editingRoute._id, payload); toast.success('Route updated'); }
       else              { await routeAPI.create(payload);                   toast.success('Route created'); }
@@ -1032,11 +1032,11 @@ export default function AdminTransport() {
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:6 }}>Route Name *</label>
               <select
-                value={allStops.some(s => s.name === routeForm.name) ? routeForm.name : (routeForm.name ? '__custom__' : '')}
+                value={routeForm._customName ? '__custom__' : (allStops.some(s => s.name === routeForm.name) ? routeForm.name : (routeForm.name ? '__custom__' : ''))}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v === '__custom__') { setRouteForm({ ...routeForm, name: '', _nameEdited: true }); }
-                  else { setRouteForm({ ...routeForm, name: v, _nameEdited: true }); }
+                  if (v === '__custom__') { setRouteForm({ ...routeForm, name: '', _customName: true, _nameEdited: true }); }
+                  else { setRouteForm({ ...routeForm, name: v, _customName: false, _nameEdited: true }); }
                 }}
                 style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box", background:"#fff" }}>
                 <option value="">— Select a stop name —</option>
@@ -1045,12 +1045,12 @@ export default function AdminTransport() {
                 ))}
                 <option value="__custom__">+ Type a custom name…</option>
               </select>
-              {/* Show a text box when the current name isn't a Stop Master name (custom) */}
-              {(!!routeForm.name && !allStops.some(s => s.name === routeForm.name)) && (
-                <input value={routeForm.name}
-                  onChange={(e) => setRouteForm({ ...routeForm, name: e.target.value, _nameEdited: true })}
-                  placeholder="Type route name (or leave to auto-suggest from stops)"
-                  style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box", marginTop:6 }} />
+              {/* Show the text box whenever custom mode is on, OR the saved name isn't a Stop Master name */}
+              {(routeForm._customName || (!!routeForm.name && !allStops.some(s => s.name === routeForm.name))) && (
+                <input value={routeForm.name} autoFocus
+                  onChange={(e) => setRouteForm({ ...routeForm, name: e.target.value, _customName: true, _nameEdited: true })}
+                  placeholder="Type a custom route name (e.g. Koparli → TFSS)"
+                  style={{ width:"100%", border:"1.5px solid #1D4ED8", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box", marginTop:6 }} />
               )}
             </div>
             <Field label="Route Code *" value={routeForm.code} onChange={(v) => setRouteForm({...routeForm, code: v})} placeholder="RT-A" />
