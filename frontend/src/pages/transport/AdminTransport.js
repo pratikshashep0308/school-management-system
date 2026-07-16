@@ -28,7 +28,7 @@ const emptyBus = () => ({
 const emptyRoute = () => ({
   name: '', code: '', color: '#3B82F6', description: '',
   morningDepartureTime: '07:00', eveningDepartureTime: '14:00',
-  stops: [{ name: '', sequence: 1, morningArrivalTime: '', eveningArrivalTime: '', landmark: '' }],
+  stops: [{ stopId: '', name: '', sequence: 1, morningArrivalTime: '', eveningArrivalTime: '', landmark: '' }],
 });
 
 const emptyAssign = () => ({
@@ -154,12 +154,14 @@ export default function AdminTransport() {
     setEditingRoute(route);
     setRouteForm(route ? {
       name: route.name, code: route.code, color: route.color || '#3B82F6',
+      _nameEdited: true,   // existing route already has a name — don't auto-overwrite it
       description: route.description || '',
       morningDepartureTime: route.morningDepartureTime,
       eveningDepartureTime: route.eveningDepartureTime,
       assignedBus: route.assignedBus?._id || '',
       stops: route.stops?.length > 0
         ? route.stops.map((s) => ({
+            stopId: s.stop?._id || s.stop || '',
             name: s.name, sequence: s.sequence,
             morningArrivalTime: s.morningTime || s.morningArrivalTime || '',
             eveningArrivalTime: s.eveningTime || s.eveningArrivalTime || '',
@@ -171,15 +173,32 @@ export default function AdminTransport() {
   };
 
   const addStop = () => setRouteForm((f) => ({
-    ...f, stops: [...f.stops, { name: '', sequence: f.stops.length + 1, morningArrivalTime: '', eveningArrivalTime: '', landmark: '' }],
+    ...f, stops: [...f.stops, { stopId: '', name: '', sequence: f.stops.length + 1, morningArrivalTime: '', eveningArrivalTime: '', landmark: '' }],
   }));
-  const removeStop = (i) => setRouteForm((f) => ({ ...f, stops: f.stops.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, sequence: idx + 1 })) }));
-  const updateStop = (i, key, val) => setRouteForm((f) => ({ ...f, stops: f.stops.map((s, idx) => idx === i ? { ...s, [key]: val } : s) }));
+  const removeStop = (i) => setRouteForm((f) => {
+    const stops = f.stops.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, sequence: idx + 1 }));
+    return { ...f, stops, name: f._nameEdited ? f.name : suggestRouteName(stops) };
+  });
+  const updateStop = (i, key, val) => setRouteForm((f) => {
+    const stops = f.stops.map((s, idx) => idx === i ? { ...s, [key]: val } : s);
+    // Auto-suggest the route name (first → last stop) unless the user typed one.
+    const name = f._nameEdited ? f.name : suggestRouteName(stops);
+    return { ...f, stops, name };
+  });
+
+  // Build a friendly route name from the first and last named stops.
+  const suggestRouteName = (stops) => {
+    const named = (stops || []).map(s => (s.name || '').trim()).filter(Boolean);
+    if (named.length === 0) return '';
+    if (named.length === 1) return `${named[0]} route`;
+    return `${named[0]} → ${named[named.length - 1]}`;
+  };
 
   const saveRoute = async () => {
     setSaving(true);
     try {
-      const payload = { ...routeForm, stops: routeForm.stops.filter((s) => s.name.trim()) };
+      const { _nameEdited, ...routeData } = routeForm;
+      const payload = { ...routeData, stops: routeForm.stops.filter((s) => s.name.trim()) };
       if (editingRoute) { await routeAPI.update(editingRoute._id, payload); toast.success('Route updated'); }
       else              { await routeAPI.create(payload);                   toast.success('Route created'); }
       setShowRouteModal(false);
@@ -1010,7 +1029,7 @@ export default function AdminTransport() {
       {showRouteModal && (
         <Modal title={editingRoute ? 'Edit Route' : 'Create Route'} onClose={() => setShowRouteModal(false)} wide>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-            <Field label="Route Name *" value={routeForm.name} onChange={(v) => setRouteForm({...routeForm, name: v})} placeholder="Route A — Hinjewadi" />
+            <Field label="Route Name * (auto-suggested from stops)" value={routeForm.name} onChange={(v) => setRouteForm({...routeForm, name: v, _nameEdited: true})} placeholder="Auto-fills as you pick stops — or type your own" />
             <Field label="Route Code *" value={routeForm.code} onChange={(v) => setRouteForm({...routeForm, code: v})} placeholder="RT-A" />
             <Field label="Morning Departure" type="time" value={routeForm.morningDepartureTime} onChange={(v) => setRouteForm({...routeForm, morningDepartureTime: v})} />
             <Field label="Evening Departure" type="time" value={routeForm.eveningDepartureTime} onChange={(v) => setRouteForm({...routeForm, eveningDepartureTime: v})} />
@@ -1040,10 +1059,34 @@ export default function AdminTransport() {
               {routeForm.stops.map((stop, idx) => (
                 <div key={idx} style={{ background:"#F9FAFB", borderRadius:10, padding:12, display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr auto", gap:8, alignItems:"end" }}>
                   <div style={{ gridColumn:"1/-1" }}>
-                    <label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:4 }}>Stop Name *</label>
-                    <input value={stop.name} onChange={(e) => updateStop(idx, 'name', e.target.value)}
-                      style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", boxSizing:"border-box" }}
-                      placeholder="e.g. Hinjewadi Phase 1" />
+                    <label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:4 }}>Stop *</label>
+                    <select
+                      value={stop.stopId || ''}
+                      onChange={(e) => {
+                        const picked = allStops.find(s => s._id === e.target.value);
+                        if (picked) {
+                          // Fill name + times from the Stop Master entry
+                          updateStop(idx, 'stopId', picked._id);
+                          updateStop(idx, 'name', picked.name);
+                          updateStop(idx, 'morningArrivalTime', picked.morningArrivalTime || '');
+                          updateStop(idx, 'eveningArrivalTime', picked.eveningArrivalTime || '');
+                        } else {
+                          // "New stop" chosen — clear the ref so the typed name is used
+                          updateStop(idx, 'stopId', '');
+                        }
+                      }}
+                      style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", boxSizing:"border-box", background:"#fff" }}>
+                      <option value="">— Select from Stop Master —</option>
+                      {allStops.map(s => (
+                        <option key={s._id} value={s._id}>{s.name}</option>
+                      ))}
+                      <option value="__new__">+ Type a new stop name…</option>
+                    </select>
+                    {(stop.stopId === '' || stop.stopId === '__new__' || !stop.stopId) && (
+                      <input value={stop.name} onChange={(e) => updateStop(idx, 'name', e.target.value)}
+                        style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:7, padding:"5px 8px", fontSize:12, outline:"none", boxSizing:"border-box", marginTop:6 }}
+                        placeholder="New stop name (added to Stop Master on save)" />
+                    )}
                   </div>
                   <div>
                     <label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:4 }}>Morning</label>
