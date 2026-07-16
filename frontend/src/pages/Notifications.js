@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { notificationAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
+import { shareOnWhatsApp } from '../utils/whatsappShare';
 
 const TYPE_META = {
   announcement: { icon: '📢', bg: 'bg-blue-50 dark:bg-blue-900/20',   color: 'text-blue-600',   border: 'border-blue-200',   label: 'Announcement' },
@@ -32,7 +33,7 @@ const TABS = [
 const FORM_DEFAULT = { title: '', message: '', type: 'announcement', priority: 'normal', audience: 'all' };
 
 export default function Notifications() {
-  const { can, user } = useAuth();
+  const { can, user, canEdit } = useAuth();
   const [notifs,    setNotifs]   = useState([]);
   const [loading,   setLoading]  = useState(true);
   const [tab,       setTab]      = useState('all');
@@ -45,7 +46,7 @@ export default function Notifications() {
   const [unread,    setUnread]   = useState(0);
   const pollRef = useRef(null);
 
-  const canSend = can(['superAdmin', 'schoolAdmin', 'teacher']);
+  const canSend = can(['superAdmin', 'schoolAdmin', 'teacher']) && canEdit('notifications');
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -199,10 +200,17 @@ export default function Notifications() {
                     {n.sentBy?.name && <span>By: <span className="font-medium text-slate dark:text-gray-300">{n.sentBy.name}</span></span>}
                   </div>
                 </div>
-                {can(['superAdmin', 'schoolAdmin']) && (
-                  <button onClick={e => { e.stopPropagation(); handleDelete(n._id); }}
-                    className="w-8 h-8 rounded-lg border border-red-200 text-red-400 hover:border-red-400 hover:text-red-600 transition-all flex items-center justify-center text-sm flex-shrink-0">✕</button>
-                )}
+                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                  <button onClick={e => { e.stopPropagation(); shareOnWhatsApp({ kind:'Notice', title:n.title, description:n.message, school:'The Future Step School' }); }}
+                    title="Share on WhatsApp"
+                    className="w-8 h-8 rounded-lg border border-green-200 text-green-500 hover:border-green-400 hover:text-green-600 transition-all flex items-center justify-center text-sm">
+                    🟢
+                  </button>
+                  {can(['superAdmin', 'schoolAdmin']) && (
+                    <button onClick={e => { e.stopPropagation(); handleDelete(n._id); }}
+                      className="w-8 h-8 rounded-lg border border-red-200 text-red-400 hover:border-red-400 hover:text-red-600 transition-all flex items-center justify-center text-sm">✕</button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -213,6 +221,13 @@ export default function Notifications() {
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Send Notification" size="md"
         footer={<>
           <button className="btn-secondary" onClick={() => setModal(false)}>Cancel</button>
+          <button onClick={() => {
+              if (!form.title.trim() || !form.message.trim()) return toast.error('Title and message are required');
+              shareOnWhatsApp({ kind:'Notice', title:form.title, description:form.message, school:'The Future Step School' });
+            }}
+            style={{ padding:'8px 16px', borderRadius:9, border:'none', background:'#16A34A', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            🟢 WhatsApp
+          </button>
           <button className="btn-primary" onClick={handleSend} disabled={sending}>{sending ? 'Sending…' : '🚀 Send Now'}</button>
         </>}>
         <div className="space-y-4">
