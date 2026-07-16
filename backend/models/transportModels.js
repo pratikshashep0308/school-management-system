@@ -44,10 +44,10 @@ BusSchema.index({ school: 1, registrationNo: 1 }); // unique removed
 // ── STOP ──────────────────────────────────────────────────────────────────────
 const StopSchema = new Schema({
   school:             { type: Schema.Types.ObjectId, ref: 'School', required: true, index: true },
-  route:              { type: Schema.Types.ObjectId, ref: 'BusRoute', required: true },
+  route:              { type: Schema.Types.ObjectId, ref: 'BusRoute' },   // optional — a stop can exist without a route
   name:               { type: String, required: true, trim: true },
-  sequence:           { type: Number, required: true },
-  morningArrivalTime: { type: String, required: true },
+  sequence:           { type: Number, default: 0 },                      // optional
+  morningArrivalTime: { type: String },                                  // optional
   eveningArrivalTime: String,
   location:           { lat: Number, lng: Number },
   landmark:           String,

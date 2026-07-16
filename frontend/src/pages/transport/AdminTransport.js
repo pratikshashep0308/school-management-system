@@ -175,24 +175,8 @@ export default function AdminTransport() {
   const addStop = () => setRouteForm((f) => ({
     ...f, stops: [...f.stops, { stopId: '', name: '', sequence: f.stops.length + 1, morningArrivalTime: '', eveningArrivalTime: '', landmark: '' }],
   }));
-  const removeStop = (i) => setRouteForm((f) => {
-    const stops = f.stops.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, sequence: idx + 1 }));
-    return { ...f, stops, name: f._nameEdited ? f.name : suggestRouteName(stops) };
-  });
-  const updateStop = (i, key, val) => setRouteForm((f) => {
-    const stops = f.stops.map((s, idx) => idx === i ? { ...s, [key]: val } : s);
-    // Auto-suggest the route name (first → last stop) unless the user typed one.
-    const name = f._nameEdited ? f.name : suggestRouteName(stops);
-    return { ...f, stops, name };
-  });
-
-  // Build a friendly route name from the first and last named stops.
-  const suggestRouteName = (stops) => {
-    const named = (stops || []).map(s => (s.name || '').trim()).filter(Boolean);
-    if (named.length === 0) return '';
-    if (named.length === 1) return `${named[0]} route`;
-    return `${named[0]} → ${named[named.length - 1]}`;
-  };
+  const removeStop = (i) => setRouteForm((f) => ({ ...f, stops: f.stops.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, sequence: idx + 1 })) }));
+  const updateStop = (i, key, val) => setRouteForm((f) => ({ ...f, stops: f.stops.map((s, idx) => idx === i ? { ...s, [key]: val } : s) }));
 
   const saveRoute = async () => {
     setSaving(true);
@@ -1029,30 +1013,7 @@ export default function AdminTransport() {
       {showRouteModal && (
         <Modal title={editingRoute ? 'Edit Route' : 'Create Route'} onClose={() => setShowRouteModal(false)} wide>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:6 }}>Route Name *</label>
-              <select
-                value={routeForm._customName ? '__custom__' : (allStops.some(s => s.name === routeForm.name) ? routeForm.name : (routeForm.name ? '__custom__' : ''))}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '__custom__') { setRouteForm({ ...routeForm, name: '', _customName: true, _nameEdited: true }); }
-                  else { setRouteForm({ ...routeForm, name: v, _customName: false, _nameEdited: true }); }
-                }}
-                style={{ width:"100%", border:"1.5px solid #E5E7EB", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box", background:"#fff" }}>
-                <option value="">— Select a stop name —</option>
-                {[...new Set(allStops.map(s => s.name).filter(Boolean))].sort().map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-                <option value="__custom__">+ Type a custom name…</option>
-              </select>
-              {/* Show the text box whenever custom mode is on, OR the saved name isn't a Stop Master name */}
-              {(routeForm._customName || (!!routeForm.name && !allStops.some(s => s.name === routeForm.name))) && (
-                <input value={routeForm.name} autoFocus
-                  onChange={(e) => setRouteForm({ ...routeForm, name: e.target.value, _customName: true, _nameEdited: true })}
-                  placeholder="Type a custom route name (e.g. Koparli → TFSS)"
-                  style={{ width:"100%", border:"1.5px solid #1D4ED8", borderRadius:8, padding:"9px 12px", fontSize:13, outline:"none", boxSizing:"border-box", marginTop:6 }} />
-              )}
-            </div>
+            <Field label="Route Name *" value={routeForm.name} onChange={(v) => setRouteForm({...routeForm, name: v, _nameEdited: true})} placeholder="e.g. Koparli route or Koparli → TFSS" />
             <Field label="Route Code *" value={routeForm.code} onChange={(v) => setRouteForm({...routeForm, code: v})} placeholder="RT-A" />
             <Field label="Morning Departure" type="time" value={routeForm.morningDepartureTime} onChange={(v) => setRouteForm({...routeForm, morningDepartureTime: v})} />
             <Field label="Evening Departure" type="time" value={routeForm.eveningDepartureTime} onChange={(v) => setRouteForm({...routeForm, eveningDepartureTime: v})} />
@@ -1156,7 +1117,20 @@ export default function AdminTransport() {
               )}
             </div>
 
-            {/* ── PICKUP POINT — choosing this auto-detects route & bus ── */}
+            {/* Selected student details */}
+            {assignForm.studentId && (() => {
+              const sel = students.find(s => s._id === assignForm.studentId);
+              if (!sel) return null;
+              const pickup = allStops.find(st => st._id === assignForm.pickupStopId);
+              return (
+                <div style={{ background:"#F0F9FF", border:"1px solid #BAE6FD", borderRadius:10, padding:"12px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <div><div style={{ fontSize:10, color:"#0369A1", textTransform:"uppercase", fontWeight:700 }}>Name</div><div style={{ fontSize:13, color:"#0B1F4A", fontWeight:600 }}>{sel.name || sel.user?.name || '—'}</div></div>
+                  <div><div style={{ fontSize:10, color:"#0369A1", textTransform:"uppercase", fontWeight:700 }}>Class</div><div style={{ fontSize:13, color:"#0B1F4A", fontWeight:600 }}>{sel.class?.name || '—'} {sel.class?.section || ''}</div></div>
+                  <div><div style={{ fontSize:10, color:"#0369A1", textTransform:"uppercase", fontWeight:700 }}>Admission No</div><div style={{ fontSize:13, color:"#0B1F4A", fontWeight:600 }}>{sel.admissionNumber || '—'}</div></div>
+                  <div><div style={{ fontSize:10, color:"#0369A1", textTransform:"uppercase", fontWeight:700 }}>Pickup Point</div><div style={{ fontSize:13, color:"#0B1F4A", fontWeight:600 }}>{pickup?.name || '— not selected —'}</div></div>
+                </div>
+              );
+            })()}
             <div>
               <label style={{ fontSize:11, fontWeight:700, color:"#6B7280", textTransform:"uppercase", display:"block", marginBottom:4 }}>Pickup Point *</label>
               <select value={assignForm.pickupStopId}

@@ -13,7 +13,7 @@ const INP = {
 const LBL = { fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', display: 'block', marginBottom: 4 };
 
 const EMPTY = {
-  route: '', name: '', landmark: '', sequence: 1,
+  route: '', name: '', landmark: '',
   morningArrivalTime: '', eveningArrivalTime: '',
   location: { lat: '', lng: '' },
 };
@@ -53,22 +53,21 @@ export default function StopMaster() {
   const openAdd = () => setModal({ mode: 'add', data: { ...EMPTY } });
   const openEdit = (s) => setModal({ mode: 'edit', data: {
     _id: s._id, route: s.route?._id || s.route || '', name: s.name || '',
-    landmark: s.landmark || '', sequence: s.sequence || 1,
+    landmark: s.landmark || '',
     morningArrivalTime: s.morningArrivalTime || '', eveningArrivalTime: s.eveningArrivalTime || '',
     location: { lat: s.location?.lat ?? '', lng: s.location?.lng ?? '' },
   }});
 
   const save = async () => {
     const d = modal.data;
-    if (!d.route) return toast.error('Select a route');
-    if (!d.name.trim()) return toast.error('Stop name is required');
-    if (!d.morningArrivalTime) return toast.error('Morning arrival time is required');
+    // Nothing is mandatory — a stop can be saved with just a name, or even
+    // added later. Only guard against a completely empty stop name.
+    if (!d.name.trim()) return toast.error('Please enter a stop name');
     setSaving(true);
     try {
       const payload = {
-        route: d.route, name: d.name.trim(), landmark: d.landmark,
-        sequence: Number(d.sequence) || 1,
-        morningArrivalTime: d.morningArrivalTime,
+        route: d.route || undefined, name: d.name.trim(), landmark: d.landmark,
+        morningArrivalTime: d.morningArrivalTime || undefined,
         eveningArrivalTime: d.eveningArrivalTime || undefined,
         location: (d.location.lat || d.location.lng)
           ? { lat: Number(d.location.lat) || undefined, lng: Number(d.location.lng) || undefined }
@@ -140,7 +139,7 @@ export default function StopMaster() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                  {['#', 'Stop', 'Route', 'Morning', 'Evening', 'Students', 'Status', 'Actions'].map(h => (
+                  {['Stop', 'Route', 'Morning', 'Evening', 'Students', 'Status', 'Actions'].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -148,7 +147,6 @@ export default function StopMaster() {
               <tbody>
                 {filtered.map((s, i) => (
                   <tr key={s._id} style={{ borderBottom: '1px solid #F3F4F6', background: s.isActive === false ? '#FEF9F5' : (i % 2 ? '#FAFAFA' : '#fff') }}>
-                    <td style={{ padding: '10px 14px', color: '#9CA3AF' }}>{s.sequence ?? i + 1}</td>
                     <td style={{ padding: '10px 14px', fontWeight: 700, color: '#0B1F4A' }}>
                       {s.name}
                       {s.landmark && <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 400 }}>{s.landmark}</div>}
@@ -194,14 +192,14 @@ export default function StopMaster() {
             </div>
             <div style={{ padding: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={LBL}>Route *</label>
+                <label style={LBL}>Route (optional)</label>
                 <select style={INP} value={modal.data.route} onChange={e => setModal(m => ({ ...m, data: { ...m.data, route: e.target.value } }))}>
-                  <option value="">Select route…</option>
+                  <option value="">No route / assign later</option>
                   {routes.map(r => <option key={r._id} value={r._id}>{r.code ? `${r.code} — ` : ''}{r.name}</option>)}
                 </select>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={LBL}>Stop Name *</label>
+                <label style={LBL}>Stop Name</label>
                 <input style={INP} value={modal.data.name} onChange={e => setModal(m => ({ ...m, data: { ...m.data, name: e.target.value } }))} placeholder="e.g. Hatmoida" />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -209,12 +207,7 @@ export default function StopMaster() {
                 <input style={INP} value={modal.data.landmark} onChange={e => setModal(m => ({ ...m, data: { ...m.data, landmark: e.target.value } }))} placeholder="Near temple, main road…" />
               </div>
               <div>
-                <label style={LBL}>Sequence</label>
-                <input type="number" style={INP} value={modal.data.sequence} onChange={e => setModal(m => ({ ...m, data: { ...m.data, sequence: e.target.value } }))} />
-              </div>
-              <div />
-              <div>
-                <label style={LBL}>Morning Arrival *</label>
+                <label style={LBL}>Morning Arrival</label>
                 <input type="time" style={INP} value={modal.data.morningArrivalTime} onChange={e => setModal(m => ({ ...m, data: { ...m.data, morningArrivalTime: e.target.value } }))} />
               </div>
               <div>
