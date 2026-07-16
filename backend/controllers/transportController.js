@@ -18,6 +18,56 @@ const {
   BusLocation, Trip, GpsLog,
 } = require('../models/transportModels');
 const Student = require('../models/Student');
+const FeeAssignment = require('../models/FeeAssignment');
+const FeeType = require('../models/FeeType');
+let StudentFee; try { StudentFee = require('../models/index').StudentFee; } catch { StudentFee = null; }
+
+// Create the current-month transport fee for a student, if one doesn't exist.
+// Safe & idempotent: skips when a transport fee for this month already exists,
+// and never throws into the caller (fee failure must not block transport save).
+async function _ensureTransportFee(schoolId, studentId, monthlyFee, routeId, userId) {
+  try {
+    const amount = Number(monthlyFee) || 0;
+    if (amount <= 0) return { created: false, reason: 'no-fee' };
+
+    // Find or create the "Transport Fee" fee type
+    let feeType = await FeeType.findOne({ school: schoolId, category: 'transport', isActive: true });
+    if (!feeType) {
+      feeType = await FeeType.create({
+        name: 'Transport Fee', category: 'transport', isRecurring: true,
+        description: 'Monthly bus transport fee', school: schoolId,
+      });
+    }
+
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+
+    // Already billed this month? Skip (no double-charge).
+    const exists = await FeeAssignment.findOne({ school: schoolId, student: studentId, feeType: feeType._id, month, year });
+    if (exists) return { created: false, reason: 'already-billed' };
+
+    await FeeAssignment.create({
+      feeType: feeType._id, baseAmount: amount, finalAmount: amount, pendingAmount: amount,
+      discountPct: 0, discountAmt: 0, discountReason: '', lateFeePerDay: 0,
+      transportRoute: routeId || null, dueDate: null, month, year,
+      student: studentId, school: schoolId, createdBy: userId,
+      hasInstallments: false, installments: [],
+    });
+
+    if (StudentFee) {
+      await StudentFee.findOneAndUpdate(
+        { student: studentId, school: schoolId },
+        { $inc: { totalFees: amount, pendingAmount: amount } },
+        { upsert: false }
+      );
+    }
+    return { created: true };
+  } catch (e) {
+    console.error('⚠️ Auto transport-fee creation failed (transport still saved):', e.message);
+    return { created: false, reason: 'error' };
+  }
+}
 
 const genReceipt = () => `TRP-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
 
@@ -512,7 +562,12 @@ exports.assignStudent = async (req, res) => {
 
   await _refreshRouteStudentCounts(routeId, req.user.school);
 
-  res.status(201).json({ success: true, data: assignment });
+  // Automatically create this month's transport fee (safe: skips if already billed).
+  const feeResult = await _ensureTransportFee(
+    req.user.school, studentId, monthlyFee ?? assignmentData.monthlyFee, routeId, req.user._id
+  );
+
+  res.status(201).json({ success: true, data: assignment, transportFee: feeResult });
 };
 
 exports.removeAssignment = async (req, res) => {
