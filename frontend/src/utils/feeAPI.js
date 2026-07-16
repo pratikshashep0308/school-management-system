@@ -41,9 +41,8 @@ const feeAPI = {
   updateAssignment:  (id, data)   => api.put(`/fees/assignments/${id}`, data),
   deleteAssignment:  (id)         => api.delete(`/fees/assignments/${id}`),
   payAssignment:     (id, data)   => api.post(`/fees/assignments/${id}/pay`, data),
-  updateAssignment:  (id, data)   => api.put(`/fees/assignments/${id}`, data),
+  generateTransportFees: (data)   => api.post('/fees/generate-transport', data),
   getStudentsFees:   (params={})  => api.get('/fees/students', { params }),
-  getStudentFee:     (studentId)  => api.get(`/fees/student/${studentId}`),
 
   // ── Export ────────────────────────────────────────────────────────────────
   export: (params={}) => api.get('/fees/export', { params, responseType: 'blob' }),

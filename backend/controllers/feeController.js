@@ -8,6 +8,7 @@ const { StudentFee, FeeStructure, FeePayment, Notification } = require('../model
 const Student   = require('../models/Student');
 const FeeType   = require('../models/FeeType');
 const FeeAssignment = require('../models/FeeAssignment');
+const { TransportAssignment } = require('../models/transportModels');
 const {
   genReceiptNumber, fmt, calcFinalAmount, buildInstallments,
   buildReceiptPDF, buildFeeExcel, checkOverdueAssignments,
@@ -529,6 +530,89 @@ exports.createAssignment = async (req, res) => {
   await StudentFee.bulkWrite(ledgerOps);
 
   res.status(201).json({ success: true, count: students.length, message: `Fee assigned to ${students.length} students` });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSPORT FEE GENERATION
+// Creates a transport fee (as its own FeeAssignment line item) for every student
+// who has an ACTIVE transport assignment, using that student's own monthly fee.
+// - Skips students with no active transport.
+// - Won't double-charge: skips a student who already has a transport fee for the
+//   same month/year.
+// Body: { month, year, dueDate?, feeTypeId? }
+// If feeTypeId is omitted, a "Transport Fee" FeeType (category: transport) is
+// auto-created/found so the line shows correctly on receipts.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.generateTransportFees = async (req, res) => {
+  const { month, year, dueDate } = req.body;
+  if (!month || !year) {
+    return res.status(400).json({ success: false, message: 'month and year are required.' });
+  }
+
+  // Find (or create) the transport FeeType so the receipt line reads "Transport Fee".
+  let feeType = req.body.feeTypeId
+    ? await FeeType.findOne({ _id: req.body.feeTypeId, school: req.user.school })
+    : await FeeType.findOne({ school: req.user.school, category: 'transport', isActive: true });
+  if (!feeType) {
+    feeType = await FeeType.create({
+      name: 'Transport Fee', category: 'transport', isRecurring: true,
+      description: 'Monthly bus transport fee', school: req.user.school,
+    });
+  }
+
+  // All active transport assignments for this school.
+  const assignments = await TransportAssignment.find({
+    school: req.user.school, isActive: true,
+  }).select('student monthlyFee routeId');
+
+  if (!assignments.length) {
+    return res.json({ success: true, created: 0, skipped: 0, message: 'No students have active transport.' });
+  }
+
+  let created = 0, skipped = 0;
+  const ledgerOps = [];
+
+  for (const a of assignments) {
+    const amount = Number(a.monthlyFee) || 0;
+    if (amount <= 0) { skipped++; continue; }   // no fee set for this student
+
+    // Already billed transport for this month? Skip (idempotent — safe to re-run).
+    const exists = await FeeAssignment.findOne({
+      school: req.user.school, student: a.student,
+      feeType: feeType._id, month, year,
+    });
+    if (exists) { skipped++; continue; }
+
+    await FeeAssignment.create({
+      feeType:       feeType._id,
+      baseAmount:    amount,
+      finalAmount:   amount,
+      pendingAmount: amount,
+      discountPct: 0, discountAmt: 0, discountReason: '',
+      lateFeePerDay: 0,
+      transportRoute: a.routeId || null,
+      dueDate:       dueDate ? new Date(dueDate) : null,
+      month, year,
+      student:       a.student,
+      school:        req.user.school,
+      createdBy:     req.user._id,
+      hasInstallments: false, installments: [],
+    });
+    created++;
+    ledgerOps.push({
+      updateOne: {
+        filter: { student: a.student, school: req.user.school },
+        update: { $inc: { totalFees: amount, pendingAmount: amount } },
+      },
+    });
+  }
+
+  if (ledgerOps.length) await StudentFee.bulkWrite(ledgerOps);
+
+  res.status(201).json({
+    success: true, created, skipped,
+    message: `Transport fees: ${created} created, ${skipped} skipped (already billed or no fee) for ${month}/${year}.`,
+  });
 };
 
 exports.updateAssignment = async (req, res) => {

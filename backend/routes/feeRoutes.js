@@ -34,6 +34,7 @@ router.delete('/types/:id',   authorize(...ADMIN), ctrl.deleteFeeType);
 // Fee Assignments (new)
 router.get('/assignments',             authorize(...ADMIN), ctrl.getAssignments);
 router.post('/assignments',            authorize(...ADMIN), ctrl.createAssignment);
+router.post('/generate-transport',     authorize(...ADMIN), ctrl.generateTransportFees);
 router.put('/assignments/:id',         authorize(...ADMIN), ctrl.updateAssignment);
 router.delete('/assignments/:id',      authorize(...ADMIN), ctrl.deleteAssignment);
 router.post('/assignments/:id/pay',    authorize(...ADMIN), ctrl.payAssignment);
