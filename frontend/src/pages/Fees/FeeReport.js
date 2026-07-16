@@ -183,6 +183,7 @@ export default function FeeReport() {
   const [search,      setSearch]      = useState('');
   const [sortBy,      setSortBy]      = useState('name'); // name | paid | pending | roll
   const [activeView,  setActiveView]  = useState('all'); // all | defaulters | paid | partial
+  const [section,     setSection]     = useState('school'); // school | classwise | studentwise
   const [panelStudent,setPanelStudent]= useState(null);
   const [summary,     setSummary]     = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -285,12 +286,141 @@ export default function FeeReport() {
 
   const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
 
+  // ── Report exports ─────────────────────────────────────────────────────────
+  const reportTitle = () => {
+    const cls = classId ? (classes.find(c=>c._id===classId)?.name || 'Class') : 'All Classes';
+    const view = activeView==='all' ? 'All Students' : activeView.charAt(0).toUpperCase()+activeView.slice(1);
+    return `Fee Report — ${cls} — ${view}`;
+  };
+
+  const rowsForExport = () => filtered.map((s,i)=>([
+    i+1,
+    s.student?.rollNumber || '—',
+    s.student?.user?.name || '—',
+    `${s.student?.class?.name||''} ${s.student?.class?.section||''}`.trim() || '—',
+    Math.round(s.totalFees||0),
+    Math.round(s.paidAmount||0),
+    Math.round(s.pendingAmount||0),
+    (s.paymentStatus||'pending').toUpperCase(),
+  ]));
+
+  const COLS = ['#','Roll','Student','Class','Total (₹)','Paid (₹)','Pending (₹)','Status'];
+
+  const escCsv = (v) => { const t=String(v??''); return /[",\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t; };
+
+  const exportExcel = () => {
+    const rows = rowsForExport();
+    const summary = [
+      ['Fee Report', reportTitle()],
+      ['Generated', new Date().toLocaleString('en-IN')],
+      ['Total Expected', Math.round(schoolTotal)],
+      ['Total Collected', Math.round(schoolCollected)],
+      ['Total Pending', Math.round(schoolTotal - schoolCollected)],
+      ['Collection Rate', collRate + '%'],
+      [],
+    ];
+    const lines = [
+      ...summary.map(r=>r.map(escCsv).join(',')),
+      COLS.map(escCsv).join(','),
+      ...rows.map(r=>r.map(escCsv).join(',')),
+    ];
+    const blob = new Blob(['\ufeff'+lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=`${reportTitle().replace(/[^\w]+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast.success('Excel (CSV) downloaded');
+  };
+
+  const buildReportHTML = () => {
+    const rows = rowsForExport();
+    const esc = (v)=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<html><head><title>${esc(reportTitle())}</title><style>
+      body{font-family:system-ui,Arial,sans-serif;margin:24px;color:#111827;}
+      h1{font-size:18px;color:#0B1F4A;margin:0 0 2px;}
+      .sub{color:#6B7280;font-size:12px;margin-bottom:14px;}
+      .kpis{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+      .kpi{border:1px solid #E5E7EB;border-radius:8px;padding:8px 14px;font-size:12px;}
+      .kpi b{display:block;font-size:16px;color:#0B1F4A;}
+      table{width:100%;border-collapse:collapse;font-size:11px;}
+      th{background:#0B1F4A;color:#fff;text-align:left;padding:6px 8px;}
+      td{padding:6px 8px;border-bottom:1px solid #F3F4F6;}
+      tr:nth-child(even) td{background:#F9FAFB;}
+      @media print{body{margin:12mm;}}
+    </style></head><body>
+      <h1>📊 ${esc(reportTitle())}</h1>
+      <div class="sub">The Future Step School · ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})} · ${rows.length} students</div>
+      <div class="kpis">
+        <div class="kpi">Expected<b>₹${Math.round(schoolTotal).toLocaleString('en-IN')}</b></div>
+        <div class="kpi">Collected<b>₹${Math.round(schoolCollected).toLocaleString('en-IN')}</b></div>
+        <div class="kpi">Pending<b>₹${Math.round(schoolTotal-schoolCollected).toLocaleString('en-IN')}</b></div>
+        <div class="kpi">Rate<b>${collRate}%</b></div>
+      </div>
+      <table><thead><tr>${COLS.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    </body></html>`;
+  };
+
+  const exportPDF = () => {
+    const w = window.open('','_blank');
+    if(!w){ toast.error('Please allow pop-ups'); return; }
+    w.document.write(buildReportHTML()); w.document.close(); w.focus();
+    setTimeout(()=>w.print(), 400);
+  };
+
+  const exportMarkdown = () => {
+    const rows = rowsForExport();
+    let md = `# ${reportTitle()}\n\n`;
+    md += `**Generated:** ${new Date().toLocaleString('en-IN')}\n\n`;
+    md += `- Total Expected: ₹${Math.round(schoolTotal).toLocaleString('en-IN')}\n`;
+    md += `- Total Collected: ₹${Math.round(schoolCollected).toLocaleString('en-IN')}\n`;
+    md += `- Total Pending: ₹${Math.round(schoolTotal-schoolCollected).toLocaleString('en-IN')}\n`;
+    md += `- Collection Rate: ${collRate}%\n\n`;
+    md += `| ${COLS.join(' | ')} |\n| ${COLS.map(()=>'---').join(' | ')} |\n`;
+    md += rows.map(r=>`| ${r.join(' | ')} |`).join('\n');
+    const blob = new Blob([md], { type:'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`${reportTitle().replace(/[^\w]+/g,'_')}.md`;
+    a.click(); URL.revokeObjectURL(url);
+    toast.success('Markdown downloaded');
+  };
+
   return (
     <div>
       {/* Title */}
-      <div style={{ marginBottom:20 }}>
-        <h2 className="font-display text-2xl text-ink">📊 Fee Report</h2>
-        <p className="text-sm text-muted mt-0.5">School-wide fee collection overview and student-wise details</p>
+      <div style={{ marginBottom:20, display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
+        <div>
+          <h2 className="font-display text-2xl text-ink">📊 Fee Report</h2>
+          <p className="text-sm text-muted mt-0.5">School-wide fee collection overview and student-wise details</p>
+        </div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button onClick={exportPDF} title="Open printable report → Save as PDF"
+            style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#DC2626', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📄 PDF</button>
+          <button onClick={exportPDF} title="Print report"
+            style={{ padding:'8px 14px', borderRadius:9, border:'1.5px solid #0B1F4A', background:'#fff', color:'#0B1F4A', fontSize:12, fontWeight:700, cursor:'pointer' }}>🖨️ Print</button>
+          <button onClick={exportExcel} title="Download as Excel (CSV)"
+            style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#16A34A', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📊 Excel</button>
+          <button onClick={exportMarkdown} title="Download as Markdown"
+            style={{ padding:'8px 14px', borderRadius:9, border:'1.5px solid #6B7280', background:'#fff', color:'#374151', fontSize:12, fontWeight:700, cursor:'pointer' }}>📝 MD</button>
+        </div>
+      </div>
+
+      {/* ── Section tabs: Whole School / Class-wise / Student-wise ── */}
+      <div style={{ display:'flex', gap:4, background:'#F3F4F6', borderRadius:12, padding:4, width:'fit-content', marginBottom:18 }}>
+        {[
+          { key:'school',      label:'🏫 Whole School' },
+          { key:'classwise',   label:'📚 Class-wise' },
+          { key:'studentwise', label:'👤 Student-wise' },
+        ].map(t=>(
+          <button key={t.key} onClick={()=>setSection(t.key)}
+            style={{ padding:'8px 18px', borderRadius:9, fontSize:13, fontWeight:700, border:'none', cursor:'pointer',
+              background: section===t.key ? '#fff' : 'transparent',
+              color: section===t.key ? '#1D4ED8' : '#6B7280',
+              boxShadow: section===t.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* ── Top KPI strip ── */}
@@ -343,7 +473,49 @@ export default function FeeReport() {
         </div>
       </div>
 
-      {/* ── Filters bar ── */}
+      {/* ── CLASS-WISE SECTION ── */}
+      {section==='classwise' && (
+        <div style={{ background:'#fff', border:'0.5px solid #E5E7EB', borderRadius:12, overflow:'hidden', marginBottom:20 }}>
+          <div style={{ background:'#0B1F4A', padding:'11px 16px', color:'#fff', fontWeight:800, fontSize:13 }}>📚 Class-wise Fee Summary</div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <thead>
+                <tr style={{ background:'#F8FAFC', borderBottom:'1px solid #E5E7EB' }}>
+                  {['Class','Students','Expected','Collected','Pending','Paid','Partial','Unpaid','Rate'].map(h=>(
+                    <th key={h} style={{ textAlign:'left', padding:'9px 12px', fontSize:10, fontWeight:700, color:'#6B7280', textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(summary?.classes||[]).length===0 ? (
+                  <tr><td colSpan={9} style={{ padding:20, textAlign:'center', color:'#9CA3AF' }}>No class data yet.</td></tr>
+                ) : (summary?.classes||[]).map((c,i)=>{
+                  const rate = pct(c.totalCollected, c.totalExpected);
+                  return (
+                    <tr key={i} onClick={()=>{ setClassId(c.classId); setSection('studentwise'); }}
+                      style={{ borderBottom:'1px solid #F3F4F6', cursor:'pointer', background:i%2?'#FAFAFA':'#fff' }}>
+                      <td style={{ padding:'10px 12px', fontWeight:700, color:'#0B1F4A' }}>{c.className} {c.section||''}</td>
+                      <td style={{ padding:'10px 12px' }}>{c.totalStudents}</td>
+                      <td style={{ padding:'10px 12px' }}>{fmt(c.totalExpected)}</td>
+                      <td style={{ padding:'10px 12px', color:'#16A34A', fontWeight:700 }}>{fmt(c.totalCollected)}</td>
+                      <td style={{ padding:'10px 12px', color:'#DC2626' }}>{fmt(c.totalPending)}</td>
+                      <td style={{ padding:'10px 12px' }}><span style={{ background:'#DCFCE7', color:'#166534', padding:'1px 8px', borderRadius:20, fontSize:11, fontWeight:700 }}>{c.paidCount}</span></td>
+                      <td style={{ padding:'10px 12px' }}><span style={{ background:'#FEF3C7', color:'#92400E', padding:'1px 8px', borderRadius:20, fontSize:11, fontWeight:700 }}>{c.partialCount}</span></td>
+                      <td style={{ padding:'10px 12px' }}><span style={{ background:'#FEE2E2', color:'#991B1B', padding:'1px 8px', borderRadius:20, fontSize:11, fontWeight:700 }}>{c.notPaidCount}</span></td>
+                      <td style={{ padding:'10px 12px', fontWeight:700, color:rate>=80?'#16A34A':rate>=50?'#D97706':'#DC2626' }}>{rate}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding:'10px 16px', fontSize:11, color:'#9CA3AF', borderTop:'1px solid #F3F4F6' }}>Click a class row to see its students.</div>
+        </div>
+      )}
+
+      {/* ── Filters bar (student-wise) ── */}
+      {section==='studentwise' && (
+      <>
       <div style={{ background:'#F8FAFC', borderRadius:12, padding:'14px 16px', marginBottom:16, display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
         {/* Search */}
         <input placeholder="🔍 Search student name or roll…" value={search} onChange={e=>setSearch(e.target.value)}
@@ -519,6 +691,8 @@ export default function FeeReport() {
             </table>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* ── Student History Panel (slide-in) ── */}
