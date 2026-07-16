@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
-import { studentAPI } from '../../utils/api';
+import { studentAPI, classAPI } from '../../utils/api';
 import PrintableReceipt from '../../components/fees/PrintableReceipt';
 
 const fmt = n => `₹${Math.round(n||0).toLocaleString('en-IN')}`;
@@ -39,6 +39,10 @@ const DEFAULT_FEE_ITEMS = [
 export default function CollectFees() {
   const [query,       setQuery]       = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [classes,     setClasses]     = useState([]);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [classStudents, setClassStudents] = useState([]);
+  const [loadingClass, setLoadingClass] = useState(false);
   const [selected,    setSelected]    = useState(null);
   const [feeRecord,   setFeeRecord]   = useState(null);
   const [assignments, setAssignments] = useState([]);
@@ -70,6 +74,28 @@ export default function CollectFees() {
     }, 300);
     return () => clearTimeout(timer);
   }, [query]);
+
+  // Load class list once (for the class-wise picker)
+  useEffect(() => {
+    classAPI.getAll()
+      .then(r => setClasses(r.data.data || r.data || []))
+      .catch(() => setClasses([]));
+  }, []);
+
+  // Load all students of the picked class
+  useEffect(() => {
+    if (!selectedClass) { setClassStudents([]); return; }
+    setLoadingClass(true);
+    studentAPI.getAll({ classId: selectedClass, limit: 200 })
+      .then(r => {
+        const list = r.data.data || [];
+        // Sort by roll number for a tidy class list
+        list.sort((a, b) => String(a.rollNumber || '').localeCompare(String(b.rollNumber || ''), undefined, { numeric: true }));
+        setClassStudents(list);
+      })
+      .catch(() => setClassStudents([]))
+      .finally(() => setLoadingClass(false));
+  }, [selectedClass]);
 
   const selectStudent = async (student) => {
     setSelected(student);
@@ -108,12 +134,27 @@ export default function CollectFees() {
       setAssignments([]);
     }
 
-    // Individual fee assignments for THIS student (e.g. auto-created transport fee)
-    // that aren't part of the class template — pull them in as their own rows so
-    // they show up and can be collected. Match by fee-type name to avoid dupes.
-    const templateNames = new Set(templateLines.map(l => (l.label || '').toLowerCase()));
+    // Individual fee assignments for THIS student (e.g. auto-created transport fee).
+    // Two cases:
+    //  (a) the fee type ALSO exists as a template line → fill that line's amount
+    //      from the assignment (so a blank "Transport Fee" template row gets ₹600).
+    //  (b) the fee type is NOT in the template → add it as its own row.
+    const nameOf = (x) => (x || '').toLowerCase().trim();
+
+    // First, fill any template line that has a matching individual assignment.
+    templateLines = templateLines.map(tl => {
+      const match = studentAssignments.find(a => nameOf(a.feeType?.name) === nameOf(tl.label) && (a.finalAmount || 0) > 0);
+      if (match && (!tl.amount || tl.amount === 0)) {
+        return { ...tl, amount: Math.round(match.finalAmount), isMonthly: (match.feeType?.category === 'transport') || (match.feeType?.isRecurring === true) };
+      }
+      // Even if template already had an amount, still tag monthly types correctly
+      if (match) return { ...tl, isMonthly: (match.feeType?.category === 'transport') || (match.feeType?.isRecurring === true) };
+      return tl;
+    });
+
+    const templateNames = new Set(templateLines.map(l => nameOf(l.label)));
     const individualLines = studentAssignments
-      .filter(a => a.finalAmount > 0 && !templateNames.has((a.feeType?.name || '').toLowerCase()))
+      .filter(a => (a.finalAmount || 0) > 0 && !templateNames.has(nameOf(a.feeType?.name)))
       .map((a, i) => ({
         key:    `asg-${a._id || i}`,
         label:  a.feeType?.name || 'Fee',
@@ -315,6 +356,51 @@ export default function CollectFees() {
                 </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Or pick a class to see its students ── */}
+        <div style={{ marginTop:16, borderTop:'1px solid #F3F4F6', paddingTop:16 }}>
+          <label style={LBL}>Or browse by class</label>
+          <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)}
+            style={{ ...INP, fontSize:14, maxWidth:320 }}>
+            <option value="">— Select a class —</option>
+            {classes.map(c => (
+              <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>
+            ))}
+          </select>
+
+          {selectedClass && (
+            <div style={{ marginTop:12 }}>
+              {loadingClass ? (
+                <div style={{ padding:20, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>⏳ Loading students…</div>
+              ) : classStudents.length === 0 ? (
+                <div style={{ padding:20, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>No students in this class.</div>
+              ) : (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:8, maxHeight:320, overflowY:'auto' }}>
+                  {classStudents.map(s => {
+                    const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || s.user?.profileImage;
+                    const isSel = selected?._id === s._id;
+                    return (
+                      <div key={s._id} onClick={()=>selectStudent(s)}
+                        style={{ padding:'10px 12px', cursor:'pointer', fontSize:13, border:`1.5px solid ${isSel ? '#1D4ED8' : '#E5E7EB'}`, background: isSel ? '#EFF6FF' : '#fff', borderRadius:10, display:'flex', alignItems:'center', gap:10 }}
+                        onMouseEnter={e=>{ if(!isSel) e.currentTarget.style.background='#F9FAFB'; }}
+                        onMouseLeave={e=>{ if(!isSel) e.currentTarget.style.background='#fff'; }}>
+                        <div style={{ width:32, height:32, borderRadius:8, background: photo ? '#F3F4F6' : '#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                          {photo
+                            ? <img src={photo} alt={s.user?.name||''} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                            : <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>}
+                        </div>
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontWeight:700, color:'#111827', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.user?.name}</div>
+                          <div style={{ fontSize:11, color:'#9CA3AF' }}>Roll {s.rollNumber || '—'}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
