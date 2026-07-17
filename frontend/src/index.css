@@ -4,120 +4,197 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS  ·  The Future Step School — premium warm SaaS system
+   A single, cohesive palette. Terracotta (#d4522a) is the one accent, drawn
+   from the logo/brand; everything else is a disciplined warm-neutral ramp.
+   Both light and dark values live here so the whole app themes from one place.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Brand accent — terracotta (unifies the old blue buttons + orange sidebar) */
+  --accent:        #d4522a;
+  --accent-hover:  #b8411f;
+  --accent-soft:   #fdf0ea;   /* tinted fill for soft buttons / selected rows */
+  --accent-ring:   rgba(212, 82, 42, 0.18);
+
+  /* Supporting status hues (kept muted + accessible) */
+  --sage:   #4a7c59;   --sage-soft:  #eef4ef;
+  --gold:   #b8862b;   --gold-soft:  #f8f1e2;
+  --danger: #dc2626;   --danger-soft:#fdecec;
+  --info:   #2563eb;   --info-soft:  #eef3fe;
+
+  /* Neutrals — layered warm surfaces */
+  --paper:    #ffffff;   /* elevated cards / rows */
+  --canvas:   #f6f2ec;   /* app background (slightly refined cream) */
+  --warm:     #faf7f2;   /* striped rows / subtle sections */
+  --border:   #ece5db;   /* hairline borders */
+  --border-strong: #ddd3c6;
+
+  /* Text ramp */
+  --ink:    #1a1714;   /* headings — warm near-black */
+  --slate:  #4a453f;   /* body text */
+  --muted:  #8a8178;   /* secondary / captions */
+
+  /* Elevation — soft, warm-tinted shadows (never heavy) */
+  --shadow-sm: 0 1px 2px rgba(26,23,20,0.04), 0 1px 3px rgba(26,23,20,0.05);
+  --shadow-md: 0 2px 6px rgba(26,23,20,0.05), 0 6px 16px rgba(26,23,20,0.06);
+  --shadow-lg: 0 8px 24px rgba(26,23,20,0.08), 0 16px 48px rgba(26,23,20,0.10);
+
+  /* Legacy variable names kept for existing components that read them */
+  --color-ink:    var(--ink);
+  --color-paper:  var(--paper);
+  --color-warm:   var(--warm);
+  --color-border: var(--border);
+  --color-muted:  var(--muted);
+  --color-slate:  var(--slate);
+}
+
+.dark {
+  --accent:        #e8734f;
+  --accent-hover:  #f08a6a;
+  --accent-soft:   rgba(232,115,79,0.14);
+  --accent-ring:   rgba(232,115,79,0.28);
+
+  --sage:   #6dbb84;   --sage-soft:  rgba(109,187,132,0.14);
+  --gold:   #d6a94a;   --gold-soft:  rgba(214,169,74,0.14);
+  --danger: #f87171;   --danger-soft:rgba(248,113,113,0.14);
+  --info:   #60a5fa;   --info-soft:  rgba(96,165,250,0.14);
+
+  --paper:    #1b2233;
+  --canvas:   #0f1522;
+  --warm:     #161d2b;
+  --border:   #2a3345;
+  --border-strong: #38445a;
+
+  --ink:    #f4f6fb;
+  --slate:  #cbd3e1;
+  --muted:  #8b94a6;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.35);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.45);
+
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-warm: var(--warm);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-slate: var(--slate);
+}
+
 @layer base {
   body {
     font-family: 'DM Sans', sans-serif;
-    background-color: #f2ede6;
-    color: #0f0e17;
+    background-color: var(--canvas);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-
   .dark body, body.dark {
-    background-color: #111827;
-    color: #f9fafb;
+    background-color: var(--canvas);
+    color: var(--ink);
   }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #e4ddd4; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #9aa0ac; }
-  .dark ::-webkit-scrollbar-thumb { background: #374151; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+
+  ::selection { background: var(--accent-ring); color: var(--ink); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 }
 
 @layer components {
-  /* ── Buttons ── */
+  /* ══ BUTTONS ══ consistent height, rounded, smooth, with loading/disabled ══ */
   .btn-primary {
-    background-color: #2563eb;
+    background-color: var(--accent);
     color: #ffffff;
     padding: 0.625rem 1.25rem;
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     font-weight: 600;
     font-size: 0.875rem;
+    line-height: 1.25rem;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+    transition: background-color .18s ease, transform .12s ease, box-shadow .18s ease, opacity .18s ease;
   }
-  .btn-primary:hover {
-    background-color: #1d4ed8;
-  }
-  .btn-primary:active {
-    transform: scale(0.95);
-  }
+  .btn-primary:hover { background-color: var(--accent-hover); box-shadow: var(--shadow-md); }
+  .btn-primary:active { transform: translateY(0.5px) scale(0.985); }
+  .btn-primary:disabled, .btn-primary[disabled] { opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }
 
   .btn-secondary {
-    background-color: #ffffff;
-    color: #64748b;
-    border: 1px solid #e5e7eb;
+    background-color: var(--paper);
+    color: var(--slate);
+    border: 1px solid var(--border);
     padding: 0.625rem 1.25rem;
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     font-weight: 500;
     font-size: 0.875rem;
-    transition: all 0.2s ease;
+    line-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: border-color .18s ease, background-color .18s ease, transform .12s ease, color .18s ease;
   }
-  .btn-secondary:hover {
-    border-color: #94a3b8;
-  }
-  .dark .btn-secondary {
-    background-color: #374151;
-    color: #e5e7eb;
-    border-color: #4b5563;
-  }
-  .dark .btn-secondary:hover {
-    border-color: #9ca3af;
-  }
+  .btn-secondary:hover { border-color: var(--border-strong); background-color: var(--warm); }
+  .btn-secondary:active { transform: translateY(0.5px) scale(0.985); }
+  .btn-secondary:disabled, .btn-secondary[disabled] { opacity: 0.55; cursor: not-allowed; }
 
   .btn-danger {
-    background-color: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background-color: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid transparent;
     padding: 0.625rem 1.25rem;
-    border-radius: 1rem;
-    font-weight: 500;
+    border-radius: 0.75rem;
+    font-weight: 600;
     font-size: 0.875rem;
-    transition: background-color 0.2s ease;
+    line-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color .18s ease, transform .12s ease;
   }
-  .btn-danger:hover {
-    background-color: #fee2e2;
-  }
+  .btn-danger:hover { background-color: var(--danger); color: #fff; }
+  .btn-danger:active { transform: translateY(0.5px) scale(0.985); }
 
-  /* ── Cards ── */
+  /* ══ CARDS ══ elevated warm surfaces with a quiet hover lift ══ */
   .card {
-    background-color: #ffffff;
-    border-radius: 1.5rem;
-    border: 1px solid #e5e7eb;
+    background-color: var(--paper);
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
   }
-  .dark .card {
-    background-color: #1f2937;
-    border-color: #374151;
+  .card-hover:hover, .card.card-hover:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
   }
 
-  /* ── Forms ── */
+  /* ══ FORMS ══ roomier inputs, accent focus ring, clear labels ══ */
   .form-input {
     width: 100%;
-    padding: 0.75rem 1rem;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 1rem;
+    padding: 0.6875rem 0.9375rem;
+    border: 1.5px solid var(--border);
+    border-radius: 0.75rem;
     font-size: 0.875rem;
-    font-family: sans-serif;
-    background-color: #ffffff;
-    color: #0f172a;
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--paper);
+    color: var(--ink);
     outline: none;
-    transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+    transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
   }
+  .form-input::placeholder { color: var(--muted); }
+  .form-input:hover { border-color: var(--border-strong); }
   .form-input:focus {
-    outline: none;
-    border-color: #2563eb;
-  }
-  .dark .form-input {
-    background-color: #374151;
-    border-color: #4b5563;
-    color: #ffffff;
-  }
-  .dark .form-input::placeholder {
-    color: #9ca3af;
-  }
-  .dark .form-input:focus {
-    border-color: #2563eb;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
   }
 
   .form-label {
@@ -125,113 +202,119 @@
     font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-  }
-  .dark .form-label {
-    color: #9ca3af;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 0.4375rem;
   }
 
-  /* ── Status badges ── */
+  /* ══ STATUS BADGES ══ */
   .status-badge {
     display: inline-flex;
     align-items: center;
+    gap: 0.3125rem;
     padding: 0.25rem 0.625rem;
     border-radius: 9999px;
     font-size: 0.6875rem;
     font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
   }
 
-  /* ── Layout helpers ── */
+  /* ══ LAYOUT HELPERS ══ */
   .page-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
     margin-bottom: 1.5rem;
   }
   .table-th {
     font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #6b7280;
-  }
-
-  /* ── Dark table rows ── */
-  .dark .bg-warm {
-    background-color: #374151;
+    letter-spacing: 0.07em;
+    color: var(--muted);
   }
 }
 
-/* ── Dark mode CSS variables ── */
-
-/* ── Light mode colour variables (were missing — only .dark had them) ────────
-   Chosen for solid contrast on white so text never looks faded/blurred.     */
-:root {
-  --color-ink:    #111827;   /* primary text — near-black */
-  --color-paper:  #ffffff;   /* row background */
-  --color-warm:   #F9FAFB;   /* striped row background */
-  --color-border: #E5E7EB;
-  --color-muted:  #6B7280;   /* secondary text — darkened from #9CA3AF */
-  --color-slate:  #374151;   /* body text */
-}
-
-.dark {
-  --color-ink: #f9fafb;
-  --color-paper: #111827;
-  --color-warm: #1f2937;
-  --color-border: #374151;
-  --color-muted: #9ca3af;
-  --color-slate: #d1d5db;
-}
-
-/* ── Dark mode overrides for inline-styled components ── */
+/* ══════════════════════════════════════════════════════════════════════════
+   CARD — cover inline-styled + class usages consistently in dark mode
+   ══════════════════════════════════════════════════════════════════════════ */
 .dark .card {
-  background-color: #1f2937 !important;
-  border-color: #374151 !important;
-  color: #f9fafb !important;
+  background-color: var(--paper) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
 }
-.dark table thead tr {
-  background-color: #111827 !important;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLES — rounded, sticky header, subtle zebra + hover, both themes
+   ══════════════════════════════════════════════════════════════════════════ */
+table thead tr { background-color: var(--warm); }
+table thead th {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
-.dark table tbody tr {
-  background-color: #1f2937 !important;
-  border-color: #374151 !important;
-}
-.dark table tbody tr:nth-child(even) {
-  background-color: #111827 !important;
-}
-.dark table tbody tr:hover {
-  background-color: #374151 !important;
-}
+table tbody tr { transition: background-color .14s ease; }
+
+.dark table thead tr { background-color: var(--warm) !important; }
+.dark table tbody tr { background-color: var(--paper) !important; border-color: var(--border) !important; }
+.dark table tbody tr:nth-child(even) { background-color: var(--warm) !important; }
+.dark table tbody tr:hover { background-color: rgba(232,115,79,0.10) !important; }
+
 .dark input:not([type="checkbox"]):not([type="radio"]),
 .dark select,
 .dark textarea {
-  background-color: #1f2937 !important;
-  border-color: #374151 !important;
-  color: #f9fafb !important;
+  background-color: var(--paper) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
 }
 .dark input::placeholder,
-.dark textarea::placeholder {
-  color: #6b7280 !important;
-}
+.dark textarea::placeholder { color: var(--muted) !important; }
 
-/* ── Animations ── */
-/* NOTE: fadeIn must NOT use `transform`. It's applied to <main>, and a lingering
-   transform (animation-fill-mode: forwards) creates a containing block that traps
-   `position: fixed` children (e.g. the full-screen student drawer), clipping them
-   to <main> instead of the viewport. Opacity-only keeps the effect without the trap. */
+/* Theme-aware student/data rows (kept from original, retuned to tokens) */
+.student-row              { background: var(--paper); transition: background-color .14s ease; }
+.student-row:nth-child(even) { background: var(--warm); }
+.student-row:hover        { background: var(--accent-soft) !important; }
+.dark .student-row:hover  { background: rgba(232,115,79,0.12) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS — subtle, <300ms. fadeIn stays transform-free (see note below).
+   NOTE: fadeIn is applied to <main>; a lingering transform would create a
+   containing block that traps position:fixed children (the student drawer),
+   clipping them to <main>. Opacity-only keeps the effect without the trap.
+   ══════════════════════════════════════════════════════════════════════════ */
 @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideIn  { from { opacity: 0; transform: translateX(-12px);} to { opacity: 1; transform: translateX(0); } }
-@keyframes scaleIn  { from { opacity: 0; transform: scale(0.96);      } to { opacity: 1; transform: scale(1);    } }
+@keyframes scaleIn  { from { opacity: 0; transform: scale(0.97);      } to { opacity: 1; transform: scale(1);    } }
 @keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes shimmer  { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
 
-.animate-fade-in  { animation: fadeIn  0.3s ease forwards; }
-.animate-slide-in { animation: slideIn 0.3s ease forwards; }
-.animate-scale-in { animation: scaleIn 0.25s ease forwards; }
+.animate-fade-in  { animation: fadeIn  0.28s ease forwards; }
+.animate-slide-in { animation: slideIn 0.28s cubic-bezier(0.4,0,0.2,1) forwards; }
+.animate-scale-in { animation: scaleIn 0.22s cubic-bezier(0.34,1.4,0.64,1) forwards; }
 
-/* ── Mobile Responsive ── */
+/* ── Skeleton loader ── elegant shimmer to replace bare spinners ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--warm) 25%, var(--border) 37%, var(--warm) 63%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   table {
     display: block;
@@ -243,16 +326,5 @@
   h1 { font-size: 1.25rem !important; }
   h2 { font-size: 1.1rem !important; }
   .page-content { padding: 12px !important; }
-  .tab-bar {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
+  .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
-/* ── Theme-aware table rows ───────────────────────────────────────────────────
-   Table text used to be hardcoded dark grey, which vanished in dark mode.
-   These variables flip with the theme so text stays readable in BOTH modes.
-   Contrast has also been raised so light-mode text no longer looks faded.  */
-.student-row              { background: var(--color-paper); }
-.student-row:nth-child(even) { background: var(--color-warm); }
-.student-row:hover        { background: rgba(59, 130, 246, 0.08) !important; }
-.dark .student-row:hover  { background: rgba(96, 165, 250, 0.14) !important; }

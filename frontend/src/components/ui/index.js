@@ -13,17 +13,27 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' })
   const isFull = size === 'full';
   return (
     <div className={`fixed inset-0 z-[200] flex ${isFull ? 'items-start' : 'items-center'} justify-center p-4 ${isFull ? 'overflow-y-auto' : ''}`} style={isFull ? { padding: 8 } : undefined}>
-      <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative bg-white rounded-2xl w-full ${sizes[size]} shadow-2xl animate-scale-in overflow-hidden`}
-        style={isFull
-          ? { minHeight: 'calc(100vh - 16px)', margin: '4px 0', display:'flex', flexDirection:'column' }
-          : { maxHeight: '90vh', display:'flex', flexDirection:'column' }}>
-        <div className="flex items-center justify-between px-7 py-5 border-b border-border" style={{ flexShrink:0 }}>
-          <h2 className="font-display text-xl text-ink">{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg border border-border text-muted hover:border-accent hover:text-accent transition-all text-lg">×</button>
+      <div className="absolute inset-0 bg-ink/40 backdrop-blur-[3px] animate-fade-in" onClick={onClose} />
+      <div className={`relative rounded-2xl w-full ${sizes[size]} animate-scale-in overflow-hidden`}
+        style={{
+          background: 'var(--paper)',
+          boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--border)',
+          ...(isFull
+            ? { minHeight: 'calc(100vh - 16px)', margin: '4px 0', display:'flex', flexDirection:'column' }
+            : { maxHeight: '90vh', display:'flex', flexDirection:'column' }),
+        }}>
+        <div className="flex items-center justify-between px-7 py-5" style={{ borderBottom: '1px solid var(--border)', flexShrink:0 }}>
+          <h2 className="font-display text-xl" style={{ color: 'var(--ink)' }}>{title}</h2>
+          <button onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-xl text-lg transition-all"
+            style={{ border: '1px solid var(--border)', color: 'var(--muted)' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)'; }}
+          >×</button>
         </div>
         <div className="px-7 py-6" style={{ overflowY:'auto', flex:1 }}>{children}</div>
-        {footer && <div className="px-7 py-4 border-t border-border flex justify-end gap-3" style={{ flexShrink:0 }}>{footer}</div>}
+        {footer && <div className="px-7 py-4 flex justify-end gap-3" style={{ borderTop: '1px solid var(--border)', flexShrink:0, background: 'var(--warm)' }}>{footer}</div>}
       </div>
     </div>
   );
@@ -50,11 +60,11 @@ export function StatCard({ icon, value, label, change, changeType = 'up', color 
   };
   const c = colors[color] || colors.accent;
   return (
-    <div className="card p-6 relative overflow-hidden hover:-translate-y-0.5 transition-transform">
-      <div className={`absolute top-0 left-0 right-0 h-0.5 ${c.bar}`} />
+    <div className="card card-hover p-6 relative overflow-hidden">
+      <div className={`absolute top-0 left-0 right-0 h-1 ${c.bar}`} />
       <div className={`w-11 h-11 rounded-xl ${c.iconBg} flex items-center justify-center text-xl mb-4`}>{icon}</div>
-      <div className="font-display text-4xl text-ink leading-none mb-1">{value}</div>
-      <div className="text-sm text-muted">{label}</div>
+      <div className="font-display text-4xl leading-none mb-1" style={{ color: 'var(--ink)' }}>{value}</div>
+      <div className="text-sm" style={{ color: 'var(--muted)' }}>{label}</div>
       {change && (
         <div className={`mt-3 text-xs font-medium flex items-center gap-1 ${changeType === 'up' ? 'text-sage' : 'text-accent'}`}>
           {changeType === 'up' ? '↑' : '↓'} {change}
@@ -95,27 +105,48 @@ export function Badge({ status }) {
 export function Spinner({ size = 'md' }) {
   const sizes = { sm: 'w-4 h-4', md: 'w-7 h-7', lg: 'w-10 h-10' };
   return (
-    <div className={`${sizes[size]} border-2 border-border border-t-accent rounded-full animate-spin`} />
+    <div className={`${sizes[size]} rounded-full animate-spin`}
+      style={{ border: '2.5px solid var(--border)', borderTopColor: 'var(--accent)' }} />
   );
 }
 
-// ── LOADING STATE ──
-export function LoadingState({ message = 'Loading...' }) {
+// ── SKELETON ── elegant shimmer block (composable) ──
+export function Skeleton({ className = '', style = {} }) {
+  return <div className={`skeleton ${className}`} style={style} />;
+}
+
+// ── LOADING STATE ── skeleton rows instead of a bare spinner ──
+export function LoadingState({ message, rows = 5 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <Spinner size="lg" />
-      <p className="text-sm text-muted">{message}</p>
+    <div className="card overflow-hidden animate-fade-in">
+      <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--warm)' }}>
+        <Skeleton style={{ height: 12, width: '30%' }} />
+      </div>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-5 py-4" style={{ borderTop: i ? '1px solid var(--border)' : 'none' }}>
+          <Skeleton style={{ height: 38, width: 38, borderRadius: '50%', flexShrink: 0 }} />
+          <div className="flex-1">
+            <Skeleton style={{ height: 11, width: '45%', marginBottom: 8 }} />
+            <Skeleton style={{ height: 9, width: '25%' }} />
+          </div>
+          <Skeleton style={{ height: 20, width: 64, borderRadius: 9999 }} />
+        </div>
+      ))}
+      {message && <div className="text-center text-sm py-3" style={{ color: 'var(--muted)' }}>{message}</div>}
     </div>
   );
 }
 
 // ── EMPTY STATE ──
-export function EmptyState({ icon = '📭', title = 'No data found', subtitle = '', action }) {
+export function EmptyState({ icon = '📭', title = 'No records yet', subtitle = '', action }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-3">
-      <div className="text-5xl">{icon}</div>
-      <div className="font-semibold text-ink text-lg">{title}</div>
-      {subtitle && <div className="text-sm text-muted">{subtitle}</div>}
+    <div className="flex flex-col items-center justify-center py-16 px-6 gap-3 text-center animate-fade-in">
+      <div className="flex items-center justify-center rounded-2xl mb-1"
+        style={{ width: 76, height: 76, background: 'var(--accent-soft)', fontSize: 34 }}>
+        {icon}
+      </div>
+      <div className="font-display text-xl" style={{ color: 'var(--ink)' }}>{title}</div>
+      {subtitle && <div className="text-sm max-w-sm" style={{ color: 'var(--muted)' }}>{subtitle}</div>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -126,7 +157,7 @@ export function Table({ columns, data, renderRow, loading, emptyState }) {
   if (loading) return <LoadingState />;
   return (
     <div className="card overflow-hidden">
-      <div className="bg-warm px-5 py-3 grid gap-4 border-b border-border" style={{ gridTemplateColumns: columns.map(c => c.width || '1fr').join(' ') }}>
+      <div className="px-5 py-3 grid gap-4" style={{ background: 'var(--warm)', borderBottom: '1px solid var(--border)', gridTemplateColumns: columns.map(c => c.width || '1fr').join(' ') }}>
         {columns.map((col) => (
           <div key={col.key} className="table-th">{col.label}</div>
         ))}
@@ -143,9 +174,11 @@ export function Table({ columns, data, renderRow, loading, emptyState }) {
 export function TableRow({ columns, children, onClick }) {
   return (
     <div
-      className={`grid gap-4 px-5 py-3.5 border-t border-border items-center hover:bg-warm/60 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ gridTemplateColumns: columns }}
+      className={`grid gap-4 px-5 py-3.5 items-center transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      style={{ gridTemplateColumns: columns, borderTop: '1px solid var(--border)' }}
       onClick={onClick}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--warm)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
     >
       {children}
     </div>
@@ -187,7 +220,7 @@ export function ActionBtn({ onClick, icon, title, variant = 'default' }) {
 export function SearchBox({ value, onChange, placeholder = 'Search…' }) {
   return (
     <div className="relative flex-1">
-      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted text-sm">🔍</span>
+      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--muted)' }}>🔍</span>
       <input
         type="text"
         value={value}

@@ -75,7 +75,7 @@ const PORTAL_SECTIONS = [
 ];
 
 const ROLE_META = {
-  superAdmin:       { label: 'Super Admin',       emoji: '👑', color: '#e87722' },
+  superAdmin:       { label: 'Super Admin',       emoji: '👑', color: '#d4522a' },
   schoolAdmin:      { label: 'School Admin',      emoji: '🏫', color: '#3b82f6' },
   teacher:          { label: 'Employee',           emoji: '🎓', color: '#16a34a' },
   accountant:       { label: 'Accountant',        emoji: '💼', color: '#dc2626' },
@@ -182,17 +182,18 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
       <aside style={{
         width: 240,
         height: '100vh',
-        background: 'linear-gradient(180deg, #07101f 0%, #0a1628 60%, #0c1c34 100%)',
+        background: 'linear-gradient(180deg, #1c1712 0%, #211a13 55%, #26201a 100%)',
         position: 'fixed',
         left: 0, top: 0,
         display: 'flex',
         flexDirection: 'column',
         zIndex: 50,
-        fontFamily: "'Nunito', sans-serif",
+        fontFamily: "'DM Sans', sans-serif",
         transform: isOpen === false ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         overflowY: 'auto',
-        boxShadow: '4px 0 40px rgba(0,0,0,0.5)',
+        boxShadow: '4px 0 40px rgba(0,0,0,0.35)',
+        borderRight: '1px solid rgba(255,255,255,0.04)',
       }}>
 
         {/* ── School Logo + Name ── */}
@@ -277,9 +278,9 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   padding: '8px 11px', borderRadius: 9, marginBottom: 6,
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
                   transition: 'all 0.15s',
-                  background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.85)',
-                  borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
+                  background: isActive ? 'rgba(212,82,42,0.16)' : 'transparent',
+                  color: isActive ? '#d4522a' : 'rgba(255,255,255,0.85)',
+                  borderLeft: isActive ? '3px solid #d4522a' : '3px solid transparent',
                 })}
               >
                 <span style={{ fontSize: 14 }}>👤</span>
@@ -339,15 +340,17 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                 onClick={onClose}
                 style={({ isActive }) => ({
                   display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 11px', borderRadius: 9, marginBottom: 1,
-                  textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
-                  transition: 'all 0.15s',
-                  background: isActive ? 'rgba(232,119,34,0.14)' : 'transparent',
-                  color: isActive ? '#e87722' : 'rgba(255,255,255,0.85)',
-                  borderLeft: isActive ? '3px solid #e87722' : '3px solid transparent',
+                  padding: '9px 11px', borderRadius: 10, marginBottom: 2,
+                  textDecoration: 'none', fontSize: 12.5, fontWeight: 600,
+                  transition: 'background 0.15s, color 0.15s',
+                  background: isActive ? 'rgba(212,82,42,0.16)' : 'transparent',
+                  color: isActive ? '#e8846a' : 'rgba(255,255,255,0.72)',
+                  borderLeft: isActive ? '3px solid #d4522a' : '3px solid transparent',
                 })}
+                onMouseEnter={e => { if (!e.currentTarget.className.includes('active')) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; } }}
+                onMouseLeave={e => { const active = e.currentTarget.getAttribute('aria-current'); if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.72)'; } }}
               >
-                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
                 {item.label}
               </NavLink>
             ))

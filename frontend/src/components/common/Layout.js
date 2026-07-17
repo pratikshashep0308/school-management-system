@@ -103,13 +103,22 @@ export default function Layout() {
         <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
 
           {/* ── Topbar ── */}
-          <header className={`sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-border'}`}
-            style={{ boxShadow: isDark ? 'none' : '0 1px 12px rgba(0,0,0,0.06)' }}>
+          <header className="sticky top-0 z-40 h-16 flex items-center justify-between px-4 sm:px-6"
+            style={{
+              background: isDark ? 'rgba(15,21,34,0.72)' : 'rgba(255,255,255,0.72)',
+              backdropFilter: 'saturate(180%) blur(12px)',
+              WebkitBackdropFilter: 'saturate(180%) blur(12px)',
+              borderBottom: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-sm)',
+            }}>
 
             <div className="flex items-center gap-3">
               {/* Mobile hamburger */}
               <button
-                className={`lg:hidden w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent hover:text-accent' : 'border-border text-slate hover:border-accent hover:text-accent'}`}
+                className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl border transition-all"
+                style={{ borderColor: 'var(--border)', color: 'var(--slate)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--slate)'; }}
                 onClick={() => setMobileOpen(true)}
               >☰</button>
 
@@ -124,9 +133,23 @@ export default function Layout() {
 
             {/* Right side controls */}
             <div className="flex items-center gap-2">
+              {/* Search — quick jump (visual affordance) */}
+              <div className="relative hidden md:block">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--muted)' }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search…"
+                  className="form-input"
+                  style={{ paddingLeft: 34, height: 38, width: 200, borderRadius: 10, background: 'var(--warm)' }}
+                />
+              </div>
+
               <button
                 onClick={toggleTheme}
-                className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all text-base ${isDark ? 'border-gray-600 text-yellow-400 hover:border-yellow-400' : 'border-border text-slate hover:border-accent'}`}
+                className="w-9 h-9 flex items-center justify-center rounded-xl border transition-all text-base"
+                style={{ borderColor: 'var(--border)', color: isDark ? '#facc15' : 'var(--slate)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
                 title={isDark ? 'Light Mode' : 'Dark Mode'}
               >
                 {isDark ? '☀️' : '🌙'}
@@ -134,23 +157,28 @@ export default function Layout() {
 
               <button
                 onClick={() => navigate('/notifications')}
-                className={`relative w-9 h-9 flex items-center justify-center rounded-xl border transition-all text-base ${isDark ? 'border-gray-600 text-gray-300 hover:border-accent' : 'border-border hover:border-accent'}`}
+                className="relative w-9 h-9 flex items-center justify-center rounded-xl border transition-all text-base"
+                style={{ borderColor: 'var(--border)', color: 'var(--slate)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
               >
                 🔔
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
               </button>
 
-              <div className={`text-sm hidden sm:block ${isDark ? 'text-gray-400' : 'text-muted'}`}>{dateStr}</div>
-              <div className={`h-7 w-px hidden sm:block ${isDark ? 'bg-gray-700' : 'bg-border'}`} />
+              <div className="text-sm hidden sm:block" style={{ color: 'var(--muted)' }}>{dateStr}</div>
+              <div className="h-7 w-px hidden sm:block" style={{ background: 'var(--border)' }} />
 
               <button
                 onClick={() => navigate('/profile')}
-                className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-all ${isDark ? 'hover:bg-gray-700' : 'hover:bg-warm'}`}
+                className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 transition-all"
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--warm)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
-                <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ boxShadow: 'var(--shadow-sm)' }}>
                   {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U'}
                 </div>
-                <span className={`text-sm font-semibold hidden sm:block truncate max-w-24 ${isDark ? 'text-white' : 'text-ink'}`}>
+                <span className="text-sm font-semibold hidden sm:block truncate max-w-24" style={{ color: 'var(--ink)' }}>
                   {user?.name?.split(' ')[0]}
                 </span>
               </button>
