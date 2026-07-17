@@ -450,7 +450,16 @@ exports.restoreStop = async (req, res) => {
 // ASSIGNMENT CONTROLLERS  ✅ FIXED
 // =============================================================================
 exports.getAssignments = async (req, res) => {
-  const filter = { school: req.user.school, isActive: true };
+  const filter = { school: req.user.school };
+  // By default only active assignments show. History views pass
+  // includeInactive=true (or status=removed/all) to see removed records too.
+  const status = req.query.status;
+  if (req.query.includeInactive === 'true' || status === 'all' || status === 'removed' || status === 'completed' || status === 'cancelled') {
+    if (status === 'removed' || status === 'completed' || status === 'cancelled') filter.isActive = false;
+    // 'all'/includeInactive → no isActive filter (both active + inactive)
+  } else {
+    filter.isActive = true;
+  }
   if (req.query.route)   filter.routeId  = req.query.route;
   if (req.query.bus)     filter.busId    = req.query.bus;
   if (req.query.student) filter.student  = req.query.student;
@@ -461,6 +470,7 @@ exports.getAssignments = async (req, res) => {
     .populate('busId',   'busNumber registrationNo driver')
     .populate('pickupStopId', 'name morningArrivalTime')
     .populate('dropStopId',   'name eveningArrivalTime')
+    .populate('removedBy', 'name')
     .sort({ createdAt: -1 });
 
   res.json({ success: true, count: assignments.length, data: assignments });
@@ -573,12 +583,18 @@ exports.assignStudent = async (req, res) => {
 exports.removeAssignment = async (req, res) => {
   const assignment = await TransportAssignment.findOneAndUpdate(
     { _id: req.params.id, school: req.user.school },
-    { isActive: false },
+    {
+      isActive: false,
+      endDate: new Date(),
+      removedAt: new Date(),
+      removedBy: req.user.id || req.user._id,
+      removalReason: (req.body && req.body.reason) || '',
+    },
     { new: true }
   );
   if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
   await _refreshRouteStudentCounts(assignment.routeId, req.user.school);
-  res.json({ success: true, message: 'Assignment removed' });
+  res.json({ success: true, message: 'Transport removed. History and fee records are preserved.' });
 };
 
 

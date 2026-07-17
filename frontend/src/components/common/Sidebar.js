@@ -116,7 +116,7 @@ function SidebarSchoolName() {
       <img src="/app-logo.png" alt="The Future Step School"
         style={{ width:'100%', maxWidth:180, height:'auto', display:'block',
                  objectFit:'contain', background:'#fff', padding:'5px 8px', borderRadius:8 }} />
-      <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.55)', marginTop: 6, letterSpacing: '0.04em', fontWeight: 600 }}>
+      <div style={{ fontSize: 9.5, color: 'var(--muted, #7a828f)', marginTop: 6, letterSpacing: '0.04em', fontWeight: 600 }}>
         Management Portal
       </div>
     </div>
@@ -206,7 +206,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
       <aside style={{
         width: 240,
         height: '100vh',
-        background: 'linear-gradient(180deg, #14152e 0%, #191a38 45%, #1e1b3a 100%)',
+        background: 'var(--sidebar-bg, #f8f9fb)',
         position: 'fixed',
         left: 0, top: 0,
         display: 'flex',
@@ -216,15 +216,15 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         transform: isOpen === false ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         overflowY: 'auto',
-        boxShadow: '4px 0 40px rgba(0,0,0,0.35)',
-        borderRight: '1px solid rgba(255,255,255,0.04)',
+        boxShadow: '1px 0 0 var(--border, #ebedf0)',
+        borderRight: '1px solid var(--border, #ebedf0)',
       }}>
 
         {/* ── School Logo + Name ── */}
         <div style={{
           padding: '18px 16px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          background: 'rgba(255,255,255,0.02)',
+          borderBottom: '1px solid var(--border, #ebedf0)',
+          background: 'transparent',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Real school logo with indigo ring */}
@@ -256,18 +256,18 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         {/* ── User Profile Badge ── */}
         <div style={{
           padding: '12px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          borderBottom: '1px solid var(--border, #ebedf0)',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '9px 11px', borderRadius: 11,
-            background: `${meta.color}12`,
-            border: `1px solid ${meta.color}25`,
+            background: `${meta.color}0f`,
+            border: `1px solid ${meta.color}22`,
           }}>
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
-              background: `${meta.color}20`,
-              border: `2px solid ${meta.color}50`,
+              background: `${meta.color}18`,
+              border: `2px solid ${meta.color}40`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, flexShrink: 0,
             }}>
@@ -275,7 +275,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
             </div>
             <div style={{ overflow: 'hidden', flex: 1 }}>
               <div style={{
-                fontSize: 12.5, fontWeight: 800, color: '#fff',
+                fontSize: 12.5, fontWeight: 700, color: 'var(--ink, #14181f)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {user?.name}
@@ -302,9 +302,9 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   padding: '8px 10px', borderRadius: 11, marginBottom: 6,
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 600,
                   transition: 'background 0.16s, color 0.16s',
-                  background: isActive ? 'rgba(138,148,166,0.20)' : 'transparent',
-                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
-                  boxShadow: isActive ? 'inset 3px 0 0 #8a94a6' : 'inset 3px 0 0 transparent',
+                  background: isActive ? 'rgba(122,130,143,0.14)' : 'transparent',
+                  color: isActive ? 'var(--ink,#14181f)' : 'var(--ink,#14181f)',
+                  boxShadow: isActive ? 'inset 3px 0 0 #7a828f' : 'inset 3px 0 0 transparent',
                 })}
               >
                 <span style={{
@@ -319,7 +319,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
               {portalSections.map(section => (
                 <div key={section.group} style={{ marginBottom: 4 }}>
                   <div style={{
-                    fontSize: 8.5, fontWeight: 900, color: 'rgba(255,255,255,0.5)',
+                    fontSize: 8.5, fontWeight: 900, color: 'var(--muted,#7a828f)',
                     letterSpacing: '1.5px', textTransform: 'uppercase',
                     padding: '5px 14px 3px',
                   }}>
@@ -341,18 +341,18 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                           width: '100%', padding: '8px 10px', borderRadius: 11, marginBottom: 3,
                           border: 'none', cursor: 'pointer', textAlign: 'left',
                           fontSize: 12.5, fontWeight: 600, transition: 'background 0.16s, color 0.16s',
-                          background: isActive ? `${col}22` : 'transparent',
-                          color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                          background: isActive ? `${col}12` : 'transparent',
+                          color: isActive ? col : 'var(--ink,#14181f)',
                           boxShadow: isActive ? `inset 3px 0 0 ${col}` : 'inset 3px 0 0 transparent',
                         }}
-                        onMouseEnter={e => { if (isActive) return; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; }}
-                        onMouseLeave={e => { if (isActive) return; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                        onMouseEnter={e => { if (isActive) return; e.currentTarget.style.background = 'rgba(255,255,255,0.75)'; e.currentTarget.style.color = 'var(--ink,#14181f)'; }}
+                        onMouseLeave={e => { if (isActive) return; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--nav-item,#2b3240)'; }}
                       >
                         <span style={{
                           width: 30, height: 30, borderRadius: 9, flexShrink: 0,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 15, background: `${col}26`,
-                          boxShadow: `inset 0 0 0 1px ${col}33`,
+                          fontSize: 15, background: `${col}14`,
+                          boxShadow: 'none',
                         }}>{item.icon}</span>
                         <span style={{ flex: 1 }}>{item.label}</span>
                         {isActive && (
@@ -382,18 +382,18 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   padding: '8px 10px', borderRadius: 11, marginBottom: 3,
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 600,
                   transition: 'background 0.16s, color 0.16s',
-                  background: isActive ? `${col}22` : 'transparent',
-                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                  background: isActive ? `${col}12` : 'transparent',
+                  color: isActive ? col : 'var(--ink,#14181f)',
                   boxShadow: isActive ? `inset 3px 0 0 ${col}` : 'inset 3px 0 0 transparent',
                 })}
-                onMouseEnter={e => { if (e.currentTarget.getAttribute('aria-current')) return; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; }}
-                onMouseLeave={e => { if (e.currentTarget.getAttribute('aria-current')) return; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+                onMouseEnter={e => { if (e.currentTarget.getAttribute('aria-current')) return; e.currentTarget.style.background = 'rgba(255,255,255,0.75)'; e.currentTarget.style.color = 'var(--ink,#14181f)'; }}
+                onMouseLeave={e => { if (e.currentTarget.getAttribute('aria-current')) return; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--nav-item,#2b3240)'; }}
               >
                 <span style={{
                   width: 30, height: 30, borderRadius: 9, flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 15, background: `${col}26`,
-                  boxShadow: `inset 0 0 0 1px ${col}33`,
+                  fontSize: 15, background: `${col}14`,
+                  boxShadow: 'none',
                 }}>{item.icon}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>
               </NavLink>
@@ -403,7 +403,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         </nav>
 
         {/* ── Logout ── */}
-        <div style={{ padding: '8px 8px 14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ padding: '8px 8px 14px', borderTop: '1px solid var(--border,#ebedf0)' }}>
           <button
             onClick={handleLogout}
             style={{

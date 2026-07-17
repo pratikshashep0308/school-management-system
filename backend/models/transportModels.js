@@ -115,6 +115,11 @@ const TransportAssignmentSchema = new Schema({
   remarks:      { type: String, default: '' },
   assignedDate: { type: Date, default: Date.now },
   isActive:     { type: Boolean, default: true },
+  // Soft-removal audit trail — set when transport is removed from a student.
+  // Records are never deleted; these preserve who/when/why for history.
+  removedAt:     { type: Date },
+  removedBy:     { type: Schema.Types.ObjectId, ref: 'User' },
+  removalReason: { type: String, default: '' },
 }, { timestamps: true });
 TransportAssignmentSchema.index({ student: 1, isActive: 1 });
 TransportAssignmentSchema.index({ school: 1, routeId: 1, isActive: 1 });

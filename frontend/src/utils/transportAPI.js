@@ -44,7 +44,9 @@ export const stopAPI = {
 export const assignmentAPI = {
   getAll:  (params) => api.get('/transport/assignments', { params }),
   assign:  (data)   => api.post('/transport/assignments', data),
-  remove:  (id)     => api.delete(`/transport/assignments/${id}`),
+  remove:  (id, reason) => api.delete(`/transport/assignments/${id}`, { data: { reason: reason || '' } }),
+  // Full history for a student (active + removed), newest first.
+  getHistory: (studentId) => api.get('/transport/assignments', { params: { student: studentId, includeInactive: 'true' } }),
   // Student-profile transport (auto-syncs to the Transport Module)
   getForStudent:  (studentId)        => api.get(`/transport/student/${studentId}`),
   saveForStudent: (studentId, data)  => api.put(`/transport/student/${studentId}`, data),

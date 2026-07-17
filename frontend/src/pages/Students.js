@@ -11,6 +11,8 @@ import AdmissionFormModal from '../components/admissions/AdmissionFormModal';
 import BehaviouralNotes from '../components/BehaviouralNotes';
 import RollNumberEditor from '../components/RollNumberEditor';
 import StudentTransportSection from '../components/transport/StudentTransportSection';
+import StudentHomeworkTab from '../components/StudentHomeworkTab';
+import StudentBehaviourTab from '../components/StudentBehaviourTab';
 
 // ─── QR Code (inline SVG — no external lib needed) ───────────────────────────
 function QRPlaceholder({ value, size = 80 }) {
@@ -1061,8 +1063,10 @@ const PROFILE_TABS = [
   { id: 'attendance',  label: 'Attendance',  icon: '📅' },
   { id: 'fees',        label: 'Fees',        icon: '💰' },
   { id: 'assignments', label: 'Assignments', icon: '📚' },
+  { id: 'homework',    label: 'Homework',    icon: '📖' },
   { id: 'transport',   label: 'Transport',   icon: '🚌' },
   { id: 'health',      label: 'Health',      icon: '🏥' },
+  { id: 'behaviour',   label: 'Behaviour Notes', icon: '📝' },
 ];
 
 function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, onClose, onEdit }) {
@@ -1996,6 +2000,16 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
             </div>
           )}
 
+          {/* ── HOMEWORK ── */}
+          {activeTab === 'homework' && (
+            <StudentHomeworkTab studentId={s._id} classId={s.class?._id || s.class} />
+          )}
+
+          {/* ── BEHAVIOUR NOTES ── */}
+          {activeTab === 'behaviour' && (
+            <StudentBehaviourTab studentId={s._id} />
+          )}
+
 
           {activeTab === 'health' && (
             <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
@@ -2027,7 +2041,7 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
   const EMPTY_FORM = {
     // Top-level student fields (also synced to the User doc)
     name: '', email: '', phone: '',
-    admissionNumber: '', rollNumber: '', aadhaarNumber: '',
+    admissionNumber: '', rollNumber: '',
     classId: '',
     // Section 1 — Student Information
     firstName: '', middleName: '', lastName: '',
@@ -2096,7 +2110,6 @@ function StudentFormModal({ isOpen, data, classes, saving, onClose, onSave }) {
         email: data.user?.email || data.email || '',
         phone: data.user?.phone || data.phone || '',
         admissionNumber: data.admissionNumber || '',
-        aadhaarNumber: data.aadhaarNumber || '',
         rollNumber: data.rollNumber || '',
         classId: data.class?._id || data.classId || '',
         // Section 1
