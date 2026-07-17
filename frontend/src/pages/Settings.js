@@ -12,7 +12,7 @@ const BOARDS = ['CBSE','ICSE','State Board','IB','Other'];
 const YEARS  = ['2023-24','2024-25','2025-26','2026-27','2027-28'];
 
 export default function Settings() {
-  const [form,    setForm]    = useState({ name:'', address:'', phone:'', email:'', website:'', principalName:'', establishedYear:'', board:'CBSE', academicYear:'2025-26', logo:'' });
+  const [form,    setForm]    = useState({ name:'', address:'', phone:'', email:'', website:'', principalName:'', establishedYear:'', board:'State Board', academicYear:'2025-26', logo:'', country:'India', status:'Active' });
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [tab,     setTab]     = useState('general');
@@ -58,6 +58,29 @@ export default function Settings() {
     } catch(e) { toast.error(e?.response?.data?.message || 'Failed to update status'); }
   };
 
+  const editAdmin = async (a) => {
+    const name  = window.prompt('Full name:', a.name || '');
+    if (name === null) return;
+    const email = window.prompt('Email:', a.email || '');
+    if (email === null) return;
+    const phone = window.prompt('Mobile:', a.phone || '');
+    if (phone === null) return;
+    try {
+      await adminAPI.update(a._id, { name, email, phone });
+      toast.success('Admin updated');
+      loadAdmins();
+    } catch(e) { toast.error(e?.response?.data?.message || 'Failed to update admin'); }
+  };
+
+  const deleteAdmin = async (a) => {
+    if (!window.confirm(`Delete admin "${a.name}"? This cannot be undone.`)) return;
+    try {
+      await adminAPI.delete(a._id);
+      toast.success('Admin deleted');
+      loadAdmins();
+    } catch(e) { toast.error(e?.response?.data?.message || 'Failed to delete admin'); }
+  };
+
   const resetAdminPassword = async (a) => {
     const pwd = window.prompt(`Enter a new password for ${a.name} (min 6 chars):`);
     if (pwd === null) return;
@@ -71,9 +94,25 @@ export default function Settings() {
   useEffect(() => {
     schoolAPI.get().then(r => {
       const d = r.data.data || {};
-      setForm({ name:d.name||'', address:d.address||'', phone:d.phone||'', email:d.email||'',
-        website:d.website||'', principalName:d.principalName||'', establishedYear:d.establishedYear||'',
-        board:d.board||'CBSE', academicYear:d.academicYear||'2025-26', logo:d.logo||'' });
+      // Load every field (fall back to '' so inputs stay controlled)
+      const keys = ['name','shortName','schoolCode','udiseCode','affiliationNumber','board','medium','schoolType','establishedYear',
+        'principalName','vicePrincipal','chairman','trustName','registrationNumber',
+        'phone','altMobile','landline','email','website',
+        'address','area','city','district','state','country','pincode',
+        'logo','banner','principalSignature','stamp','favicon',
+        'academicYear','currentSession','workingDays','weeklyOff','timeZone',
+        'gstNumber','panNumber','registrationCertNumber','recognitionNumber',
+        'smsSenderId','emailSenderName','whatsappNumber','emergencyContact',
+        'currency','language','dateFormat','timeFormat',
+        'facebook','instagram','youtube','linkedin','twitter',
+        'googleMapsUrl','latitude','longitude','status'];
+      const loaded = {};
+      keys.forEach(k => { loaded[k] = d[k] ?? ''; });
+      if (!loaded.board) loaded.board = 'State Board';
+      if (!loaded.academicYear) loaded.academicYear = '2025-26';
+      if (!loaded.country) loaded.country = 'India';
+      if (!loaded.status) loaded.status = 'Active';
+      setForm(loaded);
     }).catch(()=>toast.error('Failed to load settings')).finally(()=>setLoading(false));
   }, []);
 
@@ -121,39 +160,109 @@ export default function Settings() {
 
       {/* ── General Tab ── */}
       {tab==='general' && (
-        <div style={{ background:'#fff', borderRadius:16, border:'1px solid #E5E7EB', overflow:'hidden' }}>
-          <div style={{ background:'#0B1F4A', padding:'16px 24px' }}>
-            <div style={{ fontWeight:800, fontSize:15, color:'#fff' }}>🏫 School Information</div>
-            <div style={{ fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:2 }}>Basic details shown on receipts, ID cards and reports</div>
-          </div>
-          <div style={{ padding:24, display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            <div style={{ gridColumn:'span 2' }}>
-              <label style={LBL}>School Name *</label>
-              <input style={{ ...INP, fontSize:15, fontWeight:600 }} value={form.name} onChange={e=>set('name',e.target.value)} placeholder="The Future Step School"/>
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {[
+            { icon:'🏫', title:'Basic Information', fields:[
+              { k:'name', l:'School Name *', span:2, big:true },
+              { k:'shortName', l:'Short Name' },
+              { k:'schoolCode', l:'School Code' },
+              { k:'udiseCode', l:'UDISE Code' },
+              { k:'affiliationNumber', l:'Affiliation Number' },
+              { k:'board', l:'Board', type:'select', opts:['CBSE','ICSE','State Board','IB','IGCSE','Other'] },
+              { k:'medium', l:'Medium of Instruction' },
+              { k:'schoolType', l:'School Type', type:'select', opts:['','Private','Government','Semi-Government'] },
+              { k:'establishedYear', l:'Established Year', type:'number' },
+            ]},
+            { icon:'👔', title:'Management Details', fields:[
+              { k:'principalName', l:'Principal Name' },
+              { k:'vicePrincipal', l:'Vice Principal' },
+              { k:'chairman', l:'Chairman / Director' },
+              { k:'trustName', l:'Trust / Society Name' },
+              { k:'registrationNumber', l:'School Registration Number', span:2 },
+            ]},
+            { icon:'📞', title:'Contact Information', fields:[
+              { k:'phone', l:'Mobile Number' },
+              { k:'altMobile', l:'Alternate Mobile' },
+              { k:'landline', l:'Landline Number' },
+              { k:'email', l:'Email Address' },
+              { k:'website', l:'Website URL', span:2 },
+            ]},
+            { icon:'📍', title:'Address', fields:[
+              { k:'address', l:'Full Address', span:2 },
+              { k:'area', l:'Area / Locality' },
+              { k:'city', l:'City' },
+              { k:'district', l:'District' },
+              { k:'state', l:'State' },
+              { k:'country', l:'Country' },
+              { k:'pincode', l:'PIN Code' },
+            ]},
+            { icon:'🎨', title:'Branding (image URLs)', fields:[
+              { k:'logo', l:'School Logo URL', span:2 },
+              { k:'banner', l:'School Banner URL', span:2 },
+              { k:'principalSignature', l:'Principal Signature URL' },
+              { k:'stamp', l:'School Stamp URL' },
+              { k:'favicon', l:'Favicon URL', span:2 },
+            ]},
+            { icon:'📅', title:'Academic Information', fields:[
+              { k:'academicYear', l:'Academic Year', type:'select', opts:YEARS },
+              { k:'currentSession', l:'Current Session' },
+              { k:'workingDays', l:'Working Days' },
+              { k:'weeklyOff', l:'Weekly Off' },
+              { k:'timeZone', l:'Time Zone' },
+            ]},
+            { icon:'📄', title:'Identity & Documents', fields:[
+              { k:'gstNumber', l:'GST Number' },
+              { k:'panNumber', l:'PAN Number' },
+              { k:'registrationCertNumber', l:'Registration Certificate Number' },
+              { k:'recognitionNumber', l:'Recognition Number' },
+            ]},
+            { icon:'💬', title:'Communication', fields:[
+              { k:'smsSenderId', l:'SMS Sender ID' },
+              { k:'emailSenderName', l:'Email Sender Name' },
+              { k:'whatsappNumber', l:'WhatsApp Number' },
+              { k:'emergencyContact', l:'Emergency Contact Number' },
+            ]},
+            { icon:'🌐', title:'Currency & Regional', fields:[
+              { k:'currency', l:'Currency' },
+              { k:'language', l:'Language' },
+              { k:'dateFormat', l:'Date Format' },
+              { k:'timeFormat', l:'Time Format', type:'select', opts:['12h','24h'] },
+            ]},
+            { icon:'📱', title:'Social Media', fields:[
+              { k:'facebook', l:'Facebook' },
+              { k:'instagram', l:'Instagram' },
+              { k:'youtube', l:'YouTube' },
+              { k:'linkedin', l:'LinkedIn' },
+              { k:'twitter', l:'X (Twitter)', span:2 },
+            ]},
+            { icon:'🗺️', title:'Location', fields:[
+              { k:'googleMapsUrl', l:'Google Maps URL', span:2 },
+              { k:'latitude', l:'Latitude' },
+              { k:'longitude', l:'Longitude' },
+            ]},
+            { icon:'⚡', title:'Status', fields:[
+              { k:'status', l:'School Status', type:'select', opts:['Active','Inactive'] },
+            ]},
+          ].map(sec=>(
+            <div key={sec.title} style={{ background:'#fff', borderRadius:16, border:'1px solid #E5E7EB', overflow:'hidden' }}>
+              <div style={{ background:'#0B1F4A', padding:'13px 20px', fontWeight:800, fontSize:14, color:'#fff' }}>{sec.icon} {sec.title}</div>
+              <div style={{ padding:20, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                {sec.fields.map(f=>(
+                  <div key={f.k} style={{ gridColumn: f.span===2 ? 'span 2' : 'auto' }}>
+                    <label style={LBL}>{f.l}</label>
+                    {f.type==='select' ? (
+                      <select style={INP} value={form[f.k]||''} onChange={e=>set(f.k,e.target.value)}>
+                        {f.opts.map(o=><option key={o} value={o}>{o || '— Select —'}</option>)}
+                      </select>
+                    ) : (
+                      <input style={f.big ? { ...INP, fontSize:15, fontWeight:600 } : INP}
+                        type={f.type||'text'} value={form[f.k]||''} onChange={e=>set(f.k,e.target.value)} />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div>
-              <label style={LBL}>Principal Name</label>
-              <input style={INP} value={form.principalName} onChange={e=>set('principalName',e.target.value)} placeholder="Principal's full name"/>
-            </div>
-            <div>
-              <label style={LBL}>Established Year</label>
-              <input style={INP} type="number" value={form.establishedYear} onChange={e=>set('establishedYear',e.target.value)} placeholder="e.g. 1995"/>
-            </div>
-            <div>
-              <label style={LBL}>Board / Affiliation</label>
-              <select style={INP} value={form.board} onChange={e=>set('board',e.target.value)}>
-                {BOARDS.map(b=><option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={LBL}>School Logo URL</label>
-              <input style={INP} value={form.logo} onChange={e=>set('logo',e.target.value)} placeholder="https://... or leave blank"/>
-            </div>
-            <div style={{ gridColumn:'span 2' }}>
-              <label style={LBL}>Address</label>
-              <input style={INP} value={form.address} onChange={e=>set('address',e.target.value)} placeholder="Full school address"/>
-            </div>
-          </div>
+          ))}
         </div>
       )}
 
@@ -268,7 +377,17 @@ export default function Settings() {
               </div>
               <div>
                 <label style={LBL}>Password *</label>
-                <input style={INP} type="text" value={newAdmin.password} onChange={e=>setNA('password',e.target.value)} placeholder="Min 6 characters"/>
+                <div style={{ display:'flex', gap:6 }}>
+                  <input style={{ ...INP, flex:1 }} type="text" value={newAdmin.password} onChange={e=>setNA('password',e.target.value)} placeholder="Min 6 characters"/>
+                  <button type="button" onClick={()=>{
+                      const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$';
+                      let p=''; for(let i=0;i<12;i++) p+=chars[Math.floor(Math.random()*chars.length)];
+                      setNA('password',p);
+                    }}
+                    style={{ padding:'0 14px', borderRadius:10, border:'1.5px solid #0B1F4A', background:'#fff', color:'#0B1F4A', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    🎲 Generate
+                  </button>
+                </div>
               </div>
               <div style={{ gridColumn:'span 2', display:'flex', justifyContent:'flex-end' }}>
                 <button onClick={createAdmin} disabled={creating}
@@ -307,11 +426,17 @@ export default function Settings() {
                         </div>
                         <div style={{ fontSize:12, color:'#6B7280', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.email}{a.phone?` · ${a.phone}`:''}</div>
                       </div>
+                      <button onClick={()=>editAdmin(a)} style={{ padding:'7px 12px', borderRadius:8, border:'1.5px solid #E5E7EB', background:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', color:'#374151', flexShrink:0 }}>
+                        ✎ Edit
+                      </button>
                       <button onClick={()=>resetAdminPassword(a)} style={{ padding:'7px 12px', borderRadius:8, border:'1.5px solid #E5E7EB', background:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', color:'#374151', flexShrink:0 }}>
                         🔑 Reset
                       </button>
                       <button onClick={()=>toggleAdminStatus(a)} style={{ padding:'7px 12px', borderRadius:8, border:'none', background:a.isActive?'#FEE2E2':'#DCFCE7', fontSize:12, fontWeight:700, cursor:'pointer', color:a.isActive?'#B91C1C':'#166534', flexShrink:0 }}>
                         {a.isActive?'Deactivate':'Activate'}
+                      </button>
+                      <button onClick={()=>deleteAdmin(a)} style={{ padding:'7px 12px', borderRadius:8, border:'none', background:'#FEF2F2', fontSize:12, fontWeight:700, cursor:'pointer', color:'#DC2626', flexShrink:0 }}>
+                        🗑 Delete
                       </button>
                     </div>
                   ))}

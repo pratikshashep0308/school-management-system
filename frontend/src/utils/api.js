@@ -311,6 +311,8 @@ export const schoolAPI = {
 export const adminAPI = {
   getAll:        ()           => api.get('/admins'),
   create:        (data)       => api.post('/admins', data),
+  update:        (id, data)   => api.put(`/admins/${id}`, data),
+  delete:        (id)         => api.delete(`/admins/${id}`),
   setStatus:     (id, isActive) => api.put(`/admins/${id}/status`, { isActive }),
   resetPassword: (id, password) => api.put(`/admins/${id}/reset-password`, { password }),
 };
