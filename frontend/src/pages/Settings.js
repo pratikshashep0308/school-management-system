@@ -22,6 +22,9 @@ export default function Settings() {
   const [adminsLoad,  setAdminsLoad]  = useState(false);
   const [newAdmin,    setNewAdmin]    = useState({ name:'', email:'', phone:'', password:'' });
   const [creating,    setCreating]    = useState(false);
+  const [editModal,   setEditModal]   = useState(false);
+  const [editForm,    setEditForm]    = useState({ _id:'', name:'', email:'', phone:'', username:'', password:'' });
+  const [savingEdit,  setSavingEdit]  = useState(false);
 
   const loadAdmins = async () => {
     setAdminsLoad(true);
@@ -58,18 +61,28 @@ export default function Settings() {
     } catch(e) { toast.error(e?.response?.data?.message || 'Failed to update status'); }
   };
 
-  const editAdmin = async (a) => {
-    const name  = window.prompt('Full name:', a.name || '');
-    if (name === null) return;
-    const email = window.prompt('Email:', a.email || '');
-    if (email === null) return;
-    const phone = window.prompt('Mobile:', a.phone || '');
-    if (phone === null) return;
+  const editAdmin = (a) => {
+    setEditForm({ _id:a._id, name:a.name||'', email:a.email||'', phone:a.phone||'', username:a.username||a.email||'', password:'' });
+    setEditModal(true);
+  };
+
+  const saveEditAdmin = async () => {
+    if (!editForm.name.trim())  return toast.error('Name is required');
+    if (!editForm.email.trim()) return toast.error('Email is required');
+    setSavingEdit(true);
     try {
-      await adminAPI.update(a._id, { name, email, phone });
+      await adminAPI.update(editForm._id, { name:editForm.name, email:editForm.email, phone:editForm.phone });
+      // If a new password was typed, reset it too
+      if (editForm.password && editForm.password.length >= 6) {
+        await adminAPI.resetPassword(editForm._id, editForm.password);
+      } else if (editForm.password && editForm.password.length > 0) {
+        toast.error('Password must be at least 6 characters (left unchanged)');
+      }
       toast.success('Admin updated');
+      setEditModal(false);
       loadAdmins();
     } catch(e) { toast.error(e?.response?.data?.message || 'Failed to update admin'); }
+    finally { setSavingEdit(false); }
   };
 
   const deleteAdmin = async (a) => {
@@ -129,11 +142,9 @@ export default function Settings() {
   };
 
   const TABS = [
-    { key:'general',  icon:'🏫', label:'General' },
-    { key:'academic', icon:'📅', label:'Academic Year' },
-    { key:'contact',  icon:'📞', label:'Contact & Info' },
-    { key:'print',    icon:'🖨️', label:'Print Settings' },
-    { key:'admins',   icon:'👤', label:'Admins' },
+    { key:'general',    icon:'🏫', label:'General' },
+    { key:'schoolinfo', icon:'🏢', label:'School Info' },
+    { key:'admins',     icon:'👤', label:'Admins' },
   ];
 
   if (loading) return <div style={{ padding:40, textAlign:'center', color:'#9CA3AF' }}>⏳ Loading settings…</div>;
@@ -159,7 +170,7 @@ export default function Settings() {
       </div>
 
       {/* ── General Tab ── */}
-      {tab==='general' && (
+      {(tab==='general' || tab==='schoolinfo') && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {[
             { icon:'🏫', title:'Basic Information', fields:[
@@ -180,7 +191,7 @@ export default function Settings() {
               { k:'trustName', l:'Trust / Society Name' },
               { k:'registrationNumber', l:'School Registration Number', span:2 },
             ]},
-            { icon:'📞', title:'Contact Information', fields:[
+            { icon:'📞', title:'Contact Information', tab:'schoolinfo', fields:[
               { k:'phone', l:'Mobile Number' },
               { k:'altMobile', l:'Alternate Mobile' },
               { k:'landline', l:'Landline Number' },
@@ -203,7 +214,7 @@ export default function Settings() {
               { k:'stamp', l:'School Stamp URL' },
               { k:'favicon', l:'Favicon URL', span:2 },
             ]},
-            { icon:'📅', title:'Academic Information', fields:[
+            { icon:'📅', title:'Academic Information', tab:'schoolinfo', fields:[
               { k:'academicYear', l:'Academic Year', type:'select', opts:YEARS },
               { k:'currentSession', l:'Current Session' },
               { k:'workingDays', l:'Working Days' },
@@ -243,7 +254,7 @@ export default function Settings() {
             { icon:'⚡', title:'Status', fields:[
               { k:'status', l:'School Status', type:'select', opts:['Active','Inactive'] },
             ]},
-          ].map(sec=>(
+          ].filter(sec => (sec.tab || 'general') === tab).map(sec=>(
             <div key={sec.title} style={{ background:'#fff', borderRadius:16, border:'1px solid #E5E7EB', overflow:'hidden' }}>
               <div style={{ background:'#0B1F4A', padding:'13px 20px', fontWeight:800, fontSize:14, color:'#fff' }}>{sec.icon} {sec.title}</div>
               <div style={{ padding:20, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
@@ -424,7 +435,7 @@ export default function Settings() {
                           </span>
                           {!a.isActive && <span style={{ marginLeft:6, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, background:'#FEE2E2', color:'#B91C1C' }}>INACTIVE</span>}
                         </div>
-                        <div style={{ fontSize:12, color:'#6B7280', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.email}{a.phone?` · ${a.phone}`:''}</div>
+                        <div style={{ fontSize:12, color:'#6B7280', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>👤 {a.username || a.email} {a.phone?` · ${a.phone}`:''}</div>
                       </div>
                       <button onClick={()=>editAdmin(a)} style={{ padding:'7px 12px', borderRadius:8, border:'1.5px solid #E5E7EB', background:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', color:'#374151', flexShrink:0 }}>
                         ✎ Edit
@@ -458,6 +469,57 @@ export default function Settings() {
           {saving ? '⏳ Saving…' : '💾 Save Settings'}
         </button>
       </div>
+      )}
+
+      {/* ── Edit Admin Modal ── */}
+      {editModal && (
+        <div onClick={()=>setEditModal(false)} style={{ position:'fixed', inset:0, zIndex:500, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'flex-start', justifyContent:'center', overflowY:'auto', padding:16 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:520, marginTop:50, overflow:'hidden' }}>
+            <div style={{ background:'#0B1F4A', padding:'15px 22px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color:'#fff', fontWeight:800, fontSize:15 }}>✎ Edit Admin</span>
+              <button onClick={()=>setEditModal(false)} style={{ background:'rgba(255,255,255,0.15)', color:'#fff', border:'none', borderRadius:8, width:30, height:30, cursor:'pointer', fontSize:16 }}>×</button>
+            </div>
+            <div style={{ padding:22, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <div style={{ gridColumn:'span 2' }}>
+                <label style={LBL}>Full Name *</label>
+                <input style={INP} value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} />
+              </div>
+              <div>
+                <label style={LBL}>Username</label>
+                <input style={{ ...INP, background:'#F9FAFB', color:'#6B7280' }} value={editForm.username} disabled title="Username is the login email" />
+              </div>
+              <div>
+                <label style={LBL}>Mobile</label>
+                <input style={INP} value={editForm.phone} onChange={e=>setEditForm(f=>({...f,phone:e.target.value}))} />
+              </div>
+              <div style={{ gridColumn:'span 2' }}>
+                <label style={LBL}>Email (login) *</label>
+                <input style={INP} type="email" value={editForm.email} onChange={e=>setEditForm(f=>({...f,email:e.target.value}))} />
+              </div>
+              <div style={{ gridColumn:'span 2' }}>
+                <label style={LBL}>New Password <span style={{ fontWeight:400, textTransform:'none', color:'#9CA3AF' }}>(leave blank to keep current)</span></label>
+                <div style={{ display:'flex', gap:6 }}>
+                  <input style={{ ...INP, flex:1 }} type="text" value={editForm.password} onChange={e=>setEditForm(f=>({...f,password:e.target.value}))} placeholder="Type to set a new password" />
+                  <button type="button" onClick={()=>{
+                      const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$';
+                      let p=''; for(let i=0;i<12;i++) p+=chars[Math.floor(Math.random()*chars.length)];
+                      setEditForm(f=>({...f,password:p}));
+                    }}
+                    style={{ padding:'0 14px', borderRadius:10, border:'1.5px solid #0B1F4A', background:'#fff', color:'#0B1F4A', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    🎲 Generate
+                  </button>
+                </div>
+                <div style={{ fontSize:11, color:'#9CA3AF', marginTop:4 }}>Passwords are stored encrypted and can never be displayed — only reset.</div>
+              </div>
+              <div style={{ gridColumn:'span 2', display:'flex', justifyContent:'flex-end', gap:10, marginTop:4 }}>
+                <button onClick={()=>setEditModal(false)} style={{ padding:'10px 20px', borderRadius:10, border:'1.5px solid #E5E7EB', background:'#fff', color:'#374151', fontSize:13, fontWeight:700, cursor:'pointer' }}>Cancel</button>
+                <button onClick={saveEditAdmin} disabled={savingEdit} style={{ padding:'10px 24px', borderRadius:10, background:'#0B1F4A', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:savingEdit?0.7:1 }}>
+                  {savingEdit ? '⏳ Saving…' : '💾 Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
