@@ -21,6 +21,30 @@ const PATH_TO_MODULE = {
 const ADMIN_ROLES = ['superAdmin', 'schoolAdmin'];
 const STAFF_ROLES = ['superAdmin', 'schoolAdmin', 'teacher', 'accountant', 'librarian', 'transportManager'];
 
+// Per-module accent colors — drawn from the rainbow logo palette so each nav
+// item reads as its own thing (color becomes a wayfinding cue). Kept as small
+// icon-chip tints against the dark panel, so it stays premium, not loud.
+const MODULE_COLORS = {
+  '/dashboard': '#5b8def', '/settings': '#8a94a6', '/access-control': '#e0567a',
+  '/id-cards': '#00b3a4', '/students': '#4f9dff', '/teachers': '#7c6af5',
+  '/classes': '#e08a2b', '/subjects': '#2d9cdb', '/salary': '#e0a030',
+  '/attendance': '#43a047', '/exams': '#e0567a', '/assignments': '#f2994a',
+  '/fees': '#e91e8c', '/expenses': '#d4522a', '/library': '#7c6af5',
+  '/transport': '#00b3a4', '/homework': '#4f9dff', '/behaviour-notes': '#e0567a',
+  '/timetable': '#e08a2b', '/meetings': '#2d9cdb', '/notifications': '#e0a030',
+  '/admissions': '#43a047', '/reports': '#5b8def', '/profile': '#8a94a6',
+};
+const itemColor = (path) => MODULE_COLORS[path] || '#d4522a';
+
+// Portal (student/parent) tab colors, keyed by tab id.
+const PORTAL_COLORS = {
+  overview: '#5b8def', attendance: '#43a047', timetable: '#e08a2b', exams: '#e0567a',
+  assignments: '#f2994a', homework: '#4f9dff', meetings: '#2d9cdb', behaviour: '#e0567a',
+  notifications: '#e0a030', fees: '#e91e8c', idcard: '#00b3a4', library: '#7c6af5',
+  transport: '#00b3a4', contact: '#8a94a6',
+};
+const portalColor = (id) => PORTAL_COLORS[id] || '#d4522a';
+
 const MENU_ITEMS = [
   { path: '/dashboard',     icon: '⊞',  label: 'Dashboard',     roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager','student','parent'] },
   { path: '/settings',      icon: '⚙️', label: 'Settings',          roles: ['superAdmin','schoolAdmin'] },
@@ -182,7 +206,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
       <aside style={{
         width: 240,
         height: '100vh',
-        background: 'linear-gradient(180deg, #1c1712 0%, #211a13 55%, #26201a 100%)',
+        background: 'linear-gradient(180deg, #14152e 0%, #191a38 45%, #1e1b3a 100%)',
         position: 'fixed',
         left: 0, top: 0,
         display: 'flex',
@@ -274,16 +298,21 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                 to="/profile"
                 onClick={onClose}
                 style={({ isActive }) => ({
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 11px', borderRadius: 9, marginBottom: 6,
-                  textDecoration: 'none', fontSize: 12.5, fontWeight: 700,
-                  transition: 'all 0.15s',
-                  background: isActive ? 'rgba(212,82,42,0.16)' : 'transparent',
-                  color: isActive ? '#d4522a' : 'rgba(255,255,255,0.85)',
-                  borderLeft: isActive ? '3px solid #d4522a' : '3px solid transparent',
+                  display: 'flex', alignItems: 'center', gap: 11,
+                  padding: '8px 10px', borderRadius: 11, marginBottom: 6,
+                  textDecoration: 'none', fontSize: 12.5, fontWeight: 600,
+                  transition: 'background 0.16s, color 0.16s',
+                  background: isActive ? 'rgba(138,148,166,0.20)' : 'transparent',
+                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                  boxShadow: isActive ? 'inset 3px 0 0 #8a94a6' : 'inset 3px 0 0 transparent',
                 })}
               >
-                <span style={{ fontSize: 14 }}>👤</span>
+                <span style={{
+                  width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 15, background: 'rgba(138,148,166,0.24)',
+                  boxShadow: 'inset 0 0 0 1px rgba(138,148,166,0.2)',
+                }}>👤</span>
                 My Profile
               </NavLink>
 
@@ -298,6 +327,7 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   </div>
                   {section.items.map(item => {
                     const isActive = activePortalTab === item.id;
+                    const col = portalColor(item.id);
                     return (
                       <button
                         key={item.id}
@@ -307,22 +337,29 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                           navigate('/dashboard');
                         }}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          width: '100%', padding: '8px 11px', borderRadius: 9, marginBottom: 1,
+                          display: 'flex', alignItems: 'center', gap: 11,
+                          width: '100%', padding: '8px 10px', borderRadius: 11, marginBottom: 3,
                           border: 'none', cursor: 'pointer', textAlign: 'left',
-                          fontSize: 12.5, fontWeight: 700, transition: 'all 0.15s',
-                          background: isActive ? `${meta.color}18` : 'transparent',
-                          color: isActive ? meta.color : 'rgba(255,255,255,0.85)',
-                          borderLeft: isActive ? `3px solid ${meta.color}` : '3px solid transparent',
+                          fontSize: 12.5, fontWeight: 600, transition: 'background 0.16s, color 0.16s',
+                          background: isActive ? `${col}22` : 'transparent',
+                          color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                          boxShadow: isActive ? `inset 3px 0 0 ${col}` : 'inset 3px 0 0 transparent',
                         }}
+                        onMouseEnter={e => { if (isActive) return; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; }}
+                        onMouseLeave={e => { if (isActive) return; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
                       >
-                        <span style={{ fontSize: 14 }}>{item.icon}</span>
+                        <span style={{
+                          width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 15, background: `${col}26`,
+                          boxShadow: `inset 0 0 0 1px ${col}33`,
+                        }}>{item.icon}</span>
                         <span style={{ flex: 1 }}>{item.label}</span>
                         {isActive && (
                           <span style={{
                             width: 5, height: 5, borderRadius: '50%',
-                            background: meta.color,
-                            boxShadow: `0 0 8px ${meta.color}`,
+                            background: col,
+                            boxShadow: `0 0 8px ${col}`,
                             flexShrink: 0,
                           }} />
                         )}
@@ -333,27 +370,35 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
               ))}
             </>
           ) : (
-            visibleItems.map(item => (
+            visibleItems.map(item => {
+              const col = itemColor(item.path);
+              return (
               <NavLink
                 key={item.path}
                 to={item.path}
                 onClick={onClose}
                 style={({ isActive }) => ({
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '9px 11px', borderRadius: 10, marginBottom: 2,
+                  display: 'flex', alignItems: 'center', gap: 11,
+                  padding: '8px 10px', borderRadius: 11, marginBottom: 3,
                   textDecoration: 'none', fontSize: 12.5, fontWeight: 600,
-                  transition: 'background 0.15s, color 0.15s',
-                  background: isActive ? 'rgba(212,82,42,0.16)' : 'transparent',
-                  color: isActive ? '#e8846a' : 'rgba(255,255,255,0.72)',
-                  borderLeft: isActive ? '3px solid #d4522a' : '3px solid transparent',
+                  transition: 'background 0.16s, color 0.16s',
+                  background: isActive ? `${col}22` : 'transparent',
+                  color: isActive ? '#ffffff' : 'rgba(255,255,255,0.7)',
+                  boxShadow: isActive ? `inset 3px 0 0 ${col}` : 'inset 3px 0 0 transparent',
                 })}
-                onMouseEnter={e => { if (!e.currentTarget.className.includes('active')) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; } }}
-                onMouseLeave={e => { const active = e.currentTarget.getAttribute('aria-current'); if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.72)'; } }}
+                onMouseEnter={e => { if (e.currentTarget.getAttribute('aria-current')) return; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.95)'; }}
+                onMouseLeave={e => { if (e.currentTarget.getAttribute('aria-current')) return; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
               >
-                <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
-                {item.label}
+                <span style={{
+                  width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 15, background: `${col}26`,
+                  boxShadow: `inset 0 0 0 1px ${col}33`,
+                }}>{item.icon}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
               </NavLink>
-            ))
+              );
+            })
           )}
         </nav>
 

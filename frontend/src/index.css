@@ -264,6 +264,33 @@ table tbody tr { transition: background-color .14s ease; }
 .dark table tbody tr:nth-child(even) { background-color: var(--warm) !important; }
 .dark table tbody tr:hover { background-color: rgba(232,115,79,0.10) !important; }
 
+/* Dark mode: force readable text inside tables even when cells hardcode
+   near-black (#0B1F4A / #111827 / #374151) or grey (#6B7280 / #9CA3AF)
+   colors inline. Inline styles beat plain selectors, so these use
+   `.dark table … !important` to win. Keeps colored status pills intact by
+   only retargeting the muted/dark greys, via a broad cell rule + a lighter
+   tone for secondary columns. */
+.dark table th { color: var(--muted) !important; }
+.dark table td { color: var(--slate) !important; }
+.dark table td[style*="0B1F4A"],
+.dark table td[style*="111827"],
+.dark table td[style*="1a3a6b"],
+.dark table td b, .dark table td strong { color: var(--ink) !important; }
+.dark table td[style*="6B7280"],
+.dark table td[style*="9CA3AF"],
+.dark table td[style*="4B5563"] { color: var(--muted) !important; }
+
+/* Dark mode: neutralize inline row backgrounds (#fff / #FAFAFA / #F9FAFB /
+   #FEF9F5) that hardcoded light rows would otherwise show through. */
+.dark table tr[style*="#fff"],
+.dark table tr[style*="#FFF"],
+.dark table tr[style*="#FAFAFA"],
+.dark table tr[style*="#fafafa"],
+.dark table tr[style*="#F9FAFB"],
+.dark table tr[style*="#FEF9F5"] { background-color: var(--paper) !important; }
+.dark table thead tr[style*="#F9FAFB"],
+.dark table thead tr[style*="#f9fafb"] { background-color: var(--warm) !important; }
+
 .dark input:not([type="checkbox"]):not([type="radio"]),
 .dark select,
 .dark textarea {
@@ -286,6 +313,54 @@ table tbody tr { transition: background-color .14s ease; }
    containing block that traps position:fixed children (the student drawer),
    clipping them to <main>. Opacity-only keeps the effect without the trap.
    ══════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════
+   DARK MODE — global readability rescue
+   Many pages hardcode dark text colors inline (#374151, #111827, #0B1F4A …)
+   or use `text-ink`, which stay dark and vanish on the dark background.
+   These overrides flip them to readable light tones without editing the JSX.
+   Inline styles beat plain selectors, so hardcoded-color rules use attribute
+   selectors + !important to win.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* text-ink is near-black by design → must flip in dark mode */
+.dark .text-ink { color: var(--ink) !important; }
+.dark .text-slate { color: var(--slate) !important; }
+
+/* Headings should always read as primary text in dark mode */
+.dark h1, .dark h2, .dark h3, .dark h4,
+.dark .font-display { color: var(--ink) !important; }
+
+/* Inline hardcoded DARK text colors → light primary text.
+   Covers the common near-black / navy / slate greys used across pages. */
+.dark [style*="#374151"], .dark [style*="#111827"], .dark [style*="#0B1F4A"],
+.dark [style*="#1F2937"], .dark [style*="#1f2937"], .dark [style*="#0f172a"],
+.dark [style*="#0f0e17"], .dark [style*="#1e293b"], .dark [style*="#334155"],
+.dark [style*="#1a3a6b"], .dark [style*="#0f0e"], .dark [style*="color:#111"],
+.dark [style*="color: #111"], .dark [style*="color:#222"], .dark [style*="color:#333"],
+.dark [style*="color: #333"] { color: var(--slate) !important; }
+
+/* Bolder/heading-ish dark inline colors → brightest primary text */
+.dark h1[style*="#"], .dark h2[style*="#"], .dark h3[style*="#"],
+.dark [style*="#0B1F4A"][style*="700"], .dark [style*="#111827"][style*="700"],
+.dark [style*="#0B1F4A"][style*="800"], .dark [style*="#111827"][style*="bold"] {
+  color: var(--ink) !important;
+}
+
+/* Inline muted greys → themed muted (keeps hierarchy, stays legible) */
+.dark [style*="#6B7280"], .dark [style*="#6b7280"], .dark [style*="#9CA3AF"],
+.dark [style*="#9ca3af"], .dark [style*="#64748b"], .dark [style*="#4B5563"],
+.dark [style*="#94a3b8"], .dark [style*="#71717a"] { color: var(--muted) !important; }
+
+/* GUARD: if an element sets its OWN white/light background inline, it's a
+   self-contained light card — leave its dark text dark so it stays readable
+   on that light surface (prevents light-on-light from the rules above). */
+.dark [style*="#fff"][style*="#374151"], .dark [style*="#fff"][style*="#111827"],
+.dark [style*="#fff"][style*="#0B1F4A"], .dark [style*="#ffffff"][style*="#374151"],
+.dark [style*="#ffffff"][style*="#111827"], .dark [style*="#ffffff"][style*="#0B1F4A"],
+.dark [style*="#FFF"][style*="#111827"], .dark [style*="#FFFFFF"][style*="#111827"] {
+  color: #1f2937 !important;
+}
+
 @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideIn  { from { opacity: 0; transform: translateX(-12px);} to { opacity: 1; transform: translateX(0); } }
 @keyframes scaleIn  { from { opacity: 0; transform: scale(0.97);      } to { opacity: 1; transform: scale(1);    } }
