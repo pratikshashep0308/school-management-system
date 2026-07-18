@@ -1,7 +1,8 @@
 // frontend/src/pages/Exams.js
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { examAPI, classAPI, subjectAPI, studentAPI } from '../utils/api';
+import { examAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 
@@ -145,9 +146,9 @@ function ExamCard({ exam, onEdit, onDelete, canEdit }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 1 — ALL EXAMS (with CRUD)
 // ══════════════════════════════════════════════════════════════════════════════
-function AllExams({ exams, classes, onEdit, onDelete, onAdd, canEdit, loading }) {
+function AllExams({ exams, classes, onEdit, onDelete, onAdd, canEdit, loading, initialClass = '' }) {
   const [filter, setFilter] = useState('');
-  const [classF, setClassF] = useState('');
+  const [classF, setClassF] = useState(initialClass);
   const filtered = exams.filter(e => (!filter||e.examType===filter) && (!classF||e.class?._id===classF));
   const upcoming = filtered.filter(e => e.date && new Date(e.date) >= new Date());
   const past     = filtered.filter(e => e.date && new Date(e.date) < new Date());
@@ -236,8 +237,8 @@ function RecentExams({ exams }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 3 — EXAM TIMETABLE (table + PDF)
 // ══════════════════════════════════════════════════════════════════════════════
-function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd }) {
-  const [classF,    setClassF]    = useState('');
+function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initialClass = '' }) {
+  const [classF,    setClassF]    = useState(initialClass);
   const [typeF,     setTypeF]     = useState('');
   const [search,    setSearch]    = useState('');
   const [exporting, setExporting] = useState(false);
@@ -371,6 +372,8 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd }) {
 // MAIN
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Exams() {
+  const [searchParams] = useSearchParams();
+  const initialClass = searchParams.get('class') || '';
   const { isAdmin, isTeacher } = useAuth();
   const canEdit = isAdmin || isTeacher;
   const [tab,      setTab]     = useState('all');
@@ -432,9 +435,9 @@ export default function Exams() {
         ))}
       </div>
 
-      {tab==='all'       && <AllExams      exams={exams} classes={classes} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} canEdit={canEdit} loading={loading}/>}
+      {tab==='all'       && <AllExams      exams={exams} classes={classes} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} canEdit={canEdit} loading={loading} initialClass={initialClass}/>}
       {tab==='recent'    && <RecentExams   exams={exams}/>}
-      {tab==='timetable' && <ExamTimetable exams={exams} classes={classes} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd}/>}
+      {tab==='timetable' && <ExamTimetable exams={exams} classes={classes} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} initialClass={initialClass}/>}
 
       {modal && <ExamFormModal form={form} setForm={setForm} onSave={handleSave} onClose={()=>{setModal(false);setForm(FORM_EMPTY);}} saving={saving} classes={classes} subjects={subjects}/>}
     </div>

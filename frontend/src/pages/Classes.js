@@ -103,9 +103,9 @@ function ClassDrawer({ cls, color, onClose, onEdit, canEdit, navigate }) {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
                 { icon:'👥', label:'View Students', action:()=>{ navigate(`/students?class=${cls._id}`); onClose(); } },
-                { icon:'🗓', label:'Timetable', action:()=>{ navigate('/timetable'); onClose(); } },
-                { icon:'📅', label:'Attendance', action:()=>{ navigate('/attendance'); onClose(); } },
-                { icon:'📊', label:'Exams', action:()=>{ navigate('/exams'); onClose(); } },
+                { icon:'🗓', label:'Timetable', action:()=>{ navigate(`/timetable?class=${cls._id}`); onClose(); } },
+                { icon:'📅', label:'Attendance', action:()=>{ navigate(`/attendance?class=${cls._id}`); onClose(); } },
+                { icon:'📊', label:'Exams', action:()=>{ navigate(`/exams?class=${cls._id}`); onClose(); } },
               ].map(a => (
                 <button key={a.label} onClick={a.action} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:10, border:'1.5px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:13, fontWeight:600, color:'#374151', transition:'all 0.15s' }}
                   onMouseEnter={e=>{ e.currentTarget.style.borderColor=color; e.currentTarget.style.background='#F8FAFC'; }}

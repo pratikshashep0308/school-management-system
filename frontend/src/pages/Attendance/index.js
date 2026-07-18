@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { classAPI } from '../../utils/api';
@@ -14,7 +15,9 @@ import EmployeeAttendanceReport from './EmployeeAttendanceReport';
 function QRAttendanceTab() {
   const NOW = new Date();
   const [classes,   setClasses]   = useState([]);
-  const [classId,   setClassId]   = useState('');
+  const [searchParams] = useSearchParams();
+  // Pre-select class when opened from the Classes page (?class=<id>)
+  const [classId,   setClassId]   = useState(searchParams.get('class') || '');
   const [date,      setDate]      = useState(NOW.toISOString().split('T')[0]);
   const [qrToken,   setQRToken]   = useState('');
   const [, setQRData]    = useState(null);

@@ -3,6 +3,7 @@
 // Admin: full CRUD | Teacher/Student/Parent: read-only
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { timetableAPI, classAPI, subjectAPI, teacherAPI } from '../utils/api';
@@ -10,10 +11,6 @@ import { LoadingState, EmptyState } from '../components/ui';
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const DAY_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu', Friday:'Fri', Saturday:'Sat', Sunday:'Sun' };
-const DAY_COLORS = {
-  Monday:'#993C1D', Tuesday:'#854F0B', Wednesday:'#3B6D11',
-  Thursday:'#534AB7', Friday:'#185FA5', Saturday:'#993556', Sunday:'#A32D2D',
-};
 const SUBJECT_COLORS = [
   '#185FA5','#0F6E56','#534AB7','#993C1D','#854F0B',
   '#993556','#1D9E75','#D85A30','#7F77DD','#3B6D11',
@@ -218,7 +215,9 @@ export default function Timetable() {
   const [classes,   setClasses]   = useState([]);
   const [subjects,  setSubjects]  = useState([]);
   const [teachers,  setTeachers]  = useState([]);
-  const [classId,   setClassId]   = useState('');
+  const [searchParams] = useSearchParams();
+  // Class can be pre-selected via ?class=<id> (e.g. opened from the Classes page)
+  const [classId,   setClassId]   = useState(searchParams.get('class') || '');
   const [timetable, setTimetable] = useState(null);
   const [loading,   setLoading]   = useState(false);
   const [colorMap,  setColorMap]  = useState({});
@@ -239,7 +238,9 @@ export default function Timetable() {
   }, [isAdmin]);
 
   useEffect(() => {
-    if (classes.length && !classId) setClassId(classes[0]._id);
+    if (!classes.length || classId) return;
+    const fromUrl = searchParams.get('class');
+    setClassId(fromUrl && classes.some(c => c._id === fromUrl) ? fromUrl : classes[0]._id);
   }, [classes]);
 
   const loadTimetable = useCallback(async () => {
