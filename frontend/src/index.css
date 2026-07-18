@@ -43,7 +43,8 @@
   --warm:     #f7f8fa;   /* striped rows / subtle sections (barely-there grey) */
   --border:   #ebedf0;   /* hairline borders */
   --border-strong: #dcdfe4;
-  --sidebar-bg: #e8ebf0; /* soft grey — clear separation from the white content, easy on the eye */
+  --sidebar-bg: #f6f5f2; /* warm off-white — clean, softly separated from the white content */
+  --sidebar-border: #e3e1dc; /* slightly stronger edge so the off-white panel reads as its own surface */
 
   /* Text ramp — cool neutral greys on white */
   --ink:    #14181f;   /* headings — near-black */
@@ -95,6 +96,7 @@
   --border:   #313a4a;
   --border-strong: #3f4a5c;
   --sidebar-bg: #161c26; /* slightly lifted from canvas so the dark sidebar reads as its own panel */
+  --sidebar-border: #2b3341;
 
   /* Primary text pure white; supporting text bright for readability */
   --ink:    #f5f7fa;

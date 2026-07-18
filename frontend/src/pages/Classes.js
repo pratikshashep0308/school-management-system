@@ -11,7 +11,7 @@ const FORM_EMPTY = { name: '', grade: '', section: '', room: '', capacity: '', c
 // ── Class Detail Drawer ───────────────────────────────────────────────────────
 function ClassDrawer({ cls, color, onClose, onEdit, canEdit, navigate }) {
   if (!cls) return null;
-  const studentCount = cls.students?.length || 0;
+  const studentCount = cls.studentCount ?? cls.students?.length ?? 0;
   const subjectCount = cls.subjects?.length || 0;
 
   return (
@@ -22,7 +22,12 @@ function ClassDrawer({ cls, color, onClose, onEdit, canEdit, navigate }) {
         {/* Header with class color */}
         <div style={{ background:'#0B1F4A', padding:'24px 28px', borderBottom:`4px solid ${color}` }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.08em' }}>Class Details</div>
+            <button onClick={onClose}
+              style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:8,
+                border:'1px solid rgba(255,255,255,0.25)', background:'rgba(255,255,255,0.1)', cursor:'pointer',
+                fontSize:12, fontWeight:700, color:'#fff' }}>
+              ← Back
+            </button>
             <div style={{ display:'flex', gap:8 }}>
               {canEdit && (
                 <button onClick={onEdit} style={{ padding:'7px 18px', borderRadius:8, border:'1px solid rgba(255,255,255,0.25)', background:'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:12, fontWeight:700, color:'#fff' }}>✎ Edit</button>
@@ -97,7 +102,7 @@ function ClassDrawer({ cls, color, onClose, onEdit, canEdit, navigate }) {
             <div style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:12 }}>Quick Actions</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
-                { icon:'👥', label:'View Students', action:()=>{ navigate('/students'); onClose(); } },
+                { icon:'👥', label:'View Students', action:()=>{ navigate(`/students?class=${cls._id}`); onClose(); } },
                 { icon:'🗓', label:'Timetable', action:()=>{ navigate('/timetable'); onClose(); } },
                 { icon:'📅', label:'Attendance', action:()=>{ navigate('/attendance'); onClose(); } },
                 { icon:'📊', label:'Exams', action:()=>{ navigate('/exams'); onClose(); } },
@@ -139,12 +144,20 @@ export default function Classes() {
   const navigate = useNavigate();
   const [classes,   setClasses]   = useState([]);
   const [teachers,  setTeachers]  = useState([]);
-  const [subjects,  setSubjects]  = useState([]);
+  const [, setSubjects]  = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState({ open: false, data: null });
   const [form,      setForm]      = useState(FORM_EMPTY);
   const [saving,    setSaving]    = useState(false);
   const [viewClass, setViewClass] = useState(null);
+
+  // Escape closes the class detail drawer (natural "back" gesture).
+  useEffect(() => {
+    if (!viewClass) return;
+    const onKey = (e) => { if (e.key === 'Escape') setViewClass(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewClass]);
   const [viewColor, setViewColor] = useState('#0B1F4A');
 
   const load = async () => {
@@ -226,11 +239,11 @@ export default function Classes() {
 
                 {/* Stats */}
                 <div style={{ display:'flex', gap:20 }}>
-                  <div onClick={e=>{ e.stopPropagation(); navigate('/students'); }}
+                  <div onClick={e=>{ e.stopPropagation(); navigate(`/students?class=${cls._id}`); }}
                     style={{ cursor:'pointer' }}
                     onMouseEnter={e=>e.currentTarget.style.opacity='0.7'}
                     onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                    <div style={{ fontSize:22, fontWeight:700, color:'#111827' }}>{cls.students?.length || 0}</div>
+                    <div style={{ fontSize:22, fontWeight:700, color:'#111827' }}>{cls.studentCount ?? cls.students?.length ?? 0}</div>
                     <div style={{ fontSize:12, color:'#6B7280' }}>Students →</div>
                   </div>
                   <div>

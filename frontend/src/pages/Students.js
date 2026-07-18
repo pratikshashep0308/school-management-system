@@ -1,6 +1,7 @@
 // frontend/src/pages/Students.js
 // Advanced Student Module — Full digital student lifecycle
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api, { studentAPI, classAPI, examAPI, assignmentAPI, feeAPI, attendanceAPI } from '../utils/api';
 import { admissionAPI } from '../utils/admissionUtils';
@@ -63,11 +64,14 @@ function Ring({ pct, size = 56, stroke = 6, color }) {
 // =============================================================================
 export default function Students() {
   const { can, canEdit } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [students,     setStudents]    = useState([]);
   const [classes,      setClasses]     = useState([]);
   const [loading,      setLoading]     = useState(true);
   const [search,       setSearch]      = useState('');
-  const [filterClass,  setFilterClass] = useState('');
+  // Pre-filter by class when arriving from the Classes page (…/students?class=<id>)
+  const [filterClass,  setFilterClass] = useState(searchParams.get('class') || '');
   const [filterGender, setFilterGender] = useState('');
   const [tab,          setTab]         = useState('all');
   const [viewStudent,  setViewStudent] = useState(null);  // student profile drawer
@@ -447,7 +451,20 @@ export default function Students() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h2 className="font-display text-2xl text-ink dark:text-white">Students</h2>
+          {filterClass && (
+            <button
+              onClick={() => navigate('/classes')}
+              style={{ display:'inline-flex', alignItems:'center', gap:6, marginBottom:8, padding:'6px 12px',
+                border:'1px solid var(--border,#E5E7EB)', background:'var(--paper,#fff)', borderRadius:8,
+                fontSize:12, fontWeight:600, color:'var(--slate,#3f4550)', cursor:'pointer' }}>
+              ← Back to Classes
+            </button>
+          )}
+          <h2 className="font-display text-2xl text-ink dark:text-white">
+            {filterClass
+              ? `${classes.find(c => c._id === filterClass)?.name || 'Class'} ${classes.find(c => c._id === filterClass)?.section || ''} — Students`
+              : 'Students'}
+          </h2>
           <p className="text-sm text-muted">{total} enrolled · {active} active</p>
         </div>
 
@@ -497,13 +514,13 @@ export default function Students() {
       <div style={{ display:'flex', gap:8, flexWrap:'wrap', padding:'12px 16px', background:'#F8FAFC', borderRadius:12, alignItems:'center' }}>
         <input placeholder="🔍 Search name, ID, class, parent…" value={search} onChange={e=>setSearch(e.target.value)}
           style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none', minWidth:240 }}/>
-        <select value={filterClass} onChange={e=>setFilterClass(e.target.value)}
+        <select value={filterClass} onChange={e=>{ const v=e.target.value; setFilterClass(v); const p=new URLSearchParams(searchParams); if(v) p.set('class',v); else p.delete('class'); setSearchParams(p,{replace:true}); }}
           style={{ padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' }}>
           <option value="">All Classes</option>
           {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section||''}</option>)}
         </select>
         {(search || filterClass) && (
-          <button onClick={()=>{setSearch('');setFilterClass('');setFilterGender('');}}
+          <button onClick={()=>{setSearch('');setFilterClass('');setFilterGender(''); const p=new URLSearchParams(searchParams); p.delete('class'); setSearchParams(p,{replace:true});}}
             style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
             ✕ Clear
           </button>

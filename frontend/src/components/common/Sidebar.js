@@ -216,8 +216,8 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
         transform: isOpen === false ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
         overflowY: 'auto',
-        boxShadow: '1px 0 0 var(--border, #ebedf0)',
-        borderRight: '1px solid var(--border, #ebedf0)',
+        boxShadow: 'none',
+        borderRight: '1px solid var(--sidebar-border, #e3e1dc)',
       }}>
 
         {/* ── School Logo + Name ── */}

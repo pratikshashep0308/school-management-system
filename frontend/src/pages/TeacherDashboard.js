@@ -77,7 +77,7 @@ export default function TeacherDashboard() {
 
   if (loading) return <LoadingState />;
 
-  const totalStudents  = classes.reduce((s, c) => s + (c.students?.length || 0), 0) || studentCount;
+  const totalStudents  = classes.reduce((s, c) => s + (c.studentCount ?? c.students?.length ?? 0), 0) || studentCount;
   const pendingGrading = assignments.filter(a => a.submissions?.some(s => s.status === 'submitted' && !s.marksObtained));
 
   // Today's schedule from timetable view
@@ -269,7 +269,7 @@ export default function TeacherDashboard() {
               </div>
               <div className="flex-1">
                 <div className="font-medium text-sm text-ink">{cls.name} – {cls.section}</div>
-                <div className="text-xs text-muted">{cls.students?.length || 0} students · Room {cls.room || 'TBD'}</div>
+                <div className="text-xs text-muted">{cls.studentCount ?? cls.students?.length ?? 0} students · Room {cls.room || 'TBD'}</div>
               </div>
               <button onClick={() => navigate('/attendance')}
                 className="text-xs px-3 py-1.5 rounded-lg border border-border text-slate hover:border-accent hover:text-accent transition-all">
