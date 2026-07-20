@@ -360,49 +360,47 @@ export default function CollectFees() {
           )}
         </div>
 
-        {/* ── Or pick a class to see its students ── */}
+        {/* ── Or pick a class, then choose the student from a dropdown ── */}
         <div style={{ marginTop:16, borderTop:'1px solid #F3F4F6', paddingTop:16 }}>
-          <label style={LBL}>Or browse by class</label>
-          <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)}
-            style={{ ...INP, fontSize:14, maxWidth:320 }}>
-            <option value="">— Select a class —</option>
-            {classes.map(c => (
-              <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>
-            ))}
-          </select>
-
-          {selectedClass && (
-            <div style={{ marginTop:12 }}>
-              {loadingClass ? (
-                <div style={{ padding:20, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>⏳ Loading students…</div>
-              ) : classStudents.length === 0 ? (
-                <div style={{ padding:20, textAlign:'center', color:'#9CA3AF', fontSize:13 }}>No students in this class.</div>
-              ) : (
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))', gap:8, maxHeight:320, overflowY:'auto' }}>
-                  {classStudents.map(s => {
-                    const photo = s.studentPhoto || s.admissionSnapshot?.studentPhoto || s.user?.profileImage;
-                    const isSel = selected?._id === s._id;
-                    return (
-                      <div key={s._id} onClick={()=>selectStudent(s)}
-                        style={{ padding:'10px 12px', cursor:'pointer', fontSize:13, border:`1.5px solid ${isSel ? '#1D4ED8' : '#E5E7EB'}`, background: isSel ? '#EFF6FF' : '#fff', borderRadius:10, display:'flex', alignItems:'center', gap:10 }}
-                        onMouseEnter={e=>{ if(!isSel) e.currentTarget.style.background='#F9FAFB'; }}
-                        onMouseLeave={e=>{ if(!isSel) e.currentTarget.style.background='#fff'; }}>
-                        <div style={{ width:32, height:32, borderRadius:8, background: photo ? '#F3F4F6' : '#0B1F4A', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
-                          {photo
-                            ? <img src={photo} alt={s.user?.name||''} style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
-                            : <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{(s.user?.name||'?')[0].toUpperCase()}</span>}
-                        </div>
-                        <div style={{ minWidth:0 }}>
-                          <div style={{ fontWeight:700, color:'#111827', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{s.user?.name}</div>
-                          <div style={{ fontSize:11, color:'#9CA3AF' }}>Roll {s.rollNumber || '—'}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+            <div style={{ flex:'1 1 240px', minWidth:220 }}>
+              <label style={LBL}>Or browse by class</label>
+              <select value={selectedClass} onChange={e=>setSelectedClass(e.target.value)}
+                style={{ ...INP, fontSize:14 }}>
+                <option value="">— Select a class —</option>
+                {classes.map(c => (
+                  <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>
+                ))}
+              </select>
             </div>
-          )}
+
+            {selectedClass && (
+              <div style={{ flex:'1 1 260px', minWidth:220 }}>
+                <label style={LBL}>Select student</label>
+                <select
+                  value={selected?._id || ''}
+                  disabled={loadingClass || classStudents.length === 0}
+                  onChange={e => {
+                    const stu = classStudents.find(s => s._id === e.target.value);
+                    if (stu) selectStudent(stu);
+                  }}
+                  style={{ ...INP, fontSize:14 }}>
+                  <option value="">
+                    {loadingClass
+                      ? 'Loading students…'
+                      : classStudents.length === 0
+                        ? 'No students in this class'
+                        : `— Select a student (${classStudents.length}) —`}
+                  </option>
+                  {classStudents.map(s => (
+                    <option key={s._id} value={s._id}>
+                      {s.user?.name || '—'}{s.rollNumber ? ` · Roll ${s.rollNumber}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

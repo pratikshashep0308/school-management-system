@@ -57,11 +57,13 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
 
   return (
     <div onClick={onClose}
-      style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'flex-start', justifyContent:'center', background:'rgba(0,0,0,0.7)', padding:'20px 16px', overflowY:'auto' }}>
+      style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.7)', padding:'20px 16px' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:760, margin:'0 auto', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.5)' }}>
+        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:760, margin:'0 auto', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.5)', maxHeight:'calc(100vh - 40px)', overflow:'hidden' }}>
 
-        <div style={{ position:'sticky', top:0, zIndex:6, background:'#fff', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0, borderRadius:'16px 16px 0 0' }}>
+        {/* Header stays pinned; only the receipt body below scrolls, so the
+            Print/Close buttons can never scroll out of view. */}
+        <div style={{ zIndex:6, background:'#fff', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 24px', borderBottom:'1px solid #E5E7EB', flexShrink:0, borderRadius:'16px 16px 0 0' }}>
           <div>
             <h3 style={{ fontSize:17, fontWeight:700, margin:0, color:'#16A34A' }}>✅ Receipt</h3>
             <div style={{ fontSize:12, color:'#16A34A', marginTop:2 }}>
@@ -78,7 +80,7 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
           </div>
         </div>
 
-        <div id="printable-receipt" style={{ padding:'24px', fontFamily:'Arial, sans-serif' }}>
+        <div id="printable-receipt" style={{ padding:'24px', fontFamily:'Arial, sans-serif', overflowY:'auto', flex:1, minHeight:0 }}>
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, marginBottom:8 }}>
             <img
               src={process.env.PUBLIC_URL + "/school-logo.jpeg"}

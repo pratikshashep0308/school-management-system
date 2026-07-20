@@ -4,7 +4,7 @@
 //       transport fee integration, PDF receipt, Excel export, overdue tracking
 
 const mongoose  = require('mongoose');
-const { StudentFee, FeeStructure, FeePayment, Notification } = require('../models/index');
+const { StudentFee, FeeStructure, FeePayment, Notification, FeeEditRequest } = require('../models/index');
 const Student   = require('../models/Student');
 const FeeType   = require('../models/FeeType');
 const FeeAssignment = require('../models/FeeAssignment');
@@ -1016,4 +1016,158 @@ exports.getAnalytics = async (req, res) => {
       paymentMethodBreakdown,
     },
   });
+};
+// ═══════════════════════════════════════════════════════════════════════════
+// FEE EDIT APPROVAL WORKFLOW
+// A payment, once recorded, is never edited directly. An admin submits a
+// change request; a *different* admin/HM approves it; only then is the
+// payment updated. Every step is logged with user, timestamp and the diff.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const EDITABLE_FIELDS = ['amount', 'method', 'paidOn', 'transactionId', 'remarks', 'month', 'year'];
+
+// ── POST /api/fees/payments/:receiptNumber/edit-request ─────────────────────
+// Body: { changes: { amount?, method?, ... }, reason }
+exports.requestPaymentEdit = async (req, res) => {
+  try {
+    const { receiptNumber } = req.params;
+    const { changes = {}, reason = '' } = req.body;
+
+    const payment = await FeePayment.findOne({ receiptNumber, school: req.user.school });
+    if (!payment) return res.status(404).json({ success: false, message: 'Payment not found' });
+
+    // Block a second request while one is already pending for this payment
+    const existing = await FeeEditRequest.findOne({ payment: payment._id, status: 'pending' });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: 'An edit request for this receipt is already awaiting approval.',
+      });
+    }
+
+    // Build the field-level diff, ignoring unchanged values
+    const diff = [];
+    EDITABLE_FIELDS.forEach(f => {
+      if (changes[f] === undefined) return;
+      const before = payment[f];
+      const after  = changes[f];
+      const same = (f === 'paidOn')
+        ? new Date(before).toISOString().slice(0,10) === new Date(after).toISOString().slice(0,10)
+        : String(before ?? '') === String(after ?? '');
+      if (!same) diff.push({ field: f, from: before ?? '', to: after });
+    });
+
+    if (!diff.length) {
+      return res.status(400).json({ success: false, message: 'No changes detected' });
+    }
+
+    const reqDoc = await FeeEditRequest.create({
+      payment:         payment._id,
+      receiptNumber:   payment.receiptNumber,
+      student:         payment.student,
+      changes:         diff,
+      reason,
+      status:          'pending',
+      requestedBy:     req.user._id,
+      requestedByName: req.user.name,
+      requestedAt:     new Date(),
+      school:          req.user.school,
+    });
+
+    res.json({
+      success: true,
+      message: 'Edit request submitted — awaiting approval by another administrator.',
+      data: reqDoc,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/fees/edit-requests?status=pending ──────────────────────────────
+exports.getFeeEditRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = { school: req.user.school };
+    if (status) filter.status = status;
+
+    const requests = await FeeEditRequest.find(filter)
+      .populate({ path: 'student', select: 'rollNumber user', populate: { path: 'user', select: 'name' } })
+      .populate('requestedBy', 'name role')
+      .populate('reviewedBy',  'name role')
+      .sort({ requestedAt: -1 })
+      .lean();
+
+    res.json({ success: true, count: requests.length, data: requests });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/fees/edit-requests/:id/review ─────────────────────────────────
+// Body: { action: 'approve' | 'reject', note }
+exports.reviewFeeEditRequest = async (req, res) => {
+  try {
+    const { action, note = '' } = req.body;
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: "action must be 'approve' or 'reject'" });
+    }
+
+    const reqDoc = await FeeEditRequest.findOne({ _id: req.params.id, school: req.user.school });
+    if (!reqDoc) return res.status(404).json({ success: false, message: 'Request not found' });
+    if (reqDoc.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `This request was already ${reqDoc.status}.` });
+    }
+
+    // Four-eyes principle: the requester cannot approve their own change.
+    if (String(reqDoc.requestedBy) === String(req.user._id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot approve your own edit request. Another administrator must review it.',
+      });
+    }
+
+    if (action === 'approve') {
+      const payment = await FeePayment.findById(reqDoc.payment);
+      if (!payment) return res.status(404).json({ success: false, message: 'Original payment no longer exists' });
+
+      reqDoc.changes.forEach(c => {
+        if (!EDITABLE_FIELDS.includes(c.field)) return;
+        payment[c.field] = c.field === 'amount' ? Number(c.to)
+                         : c.field === 'year'   ? Number(c.to)
+                         : c.field === 'paidOn' ? new Date(c.to)
+                         : c.to;
+      });
+      await payment.save();
+
+      // Keep the student ledger in step with the corrected amount
+      try {
+        const amountChange = reqDoc.changes.find(c => c.field === 'amount');
+        if (amountChange) {
+          const delta = Number(amountChange.to) - Number(amountChange.from);
+          if (delta) {
+            await StudentFee.updateOne(
+              { student: payment.student },
+              { $inc: { paidAmount: delta, balance: -delta } }
+            );
+          }
+        }
+      } catch { /* ledger sync is best-effort; the payment record is source of truth */ }
+    }
+
+    reqDoc.status         = action === 'approve' ? 'approved' : 'rejected';
+    reqDoc.reviewedBy     = req.user._id;
+    reqDoc.reviewedByName = req.user.name;
+    reqDoc.reviewedAt     = new Date();
+    reqDoc.reviewNote     = note;
+    await reqDoc.save();
+
+    res.json({
+      success: true,
+      message: action === 'approve' ? 'Edit approved and applied' : 'Edit request rejected',
+      data: reqDoc,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };

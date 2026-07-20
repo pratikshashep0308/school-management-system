@@ -25,6 +25,11 @@ router.get('/students',       authorize(...ADMIN), ctrl.getStudentsFees);
 // Export
 router.get('/export',         authorize(...ADMIN), ctrl.exportFees);
 
+// ── Fee edit approval workflow (request → another admin approves) ───────────
+router.get('/edit-requests',                     authorize(...ADMIN), ctrl.getFeeEditRequests);
+router.post('/edit-requests/:id/review',         authorize('superAdmin', 'schoolAdmin'), ctrl.reviewFeeEditRequest);
+router.post('/payments/:receiptNumber/edit-request', authorize(...ADMIN), ctrl.requestPaymentEdit);
+
 // Fee Types (new)
 router.get('/types',          ctrl.getFeeTypes);
 router.post('/types',         authorize(...ADMIN), ctrl.createFeeType);

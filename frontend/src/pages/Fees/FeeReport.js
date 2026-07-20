@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
 import { classAPI } from '../../utils/api';
 import { LoadingState, EmptyState } from '../../components/ui';
+import FeeEditRequestModal from '../../components/fees/FeeEditRequestModal';
 
 const fmt   = n  => `₹${Math.round(n||0).toLocaleString('en-IN')}`;
 const pct   = (a,b) => b > 0 ? Math.min(100, Math.round((a/b)*100)) : 0;
@@ -24,16 +25,6 @@ function Bar({ value, color = '#16A34A', height = 6 }) {
   return (
     <div style={{ height, background:'#F3F4F6', borderRadius:3, overflow:'hidden' }}>
       <div style={{ height:'100%', width:`${Math.min(100,value||0)}%`, background:color, borderRadius:3, transition:'width 0.8s' }}/>
-    </div>
-  );
-}
-
-function StatBadge({ label, value, color, bg, onClick }) {
-  return (
-    <div onClick={onClick} style={{ background:bg, border:`1px solid ${color}30`, borderRadius:10, padding:'10px 14px', cursor:onClick?'pointer':'default', transition:'all 0.15s', minWidth:100 }}
-      className={onClick ? 'hover:-translate-y-0.5' : ''}>
-      <div style={{ fontSize:18, fontWeight:900, color }}>{value}</div>
-      <div style={{ fontSize:11, color:'#6B7280', marginTop:2 }}>{label}</div>
     </div>
   );
 }
@@ -57,6 +48,9 @@ function StudentHistoryPanel({ student, onClose }) {
   // Local copy so we can remove rows without re-fetching
   const [localPayments, setLocalPayments] = useState([]);
   useEffect(() => { setLocalPayments(payHistory); }, [detail]);
+
+  // Payment selected for an edit request (needs second-admin approval)
+  const [editPayment, setEditPayment] = useState(null);
 
   const handleDeletePayment = async (receiptNumber) => {
     if (!receiptNumber) return toast.error('Receipt number missing');
@@ -148,6 +142,12 @@ function StudentHistoryPanel({ student, onClose }) {
                     {p.receiptNumber && <div style={{ fontSize:10, color:'#9CA3AF', marginTop:3, fontFamily:'monospace' }}>{p.receiptNumber}</div>}
                   </div>
                   <button
+                    onClick={() => setEditPayment(p)}
+                    title="Request an edit (needs approval by another admin)"
+                    style={{ flexShrink:0, background:'#EFF6FF', border:'1px solid #BFDBFE', color:'#1E40AF', borderRadius:7, padding:'6px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    ✏️
+                  </button>
+                  <button
                     onClick={() => handleDeletePayment(p.receiptNumber)}
                     title="Delete this payment"
                     style={{ flexShrink:0, background:'#FEF2F2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:7, padding:'6px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}>
@@ -167,6 +167,13 @@ function StudentHistoryPanel({ student, onClose }) {
           )}
         </div>
       </div>
+
+      {editPayment && (
+        <FeeEditRequestModal
+          payment={editPayment}
+          onClose={() => setEditPayment(null)}
+        />
+      )}
     </div>
   );
 }
@@ -261,7 +268,6 @@ export default function FeeReport() {
   const paidCount       = students.filter(s=>s.paymentStatus==='paid').length;
   const partialCount    = students.filter(s=>s.paymentStatus==='partial').length;
   const unpaidCount     = students.filter(s=>['not_paid','pending'].includes(s.paymentStatus)).length;
-  const overdueSt       = students.filter(s=>{ const a=s.paymentHistory; return s.paymentStatus!=='paid'&&s.dueDate&&new Date(s.dueDate)<today; });
   const collRate        = pct(schoolCollected, schoolTotal);
 
   // Filter + sort + view

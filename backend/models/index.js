@@ -170,6 +170,33 @@ const FeePaymentSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// ── FEE EDIT REQUEST ──
+// Money changes are never applied silently. When an admin edits a submitted
+// payment, the original stays untouched and a pending request is created here.
+// Another admin/HM approves it, and only then is the payment updated.
+const FeeEditRequestSchema = new mongoose.Schema({
+  payment:       { type: mongoose.Schema.Types.ObjectId, ref: 'FeePayment', required: true },
+  receiptNumber: { type: String },
+  student:       { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  // Field-level diff: [{ field, from, to }]
+  changes: [{
+    field: String,
+    from:  mongoose.Schema.Types.Mixed,
+    to:    mongoose.Schema.Types.Mixed,
+  }],
+  reason:      { type: String, default: '' },
+  status:      { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  requestedByName: { type: String },
+  requestedAt: { type: Date, default: Date.now },
+  reviewedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedByName: { type: String },
+  reviewedAt:  { type: Date },
+  reviewNote:  { type: String, default: '' },
+  school:      { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+}, { timestamps: true });
+FeeEditRequestSchema.index({ school: 1, status: 1, requestedAt: -1 });
+
 // ── STUDENT FEE LEDGER ──
 const StudentFeeSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, unique: true },
@@ -347,6 +374,7 @@ module.exports.Exam         = mongoose.model('Exam',         ExamSchema);
 module.exports.Result       = mongoose.model('Result',       ResultSchema);
 module.exports.FeeStructure = mongoose.model('FeeStructure', FeeStructureSchema);
 module.exports.FeePayment   = mongoose.model('FeePayment',   FeePaymentSchema);
+module.exports.FeeEditRequest = mongoose.models.FeeEditRequest || mongoose.model('FeeEditRequest', FeeEditRequestSchema);
 module.exports.StudentFee   = mongoose.model('StudentFee',   StudentFeeSchema);
 // NOTE: Timetable is no longer exported from here — import directly:
 //   const Timetable = require('./Timetable');

@@ -20,6 +20,10 @@ const feeAPI = {
   // ── Receipts ─────────────────────────────────────────────────────────────────
   getReceipt:      (receiptNo)    => api.get(`/fees/receipt/${receiptNo}`),
   deletePayment:   (receiptNo)    => api.delete(`/fees/payment/${receiptNo}`),
+  // ── Edit approval workflow ──
+  requestPaymentEdit: (receiptNo, data) => api.post(`/fees/payments/${receiptNo}/edit-request`, data),
+  getEditRequests:    (params)          => api.get('/fees/edit-requests', { params }),
+  reviewEditRequest:  (id, data)        => api.post(`/fees/edit-requests/${id}/review`, data),
   deleteLedger:    (id)           => api.delete(`/fees/ledger/${id}`),
   bulkDeleteLedgers:(ids)         => api.post('/fees/ledger/bulk-delete', { ids }),
   // PDF download handled via fetch() with blob response in the component
