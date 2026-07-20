@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
 import { useAuth } from '../../context/AuthContext';
-import { EmptyState, LoadingState } from '../ui';
+import { EmptyState, LoadingState } from '../../components/ui';
 
 const STATUS = {
   pending:  { label: 'Awaiting approval', bg: 'var(--gold-soft,#fdf0e3)', fg: 'var(--gold,#e06a00)' },
