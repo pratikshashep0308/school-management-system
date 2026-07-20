@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
-import { studentAPI } from '../../utils/api';
+import { studentAPI, classAPI } from '../../utils/api';
 import PrintableReceipt from '../../components/fees/PrintableReceipt';
 
 const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;
@@ -12,6 +12,8 @@ const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;
 export default function FeesPaidSlip() {
   // Stored as 4-digit year string (e.g. "2026") — was previously YYYY-MM.
   const [feesYear,    setFeesYear]    = useState(String(new Date().getFullYear()));
+  const [classes,     setClasses]     = useState([]);
+  const [classFilter, setClassFilter] = useState('');
   const [query,       setQuery]       = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [selected,    setSelected]    = useState(null);
@@ -30,12 +32,36 @@ export default function FeesPaidSlip() {
     } finally { setLoadingRcp(false); }
   };
 
+  // Class list for the filter dropdown
+  useEffect(() => {
+    classAPI.getAll().then(r => setClasses(r.data.data || [])).catch(() => {});
+  }, []);
+
+  // When a class is picked, preload that class's students so the user can pick
+  // one without typing; typing then narrows within the chosen class.
+  useEffect(() => {
+    if (!classFilter) { setSuggestions([]); return; }
+    if (query.length >= 1) return;   // typing takes over below
+    studentAPI.getAll({ class: classFilter, limit: 500 })
+      .then(r => {
+        const list = (r.data.data || [])
+          .filter(s => String(s.class?._id || s.class) === String(classFilter));
+        setSuggestions(list);
+      })
+      .catch(() => setSuggestions([]));
+  }, [classFilter, query]);
+
   useEffect(() => {
     if (query.length < 1) { setSuggestions([]); return; }
     const t = setTimeout(async () => {
       try {
-        const r = await studentAPI.getAll({ search: query });
-        setSuggestions(r.data.data?.slice(0,8) || []);
+        const params = { search: query };
+        if (classFilter) params.class = classFilter;
+        const r = await studentAPI.getAll(params);
+        let list = r.data.data || [];
+        // Belt-and-braces: never show students outside the chosen class
+        if (classFilter) list = list.filter(s => String(s.class?._id || s.class) === String(classFilter));
+        setSuggestions(list.slice(0, 8));
       } catch { setSuggestions([]); }
     }, 300);
     return () => clearTimeout(t);
@@ -85,12 +111,24 @@ export default function FeesPaidSlip() {
               })()}
             </select>
           </div>
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', marginBottom:6 }}>Filter by Class</div>
+            <select value={classFilter}
+              onChange={e => { setClassFilter(e.target.value); setQuery(''); setSelected(null); }}
+              style={INP}>
+              <option value="">All classes</option>
+              {classes.map(c => (
+                <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ position:'relative' }}>
             <div style={{ fontSize:11, fontWeight:700, color:'#1D4ED8', marginBottom:6 }}>Search Student *</div>
             <input value={query} onChange={e=>{ setQuery(e.target.value); setSelected(null); }}
-              placeholder="Search student by name or roll…" style={INP}/>
+              placeholder={classFilter ? 'Pick from the list or type to narrow…' : 'Search student by name or roll…'}
+              style={INP}/>
             {suggestions.length > 0 && (
-              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:50, marginTop:4 }}>
+              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff', border:'1px solid #E5E7EB', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:50, marginTop:4, maxHeight:280, overflowY:'auto' }}>
                 {suggestions.map(s=>(
                   <div key={s._id} onClick={()=>selectStudent(s)}
                     style={{ padding:'10px 16px', cursor:'pointer', fontSize:13, borderBottom:'0.5px solid #F3F4F6' }}
