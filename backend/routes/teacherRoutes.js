@@ -4,21 +4,61 @@ const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const Teacher = require('../models/Teacher');
 const User    = require('../models/User');
-const { TeacherAttendance } = require('../models/index');
+const { TeacherAttendance, AttendanceSubmission } = require('../models/index');
 
 router.use(protect);
 
 // ── Employee / teacher attendance: save (upsert) ──────────────────────────────
 // Body: { date, records: [{ teacherId, status }] }
 // Placed BEFORE '/:id' so '/attendance' isn't treated as a teacher id.
-router.post('/attendance', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
+router.post('/attendance', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
   try {
     const { date, records } = req.body;
     if (!date || !Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: 'date and records are required' });
     }
+
+    // Every employee must be explicitly marked — no silent defaults.
+    const unmarked = records.filter(r => !r.status);
+    if (unmarked.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Please mark attendance for all employees. ${unmarked.length} still unmarked.`,
+      });
+    }
+
     const day = new Date(date);
     day.setHours(0, 0, 0, 0);
+
+    const APPROVERS = ['superAdmin', 'schoolAdmin'];
+    const isApprover = APPROVERS.includes(req.user.role);
+
+    // Find/create the submission record for this day
+    let sub = await AttendanceSubmission.findOne({ scope: 'employee', date: day, school: req.user.school });
+    if (!sub) sub = await AttendanceSubmission.create({ scope: 'employee', date: day, school: req.user.school, status: 'draft', auditLog: [] });
+
+    if (sub.status === 'approved' && !isApprover) {
+      return res.status(403).json({
+        success: false,
+        message: 'This attendance has been approved and can no longer be edited. Please contact an administrator.',
+      });
+    }
+
+    const isEdit = sub.status !== 'draft';
+
+    // Snapshot previous statuses for the audit diff
+    let previous = [];
+    if (isEdit) {
+      const existing = await TeacherAttendance.find({
+        date: day, school: req.user.school,
+        teacher: { $in: records.map(r => r.teacherId) },
+      }).populate({ path: 'teacher', populate: { path: 'user', select: 'name' } }).lean();
+      previous = existing.map(r => ({
+        key: String(r.teacher?._id || r.teacher),
+        name: r.teacher?.user?.name || 'Employee',
+        status: r.status,
+      }));
+    }
 
     const ops = records.map(r => ({
       updateOne: {
@@ -27,7 +67,7 @@ router.post('/attendance', authorize('superAdmin', 'schoolAdmin'), async (req, r
           $set: {
             teacher:  r.teacherId,
             date:     day,
-            status:   r.status || 'present',
+            status:   r.status,
             remarks:  r.remarks || '',
             markedBy: req.user._id,
             school:   req.user.school,
@@ -38,7 +78,38 @@ router.post('/attendance', authorize('superAdmin', 'schoolAdmin'), async (req, r
     }));
 
     await TeacherAttendance.bulkWrite(ops);
-    res.json({ success: true, message: 'Employee attendance saved', count: records.length });
+
+    // ── Update submission state + append audit entry ────────────────────────
+    const nameById = new Map(previous.map(p => [p.key, p.name]));
+    const changes = [];
+    if (isEdit) {
+      const prevMap = new Map(previous.map(p => [p.key, p.status]));
+      records.forEach(r => {
+        const before = prevMap.get(String(r.teacherId));
+        if (before && before !== r.status) {
+          changes.push({ name: nameById.get(String(r.teacherId)) || 'Employee', from: before, to: r.status });
+        }
+      });
+    }
+
+    if (isEdit) {
+      sub.status       = isApprover ? 'approved' : 'pending_approval';
+      sub.lastEditedBy = req.user._id;
+      sub.lastEditedAt = new Date();
+      if (isApprover) { sub.approvedBy = req.user._id; sub.approvedAt = new Date(); }
+    } else {
+      sub.status      = 'submitted';
+      sub.submittedBy = req.user._id;
+      sub.submittedAt = new Date();
+    }
+    sub.auditLog.push({
+      action: isEdit ? 'edited' : 'submitted',
+      user: req.user._id, userName: req.user.name, userRole: req.user.role,
+      at: new Date(), changes,
+    });
+    await sub.save();
+
+    res.json({ success: true, message: 'Employee attendance saved', count: records.length, status: sub.status });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

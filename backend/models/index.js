@@ -34,12 +34,47 @@ const AttendanceSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
   class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
   date: { type: Date, required: true },
+  // No default: attendance must be explicitly marked for every student.
   status: { type: String, enum: ['present', 'absent', 'late', 'excused'], required: true },
   markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   remarks: String,
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   createdAt: { type: Date, default: Date.now }
 });
+
+// ── ATTENDANCE SUBMISSION ──
+// One record per class per day. Tracks the submit → edit → approve lifecycle
+// and keeps an append-only audit trail of every action.
+const AttendanceAuditEntrySchema = new mongoose.Schema({
+  action:    { type: String, enum: ['submitted', 'edited', 'approved', 'rejected'], required: true },
+  user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName:  { type: String },   // denormalized so history survives user renames
+  userRole:  { type: String },
+  at:        { type: Date, default: Date.now },
+  note:      { type: String, default: '' },
+  // What actually changed, for edits: [{ name, from, to }]
+  changes:   [{ name: String, from: String, to: String }],
+}, { _id: false });
+
+const AttendanceSubmissionSchema = new mongoose.Schema({
+  scope:  { type: String, enum: ['student', 'employee'], required: true },
+  class:  { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },  // student scope only
+  date:   { type: Date, required: true },
+  status: {
+    type: String,
+    enum: ['draft', 'submitted', 'pending_approval', 'approved'],
+    default: 'draft',
+  },
+  submittedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  submittedAt:   { type: Date },
+  lastEditedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  lastEditedAt:  { type: Date },
+  approvedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  approvedAt:    { type: Date },
+  auditLog:      [AttendanceAuditEntrySchema],
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+}, { timestamps: true });
+AttendanceSubmissionSchema.index({ scope: 1, class: 1, date: 1, school: 1 }, { unique: true });
 
 // ── TEACHER / EMPLOYEE ATTENDANCE ──
 const TeacherAttendanceSchema = new mongoose.Schema({
@@ -307,6 +342,7 @@ module.exports.Class        = mongoose.model('Class',        ClassSchema);
 module.exports.Subject      = mongoose.model('Subject',      SubjectSchema);
 module.exports.Attendance   = mongoose.model('Attendance',   AttendanceSchema);
 module.exports.TeacherAttendance = mongoose.model('TeacherAttendance', TeacherAttendanceSchema);
+module.exports.AttendanceSubmission = mongoose.models.AttendanceSubmission || mongoose.model('AttendanceSubmission', AttendanceSubmissionSchema);
 module.exports.Exam         = mongoose.model('Exam',         ExamSchema);
 module.exports.Result       = mongoose.model('Result',       ResultSchema);
 module.exports.FeeStructure = mongoose.model('FeeStructure', FeeStructureSchema);

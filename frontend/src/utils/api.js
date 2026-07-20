@@ -100,6 +100,9 @@ export const attendanceAPI = {
   getByStudent:     (studentId, params) => api.get(`/attendance/student/${studentId}`, { params }),
   getMonthlyReport:  (classId, month, year) => api.get('/attendance/monthly-report', { params: { classId, month, year } }),
   getClassAnalytics: (classId, month, year) => api.get('/attendance/analytics', { params: { classId, month, year } }),
+  // Submission workflow (submit → edit → approve) + audit log
+  getSubmission:    (params)            => api.get('/attendance/submission', { params }),
+  approve:          (data)              => api.post('/attendance/approve', data),
 };
 
 // ── EXAMS ─────────────────────────────────────────────────────────────────────

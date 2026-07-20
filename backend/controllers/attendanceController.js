@@ -1,6 +1,6 @@
 // backend/controllers/attendanceController.js
 const mongoose  = require('mongoose');
-const { Attendance, Class, Notification } = require('../models/index');
+const { Attendance, Class, Notification, AttendanceSubmission } = require('../models/index');
 const Student   = require('../models/Student');
 const {
   getStudentAnalytics,
@@ -14,6 +14,33 @@ const {
   buildExcelReport,
   buildPDFReport,
 } = require('../services/attendanceService');
+
+// ── Roles allowed to approve edited attendance (admin / HM / supervisor) ──────
+const APPROVER_ROLES = ['superAdmin', 'schoolAdmin'];
+const canApprove = (user) => APPROVER_ROLES.includes(user.role);
+
+// ── Helper: find or create the submission record for a class+date ────────────
+async function getSubmission({ scope, classId, date, school }) {
+  const filter = { scope, date, school };
+  if (scope === 'student') filter.class = classId;
+  let sub = await AttendanceSubmission.findOne(filter);
+  if (!sub) sub = await AttendanceSubmission.create({ ...filter, status: 'draft', auditLog: [] });
+  return sub;
+}
+
+// ── Helper: build a human-readable diff of status changes ────────────────────
+// previous: [{ key, name, status }]  next: [{ key, name, status }]
+function diffStatuses(previous, next) {
+  const prevMap = new Map(previous.map(p => [String(p.key), p]));
+  const changes = [];
+  next.forEach(n => {
+    const before = prevMap.get(String(n.key));
+    if (before && before.status !== n.status) {
+      changes.push({ name: n.name || String(n.key), from: before.status, to: n.status });
+    }
+  });
+  return changes;
+}
 
 // ── Helper: socket emit ───────────────────────────────────────────────────────
 function emitAttendance(req, data) {
@@ -31,11 +58,49 @@ exports.markAttendance = async (req, res) => {
     return res.status(400).json({ success: false, message: 'classId, date, and attendanceData are required' });
   }
 
+  // Every student must be explicitly marked — no silent defaults.
+  const unmarked = attendanceData.filter(a => !a.status);
+  if (unmarked.length) {
+    return res.status(400).json({
+      success: false,
+      message: `Please mark attendance for all students. ${unmarked.length} student(s) are still unmarked.`,
+    });
+  }
+
   const normalizedDate = normalizeDate(date);
 
   // Block marking on Sundays / holidays
   if (isHoliday(normalizedDate, req.user.school)) {
     return res.status(400).json({ success: false, message: 'Cannot mark attendance on a holiday or Sunday' });
+  }
+
+  // ── Workflow gate ──────────────────────────────────────────────────────────
+  const submission = await getSubmission({
+    scope: 'student', classId, date: normalizedDate, school: req.user.school,
+  });
+
+  // Once approved, only an approver can change it again.
+  if (submission.status === 'approved' && !canApprove(req.user)) {
+    return res.status(403).json({
+      success: false,
+      message: 'This attendance has been approved and can no longer be edited. Please contact an administrator.',
+    });
+  }
+
+  const isEdit = submission.status !== 'draft';
+
+  // Capture the previous statuses so the audit log can record what changed.
+  let previous = [];
+  if (isEdit) {
+    const existing = await Attendance.find({
+      date: normalizedDate, school: req.user.school,
+      student: { $in: attendanceData.map(a => a.studentId) },
+    }).populate({ path: 'student', select: 'user rollNumber', populate: { path: 'user', select: 'name' } }).lean();
+    previous = existing.map(r => ({
+      key: r.student?._id || r.student,
+      name: r.student?.user?.name || r.student?.rollNumber || 'Student',
+      status: r.status,
+    }));
   }
 
   // Bulk upsert — fast for large classes
@@ -47,7 +112,7 @@ exports.markAttendance = async (req, res) => {
           student:   item.studentId,
           class:     classId,
           date:      normalizedDate,
-          status:    item.status || 'absent',
+          status:    item.status,
           remarks:   item.remarks || '',
           markedBy:  req.user._id,
           school:    req.user.school,
@@ -59,6 +124,41 @@ exports.markAttendance = async (req, res) => {
   }));
 
   await Attendance.bulkWrite(ops);
+
+  // ── Update submission state + append audit entry ───────────────────────────
+  const nameById = new Map(previous.map(p => [String(p.key), p.name]));
+  const nextList = attendanceData.map(a => ({
+    key: a.studentId,
+    name: nameById.get(String(a.studentId)) || 'Student',
+    status: a.status,
+  }));
+  const changes = isEdit ? diffStatuses(previous, nextList) : [];
+
+  const entry = {
+    action:   isEdit ? 'edited' : 'submitted',
+    user:     req.user._id,
+    userName: req.user.name,
+    userRole: req.user.role,
+    at:       new Date(),
+    changes,
+  };
+
+  if (isEdit) {
+    // An edit by a non-approver needs approval; an approver's edit stays final.
+    submission.status       = canApprove(req.user) ? 'approved' : 'pending_approval';
+    submission.lastEditedBy = req.user._id;
+    submission.lastEditedAt = new Date();
+    if (canApprove(req.user)) {
+      submission.approvedBy = req.user._id;
+      submission.approvedAt = new Date();
+    }
+  } else {
+    submission.status      = 'submitted';
+    submission.submittedBy = req.user._id;
+    submission.submittedAt = new Date();
+  }
+  submission.auditLog.push(entry);
+  await submission.save();
 
   const present  = attendanceData.filter(a => a.status === 'present').length;
   const absent   = attendanceData.filter(a => a.status === 'absent').length;
@@ -355,4 +455,63 @@ exports.getWorkingDaysApi = async (req, res) => {
 
   const days = getWorkingDays(parseInt(year), parseInt(month));
   res.json({ success: true, count: days.length, data: days.map(d => d.toISOString().split('T')[0]) });
+};
+// ── GET /api/attendance/submission — workflow status + audit log ─────────────
+// Query: scope=student|employee, classId (student scope), date
+exports.getSubmissionStatus = async (req, res) => {
+  try {
+    const { scope = 'student', classId, date } = req.query;
+    if (!date) return res.status(400).json({ success: false, message: 'date is required' });
+
+    const filter = { scope, date: normalizeDate(date), school: req.user.school };
+    if (scope === 'student') {
+      if (!classId) return res.status(400).json({ success: false, message: 'classId is required' });
+      filter.class = classId;
+    }
+
+    const sub = await AttendanceSubmission.findOne(filter)
+      .populate('submittedBy',  'name role')
+      .populate('lastEditedBy', 'name role')
+      .populate('approvedBy',   'name role')
+      .populate('auditLog.user','name role')
+      .lean();
+
+    if (!sub) {
+      return res.json({ success: true, data: { status: 'draft', auditLog: [], canApprove: canApprove(req.user) } });
+    }
+    res.json({ success: true, data: { ...sub, canApprove: canApprove(req.user) } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/attendance/approve — approve an edited submission ──────────────
+// Body: { scope, classId, date, note }  — admin / HM / supervisor only
+exports.approveSubmission = async (req, res) => {
+  try {
+    if (!canApprove(req.user)) {
+      return res.status(403).json({ success: false, message: 'Only an administrator can approve attendance' });
+    }
+    const { scope = 'student', classId, date, note } = req.body;
+    if (!date) return res.status(400).json({ success: false, message: 'date is required' });
+
+    const filter = { scope, date: normalizeDate(date), school: req.user.school };
+    if (scope === 'student') filter.class = classId;
+
+    const sub = await AttendanceSubmission.findOne(filter);
+    if (!sub) return res.status(404).json({ success: false, message: 'No attendance submission found for this date' });
+
+    sub.status     = 'approved';
+    sub.approvedBy = req.user._id;
+    sub.approvedAt = new Date();
+    sub.auditLog.push({
+      action: 'approved', user: req.user._id, userName: req.user.name,
+      userRole: req.user.role, at: new Date(), note: note || '', changes: [],
+    });
+    await sub.save();
+
+    res.json({ success: true, message: 'Attendance approved', data: sub });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 };
