@@ -57,9 +57,23 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
 
   return (
     <div onClick={onClose}
-      style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.7)', padding:'20px 16px' }}>
+      style={{
+        position:'fixed', inset:0, zIndex:9999,
+        background:'rgba(0,0,0,0.7)',
+        // Top-anchored (not centred): a centred modal taller than the viewport
+        // splits its overflow top *and* bottom, pushing the header off-screen.
+        display:'flex', alignItems:'flex-start', justifyContent:'center',
+        padding:'16px', overflow:'hidden',
+      }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ position:'relative', background:'#fff', borderRadius:16, width:'100%', maxWidth:760, margin:'0 auto', display:'flex', flexDirection:'column', boxShadow:'0 24px 80px rgba(0,0,0,0.5)', maxHeight:'calc(100vh - 40px)', overflow:'hidden' }}>
+        style={{
+          position:'relative', background:'#fff', borderRadius:16,
+          width:'100%', maxWidth:760,
+          display:'flex', flexDirection:'column',
+          boxShadow:'0 24px 80px rgba(0,0,0,0.5)',
+          // Fill the available space between the padding; the body scrolls.
+          height:'100%', maxHeight:'100%', minHeight:0, overflow:'hidden',
+        }}>
 
         {/* Header stays pinned; only the receipt body below scrolls, so the
             Print/Close buttons can never scroll out of view. */}
