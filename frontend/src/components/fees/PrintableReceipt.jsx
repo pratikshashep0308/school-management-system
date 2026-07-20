@@ -9,6 +9,7 @@
 //   history   = optional array of all past payments (rendered as ledger below the receipt)
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 const fmt = n => `₹${(Number(n)||0).toLocaleString('en-IN')}`;
 
@@ -55,10 +56,14 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
     setTimeout(() => { win.print(); win.close(); }, 800);
   };
 
-  return (
+  // Rendered through a portal straight into <body>. Any ancestor with a
+  // transform/filter/contain property turns `position:fixed` into a
+  // containing-block-relative position, which was clipping the header above
+  // the viewport. Portalling sidesteps that entirely.
+  return createPortal(
     <div onClick={onClose}
       style={{
-        position:'fixed', inset:0, zIndex:9999,
+        position:'fixed', top:0, left:0, right:0, bottom:0, zIndex:99999,
         background:'rgba(0,0,0,0.7)',
         // Top-anchored (not centred): a centred modal taller than the viewport
         // splits its overflow top *and* bottom, pushing the header off-screen.
@@ -284,6 +289,7 @@ export default function PrintableReceipt({ receipt, onClose, history = [] }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
