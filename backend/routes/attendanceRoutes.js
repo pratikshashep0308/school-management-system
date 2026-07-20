@@ -19,6 +19,7 @@ const {
   getWorkingDaysApi,
   getSubmissionStatus,
   approveSubmission,
+  getAttendanceLogs,
 } = require('../controllers/attendanceController');
 
 router.use(protect);
@@ -39,6 +40,7 @@ router.get('/class',          getClassAttendance);
 // ── Submission workflow (submit / edit / approve + audit log) ────────────────
 router.get('/submission',  authorize(...STAFF), getSubmissionStatus);
 router.post('/approve',    authorize(...ADMIN), approveSubmission);
+router.get('/logs',        authorize(...STAFF), getAttendanceLogs);
 
 // ── QR endpoints ──────────────────────────────────────────────────────────────
 router.post('/qr-token', authorize(...STAFF), generateQR);

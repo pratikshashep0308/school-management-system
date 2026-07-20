@@ -515,3 +515,61 @@ exports.approveSubmission = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// ── GET /api/attendance/logs — audit trail across dates/classes ──────────────
+// Query: scope, classId, from, to, action, user, page, limit
+// Flattens every submission's auditLog into a single chronological feed.
+exports.getAttendanceLogs = async (req, res) => {
+  try {
+    const { scope, classId, from, to, action, page = 1, limit = 50 } = req.query;
+
+    const filter = { school: req.user.school };
+    if (scope)   filter.scope = scope;
+    if (classId) filter.class = classId;
+    if (from || to) {
+      filter.date = {};
+      if (from) filter.date.$gte = normalizeDate(from);
+      if (to)   filter.date.$lte = normalizeDate(to);
+    }
+
+    const subs = await AttendanceSubmission.find(filter)
+      .populate('class', 'name section')
+      .populate('auditLog.user', 'name role')
+      .sort({ date: -1 })
+      .lean();
+
+    // Flatten submissions → individual log entries
+    let entries = [];
+    subs.forEach(sub => {
+      (sub.auditLog || []).forEach(e => {
+        entries.push({
+          scope:     sub.scope,
+          class:     sub.class ? `${sub.class.name} ${sub.class.section || ''}`.trim() : null,
+          classId:   sub.class?._id || null,
+          date:      sub.date,
+          status:    sub.status,
+          action:    e.action,
+          userId:    e.user?._id || e.user || null,
+          userName:  e.userName || e.user?.name || 'Unknown',
+          userRole:  e.userRole || e.user?.role || '',
+          at:        e.at,
+          note:      e.note || '',
+          changes:   e.changes || [],
+        });
+      });
+    });
+
+    if (action) entries = entries.filter(e => e.action === action);
+
+    // Newest activity first
+    entries.sort((a, b) => new Date(b.at) - new Date(a.at));
+
+    const total = entries.length;
+    const start = (Number(page) - 1) * Number(limit);
+    const paged = entries.slice(start, start + Number(limit));
+
+    res.json({ success: true, total, page: Number(page), limit: Number(limit), data: paged });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
