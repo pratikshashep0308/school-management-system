@@ -82,13 +82,18 @@ export default function CollectFees() {
       .catch(() => setClasses([]));
   }, []);
 
-  // Load all students of the picked class
+  // Load all students of the picked class.
+  // NOTE: the API filters on `class` (not `classId`) — sending the wrong key
+  // silently returns every student in the school, so keep this name in sync.
   useEffect(() => {
     if (!selectedClass) { setClassStudents([]); return; }
     setLoadingClass(true);
-    studentAPI.getAll({ classId: selectedClass, limit: 200 })
+    studentAPI.getAll({ class: selectedClass, limit: 500 })
       .then(r => {
-        const list = r.data.data || [];
+        let list = r.data.data || [];
+        // Defensive: if the API ever ignores the filter, narrow it client-side
+        // so the dropdown can never show students from other classes.
+        list = list.filter(s => String(s.class?._id || s.class) === String(selectedClass));
         // Sort by roll number for a tidy class list
         list.sort((a, b) => String(a.rollNumber || '').localeCompare(String(b.rollNumber || ''), undefined, { numeric: true }));
         setClassStudents(list);
