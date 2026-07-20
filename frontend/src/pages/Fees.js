@@ -5,9 +5,8 @@ import FeesDashboard  from './Fees/FeesDashboard';
 import CollectFees    from './Fees/CollectFees';
 import FeesPaidSlip   from './Fees/FeesPaidSlip';
 import FeeReport          from './Fees/FeeReport';
-import BulkFeeCollection  from './Fees/BulkFeeCollection';
 import ClassFeeDefaults   from './Fees/ClassFeeDefaults';
-import FeeEditApprovals   from '../components/fees/FeeEditApprovals';
+import FeeEditApprovals   from './Fees/FeeEditApprovals';
 
 export default function Fees() {
   const { user } = useAuth();
@@ -20,7 +19,6 @@ export default function Fees() {
     { key:'collect',    label:'💳 Collect Fees',       show:isAdmin  },
     { key:'slip',       label:'🧾 Fees Paid Slip',     show:isAdmin  },
     { key:'report',     label:'📊 Fee Report',         show:isAdmin  },
-    { key:'bulk',       label:'🏫 Bulk Collection',    show:isAdmin  },
     { key:'approvals',  label:'🔐 Edit Approvals',     show:isAdmin  },
     { key:'feelogs',    label:'🧾 Logs',               show:isAdmin  },
   ].filter(t => t.show);
@@ -42,7 +40,6 @@ export default function Fees() {
       {tab==='collect'    && <CollectFees />}
       {tab==='slip'       && <FeesPaidSlip />}
       {tab==='report'     && <FeeReport />}
-      {tab==='bulk'       && <BulkFeeCollection />}
       {tab==='approvals'  && <FeeEditApprovals mode="approvals" />}
       {tab==='feelogs'    && <FeeEditApprovals mode="logs" />}
     </div>

@@ -2,11 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
-import { classAPI, studentAPI } from '../../utils/api';
 import { LoadingState, EmptyState } from '../../components/ui';
 
 const fmt = n => `₹${(n||0).toLocaleString('en-IN')}`;
-const pct = (a,b) => b>0 ? Math.round((a/b)*100) : 0;
 
 const STATUS_STYLE = {
   paid:    { bg:'#D1FAE5', color:'#065F46', label:'Paid' },
@@ -106,7 +104,7 @@ export default function FeesDashboard({ onNavigate }) {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
         <KPI label="Total Assigned"  value={fmt(totalAssigned)}   color="#1D4ED8" bg="#EFF6FF" sub={`${data?.totalStudents||0} students`}    onClick={()=>onNavigate?.('report')}/>
         <KPI label="Collected"       value={fmt(totalCollected)}  color="#16A34A" bg="#F0FDF4" sub={`${collectionRate}% collection rate`}     onClick={()=>onNavigate?.('slip')}/>
-        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`}   onClick={()=>onNavigate?.('bulk')}/>
+        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`}   onClick={()=>onNavigate?.('collect')}/>
         <KPI label="Overdue"         value={fmt(totalOverdue)}    color="#DC2626" bg="#FEF2F2" sub={`${data?.overdueCount||0} students`}      onClick={()=>onNavigate?.('report')}/>
       </div>
 
