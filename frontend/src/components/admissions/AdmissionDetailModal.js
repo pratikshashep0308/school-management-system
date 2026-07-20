@@ -1,5 +1,6 @@
 // frontend/src/components/admissions/AdmissionDetailModal.js
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { admissionAPI, StatusBadge, STATUS_CONFIG } from '../../utils/admissionUtils';
 import { studentAPI, classAPI } from '../../utils/api';
@@ -45,6 +46,10 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
   const [newStatus, setNewStatus]   = useState('');
   const [statusNote, setStatusNote] = useState('');
   const [rejReason, setRejReason]   = useState('');
+  // Permanent-delete confirmation (Update Status tab → Danger Zone)
+  const [showDelete, setShowDelete] = useState(false);
+  const [delInput,   setDelInput]   = useState('');
+  const [deleting,   setDeleting]   = useState(false);
 
   // Note
   const [note, setNote]           = useState('');
@@ -89,6 +94,29 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
     }
     // Free text — display as-is
     return raw;
+  };
+
+  // Names in the DB sometimes contain double spaces — collapse whitespace so a
+  // normally-typed name still matches.
+  const normalizeName = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const expectedName  = normalizeName(app?.fullName || app?.studentName || '');
+  const deleteNameMatches = expectedName
+    ? normalizeName(delInput) === expectedName
+    : normalizeName(delInput) === 'delete';
+
+  const handleDeleteApplication = async () => {
+    if (!deleteNameMatches) return;
+    setDeleting(true);
+    try {
+      await admissionAPI.delete(id);
+      toast.success('Application permanently deleted');
+      onClose?.();               // parent reloads the list
+    } catch (err) {
+      const msg = err?.response?.data?.message
+        || (err?.response ? `Server error (${err.response.status})` : 'Could not reach the server');
+      console.error('Admission delete failed:', err?.response?.data || err);
+      toast.error(`Delete failed: ${msg}`);
+    } finally { setDeleting(false); }
   };
 
   const handleStatusUpdate = async () => {
@@ -181,9 +209,14 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
     } finally { setEnrolling(false); }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-2 bg-black/50 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1400px] my-2 flex flex-col overflow-hidden" style={{ minHeight: 'calc(100vh - 16px)' }}>
+  // Portalled to <body> so no ancestor's transform/overflow can shift or clip
+  // it. The overlay is exactly the viewport; the panel fills it and only the
+  // inner content scrolls, so the header can never scroll out of view.
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center p-2 bg-black/50 backdrop-blur-sm"
+      style={{ overflow: 'hidden' }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1400px] flex flex-col overflow-hidden"
+        style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
 
         {/* Header */}
         {loading ? (
@@ -828,6 +861,46 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
                     className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 disabled:opacity-50">
                     {saving ? 'Updating...' : 'Update Status'}
                   </button>
+
+                  {/* ── Danger zone: permanently delete this application ── */}
+                  <div className="mt-8 pt-5 border-t border-red-100">
+                    <p className="text-xs font-bold text-red-500 uppercase tracking-widest mb-1">Danger Zone</p>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Deleting removes this admission application permanently. Prefer
+                      <b> Rejected</b> above if you only want to mark it as not accepted — that's reversible.
+                    </p>
+
+                    {!showDelete ? (
+                      <button onClick={() => setShowDelete(true)}
+                        className="px-4 py-2 rounded-xl border border-red-300 text-red-600 text-sm font-semibold hover:bg-red-50">
+                        🗑 Delete Application
+                      </button>
+                    ) : (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                        <p className="text-sm text-red-700">
+                          Type <span className="font-mono font-bold">{app.fullName || app.studentName || 'DELETE'}</span> to confirm.
+                        </p>
+                        <input
+                          autoFocus
+                          value={delInput}
+                          onChange={e => setDelInput(e.target.value)}
+                          placeholder={app.fullName || app.studentName || 'DELETE'}
+                          className="w-full px-3 py-2 rounded-xl border border-red-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => { setShowDelete(false); setDelInput(''); }}
+                            className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-white">
+                            Cancel
+                          </button>
+                          <button onClick={handleDeleteApplication}
+                            disabled={deleting || !deleteNameMatches}
+                            className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                            {deleting ? 'Deleting…' : 'Permanently Delete'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -908,7 +981,8 @@ export default function AdmissionDetailModal({ id, onClose, onScheduleInterview 
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

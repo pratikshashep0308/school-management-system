@@ -1088,6 +1088,8 @@ const PROFILE_TABS = [
 
 function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, onClose, onEdit }) {
   const [activeTab, setActiveTab] = useState('overview');
+  // Bumped after saving a behaviour note so the history list below reloads
+  const [behaviourRefresh, setBehaviourRefresh] = useState(0);
   const [exams,       setExams]       = useState([]);
   const [attendance,  setAttendance]  = useState([]);
   const [attSummary,  setAttSummary]  = useState({ total:0, present:0, absent:0, percentage:0 });
@@ -1780,9 +1782,6 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
               {/* Roll No — admin can set/edit */}
               <RollNumberEditor studentId={s._id} initialValue={s.rollNumber} canEdit={!!canManage} onSaved={(r) => { s.rollNumber = r; }} />
-
-              {/* Behavioural Notes for Today */}
-              <BehaviouralNotes studentId={s._id} canEdit={!!canManage} />
             </div>
           )}
 
@@ -2024,7 +2023,16 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
 
           {/* ── BEHAVIOUR NOTES ── */}
           {activeTab === 'behaviour' && (
-            <StudentBehaviourTab studentId={s._id} />
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              {/* Record a note for today — saving refreshes the history below */}
+              <BehaviouralNotes
+                studentId={s._id}
+                canEdit={!!canManage}
+                onSaved={() => setBehaviourRefresh(k => k + 1)}
+              />
+              {/* Summary cards + full chronological history */}
+              <StudentBehaviourTab key={behaviourRefresh} studentId={s._id} />
+            </div>
           )}
 
 

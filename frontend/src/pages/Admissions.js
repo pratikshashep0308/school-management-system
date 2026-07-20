@@ -594,11 +594,15 @@ export default function Admissions() {
     setDeleteModal({ open: true, id, name: name || '', input: '' });
   };
 
+  // Names in the database sometimes contain double spaces (e.g. "himanshu  ashok
+  // thelari"). Collapse all runs of whitespace so a normally-typed name matches.
+  const normalizeName = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
   const confirmDelete = async () => {
     const { id, name, input } = deleteModal;
     // Case-insensitive, whitespace-tolerant match
-    const expected = (name || '').trim().toLowerCase();
-    const typed    = (input || '').trim().toLowerCase();
+    const expected = normalizeName(name);
+    const typed    = normalizeName(input);
     if (!expected) {
       // Fallback for records without a student name — treat as opt-in via "DELETE"
       if (typed !== 'delete') {
@@ -614,8 +618,12 @@ export default function Admissions() {
       toast.success('Admission permanently deleted');
       setDeleteModal({ open: false, id: null, name: '', input: '' });
       load();
-    } catch {
-      toast.error('Delete failed. Please try again.');
+    } catch (err) {
+      // Surface the real reason — a generic message hides permission/404 errors.
+      const msg = err?.response?.data?.message
+        || (err?.response ? `Server error (${err.response.status})` : 'Could not reach the server');
+      console.error('Admission delete failed:', err?.response?.data || err);
+      toast.error(`Delete failed: ${msg}`);
     }
   };
 
@@ -924,14 +932,14 @@ export default function Admissions() {
                 onClick={confirmDelete}
                 disabled={
                   deleteModal.name
-                    ? deleteModal.input.trim().toLowerCase() !== deleteModal.name.trim().toLowerCase()
-                    : deleteModal.input.trim().toLowerCase() !== 'delete'
+                    ? normalizeName(deleteModal.input) !== normalizeName(deleteModal.name)
+                    : normalizeName(deleteModal.input) !== 'delete'
                 }
                 style={{
                   padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
                   color:'#fff', border:'none',
-                  ...(((deleteModal.name && deleteModal.input.trim().toLowerCase() === deleteModal.name.trim().toLowerCase()) ||
-                      (!deleteModal.name && deleteModal.input.trim().toLowerCase() === 'delete'))
+                  ...(((deleteModal.name && normalizeName(deleteModal.input) === normalizeName(deleteModal.name)) ||
+                      (!deleteModal.name && normalizeName(deleteModal.input) === 'delete'))
                     ? { background:'#DC2626', cursor:'pointer' }
                     : { background:'#FCA5A5', cursor:'not-allowed' }),
                 }}>

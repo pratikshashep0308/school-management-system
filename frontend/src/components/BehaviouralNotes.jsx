@@ -14,7 +14,7 @@ const CATS = [
   { key: 'concern',  label: 'Concern',  bg:'#FEE2E2', color:'#B91C1C' },
 ];
 
-export default function BehaviouralNotes({ studentId, canEdit = false }) {
+export default function BehaviouralNotes({ studentId, canEdit = false, onSaved }) {
   const [today,    setToday]    = useState(null);
   const [note,     setNote]     = useState('');
   const [category, setCategory] = useState('general');
@@ -49,6 +49,7 @@ export default function BehaviouralNotes({ studentId, canEdit = false }) {
       await behaviouralNoteAPI.save({ studentId, note: note.trim(), category });
       toast.success('Behavioural note saved');
       load();
+      onSaved?.();   // let the parent refresh the history list below
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to save note');
     } finally { setSaving(false); }
