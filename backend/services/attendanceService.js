@@ -303,10 +303,34 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
   }
 
   if (notificationsToCreate.length > 0) {
-    await Notification.insertMany(notificationsToCreate, { ordered: false }).catch(() => {});
+    // De-duplicate: attendance can be saved/edited several times a day, and
+    // each save re-ran this function, creating an identical alert every time.
+    // One notification per title per day is enough.
+    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd   = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+
+    const existing = await Notification.find({
+      school:    toId(schoolId),
+      title:     { $in: notificationsToCreate.map(n => n.title) },
+      createdAt: { $gte: dayStart, $lte: dayEnd },
+    }).select('title').lean();
+
+    const alreadySent = new Set(existing.map(n => n.title));
+    // Also guard against the same title appearing twice within this batch
+    const seen = new Set();
+    const fresh = notificationsToCreate.filter(n => {
+      if (alreadySent.has(n.title) || seen.has(n.title)) return false;
+      seen.add(n.title);
+      return true;
+    });
+
+    if (fresh.length > 0) {
+      await Notification.insertMany(fresh, { ordered: false }).catch(() => {});
+    }
+    return fresh.length;
   }
 
-  return notificationsToCreate.length;
+  return 0;
 };
 
 // ─── HOLIDAY MANAGEMENT ───────────────────────────────────────────────────────

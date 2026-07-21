@@ -224,22 +224,34 @@ exports.checkOverdueAssignments = async (schoolId) => {
     .populate('feeType', 'name');
 
   let notifCount = 0;
+  // One overdue notice per fee per day — this routine may run repeatedly and
+  // would otherwise pile up an identical alert on every pass.
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const dayEnd   = new Date(); dayEnd.setHours(23, 59, 59, 999);
+
   for (const assignment of overdue) {
     // Mark as overdue
     if (assignment.status === 'pending') assignment.status = 'overdue';
 
-    // Create notification (fire-and-forget)
-    await Notification.create({
-      title:    `Fee Overdue: ${assignment.feeType?.name || 'Fee'}`,
-      message:  `${assignment.student?.user?.name}'s ${assignment.feeType?.name} of ₹${assignment.pendingAmount} is overdue.`,
-      type:     'alert',
-      priority: 'urgent',
-      audience: 'parents',
-      sentBy:   null,
-      school:   schoolId,
-    }).catch(() => {});
+    const title   = `Fee Overdue: ${assignment.feeType?.name || 'Fee'}`;
+    const message = `${assignment.student?.user?.name}'s ${assignment.feeType?.name} of ₹${assignment.pendingAmount} is overdue.`;
 
-    notifCount++;
+    const dupe = await Notification.findOne({
+      school: schoolId, title, message,
+      createdAt: { $gte: dayStart, $lte: dayEnd },
+    }).select('_id').lean();
+
+    if (!dupe) {
+      await Notification.create({
+        title, message,
+        type:     'alert',
+        priority: 'urgent',
+        audience: 'parents',
+        sentBy:   null,
+        school:   schoolId,
+      }).catch(() => {});
+      notifCount++;
+    }
   }
 
   return notifCount;
