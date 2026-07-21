@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { dashboardAPI } from '../utils/api';
 import { StatCard, LoadingState } from '../components/ui';
 
-const WEEK_DAYS = ['Mon','Tue','Wed','Thu','Fri'];
 
 function timeAgo(date) {
   const diff = Math.floor((new Date() - new Date(date)) / 1000);
@@ -100,7 +99,9 @@ export default function AdminDashboard() {
                   </div>
                   <div style={{ display:'flex', gap:16, fontSize:12, color:'#6B7280' }}>
                     <span>✅ Present: {stats?.todayPresent || 0}</span>
-                    <span>👥 Total: {stats?.totalStudents || 0}</span>
+                    {/* Denominator is students marked today, which is what the
+                        rate is calculated from — not total enrolment. */}
+                    <span>👥 Marked: {stats?.todayTotal || 0}</span>
                   </div>
                 </div>
               </div>
