@@ -684,37 +684,55 @@ exports.getDashboard = async (req, res) => {
   const todayStart = new Date(today); todayStart.setHours(0,0,0,0);
   const todayEnd   = new Date(today); todayEnd.setHours(23,59,59,999);
 
-  const [summary, todayPayments, overdueCount, feeTypes] = await Promise.all([
-    // School-wide totals
-    StudentFee.aggregate([
+  // Figures are derived from FeeAssignment (what is owed) and FeePayment (what
+  // was actually received). The older StudentFee ledger is not used here — it
+  // only covers a fraction of students and its amounts are not maintained,
+  // which made every card disagree with the others.
+  const [assignAgg, paidAgg, todayPayments, overdueCount, feeTypes] = await Promise.all([
+    FeeAssignment.aggregate([
       { $match: { school } },
-      { $group: { _id: null,
-        totalStudents:  { $sum: 1 },
-        totalExpected:  { $sum: '$totalFees' },
-        totalCollected: { $sum: '$paidAmount' },
-        totalPending:   { $sum: '$pendingAmount' },
-        paidCount:    { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
-        partialCount: { $sum: { $cond: [{ $eq: ['$paymentStatus','partial'] }, 1, 0] } },
-        notPaidCount: { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
-      }}
+      { $group: {
+        _id: null,
+        totalExpected:   { $sum: { $ifNull: ['$finalAmount', '$baseAmount'] } },
+        assignmentCount: { $sum: 1 },
+        students:        { $addToSet: '$student' },
+        overdue:         { $sum: { $cond: [{ $eq: ['$status', 'overdue'] }, 1, 0] } },
+      }},
     ]),
-    // Today's payments from FeePayment
+    // Everything actually collected, regardless of full/partial status
+    FeePayment.aggregate([
+      { $match: { school } },
+      { $group: { _id: null, totalCollected: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
     FeePayment.find({ school, createdAt: { $gte: todayStart, $lte: todayEnd } }),
-    // Overdue assignments
     FeeAssignment.countDocuments({ school, status: 'overdue' }),
-    // Active fee types count
     FeeType.countDocuments({ school, isActive: true }),
   ]);
 
-  const todayCollection  = todayPayments.reduce((s, p) => s + p.amount, 0);
-  const todayCount       = todayPayments.length;
+  const a = assignAgg[0] || {};
+  const totalExpected  = a.totalExpected || 0;
+  const totalStudents  = (a.students || []).length;
+  const totalCollected = paidAgg[0]?.totalCollected || 0;
+  // Pending is always expected minus collected, so the cards can never disagree
+  const totalPending   = Math.max(0, totalExpected - totalCollected);
+  const collectionRate = totalExpected > 0
+    ? Math.round((totalCollected / totalExpected) * 1000) / 10   // 1 decimal
+    : 0;
+
+  const todayCollection = todayPayments.reduce((s, p) => s + (p.amount || 0), 0);
 
   res.json({
     success: true,
     data: {
-      ...(summary[0] || {}),
+      totalStudents,
+      assignmentCount: a.assignmentCount || 0,
+      totalExpected,
+      totalCollected,
+      totalPending,
+      collectionRate,
       todayCollection,
-      todayCount,
+      todayCount: todayPayments.length,
+      paymentCount: paidAgg[0]?.count || 0,
       overdueCount,
       feeTypeCount: feeTypes,
     },

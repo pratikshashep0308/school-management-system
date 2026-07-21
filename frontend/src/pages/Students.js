@@ -604,11 +604,14 @@ export default function Students() {
                         <span style={{ fontSize:11, fontWeight:700, color:statusStyle.color, background:statusStyle.bg, padding:'3px 10px', borderRadius:20, textTransform:'capitalize' }}>
                           {s.status || 'active'}
                         </span>
-                        {!s.aadhaarNumber && (
-                          <div title="Aadhaar number missing — please update"
-                            style={{ marginTop:4, fontSize:9, fontWeight:700, color:'#B45309', background:'#FEF3C7', padding:'2px 7px', borderRadius:20, display:'inline-block' }}>
-                            ⚠ Aadhaar update needed
-                          </div>
+                        {/* Aadhaar is stored top-level or inside the admission
+                            snapshot depending on how the student was created —
+                            check both so the warning clears once it's filled in. */}
+                        {!(s.aadhaarNumber || s.admissionSnapshot?.aadhaarNumber) && (
+                          <span title="Aadhaar number missing — please update"
+                            style={{ marginLeft:6, fontSize:12, color:'#B45309', cursor:'help' }}>
+                            ⚠
+                          </span>
                         )}
                       </td>
                       <td style={{ padding:'10px 14px' }} onClick={e=>e.stopPropagation()}>

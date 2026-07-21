@@ -104,7 +104,7 @@ export default function FeesDashboard({ onNavigate }) {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
         <KPI label="Total Assigned"  value={fmt(totalAssigned)}   color="#1D4ED8" bg="#EFF6FF" sub={`${data?.totalStudents||0} students`}    onClick={()=>onNavigate?.('report')}/>
         <KPI label="Collected"       value={fmt(totalCollected)}  color="#16A34A" bg="#F0FDF4" sub={`${collectionRate}% collection rate`}     onClick={()=>onNavigate?.('slip')}/>
-        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.pendingCount||0} assignments`}   onClick={()=>onNavigate?.('collect')}/>
+        <KPI label="Pending"         value={fmt(totalPending)}    color="#D97706" bg="#FFFBEB" sub={`${data?.assignmentCount||0} assignments`}   onClick={()=>onNavigate?.('collect')}/>
         <KPI label="Overdue"         value={fmt(totalOverdue)}    color="#DC2626" bg="#FEF2F2" sub={`${data?.overdueCount||0} students`}      onClick={()=>onNavigate?.('report')}/>
       </div>
 
@@ -119,7 +119,7 @@ export default function FeesDashboard({ onNavigate }) {
         </div>
         <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#9CA3AF', marginTop:6 }}>
           <span>Collected: {fmt(totalCollected)}</span>
-          <span>Remaining: {fmt(totalPending + totalOverdue)}</span>
+          <span>Remaining: {fmt(totalPending)}</span>
         </div>
       </div>
 
