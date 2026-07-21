@@ -68,7 +68,7 @@ export default function AdminDashboard() {
               { icon:'👤', value:stats?.totalStudents?.toLocaleString()||'0',  label:'Total Students', change:'12 new this month',  changeType:'up',   color:'accent', to:'/students'   },
               { icon:'👤', value:stats?.totalTeachers||'0',                    label:'Employees',       change:'3 new this term',    changeType:'up',   color:'gold',   to:'/teachers'   },
               { icon:'✓',  value:`${stats?.attendanceRate||0}%`,               label:'Avg Attendance', change:"Today's rate",       changeType:'up',   color:'sage',   to:'/attendance' },
-              { icon:'₹',  value:stats?.feesCollected?`₹${(stats.feesCollected/100000).toFixed(1)}L`:'₹0', label:'Fees Collected', change:stats?.feesCollected?'This month':'No payments', changeType:'up', color:'purple', to:'/fees' },
+              { icon:'₹',  value:stats?.feesCollected?`₹${Number(stats.feesCollected).toLocaleString('en-IN')}`:'₹0', label:'Fees Collected', change:stats?.feesCollected?'This month':'No payments', changeType:'up', color:'purple', to:'/fees' },
             ].map(s => (
               <div key={s.label} onClick={()=>navigate(s.to)} className="cursor-pointer hover:-translate-y-1 hover:shadow-md transition-all">
                 <StatCard icon={s.icon} value={s.value} label={s.label} change={s.change} changeType={s.changeType} color={s.color}/>
