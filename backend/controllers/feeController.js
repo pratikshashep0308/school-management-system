@@ -1110,7 +1110,10 @@ exports.getFeeEditRequests = async (req, res) => {
     if (status) filter.status = status;
 
     const requests = await FeeEditRequest.find(filter)
-      .populate({ path: 'student', select: 'rollNumber user', populate: { path: 'user', select: 'name' } })
+      .populate({ path: 'student', select: 'rollNumber admissionNumber user class', populate: [{ path: 'user', select: 'name' }, { path: 'class', select: 'name section' }] })
+      // The original payment, so the approver can see what they're approving
+      // rather than just an isolated before/after value.
+      .populate('payment')
       .populate('requestedBy', 'name role')
       .populate('reviewedBy',  'name role')
       .sort({ requestedAt: -1 })

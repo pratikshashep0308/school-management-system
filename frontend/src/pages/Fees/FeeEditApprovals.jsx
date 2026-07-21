@@ -38,6 +38,8 @@ export default function FeeEditApprovals({ mode = 'approvals' }) {
   const [filter, setFilter]     = useState(mode === 'logs' ? 'all' : 'pending');
   const [search, setSearch]     = useState('');
   const [busyId, setBusyId]     = useState(null);
+  // Which request cards have their payment-review panel open
+  const [expanded, setExpanded] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,6 +198,56 @@ export default function FeeEditApprovals({ mode = 'approvals' }) {
                 {r.reason && (
                   <div style={{ fontSize:12, color:'var(--color-slate,#4B5563)', marginTop:8, fontStyle:'italic' }}>
                     Reason: "{r.reason}"
+                  </div>
+                )}
+
+                {/* Review panel — the approver needs to see the payment being
+                    changed, not just the isolated before/after values. */}
+                {r.payment && (
+                  <div style={{ marginTop:10 }}>
+                    <button
+                      onClick={() => setExpanded(e => ({ ...e, [r._id]: !e[r._id] }))}
+                      style={{ padding:'5px 12px', borderRadius:8, fontSize:12, fontWeight:600, cursor:'pointer',
+                        border:'1px solid var(--color-border,#E5E7EB)', background:'var(--color-paper,#fff)',
+                        color:'var(--accent,#0f6cbd)' }}>
+                      {expanded[r._id] ? '▲ Hide payment details' : '▼ Review payment details'}
+                    </button>
+
+                    {expanded[r._id] && (
+                      <div style={{ marginTop:10, padding:14, borderRadius:10,
+                        background:'var(--color-warm,#F9FAFB)', border:'1px solid var(--color-border,#E5E7EB)' }}>
+                        <div style={{ fontSize:10.5, fontWeight:700, color:'var(--color-muted,#6B7280)',
+                          textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>
+                          {r.status === 'approved'
+                            ? 'Payment record (edit already applied)'
+                            : 'Current payment record'}
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:12 }}>
+                          {[
+                            ['Student',   r.student?.user?.name || '—'],
+                            ['Class',     r.student?.class ? `${r.student.class.name} ${r.student.class.section || ''}`.trim() : '—'],
+                            ['Roll No',   r.student?.rollNumber || '—'],
+                            ['Receipt',   r.receiptNumber || '—'],
+                            ['Amount',    r.payment.amount != null ? `₹${Number(r.payment.amount).toLocaleString('en-IN')}` : '—'],
+                            ['Method',    r.payment.method || '—'],
+                            ['Paid on',   r.payment.paidOn ? new Date(r.payment.paidOn).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'],
+                            ['Period',    [r.payment.month, r.payment.year].filter(Boolean).join(' ') || '—'],
+                            ['Txn ID',    r.payment.transactionId || '—'],
+                          ].map(([k,v]) => (
+                            <div key={k}>
+                              <div style={{ fontSize:10, color:'var(--color-muted,#6B7280)', textTransform:'uppercase', letterSpacing:'0.04em' }}>{k}</div>
+                              <div style={{ fontSize:13, fontWeight:600, color:'var(--color-ink,#111827)', marginTop:2 }}>{v}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {r.payment.remarks && (
+                          <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--color-border,#E5E7EB)' }}>
+                            <div style={{ fontSize:10, color:'var(--color-muted,#6B7280)', textTransform:'uppercase' }}>Remarks</div>
+                            <div style={{ fontSize:12.5, color:'var(--color-slate,#4B5563)', marginTop:2 }}>{r.payment.remarks}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
