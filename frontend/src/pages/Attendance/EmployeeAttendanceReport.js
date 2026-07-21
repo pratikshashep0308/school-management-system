@@ -29,6 +29,11 @@ function makeKey(id, date) {
   return `${id}_${date.toISOString().split('T')[0]}`;
 }
 
+const SEL = {
+  padding:'9px 12px', border:'1.5px solid #E5E7EB', borderRadius:9,
+  fontSize:13, background:'#fff', outline:'none', minWidth:200,
+};
+
 export default function EmployeeAttendanceReport() {
   const [dateFrom,  setDateFrom]  = useState(FIRST);
   const [dateTo,    setDateTo]    = useState(TODAY);
@@ -37,6 +42,8 @@ export default function EmployeeAttendanceReport() {
   const [loading,   setLoading]   = useState(false);
   const [generated, setGenerated] = useState(false);
   const [search,    setSearch]    = useState('');
+  // Optional: restrict the report to a single employee
+  const [filterEmployee, setFilterEmployee] = useState('');
   const [sortCol,   setSortCol]   = useState('date');
   const [sortDir,   setSortDir]   = useState('asc');
   const [editRow,   setEditRow]   = useState(null); // { key, status }
@@ -78,9 +85,10 @@ export default function EmployeeAttendanceReport() {
         d = new Date(d); d.setDate(d.getDate() + 1);
       }
 
-      flat.sort((a,b) => a.date - b.date || a.name.localeCompare(b.name));
-      setRows(flat); setGenerated(true);
-      if (!flat.length) toast('No working days in this range', { icon:'ℹ️' });
+      const result = filterEmployee ? flat.filter(r => r.name === filterEmployee) : flat;
+      result.sort((a,b) => a.date - b.date || a.name.localeCompare(b.name));
+      setRows(result); setGenerated(true);
+      if (!result.length) toast('No records for this selection', { icon:'ℹ️' });
     } catch {
       toast.error('Failed to load employee data');
     } finally {
@@ -142,6 +150,15 @@ export default function EmployeeAttendanceReport() {
           from={dateFrom} to={dateTo}
           onChange={(f,t) => { setDateFrom(f); setDateTo(t); }}
         />
+        <select value={filterEmployee} onChange={e => setFilterEmployee(e.target.value)} style={SEL}>
+          <option value="">All employees ({teachers.length})</option>
+          {teachers.map(t => (
+            <option key={t._id} value={t.user?.name || ''}>
+              {t.user?.name}{t.employeeId ? ` · ${t.employeeId}` : ''}
+            </option>
+          ))}
+        </select>
+
         <button onClick={generate} disabled={loading}
           style={{ padding:'10px 22px', borderRadius:9, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
           {loading ? '⏳ Loading…' : '⚙ Generate'}

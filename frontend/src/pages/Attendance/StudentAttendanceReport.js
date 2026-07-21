@@ -1,12 +1,17 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { attendanceAPI, classAPI } from '../../utils/api';
+import { attendanceAPI, classAPI, studentAPI } from '../../utils/api';
 import DateRangePicker from './DateRangePicker';
 
 const NOW   = new Date();
 const FIRST = new Date(NOW.getFullYear(), NOW.getMonth(), 1);
 const TODAY = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
+
+const SEL = {
+  padding:'9px 12px', border:'1.5px solid #E5E7EB', borderRadius:9,
+  fontSize:13, background:'#fff', outline:'none', minWidth:180,
+};
 
 const SC = {
   present: { color:'#166634', bg:'#DCFCE7' },
@@ -24,6 +29,11 @@ export default function StudentAttendanceReport() {
   const [loading,   setLoading]   = useState(false);
   const [generated, setGenerated] = useState(false);
   const [search,    setSearch]    = useState('');
+  // Optional narrowing: one class, and within it one student
+  const [filterClass,   setFilterClass]   = useState('');
+  const [filterStudent, setFilterStudent] = useState('');
+  const [classStudents, setClassStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   const [sortCol,   setSortCol]   = useState('date');
   const [sortDir,   setSortDir]   = useState('asc');
 
@@ -32,6 +42,22 @@ export default function StudentAttendanceReport() {
       .then(r => setClasses(r.data.data || []))
       .catch(() => {});
   }, []);
+
+  // Load the chosen class's students so one can be picked individually.
+  // NOTE: the API filters on `class`, not `classId`.
+  useEffect(() => {
+    if (!filterClass) { setClassStudents([]); return; }
+    setLoadingStudents(true);
+    studentAPI.getAll({ class: filterClass, limit: 500 })
+      .then(r => {
+        const list = (r.data.data || [])
+          .filter(s => String(s.class?._id || s.class) === String(filterClass));
+        list.sort((a,b) => String(a.rollNumber||'').localeCompare(String(b.rollNumber||''), undefined, { numeric:true }));
+        setClassStudents(list);
+      })
+      .catch(() => setClassStudents([]))
+      .finally(() => setLoadingStudents(false));
+  }, [filterClass]);
 
   const generate = async () => {
     if (!classes.length) return toast.error('No classes found');
@@ -50,8 +76,12 @@ export default function StudentAttendanceReport() {
 
       // Fetch analytics for ALL classes × ALL months in parallel
       const flat = [];
+      const targetClasses = filterClass
+        ? classes.filter(c => String(c._id) === String(filterClass))
+        : classes;
+
       await Promise.all(
-        classes.map(async cls => {
+        targetClasses.map(async cls => {
           const className = `${cls.name} ${cls.section||''}`.trim();
           await Promise.all(
             months.map(async ({ month, year }) => {
@@ -83,9 +113,13 @@ export default function StudentAttendanceReport() {
         })
       );
 
-      flat.sort((a,b) => a.date - b.date || a.class.localeCompare(b.class) || a.name.localeCompare(b.name));
-      setRows(flat); setGenerated(true);
-      if (!flat.length) toast('No records found for this date range', { icon:'ℹ️' });
+      const result = filterStudent
+        ? flat.filter(r => r.name === filterStudent)
+        : flat;
+
+      result.sort((a,b) => a.date - b.date || a.class.localeCompare(b.class) || a.name.localeCompare(b.name));
+      setRows(result); setGenerated(true);
+      if (!result.length) toast('No records found for this selection', { icon:'ℹ️' });
     } catch {
       toast.error('Failed to load report');
     } finally {
@@ -138,6 +172,34 @@ export default function StudentAttendanceReport() {
           from={dateFrom} to={dateTo}
           onChange={(f,t) => { setDateFrom(f); setDateTo(t); }}
         />
+
+        {/* Narrow to one class, then optionally one student */}
+        <select value={filterClass}
+          onChange={e => { setFilterClass(e.target.value); setFilterStudent(''); }}
+          style={SEL}>
+          <option value="">All classes</option>
+          {classes.map(c => (
+            <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>
+          ))}
+        </select>
+
+        <select value={filterStudent}
+          onChange={e => setFilterStudent(e.target.value)}
+          disabled={!filterClass || loadingStudents}
+          style={{ ...SEL, opacity: (!filterClass || loadingStudents) ? 0.6 : 1 }}>
+          <option value="">
+            {loadingStudents ? 'Loading…'
+              : !filterClass ? 'All students (pick a class)'
+              : classStudents.length ? `All students (${classStudents.length})`
+              : 'No students in class'}
+          </option>
+          {classStudents.map(s => (
+            <option key={s._id} value={s.user?.name || ''}>
+              {s.user?.name}{s.rollNumber ? ` · ${s.rollNumber}` : ''}
+            </option>
+          ))}
+        </select>
+
         <button onClick={generate} disabled={loading}
           style={{ padding:'10px 22px', borderRadius:9, background:'#3B5BDB', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', opacity:loading?0.7:1 }}>
           {loading ? '⏳ Loading…' : '⚙ Generate'}

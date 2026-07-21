@@ -32,6 +32,8 @@ export default function StudentAttendance() {
   const [approving, setApproving] = useState(false);
   const [submission, setSubmission] = useState(null);
   const [editMode,  setEditMode]  = useState(false);
+  // Filters only the visible rows — counters and submission still cover everyone
+  const [rowSearch, setRowSearch] = useState('');
 
   useEffect(() => {
     classAPI.getAll().then(r => {
@@ -89,6 +91,15 @@ export default function StudentAttendance() {
   const isLocked    = status === 'approved' && !isAdmin;
   // Editing is only possible in edit mode once submitted (and never when locked)
   const canEditRows = (!isSubmitted || editMode) && !isLocked;
+
+  const visibleStudents = rowSearch.trim()
+    ? students.filter(s => {
+        const q = rowSearch.toLowerCase();
+        return (s.name || '').toLowerCase().includes(q)
+            || String(s.rollNumber || '').toLowerCase().includes(q)
+            || String(s.admissionNumber || '').toLowerCase().includes(q);
+      })
+    : students;
 
   const markedCount = students.filter(s => statuses[s._id]).length;
   const allMarked   = students.length > 0 && markedCount === students.length;
@@ -168,6 +179,31 @@ export default function StudentAttendance() {
                 {markedCount}/{students.length} marked
               </span>
             </div>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              {/* Find a student quickly in a large class. Filtering only hides
+                  rows — every student still counts toward the marked total. */}
+              <input
+                value={rowSearch}
+                onChange={e => setRowSearch(e.target.value)}
+                placeholder="🔍 Find student…"
+                style={{ padding:'6px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12.5, outline:'none', minWidth:180, background:'#fff' }}
+              />
+              {rowSearch && (
+                <button onClick={() => setRowSearch('')}
+                  style={{ padding:'6px 10px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', color:'#6B7280', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {rowSearch && (
+            <div style={{ padding:'8px 20px', background:'#FFFBEB', borderBottom:'1px solid #FDE68A', fontSize:12, color:'#92400E' }}>
+              Showing {visibleStudents.length} of {students.length} — clear the search before submitting to review everyone.
+            </div>
+          )}
+
+          <div style={{ padding:'10px 20px', borderBottom:'1px solid #F3F4F6' }}>
             {canEditRows && (
               <div style={{ display:'flex', gap:6 }}>
                 {['present', 'absent', 'leave'].map(s => (
@@ -189,7 +225,7 @@ export default function StudentAttendance() {
               </tr>
             </thead>
             <tbody>
-              {students.map((s, i) => {
+              {visibleStudents.map((s, i) => {
                 const st = statuses[s._id];
                 return (
                   <tr key={s._id} style={{ borderBottom:'1px solid #F3F4F6', background: i % 2 ? '#FAFAFA' : '#fff' }}>
