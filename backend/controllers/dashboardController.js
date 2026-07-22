@@ -32,7 +32,16 @@ exports.getDashboardStats = async (req, res) => {
     Exam.find({ school, date: { $gte: new Date() } }).limit(5).sort({ date: 1 }).populate('class subject'),
     // Show admin only the broad/staff-relevant notifications:
     // exclude parent-only items like per-child attendance alerts.
-    Notification.find({ school, audience: { $ne: 'parents' } }).sort({ createdAt: -1 }).limit(5)
+    // Resolved alerts drop off the dashboard but remain in the Notifications
+    // module, so handled issues stop competing for attention here.
+    Notification.find({
+      school,
+      audience: { $ne: 'parents' },
+      $or: [
+        { actionStatus: { $exists: false } },
+        { actionStatus: { $ne: 'resolved' } },
+      ],
+    }).sort({ createdAt: -1 }).limit(5)
   ]);
 
   const attendanceRate = todayTotal > 0 ? Math.round((todayPresent / todayTotal) * 100) : 0;

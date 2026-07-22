@@ -361,6 +361,30 @@ const NotificationSchema = new mongoose.Schema({
   isEmailSent: { type: Boolean, default: false },
   isSMSSent: { type: Boolean, default: false },
   school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+
+  // ── Action tracking (alerts) ──
+  // Lets staff record what was done about an alert. Once 'resolved', the alert
+  // is hidden from the dashboard but stays visible in the Notifications module.
+  actionStatus: {
+    type: String,
+    enum: ['pending', 'resolved', 'in_progress', 'no_action_required'],
+    default: 'pending',
+  },
+  actionDetails: { type: String, default: '' },
+  actionBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  actionByName:  { type: String },   // stored alongside the id so history survives renames
+  actionAt:      { type: Date },
+  // Append-only record of every change made to the action fields
+  actionLog: [{
+    _id:      false,
+    status:   String,
+    details:  String,
+    user:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    userName: String,
+    userRole: String,
+    at:       { type: Date, default: Date.now },
+  }],
+
   createdAt: { type: Date, default: Date.now }
 });
 

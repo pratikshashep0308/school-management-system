@@ -222,6 +222,8 @@ export const notificationAPI = {
   create:   (data)   => api.post('/notifications', data),
   markRead: (id)     => api.put(`/notifications/${id}/read`),
   delete:   (id)     => api.delete(`/notifications/${id}`),
+  // Record what was done about an alert (audited server-side)
+  recordAction: (id, data) => api.put(`/notifications/${id}/action`, data),
 };
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────

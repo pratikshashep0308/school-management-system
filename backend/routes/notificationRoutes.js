@@ -11,6 +11,15 @@ router.get('/', async (req, res) => {
   const filter = { school: req.user.school };
   if (req.query.type && req.query.type !== 'all') filter.type = req.query.type;
   if (req.query.priority) filter.priority = req.query.priority;
+  // Dashboard passes excludeResolved=true so handled alerts drop off it while
+  // remaining visible here in the Notifications module.
+  if (req.query.excludeResolved === 'true') {
+    filter.$or = [
+      { actionStatus: { $exists: false } },
+      { actionStatus: { $ne: 'resolved' } },
+    ];
+  }
+  if (req.query.actionStatus) filter.actionStatus = req.query.actionStatus;
 
   // Audience filtering — show 'all' audience + user's specific audience
   const roleAudienceMap = { student: 'students', teacher: 'teachers', parent: 'parents' };
@@ -19,6 +28,7 @@ router.get('/', async (req, res) => {
 
   const notifications = await Notification.find(filter)
     .populate('sentBy', 'name role')
+    .populate('actionBy', 'name role')
     .sort({ createdAt: -1 })
     .limit(100);
 
@@ -54,6 +64,46 @@ router.put('/:id/read', async (req, res) => {
 });
 
 // ── DELETE ────────────────────────────────────────────────────────────────────
+// ── RECORD ACTION TAKEN on an alert ──────────────────────────────────────────
+// Body: { actionStatus, actionDetails }
+// Every change is appended to actionLog with the user and timestamp.
+const ACTION_STATUSES = ['pending', 'resolved', 'in_progress', 'no_action_required'];
+
+router.put('/:id/action', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const { actionStatus, actionDetails = '' } = req.body;
+    if (!ACTION_STATUSES.includes(actionStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `actionStatus must be one of: ${ACTION_STATUSES.join(', ')}`,
+      });
+    }
+
+    const n = await Notification.findOne({ _id: req.params.id, school: req.user.school });
+    if (!n) return res.status(404).json({ success: false, message: 'Notification not found' });
+
+    n.actionStatus  = actionStatus;
+    n.actionDetails = actionDetails;
+    n.actionBy      = req.user._id;
+    n.actionByName  = req.user.name;
+    n.actionAt      = new Date();
+    n.actionLog     = n.actionLog || [];
+    n.actionLog.push({
+      status:   actionStatus,
+      details:  actionDetails,
+      user:     req.user._id,
+      userName: req.user.name,
+      userRole: req.user.role,
+      at:       new Date(),
+    });
+    await n.save();
+
+    res.json({ success: true, message: 'Action recorded', data: n });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 router.delete('/:id', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
   await Notification.findOneAndDelete({ _id: req.params.id, school: req.user.school });
   res.json({ success: true, message: 'Notification deleted' });

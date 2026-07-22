@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { notificationAPI } from '../utils/api';
+import AlertActionPanel from '../components/notifications/AlertActionPanel';
 import { useAuth } from '../context/AuthContext';
 import { Modal, FormGroup, LoadingState, EmptyState } from '../components/ui';
 import { shareOnWhatsApp } from '../utils/whatsappShare';
@@ -33,7 +34,7 @@ const TABS = [
 const FORM_DEFAULT = { title: '', message: '', type: 'announcement', priority: 'normal', audience: 'all' };
 
 export default function Notifications() {
-  const { can, user, canEdit } = useAuth();
+  const { can, canEdit } = useAuth();
   const [notifs,    setNotifs]   = useState([]);
   const [loading,   setLoading]  = useState(true);
   const [tab,       setTab]      = useState('all');
@@ -181,8 +182,10 @@ export default function Notifications() {
 
             return (
               <div key={n._id}
-                onClick={() => { setPreview(n); handleMarkRead(n._id); }}
-                className={'card px-5 py-4 flex gap-4 items-start cursor-pointer hover:shadow-md transition-all border ' + meta.border + (isNew ? ' ring-2 ring-accent/30' : '')}>
+                className={'card px-5 py-4 border ' + meta.border + (isNew ? ' ring-2 ring-accent/30' : '')}>
+                <div
+                  onClick={() => { setPreview(n); handleMarkRead(n._id); }}
+                  className="flex gap-4 items-start cursor-pointer">
                 <div className={'w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 ' + meta.bg}>{meta.icon}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -211,6 +214,14 @@ export default function Notifications() {
                       className="w-8 h-8 rounded-lg border border-red-200 text-red-400 hover:border-red-400 hover:text-red-600 transition-all flex items-center justify-center text-sm">✕</button>
                   )}
                 </div>
+                </div>
+
+                {/* Alerts can have an action recorded against them */}
+                {n.type === 'alert' && can(['superAdmin', 'schoolAdmin', 'teacher']) && (
+                  <div onClick={e => e.stopPropagation()}>
+                    <AlertActionPanel notification={n} onSaved={load} />
+                  </div>
+                )}
               </div>
             );
           })}
