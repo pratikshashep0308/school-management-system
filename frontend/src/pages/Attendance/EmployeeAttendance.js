@@ -4,7 +4,7 @@
 //   • Once submitted, Submit is replaced by Edit.
 //   • A non-admin edit goes to "pending approval"; an admin approves.
 //   • Every action is captured in the audit log (who, when, what changed).
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api, { teacherAPI, attendanceAPI } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
@@ -31,6 +31,36 @@ export default function EmployeeAttendance() {
   const [editMode, setEditMode] = useState(false);
   // Filters visible rows only — counters and submission still cover everyone
   const [rowSearch, setRowSearch] = useState('');
+  // Full employee list for the search-ahead on the load form
+  const [allEmployees, setAllEmployees] = useState([]);
+  const [empQuery,     setEmpQuery]     = useState('');
+  const [showSuggest,  setShowSuggest]  = useState(false);
+
+  useEffect(() => {
+    teacherAPI.getAll()
+      .then(r => {
+        const list = r.data.data || [];
+        list.sort((a,b) => (a.user?.name || '').localeCompare(b.user?.name || ''));
+        setAllEmployees(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  const empSuggestions = empQuery.trim()
+    ? allEmployees.filter(t => {
+        const q = empQuery.toLowerCase();
+        return (t.user?.name || '').toLowerCase().includes(q)
+            || String(t.employeeId || '').toLowerCase().includes(q);
+      }).slice(0, 30)
+    : [];
+
+
+  // Close the suggestion list when clicking elsewhere
+  useEffect(() => {
+    const close = () => setShowSuggest(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
 
   const loadSubmission = async (d = date) => {
     try {
@@ -123,9 +153,40 @@ export default function EmployeeAttendance() {
       </div>
 
       <div style={{ background:'var(--color-paper,#fff)', border:'1px solid var(--color-border,#E5E7EB)', borderRadius:14, padding:28, marginBottom:20 }}>
-        <div style={{ marginBottom:20 }}>
-          <label style={{ fontSize:11, fontWeight:700, color:'#3B5BDB', display:'block', marginBottom:6 }}>Date *</label>
-          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{ ...INP, maxWidth:260 }} />
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
+          <div>
+            <label style={{ fontSize:11, fontWeight:700, color:'#3B5BDB', display:'block', marginBottom:6 }}>Date *</label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={INP} />
+          </div>
+          <div style={{ position:'relative' }} onClick={e => e.stopPropagation()}>
+            {/* Type a name to find an employee once the list is loaded */}
+            <label style={{ fontSize:11, fontWeight:700, color:'#3B5BDB', display:'block', marginBottom:6 }}>Find an employee</label>
+            <input
+              value={empQuery}
+              onChange={e => { setEmpQuery(e.target.value); setShowSuggest(true); }}
+              onFocus={() => setShowSuggest(true)}
+              placeholder={allEmployees.length ? 'Type a name or employee ID…' : 'Loading employees…'}
+              style={INP}
+            />
+            {showSuggest && empQuery.trim() && (
+              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff',
+                border:'1px solid #E5E7EB', borderRadius:9, marginTop:4, zIndex:60,
+                maxHeight:260, overflowY:'auto', boxShadow:'0 8px 24px rgba(0,0,0,0.12)' }}>
+                {empSuggestions.length === 0 ? (
+                  <div style={{ padding:'10px 14px', fontSize:12.5, color:'#9CA3AF' }}>No match</div>
+                ) : empSuggestions.map(t => (
+                  <div key={t._id}
+                    onClick={() => { setEmpQuery(t.user?.name || ''); setRowSearch(t.user?.name || ''); setShowSuggest(false); }}
+                    style={{ padding:'9px 14px', cursor:'pointer', fontSize:13, borderBottom:'1px solid #F3F4F6' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                    <div style={{ fontWeight:600, color:'#111827' }}>{t.user?.name}</div>
+                    <div style={{ fontSize:11, color:'#9CA3AF' }}>{t.employeeId || '—'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <button onClick={loadTeachers} disabled={loading}
           style={{ padding:'10px 32px', borderRadius:20, background:'#F59E0B', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer' }}>

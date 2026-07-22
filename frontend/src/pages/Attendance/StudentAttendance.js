@@ -36,6 +36,8 @@ export default function StudentAttendance() {
   const [rowSearch, setRowSearch] = useState('');
   // All students, so a name can be searched before a class is chosen
   const [allStudents, setAllStudents] = useState([]);
+  const [stuQuery,    setStuQuery]    = useState('');
+  const [showSuggest, setShowSuggest] = useState(false);
 
   useEffect(() => {
     studentAPI.getAll({ limit: 1000 })
@@ -53,6 +55,14 @@ export default function StudentAttendance() {
       setClasses(cls);
       if (cls.length) setClassId(cls[0]._id);
     }).catch(() => {});
+  }, []);
+
+
+  // Close the suggestion list when clicking elsewhere
+  useEffect(() => {
+    const close = () => setShowSuggest(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
   }, []);
 
   const loadSubmission = async (cid = classId, d = date) => {
@@ -103,6 +113,15 @@ export default function StudentAttendance() {
   const isLocked    = status === 'approved' && !isAdmin;
   // Editing is only possible in edit mode once submitted (and never when locked)
   const canEditRows = (!isSubmitted || editMode) && !isLocked;
+
+  const suggestions = stuQuery.trim()
+    ? allStudents.filter(s => {
+        const q = stuQuery.toLowerCase();
+        return (s.user?.name || '').toLowerCase().includes(q)
+            || String(s.rollNumber || '').toLowerCase().includes(q)
+            || String(s.admissionNumber || '').toLowerCase().includes(q);
+      }).slice(0, 30)
+    : [];
 
   const visibleStudents = rowSearch.trim()
     ? students.filter(s => {
@@ -168,25 +187,41 @@ export default function StudentAttendance() {
               {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>)}
             </select>
           </div>
-          <div>
-            {/* Find a student by name and jump straight to their class */}
+          <div style={{ position:'relative' }} onClick={e => e.stopPropagation()}>
+            {/* Type a name to see suggestions; picking one jumps to their class */}
             <label style={{ fontSize:11, fontWeight:700, color:'#3B5BDB', display:'block', marginBottom:6 }}>Or find a student</label>
-            <select
-              value=""
-              onChange={e => {
-                const stu = allStudents.find(s => String(s._id) === e.target.value);
-                if (stu) setClassId(String(stu.class?._id || stu.class || ''));
-              }}
-              style={INP}>
-              <option value="">
-                {allStudents.length ? `Search student (${allStudents.length})…` : 'Loading students…'}
-              </option>
-              {allStudents.map(s => (
-                <option key={s._id} value={s._id}>
-                  {s.user?.name}{s.rollNumber ? ` · ${s.rollNumber}` : ''}
-                </option>
-              ))}
-            </select>
+            <input
+              value={stuQuery}
+              onChange={e => { setStuQuery(e.target.value); setShowSuggest(true); }}
+              onFocus={() => setShowSuggest(true)}
+              placeholder={allStudents.length ? `Type a name or roll no…` : 'Loading students…'}
+              style={INP}
+            />
+            {showSuggest && stuQuery.trim() && (
+              <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'#fff',
+                border:'1px solid #E5E7EB', borderRadius:9, marginTop:4, zIndex:60,
+                maxHeight:260, overflowY:'auto', boxShadow:'0 8px 24px rgba(0,0,0,0.12)' }}>
+                {suggestions.length === 0 ? (
+                  <div style={{ padding:'10px 14px', fontSize:12.5, color:'#9CA3AF' }}>No match</div>
+                ) : suggestions.map(s => (
+                  <div key={s._id}
+                    onClick={() => {
+                      setClassId(String(s.class?._id || s.class || ''));
+                      setStuQuery(s.user?.name || '');
+                      setRowSearch(s.user?.name || '');
+                      setShowSuggest(false);
+                    }}
+                    style={{ padding:'9px 14px', cursor:'pointer', fontSize:13, borderBottom:'1px solid #F3F4F6' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                    <div style={{ fontWeight:600, color:'#111827' }}>{s.user?.name}</div>
+                    <div style={{ fontSize:11, color:'#9CA3AF' }}>
+                      {s.rollNumber || '—'}{s.class?.name ? ` · ${s.class.name} ${s.class.section || ''}` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <button onClick={loadStudents} disabled={loading}
