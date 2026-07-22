@@ -6,7 +6,7 @@
 //   • Every submit/edit/approval is recorded in an audit log (who, when, what).
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { attendanceAPI, classAPI } from '../../utils/api';
+import { attendanceAPI, classAPI, studentAPI } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import AttendanceStatusBar from './AttendanceStatusBar';
 
@@ -34,6 +34,18 @@ export default function StudentAttendance() {
   const [editMode,  setEditMode]  = useState(false);
   // Filters only the visible rows — counters and submission still cover everyone
   const [rowSearch, setRowSearch] = useState('');
+  // All students, so a name can be searched before a class is chosen
+  const [allStudents, setAllStudents] = useState([]);
+
+  useEffect(() => {
+    studentAPI.getAll({ limit: 1000 })
+      .then(r => {
+        const list = r.data.data || [];
+        list.sort((a,b) => (a.user?.name || '').localeCompare(b.user?.name || ''));
+        setAllStudents(list);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     classAPI.getAll().then(r => {
@@ -154,6 +166,26 @@ export default function StudentAttendance() {
             <select value={classId} onChange={e => setClassId(e.target.value)} style={INP}>
               <option value="">Select Class</option>
               {classes.map(c => <option key={c._id} value={c._id}>{c.name} {c.section || ''}</option>)}
+            </select>
+          </div>
+          <div>
+            {/* Find a student by name and jump straight to their class */}
+            <label style={{ fontSize:11, fontWeight:700, color:'#3B5BDB', display:'block', marginBottom:6 }}>Or find a student</label>
+            <select
+              value=""
+              onChange={e => {
+                const stu = allStudents.find(s => String(s._id) === e.target.value);
+                if (stu) setClassId(String(stu.class?._id || stu.class || ''));
+              }}
+              style={INP}>
+              <option value="">
+                {allStudents.length ? `Search student (${allStudents.length})…` : 'Loading students…'}
+              </option>
+              {allStudents.map(s => (
+                <option key={s._id} value={s._id}>
+                  {s.user?.name}{s.rollNumber ? ` · ${s.rollNumber}` : ''}
+                </option>
+              ))}
             </select>
           </div>
         </div>

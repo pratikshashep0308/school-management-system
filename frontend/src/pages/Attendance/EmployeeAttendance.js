@@ -29,6 +29,8 @@ export default function EmployeeAttendance() {
   const [approving,setApproving]= useState(false);
   const [submission, setSubmission] = useState(null);
   const [editMode, setEditMode] = useState(false);
+  // Filters visible rows only — counters and submission still cover everyone
+  const [rowSearch, setRowSearch] = useState('');
 
   const loadSubmission = async (d = date) => {
     try {
@@ -72,6 +74,14 @@ export default function EmployeeAttendance() {
   const isSubmitted = status !== 'draft';
   const isLocked    = status === 'approved' && !isAdmin;
   const canEditRows = (!isSubmitted || editMode) && !isLocked;
+
+  const visibleTeachers = rowSearch.trim()
+    ? teachers.filter(t => {
+        const q = rowSearch.toLowerCase();
+        return (t.user?.name || '').toLowerCase().includes(q)
+            || String(t.employeeId || '').toLowerCase().includes(q);
+      })
+    : teachers;
 
   const markedCount = teachers.filter(t => statuses[t._id]).length;
   const allMarked   = teachers.length > 0 && markedCount === teachers.length;
@@ -136,6 +146,12 @@ export default function EmployeeAttendance() {
                 {markedCount}/{teachers.length} marked
               </span>
             </div>
+            <input
+              value={rowSearch}
+              onChange={e => setRowSearch(e.target.value)}
+              placeholder="🔍 Find employee…"
+              style={{ padding:'6px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12.5, outline:'none', minWidth:180, background:'#fff' }}
+            />
             {canEditRows && (
               <div style={{ display:'flex', gap:6 }}>
                 {['present','absent','leave'].map(s=>(
@@ -147,6 +163,11 @@ export default function EmployeeAttendance() {
               </div>
             )}
           </div>
+          {rowSearch && (
+            <div style={{ padding:'8px 20px', background:'#FFFBEB', borderBottom:'1px solid #FDE68A', fontSize:12, color:'#92400E' }}>
+              Showing {visibleTeachers.length} of {teachers.length} — clear the search before submitting to review everyone.
+            </div>
+          )}
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr style={{ background:'#0B1F4A' }}>
@@ -156,7 +177,7 @@ export default function EmployeeAttendance() {
               </tr>
             </thead>
             <tbody>
-              {teachers.map((t,i)=>{
+              {visibleTeachers.map((t,i)=>{
                 const st = statuses[t._id];
                 return (
                   <tr key={t._id} style={{ borderBottom:'1px solid #F3F4F6', background: i%2?'#FAFAFA':'#fff' }}>

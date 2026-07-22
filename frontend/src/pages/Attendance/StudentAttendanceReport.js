@@ -32,7 +32,8 @@ export default function StudentAttendanceReport() {
   // Optional narrowing: one class, and within it one student
   const [filterClass,   setFilterClass]   = useState('');
   const [filterStudent, setFilterStudent] = useState('');
-  const [classStudents, setClassStudents] = useState([]);
+  const [allStudents,   setAllStudents]   = useState([]);
+  const [studentQuery,  setStudentQuery]  = useState('');
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [sortCol,   setSortCol]   = useState('date');
   const [sortDir,   setSortDir]   = useState('asc');
@@ -43,21 +44,30 @@ export default function StudentAttendanceReport() {
       .catch(() => {});
   }, []);
 
-  // Load the chosen class's students so one can be picked individually.
-  // NOTE: the API filters on `class`, not `classId`.
+  // Load every student once. The dropdown then works straight away — you can
+  // pick a student by name without knowing their class first. Choosing a class
+  // simply narrows the list.
   useEffect(() => {
-    if (!filterClass) { setClassStudents([]); return; }
     setLoadingStudents(true);
-    studentAPI.getAll({ class: filterClass, limit: 500 })
+    studentAPI.getAll({ limit: 1000 })
       .then(r => {
-        const list = (r.data.data || [])
-          .filter(s => String(s.class?._id || s.class) === String(filterClass));
-        list.sort((a,b) => String(a.rollNumber||'').localeCompare(String(b.rollNumber||''), undefined, { numeric:true }));
-        setClassStudents(list);
+        const list = r.data.data || [];
+        list.sort((a,b) => (a.user?.name || '').localeCompare(b.user?.name || ''));
+        setAllStudents(list);
       })
-      .catch(() => setClassStudents([]))
+      .catch(() => setAllStudents([]))
       .finally(() => setLoadingStudents(false));
-  }, [filterClass]);
+  }, []);
+
+  // Students shown in the picker: narrowed by class (if chosen) and by typing
+  const classStudents = allStudents
+    .filter(s => !filterClass || String(s.class?._id || s.class) === String(filterClass))
+    .filter(s => {
+      if (!studentQuery.trim()) return true;
+      const q = studentQuery.toLowerCase();
+      return (s.user?.name || '').toLowerCase().includes(q)
+          || String(s.rollNumber || '').toLowerCase().includes(q);
+    });
 
   const generate = async () => {
     if (!classes.length) return toast.error('No classes found');
@@ -76,8 +86,16 @@ export default function StudentAttendanceReport() {
 
       // Fetch analytics for ALL classes × ALL months in parallel
       const flat = [];
-      const targetClasses = filterClass
-        ? classes.filter(c => String(c._id) === String(filterClass))
+      // If a student is chosen without a class, look up their class so we only
+      // fetch the one that matters instead of every class in the school.
+      const pickedStudent = filterStudent
+        ? allStudents.find(s => (s.user?.name || '') === filterStudent)
+        : null;
+      const effectiveClass = filterClass
+        || (pickedStudent ? String(pickedStudent.class?._id || pickedStudent.class || '') : '');
+
+      const targetClasses = effectiveClass
+        ? classes.filter(c => String(c._id) === String(effectiveClass))
         : classes;
 
       await Promise.all(
@@ -183,15 +201,20 @@ export default function StudentAttendanceReport() {
           ))}
         </select>
 
+        {/* Type to narrow, then pick. Works without choosing a class first. */}
+        <input
+          value={studentQuery}
+          onChange={e => setStudentQuery(e.target.value)}
+          placeholder="🔍 Search student…"
+          style={{ ...SEL, minWidth:170 }}
+        />
+
         <select value={filterStudent}
           onChange={e => setFilterStudent(e.target.value)}
-          disabled={!filterClass || loadingStudents}
-          style={{ ...SEL, opacity: (!filterClass || loadingStudents) ? 0.6 : 1 }}>
+          disabled={loadingStudents}
+          style={{ ...SEL, opacity: loadingStudents ? 0.6 : 1 }}>
           <option value="">
-            {loadingStudents ? 'Loading…'
-              : !filterClass ? 'All students (pick a class)'
-              : classStudents.length ? `All students (${classStudents.length})`
-              : 'No students in class'}
+            {loadingStudents ? 'Loading…' : `All students (${classStudents.length})`}
           </option>
           {classStudents.map(s => (
             <option key={s._id} value={s.user?.name || ''}>
