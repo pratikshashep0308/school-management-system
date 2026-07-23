@@ -45,7 +45,6 @@ app.use(rateLimit({
 
 const allowedOrigins = [
   'http://localhost:3000',
-  'http://localhost:3001',
   'http://127.0.0.1:3000',
   'https://portal.thefuturestepschool.in',
   'http://portal.thefuturestepschool.in',
@@ -134,6 +133,7 @@ const routes = [
   ['/api/subjects',       './routes/subjectRoutes',      'subjects'],
   ['/api/attendance',     './routes/attendanceRoutes',   'attendance'],
   ['/api/exams',          './routes/examRoutes',         'exams'],
+  ['/api/exams-adv',      './routes/examAdvancedRoutes', 'exams'],
   ['/api/fees',           './routes/feeRoutes',          'fees'],
   ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
   ['/api/homework',       './routes/homeworkRoutes',     'homework'],

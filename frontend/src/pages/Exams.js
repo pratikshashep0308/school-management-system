@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { examAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
+import ExamSetup from './Exams/ExamSetup';
 
 const TYPE_COLORS = {
   unit:       { bg:'#FEF3C7', color:'#92400E', border:'#F59E0B' },
@@ -237,7 +238,136 @@ function RecentExams({ exams }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 3 — EXAM TIMETABLE (table + PDF)
 // ══════════════════════════════════════════════════════════════════════════════
+
+// ── Exam grid: dates as rows, classes as columns ──────────────────────────────
+// Mirrors the main Timetable module's layout so the two feel consistent.
+function ExamGridView({ rows, classes, classF, canEdit, onEdit, onDelete }) {
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Columns: the filtered class, or every class that actually has an exam
+  const usedClassIds = [...new Set(rows.map(e => e.class?._id).filter(Boolean))];
+  const cols = classF
+    ? classes.filter(c => c._id === classF)
+    : classes.filter(c => usedClassIds.includes(c._id));
+
+  // Rows: one per distinct exam date, chronological
+  const dateKeys = [...new Set(rows.map(e => new Date(e.date).toDateString()))]
+    .sort((a, b) => new Date(a) - new Date(b));
+
+  // Look up exams by date + class
+  const cellFor = (dateStr, classId) =>
+    rows.filter(e => new Date(e.date).toDateString() === dateStr && e.class?._id === classId);
+
+  if (!cols.length) {
+    return <EmptyState icon="🗓" title="No classes to show" subtitle="Exams need a class assigned to appear in the grid"/>;
+  }
+
+  return (
+    <div className="card" style={{ padding:0, overflow:'hidden' }}>
+      <div style={{ overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', minWidth:640 }}>
+          <thead>
+            <tr style={{ background:'#0B1F4A' }}>
+              <th style={{ padding:'12px 14px', textAlign:'center', color:'#94afd4', fontSize:10,
+                fontWeight:700, textTransform:'uppercase', width:96,
+                borderRight:'1px solid rgba(255,255,255,0.08)' }}>
+                Date
+              </th>
+              {cols.map(c => (
+                <th key={c._id} style={{ padding:'12px 10px', textAlign:'center', fontSize:11,
+                  fontWeight:700, color:'#E2E8F0', minWidth:150,
+                  borderRight:'1px solid rgba(255,255,255,0.08)' }}>
+                  {c.name} {c.section || ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dateKeys.map(dk => {
+              const d = new Date(dk);
+              const isToday = d.toDateString() === today.toDateString();
+              const isPast  = d < today && !isToday;
+              return (
+                <tr key={dk} style={{ borderBottom:'0.5px solid #E5E7EB' }}>
+                  {/* Date column */}
+                  <td style={{ padding:'10px 6px', textAlign:'center', background:'#0B1F4A',
+                    borderRight:'0.5px solid rgba(255,255,255,0.08)', verticalAlign:'middle' }}>
+                    <div style={{ fontSize:16, fontWeight:800,
+                      color: isToday ? '#FFD700' : '#fff' }}>
+                      {d.getDate()}
+                    </div>
+                    <div style={{ fontSize:9, color:'rgba(255,255,255,0.55)', textTransform:'uppercase' }}>
+                      {d.toLocaleDateString('en-IN',{ month:'short' })}
+                    </div>
+                    <div style={{ fontSize:9, color:'rgba(255,255,255,0.45)' }}>
+                      {d.toLocaleDateString('en-IN',{ weekday:'short' })}
+                    </div>
+                    {isToday && <div style={{ fontSize:7.5, color:'#FFD700', fontWeight:700, marginTop:2 }}>TODAY</div>}
+                  </td>
+
+                  {/* One cell per class */}
+                  {cols.map(c => {
+                    const items = cellFor(dk, c._id);
+                    return (
+                      <td key={c._id} style={{
+                        borderRight:'0.5px solid #E5E7EB', verticalAlign:'top', padding:6,
+                        background: isToday ? '#FFFBEB' : isPast ? '#FAFAFA' : 'transparent',
+                        minHeight:70,
+                      }}>
+                        {!items.length ? (
+                          <div style={{ minHeight:58, display:'flex', alignItems:'center',
+                            justifyContent:'center', color:'#D1D5DB', fontSize:10 }}>—</div>
+                        ) : items.map(e => {
+                          const tc = TYPE_COLORS[e.examType] || TYPE_COLORS.unit;
+                          return (
+                            <div key={e._id}
+                              onClick={() => canEdit && onEdit(e)}
+                              title={canEdit ? 'Click to edit' : ''}
+                              style={{
+                                background:'#fff', border:`1px solid ${tc.bg}`,
+                                borderLeft:`3px solid ${tc.color}`, borderRadius:8,
+                                padding:'7px 9px', marginBottom:5,
+                                cursor: canEdit ? 'pointer' : 'default',
+                                opacity: isPast ? 0.65 : 1,
+                              }}>
+                              <div style={{ fontSize:12, fontWeight:700, color:'#111827',
+                                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                                {e.subject?.name || e.name}
+                              </div>
+                              {(e.startTime || e.endTime) && (
+                                <div style={{ fontSize:10, color:'#6B7280', marginTop:2 }}>
+                                  🕐 {e.startTime || '—'}{e.endTime ? ` – ${e.endTime}` : ''}
+                                </div>
+                              )}
+                              <div style={{ display:'flex', gap:5, marginTop:4, flexWrap:'wrap', alignItems:'center' }}>
+                                <span style={{ fontSize:9, fontWeight:700, padding:'1px 7px',
+                                  borderRadius:999, background:tc.bg, color:tc.color, textTransform:'capitalize' }}>
+                                  {e.examType}
+                                </span>
+                                {e.totalMarks ? (
+                                  <span style={{ fontSize:9.5, color:'#9CA3AF' }}>{e.totalMarks} marks</span>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initialClass = '' }) {
+  // 'grid' mirrors the main Timetable module (dates as rows, classes as
+  // columns); 'list' keeps the original flat table.
+  const [view,      setView]      = useState('grid');
   const [classF,    setClassF]    = useState(initialClass);
   const [typeF,     setTypeF]     = useState('');
   const [search,    setSearch]    = useState('');
@@ -298,6 +428,16 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
           <option value="">All Types</option>
           {TYPE_LIST.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
         </select>
+        <div style={{ display:'flex', gap:2, background:'#F3F4F6', borderRadius:8, padding:3 }}>
+          {[['grid','▦ Grid'],['list','☰ List']].map(([k,label])=>(
+            <button key={k} onClick={()=>setView(k)}
+              style={{ padding:'6px 14px', borderRadius:6, fontSize:12, fontWeight:700, border:'none', cursor:'pointer',
+                background: view===k?'#fff':'transparent', color: view===k?'#1D4ED8':'#6B7280',
+                boxShadow: view===k?'0 1px 3px rgba(0,0,0,0.1)':'none' }}>
+              {label}
+            </button>
+          ))}
+        </div>
         <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems:'center' }}>
           <span style={{ fontSize:12, color:'#9CA3AF' }}>{rows.length} exams</span>
           {canEdit && (
@@ -313,6 +453,8 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
 
       {!rows.length ? (
         <EmptyState icon="🗓" title="No exams found" subtitle="Create exams with dates to see the timetable"/>
+      ) : view === 'grid' ? (
+        <ExamGridView rows={rows} classes={classes} classF={classF} canEdit={canEdit} onEdit={onEdit} onDelete={onDelete}/>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ overflowX:'auto' }}>
@@ -430,13 +572,14 @@ export default function Exams() {
       </div>
 
       <div style={{ display:'flex', gap:4, background:'#F3F4F6', borderRadius:10, padding:4, marginBottom:22, flexWrap:'wrap' }}>
-        {[{ key:'all', label:'📝 All Exams' },{ key:'recent', label:'🕐 Recent / Upcoming' },{ key:'timetable', label:'🗓 Exam Timetable' },{ key:'results', label:'📊 Result Entry' }].map(t=>(
+        {[{ key:'all', label:'📝 All Exams' },{ key:'recent', label:'🕐 Recent / Upcoming' },{ key:'timetable', label:'🗓 Exam Timetable' },{ key:'results', label:'📊 Result Entry' },{ key:'setup', label:'⚙️ Setup' }].map(t=>(
           <button key={t.key} onClick={()=>setTab(t.key)} style={{ padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:700, border:'none', cursor:'pointer', transition:'all 0.15s', background:tab===t.key?'#1D4ED8':'transparent', color:tab===t.key?'#fff':'#6B7280' }}>{t.label}</button>
         ))}
       </div>
 
       {tab==='all'       && <AllExams      exams={exams} classes={classes} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} canEdit={canEdit} loading={loading} initialClass={initialClass}/>}
       {tab==='recent'    && <RecentExams   exams={exams}/>}
+      {tab==='setup'     && isAdmin && <ExamSetup />}
       {tab==='timetable' && <ExamTimetable exams={exams} classes={classes} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} initialClass={initialClass}/>}
 
       {modal && <ExamFormModal form={form} setForm={setForm} onSave={handleSave} onClose={()=>{setModal(false);setForm(FORM_EMPTY);}} saving={saving} classes={classes} subjects={subjects}/>}
