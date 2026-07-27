@@ -1,81 +1,177 @@
 // backend/fms/middleware/fmsAuthorize.js
 //
-// The FMS's OWN authorization wrapper. Deny by default.
+// The FMS's OWN authorization guard. Deny by default.
 //
-// Why this exists rather than reusing the SMS middleware:
-// `backend/middleware/checkPermission.js` returns next() when no RolePermission
-// row exists for the caller's role. Its own comments say so explicitly — it is a
-// deliberate choice to preserve behaviour for schools that never configured
-// Access Control. That is reasonable for the SMS. It is not acceptable in front
-// of a financial ledger, where "no rule configured" must mean "no access".
+// ─── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+// backend/middleware/checkPermission.js calls next() when no RolePermission row
+// exists for the caller's role. Its own comments say so:
 //
-// The SMS middleware is left exactly as-is. This is additive.
+//     "If no matrix row exists for the role, we DON'T block — we fall through
+//      to the route's own authorize() check. This keeps existing behaviour
+//      intact for any school that never configured Access Control."
 //
-// FULL IMPLEMENTATION LANDS IN P1.3. At P1.1 this enforces the deny-by-default
-// shape and authentication, so no FMS route can ever be accidentally open while
-// the rest of the plugin is scaffolded out.
+// That is a reasonable choice for the SMS. In front of a financial ledger it is
+// not: "no rule configured" must mean "no access", not "ask someone else".
+//
+// The SMS middleware is untouched. This is additive and applies only to
+// /api/fms/*.
+//
+// ─── LAYERS ──────────────────────────────────────────────────────────────────
+//   1. authenticated?          — SMS `protect` must have run (req.user)
+//   2. has an FMS role?        — fms_roleassignments row, active
+//   3. permitted?              — role+module level ≥ action's required level
+//   4. in scope?               — branch (school) scoping
+//   5. separation of duties    — enforced per-route via requireDifferentActor
 
-const LEVELS = ['none', 'read', 'edit', 'admin'];
+const { FmsRoleAssignment } = require('../models/core');
+const matrix = require('../services/auth/permissionMatrix');
 
-/** FMS permission module keys (DATA_DICTIONARY §1). */
-const MODULE_KEYS = [
-  'accounts', 'income', 'expenses', 'approvals', 'budgets', 'vendors',
-  'purchase', 'banking', 'pettyCash', 'ledger', 'journal', 'payments',
-  'financialReports', 'audit', 'financialYear',
-];
+const { MODULE_KEYS, ACTIONS } = matrix;
 
-/** The 12 FMS finance roles (DATA_DICTIONARY §1). Seeded in P1.3. */
-const FINANCE_ROLES = [
-  'chairman', 'trustee', 'principal', 'vicePrincipal', 'accountsManager',
-  'accountant', 'cashier', 'purchaseOfficer', 'deptHead', 'teacher',
-  'auditor', 'readOnly',
-];
+// Small TTL cache. Mirrors the SMS's approach so behaviour is familiar, but the
+// miss path DENIES rather than falling through.
+const cache = new Map();
+const TTL_MS = 30 * 1000;
 
-function deny(res, message) {
-  return res.status(403).json({ success: false, message });
+function cacheKey(userId, school) {
+  return `${userId}:${school}`;
+}
+
+function clearAuthCache() {
+  cache.clear();
+}
+
+async function loadAssignment(userId, school) {
+  const key = cacheKey(userId, school);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.assignment;
+
+  const doc = await FmsRoleAssignment.findOne({
+    smsUserId: userId,
+    school,
+    status: 'active',
+  }).lean();
+
+  cache.set(key, { assignment: doc || null, at: Date.now() });
+  return doc || null;
+}
+
+function deny(res, message, detail) {
+  return res.status(403).json({
+    success: false,
+    message,
+    ...(detail ? { detail } : {}),
+  });
 }
 
 /**
+ * Guard a route.
+ *
  * @param {string} moduleKey  one of MODULE_KEYS
- * @param {'read'|'edit'|'admin'} required  minimum level
+ * @param {string} action     one of ACTIONS (default 'VIEW')
+ *
+ * Misconfiguration throws at mount time, not request time — a typo in a module
+ * key should break the boot, not silently create an unguarded route.
  */
-function fmsAuthorize(moduleKey, required = 'read') {
+function fmsAuthorize(moduleKey, action = 'VIEW') {
   if (!MODULE_KEYS.includes(moduleKey)) {
     throw new Error(`fmsAuthorize: unknown module key '${moduleKey}'`);
   }
-  if (!LEVELS.includes(required)) {
-    throw new Error(`fmsAuthorize: unknown level '${required}'`);
+  if (!ACTIONS.includes(action)) {
+    throw new Error(`fmsAuthorize: unknown action '${action}'`);
   }
 
   return async function (req, res, next) {
-    // Must already have passed the SMS `protect` middleware.
-    if (!req.user) {
+    // 1 — authenticated
+    if (!req.user || !req.user._id) {
       return res.status(401).json({ success: false, message: 'Not authorized. Please login.' });
     }
 
-    // ── P1.3 will replace this block with a fms_roleAssignments lookup ───────
-    //   const assignment = await FmsRoleAssignment.findOne({
-    //     smsUserId: req.user._id, school: req.user.school, status: 'active',
-    //   });
-    //   if (!assignment) return deny(res, 'No FMS role assigned.');
-    //   const level = assignment.permissions?.[moduleKey] || 'none';
-    //   if (LEVELS.indexOf(level) < LEVELS.indexOf(required)) {
-    //     return deny(res, `Requires '${required}' on '${moduleKey}'.`);
-    //   }
-    //   req.fmsRole = assignment.financeRole;
-    //   req.fmsScope = { school: req.user.school };
-    //
-    // Until then: deny everything. There is no FMS business endpoint yet, so
-    // this blocks nothing real — and it guarantees the plugin cannot ship a
-    // route that is open because P1.3 slipped.
-    return deny(
-      res,
-      'FMS authorization is not yet configured (P1.3). Access denied by default.'
-    );
+    const school = req.user.school;
+    if (!school) {
+      return deny(res, 'No branch assigned to this account.');
+    }
+
+    // 2 — has an active FMS role
+    let assignment;
+    try {
+      assignment = await loadAssignment(req.user._id, school);
+    } catch (err) {
+      // A lookup failure must not fail open.
+      return res.status(503).json({
+        success: false,
+        message: 'Authorization check unavailable.',
+      });
+    }
+
+    if (!assignment) {
+      return deny(
+        res,
+        'No FMS role assigned to this account.',
+        'An administrator must grant an FMS finance role before this area is accessible.'
+      );
+    }
+
+    // 3 — permitted
+    if (!matrix.can(assignment, moduleKey, action)) {
+      return deny(
+        res,
+        `Your role does not permit ${action} on ${moduleKey}.`,
+        `Role '${assignment.financeRole}' has '${matrix.levelFor(
+          assignment.financeRole, moduleKey, assignment.permissions
+        )}' on '${moduleKey}'; ${action} requires '${matrix.ACTION_LEVEL[action]}'.`
+      );
+    }
+
+    // 4 — branch scope. Every FMS query must filter on req.fmsScope.school.
+    req.fmsRole = assignment.financeRole;
+    req.fmsAssignment = assignment;
+    req.fmsScope = {
+      school,
+      multiBranch: !!assignment.multiBranch,
+    };
+
+    next();
   };
 }
 
+/**
+ * Separation of duties.
+ *
+ * Prevents the same person approving their own request. Mount AFTER
+ * fmsAuthorize on any approve/reject route.
+ *
+ * @param {(req)=>Promise<string|null>} getOriginatorId  resolves the id of
+ *        whoever created the document under action.
+ */
+function requireDifferentActor(getOriginatorId) {
+  return async function (req, res, next) {
+    const originator = await getOriginatorId(req);
+    if (originator && String(originator) === String(req.user._id)) {
+      return deny(
+        res,
+        'Separation of duties: you cannot approve your own request.',
+        'A different authorised user must action this.'
+      );
+    }
+    next();
+  };
+}
+
+/**
+ * Assert a document belongs to the caller's branch.
+ * Multi-branch roles bypass. Use on every single-document read/write.
+ */
+function assertInScope(req, doc) {
+  if (!doc) return false;
+  if (req.fmsScope?.multiBranch) return true;
+  return String(doc.school) === String(req.fmsScope?.school);
+}
+
 module.exports = fmsAuthorize;
-module.exports.LEVELS = LEVELS;
+module.exports.requireDifferentActor = requireDifferentActor;
+module.exports.assertInScope = assertInScope;
+module.exports.clearAuthCache = clearAuthCache;
 module.exports.MODULE_KEYS = MODULE_KEYS;
-module.exports.FINANCE_ROLES = FINANCE_ROLES;
+module.exports.ACTIONS = ACTIONS;
+module.exports.FINANCE_ROLES = matrix.FINANCE_ROLES;
