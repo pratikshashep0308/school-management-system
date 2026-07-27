@@ -13,6 +13,10 @@
 // That is what makes "the FMS never modifies an SMS collection" an enforced
 // invariant rather than a code-review convention.
 //
+// Each migration may declare `dependsOn: ['00X_other']`. A blocked or skipped
+// migration only holds back the migrations that DECLARE a dependency on it —
+// file numbering is for readability, not an implicit dependency chain.
+//
 // Usage:
 //   node fms/migrations/_runner.js status
 //   node fms/migrations/_runner.js up
@@ -138,17 +142,37 @@ async function cmdUp() {
     return;
   }
 
+  // A blocked migration must not halt migrations that do not depend on it.
+  // Dependencies are DECLARED (`dependsOn: [...]`), never inferred from file
+  // order — file numbering is for readability, not for correctness.
+  const skipped = new Map();
+
   for (const m of pending) {
     if (m.blocked) {
+      skipped.set(m.id, `BLOCKED — ${m.blocked}`);
       console.log(`⏸  ${m.id} BLOCKED — ${m.blocked}`);
-      console.log('   Stopping here; later migrations may depend on it.');
-      break;
+      continue;
     }
+
+    const unmet = (m.dependsOn || []).filter(
+      (dep) => !applied.includes(dep)
+    );
+    if (unmet.length) {
+      skipped.set(m.id, `depends on ${unmet.join(', ')}`);
+      console.log(`⏭  ${m.id} SKIPPED — depends on ${unmet.join(', ')}`);
+      continue;
+    }
+
     process.stdout.write(`→  ${m.id} ... `);
     await m.up(mongoose.connection.db, mongoose);
     applied.push(m.id);
     await setApplied(applied);
     console.log('applied');
+  }
+
+  if (skipped.size) {
+    console.log(`\n  ${skipped.size} migration(s) not applied:`);
+    for (const [id, why] of skipped) console.log(`    ${id} — ${why}`);
   }
 }
 
