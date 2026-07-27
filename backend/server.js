@@ -157,6 +157,22 @@ const routes = [
   ['/api/uploads',        './routes/uploadRoutes'],
 ];
 
+// ─── FMS plugin (additive, toggleable) ───────────────────────────────────────
+// Mounted ONLY when FMS_ENABLED=true. When off, nothing is required, no FMS
+// code runs, and /api/fms/* falls through to the SMS 404 handler.
+// The 2-element tuple form is deliberate: it bypasses checkPermission (which
+// fails open) — the FMS enforces its own deny-by-default authorization.
+try {
+  const fmsRoute = require('./fms').routeTuple();
+  if (fmsRoute) {
+    routes.push(fmsRoute);
+    console.log('💰 FMS plugin ENABLED  → /api/fms');
+  }
+} catch (err) {
+  console.error('❌ FMS plugin failed to load (SMS unaffected):', err.message);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const checkPermission = require('./middleware/checkPermission');
 
 routes.forEach(([path, file, moduleKey]) => {
