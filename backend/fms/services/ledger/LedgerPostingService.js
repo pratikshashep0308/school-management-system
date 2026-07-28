@@ -226,6 +226,31 @@ async function post(p) {
 
       const byId = Object.fromEntries(accounts.map((a) => [String(a._id), a]));
 
+      // A reconciled bank period is closed. Without this check, a journal
+      // voucher could post into a month someone has already signed off — and a
+      // reconciliation that can be altered afterwards has not reconciled
+      // anything. Only bank accounts carry the restriction, so the lookup is
+      // skipped entirely for everything else.
+      const bankIds = accounts.filter((a) => a.isBankAccount).map((a) => a._id);
+      if (bankIds.length) {
+        const { FmsBankAccount } = require('../../models/banking');
+        const locked = await FmsBankAccount.find({
+          school: p.school,
+          ledgerAccount: { $in: bankIds },
+          reconciledUpTo: { $gte: p.voucherDate },
+        }).select('accountName ledgerAccount reconciledUpTo').session(session).lean();
+
+        if (locked.length) {
+          const b = locked[0];
+          throw new PostingError(
+            `${b.accountName} is reconciled up to ` +
+            `${b.reconciledUpTo.toISOString().slice(0, 10)}; a posting dated ` +
+            `${p.voucherDate.toISOString().slice(0, 10)} would change a closed period`,
+            'BANK_PERIOD_RECONCILED'
+          );
+        }
+      }
+
       for (const id of ids) {
         const a = byId[id];
         if (!a) {
