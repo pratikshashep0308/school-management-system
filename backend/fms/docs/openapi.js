@@ -59,6 +59,7 @@ const spec = {
     { name: 'General Ledger', description: 'Read-only. Every route is a GET — entries are written only by LedgerPostingService (SRS M11).' },
     { name: 'Journal Voucher', description: 'Manual journal entries with an approval step (SRS M12).' },
     { name: 'Cash & Bank Book', description: 'Derived entirely from ledger postings. Daily closing records the physical count (SRS M13/M14).' },
+    { name: 'Income', description: 'Money received. Posts immediately — the cash is already in hand (SRS M3).' },
   ],
 
   components: {
@@ -128,6 +129,49 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      IncomeVoucher: {
+        type: 'object',
+        required: ['_id', 'receiptNumber', 'receiptDate', 'category', 'amount', 'paymentMode', 'payerName', 'incomeStatus'],
+        properties: {
+          _id: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          receiptNumber: {
+            type: 'string', example: 'INC-2026-27-00001',
+            description:
+              'Also the GL voucher number. One sequence, not two — a separate ' +
+              'receipt book that can gap or duplicate against the ledger is a ' +
+              'reconciliation problem nobody notices for months.',
+          },
+          receiptDate: { type: 'string', format: 'date-time' },
+          category: {
+            type: 'string',
+            enum: ['studentFee','admissionFee','donation','csr','rent','interest','sales','event','miscellaneous'],
+          },
+          amount: { type: 'integer', description: 'Integer PAISE (₹1,234.56 → 123456)' },
+          paymentMode: { type: 'string', enum: ['cash','cheque','bank','upi','online','dd'] },
+          instrumentNumber: { type: 'string', description: 'Required for cheque and DD' },
+          bankName: { type: 'string' },
+          debitAccount: { type: 'string', description: 'Cash or bank account the money landed in' },
+          debitAccountCode: { type: 'string' },
+          creditAccount: { type: 'string', description: 'Income head. Must be an income-type account.' },
+          creditAccountCode: { type: 'string' },
+          creditAccountName: { type: 'string' },
+          payerType: { type: 'string', enum: ['student','organisation','individual','other'] },
+          payerName: { type: 'string', description: 'Denormalised — a receipt stays readable if the SMS record is deleted' },
+          smsStudentId: { type: 'string', nullable: true, description: 'Opaque SMS id; no join' },
+          admissionNumber: { type: 'string' },
+          className: { type: 'string' },
+          narration: { type: 'string' },
+          incomeStatus: {
+            type: 'string', enum: ['posted','cancelled'],
+            description: 'There is no draft. Money received is a fact, not a proposal.',
+          },
+          voucher: { type: 'string' },
+          reversalVoucher: { type: 'string', nullable: true },
+          cancellationReason: { type: 'string' },
+          printCount: { type: 'integer' },
         },
       },
 
@@ -1235,6 +1279,141 @@ const spec = {
           200: { description: 'Verified', content: { 'application/json': { schema: { type: 'object' } } } },
           403: { description: 'Not permitted, or separation of duties', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+
+    '/income': {
+      get: {
+        tags: ['Income'],
+        summary: 'List receipts',
+        description:
+          'Requires `income: read`. `summary` totals **exclude cancelled receipts** — ' +
+          'including them would overstate collections, which is the number people read.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'category', in: 'query', schema: { type: 'string', enum: ['studentFee','admissionFee','donation','csr','rent','interest','sales','event','miscellaneous'] } },
+          { name: 'incomeStatus', in: 'query', schema: { type: 'string', enum: ['posted','cancelled'] } },
+          { name: 'paymentMode', in: 'query', schema: { type: 'string', enum: ['cash','cheque','bank','upi','online','dd'] } },
+          { name: 'student', in: 'query', description: 'SMS student id', schema: { type: 'string' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'q', in: 'query', description: 'Search receipt number, payer or admission number', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated receipts with a period total',
+            content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','summary','data'], properties: {
+              success: { type: 'boolean', enum: [true] },
+              count: { type: 'integer' },
+              pagination: { $ref: '#/components/schemas/Pagination' },
+              summary: { type: 'object', properties: { postedCount: { type: 'integer' }, postedAmount: { type: 'integer' }, note: { type: 'string' } } },
+              data: { type: 'array', items: { $ref: '#/components/schemas/IncomeVoucher' } },
+            } } } },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Income'],
+        summary: 'Record money received',
+        description:
+          'Requires `income: edit`. **Posts to the ledger immediately** — unlike a ' +
+          'journal voucher there is no draft, because the money is already in hand.\n\n' +
+          'Dr cash/bank, Cr the income head. `creditAccount` must be an income-type ' +
+          'account. `debitAccount` is inferred for cash/cheque/bank/DD when exactly ' +
+          'one such account exists, but **must be named explicitly for online and UPI** ' +
+          '— that money has not settled to the bank yet and posting it to the main ' +
+          'bank head would overstate the balance.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object',
+            required: ['receiptDate','category','amount','paymentMode','creditAccount','payerName'],
+            properties: {
+              receiptDate: { type: 'string', format: 'date', description: 'Cannot be in the future' },
+              category: { type: 'string', enum: ['studentFee','admissionFee','donation','csr','rent','interest','sales','event','miscellaneous'] },
+              amount: { type: 'integer', description: 'Integer PAISE, must be > 0' },
+              paymentMode: { type: 'string', enum: ['cash','cheque','bank','upi','online','dd'] },
+              creditAccount: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+              debitAccount: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+              payerName: { type: 'string' },
+              payerType: { type: 'string', enum: ['student','organisation','individual','other'] },
+              smsStudentId: { type: 'string' },
+              admissionNumber: { type: 'string' },
+              className: { type: 'string' },
+              instrumentNumber: { type: 'string', description: 'Required for cheque and DD' },
+              instrumentDate: { type: 'string', format: 'date' },
+              bankName: { type: 'string' },
+              narration: { type: 'string' },
+              reference: { type: 'string' },
+            } } } },
+        },
+        responses: {
+          201: { description: 'Receipt issued and posted', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { description: 'Financial year closed or locked', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/income/{id}': {
+      get: {
+        tags: ['Income'],
+        summary: 'Get a receipt',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The receipt', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/IncomeVoucher' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/income/{id}/receipt': {
+      get: {
+        tags: ['Income'],
+        summary: 'Printable receipt (SCR-13)',
+        description:
+          'Requires `income: read`. Returns printable **HTML** with print CSS — no ' +
+          'new dependency, prints correctly from any browser, and can be emailed.\n\n' +
+          'A cancelled receipt renders with a CANCELLED watermark rather than being ' +
+          'withheld: the payer may still hold the paper copy, and it must be ' +
+          'possible to show why it is void.\n\n' +
+          '`?format=json` returns the data for a custom renderer.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'format', in: 'query', schema: { type: 'string', enum: ['html','json'], default: 'html' } },
+        ],
+        responses: {
+          200: { description: 'Receipt', content: { 'text/html': { schema: { type: 'string' } }, 'application/json': { schema: { type: 'object' } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/income/{id}/cancel': {
+      post: {
+        tags: ['Income'],
+        summary: 'Cancel a receipt',
+        description:
+          'Requires `income: edit`. **Reverses the posting; never deletes.** A ' +
+          'receipt is a document that was handed to someone, so the record and its ' +
+          'original ledger entries both survive. A reason is mandatory.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Cancelled and reversed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { description: 'Already cancelled, or the period is locked', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           422: { $ref: '#/components/responses/ValidationFailed' },
         },
       },
