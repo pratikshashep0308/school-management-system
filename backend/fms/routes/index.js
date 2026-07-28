@@ -129,11 +129,11 @@ router.use('/ledger',   protect, require('./ledger'));             // General Le
 router.use('/journal',  protect, require('./journal'));            // Journal Vouchers (P2.3)
 router.use('/books',    protect, require('./books'));              // Cash & Bank Book (P2.4)
 router.use('/income',   protect, require('./income'));             // Income Management (P3.1)
+router.use('/expenses', protect, require('./expense'));            // Expense Requests (P3.2)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P3.2  router.use('/expenses',      protect, require('./expense'));        // 'expenses'
 // P3.3  router.use('/approvals',     protect, require('./approval'));       // 'approvals'
 // P3.4  router.use('/payments',      protect, require('./payments'));       // 'payments'
 // P4.1  router.use('/budgets',       protect, require('./budget'));         // 'budgets'

@@ -60,6 +60,7 @@ const spec = {
     { name: 'Journal Voucher', description: 'Manual journal entries with an approval step (SRS M12).' },
     { name: 'Cash & Bank Book', description: 'Derived entirely from ledger postings. Daily closing records the physical count (SRS M13/M14).' },
     { name: 'Income', description: 'Money received. Posts immediately — the cash is already in hand (SRS M3).' },
+    { name: 'Expenses', description: 'Requests to spend. No ledger posting until payment (SRS M4).' },
   ],
 
   components: {
@@ -129,6 +130,67 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      BudgetCheck: {
+        type: 'object',
+        required: ['checked', 'outcome'],
+        properties: {
+          checked: {
+            type: 'boolean',
+            description:
+              'FALSE means nobody looked — NOT that it passed. Returning "ok" ' +
+              'when no budget exists would let every request pass a control that ' +
+              'was never applied.',
+          },
+          outcome: { type: 'string', enum: ['ok', 'warning', 'exceeded', 'notChecked'] },
+          reason: { type: 'string' },
+          budgetAmount: { type: 'integer', description: 'Integer PAISE' },
+          consumed: { type: 'integer', description: 'Committed spend: everything not draft/rejected/cancelled' },
+          available: { type: 'integer' },
+          checkedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      ExpenseRequest: {
+        type: 'object',
+        required: ['_id', 'expenseNumber', 'requestDate', 'purpose', 'totalAmount', 'expenseStatus'],
+        properties: {
+          _id: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          expenseNumber: { type: 'string', example: 'EXP-2026-27-00001' },
+          requestDate: { type: 'string', format: 'date-time' },
+          department: { type: 'object', properties: { name: { type: 'string' }, ref: { type: 'string', nullable: true, description: 'fms_departments — P4.x' } } },
+          requestedBy: { type: 'string' },
+          requestedByName: { type: 'string' },
+          vendor: { type: 'object', properties: { name: { type: 'string' }, ref: { type: 'string', nullable: true, description: 'fms_vendors — P4.2' }, gstin: { type: 'string' }, pan: { type: 'string' } } },
+          category: { type: 'string' },
+          subCategory: { type: 'string' },
+          purpose: { type: 'string' },
+          remarks: { type: 'string' },
+          budgetHead: { type: 'string', description: 'Must be an expense-type, postable account' },
+          budgetHeadCode: { type: 'string' },
+          budgetHeadName: { type: 'string' },
+          baseAmount: { type: 'integer', description: 'Integer PAISE' },
+          gstType: { type: 'string', enum: ['none', 'intra', 'inter'], description: 'intra = CGST+SGST, inter = IGST. Both together is rejected.' },
+          gstRate: { type: 'number', description: 'Percent, e.g. 18' },
+          cgst: { type: 'integer' },
+          sgst: { type: 'integer' },
+          igst: { type: 'integer' },
+          gstAmount: { type: 'integer', description: 'Derived: cgst + sgst + igst' },
+          otherTaxAmount: { type: 'integer' },
+          totalAmount: { type: 'integer', description: 'Must equal base + GST + other tax, enforced at the schema layer' },
+          paymentMode: { type: 'string', enum: ['cash', 'cheque', 'neft', 'rtgs', 'upi', 'dd'] },
+          dueDate: { type: 'string', format: 'date-time' },
+          priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
+          budgetCheck: { $ref: '#/components/schemas/BudgetCheck' },
+          expenseStatus: {
+            type: 'string',
+            enum: ['draft','submitted','accountsVerified','principalApproved','chairmanApproved','paymentPending','paymentCompleted','closed','rejected','returned','cancelled'],
+            description: 'P3.2 covers draft → submitted. The approval chain is P3.3.',
+          },
+          attachments: { type: 'array', items: { type: 'object' } },
+          workflow: { type: 'array', items: { type: 'object' } },
         },
       },
 
@@ -1414,6 +1476,160 @@ const spec = {
         responses: {
           200: { description: 'Cancelled and reversed', content: { 'application/json': { schema: { type: 'object' } } } },
           409: { description: 'Already cancelled, or the period is locked', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+
+    '/expenses': {
+      get: {
+        tags: ['Expenses'],
+        summary: 'List expense requests',
+        description:
+          'Requires `expenses: read`. `?pending=true` returns the approver queue; ' +
+          '`?overBudget=true` returns requests submitted over budget. Totals ' +
+          'exclude rejected and cancelled.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'expenseStatus', in: 'query', schema: { type: 'string' } },
+          { name: 'priority', in: 'query', schema: { type: 'string', enum: ['low','normal','high','urgent'] } },
+          { name: 'department', in: 'query', schema: { type: 'string' } },
+          { name: 'budgetHead', in: 'query', schema: { type: 'string' } },
+          { name: 'mine', in: 'query', schema: { type: 'boolean' } },
+          { name: 'pending', in: 'query', schema: { type: 'boolean' } },
+          { name: 'overBudget', in: 'query', schema: { type: 'boolean' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'q', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: { description: 'Paginated list with totals', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','summary','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, summary: { type: 'object' }, data: { type: 'array', items: { $ref: '#/components/schemas/ExpenseRequest' } } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Expenses'],
+        summary: 'Create a draft expense request',
+        description:
+          'Requires `expenses: edit`. **No ledger posting** — nothing has been ' +
+          'spent yet.\n\n' +
+          '`budgetHead` must be an expense-type, postable account. ' +
+          '`totalAmount` must equal base + GST + other tax, and intra-state GST ' +
+          '(CGST+SGST) cannot be mixed with inter-state (IGST) — both rules are ' +
+          'enforced at the schema layer.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object',
+            required: ['requestDate','category','purpose','budgetHead','paymentMode','baseAmount','totalAmount'],
+            properties: {
+              requestDate: { type: 'string', format: 'date' },
+              department: { type: 'object', required: ['name'], properties: { name: { type: 'string' } } },
+              vendor: { type: 'object', properties: { name: { type: 'string' }, gstin: { type: 'string' }, pan: { type: 'string' } } },
+              category: { type: 'string' },
+              subCategory: { type: 'string' },
+              purpose: { type: 'string' },
+              remarks: { type: 'string' },
+              budgetHead: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+              baseAmount: { type: 'integer', description: 'Integer PAISE' },
+              gstType: { type: 'string', enum: ['none','intra','inter'] },
+              gstRate: { type: 'number' },
+              cgst: { type: 'integer' }, sgst: { type: 'integer' }, igst: { type: 'integer' },
+              otherTaxAmount: { type: 'integer' },
+              totalAmount: { type: 'integer' },
+              paymentMode: { type: 'string', enum: ['cash','cheque','neft','rtgs','upi','dd'] },
+              dueDate: { type: 'string', format: 'date' },
+              priority: { type: 'string', enum: ['low','normal','high','urgent'] },
+              attachments: { type: 'array', items: { type: 'object', properties: { fileName: { type: 'string' }, url: { type: 'string' }, kind: { type: 'string', enum: ['invoice','bill','quotation','purchaseOrder','challan','proof','other'] } } } },
+            } } } },
+        },
+        responses: {
+          201: { description: 'Draft created', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, message: { type: 'string' }, data: { $ref: '#/components/schemas/ExpenseRequest' } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/expenses/{id}': {
+      get: {
+        tags: ['Expenses'],
+        summary: 'Get an expense request',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The request', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/ExpenseRequest' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      patch: {
+        tags: ['Expenses'],
+        summary: 'Update a draft, returned or rejected request',
+        description: 'Editing a returned or rejected request returns it to `draft`, so the correction cannot skip re-approval.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Updated', content: { 'application/json': { schema: { type: 'object' } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+          409: { description: 'Not editable in its current status', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/expenses/{id}/budget-check': {
+      get: {
+        tags: ['Expenses'],
+        summary: 'Preview the budget position',
+        description: 'Runs the check without submitting, so a requester can see where they stand first.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Budget position', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/BudgetCheck' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/expenses/{id}/submit': {
+      post: {
+        tags: ['Expenses'],
+        summary: 'Submit for approval',
+        description:
+          'Requires `expenses: edit`. Runs the budget check and records the result ' +
+          'on the request, so approvers see what was known at submission.\n\n' +
+          'At least one attachment is required. An **over-budget** request is ' +
+          'refused with 409 unless `acknowledgeOverBudget: true` — silence must ' +
+          'not be the way past a control. The acknowledgement is recorded in the ' +
+          'workflow trail.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { comment: { type: 'string' }, acknowledgeOverBudget: { type: 'boolean' } } } } } },
+        responses: {
+          200: { description: 'Submitted', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { description: 'Over budget without acknowledgement, or wrong status', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/expenses/{id}/cancel': {
+      post: {
+        tags: ['Expenses'],
+        summary: 'Cancel a request',
+        description: 'Never a delete. A paid or closed expense cannot be cancelled — reverse the payment instead.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Cancelled', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
           422: { $ref: '#/components/responses/ValidationFailed' },
         },
       },
