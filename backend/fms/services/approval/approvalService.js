@@ -184,7 +184,8 @@ async function act(school, expenseId, { action, step, comment }, req) {
     await session.endSession();
   }
 
-  await audit({ school, expense, action: 'approve', before, after: expense.toObject(), req });
+  // Log the act that actually occurred — a verification is not an approval.
+  await audit({ school, expense, action, before, after: expense.toObject(), req });
 
   return {
     expense,

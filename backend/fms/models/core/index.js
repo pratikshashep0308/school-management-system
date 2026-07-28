@@ -366,7 +366,15 @@ const AuditTrailSchema = new mongoose.Schema({
   entityId: { type: ObjectId },
   action: {
     type: String,
-    enum: ['create', 'update', 'cancel', 'approve', 'reject', 'reverse', 'post', 'lock', 'reopen'],
+    // Every distinct auditable act gets its own value. Folding one into another
+    // (logging a verification as an approval, or a return as a rejection) would
+    // make the trail read as something that did not happen.
+    enum: [
+      'create', 'update', 'cancel',
+      'submit', 'verify', 'approve', 'reject', 'return',
+      'post', 'reverse',
+      'lock', 'reopen',
+    ],
     required: true,
   },
   before: { type: mongoose.Schema.Types.Mixed },
