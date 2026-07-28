@@ -56,6 +56,7 @@ const spec = {
     { name: 'Plugin', description: 'Status and health. No authentication.' },
     { name: 'Financial Year', description: 'Accounting periods.' },
     { name: 'Chart of Accounts', description: 'Account groups and ledger heads (SRS M2).' },
+    { name: 'General Ledger', description: 'Read-only. Every route is a GET — entries are written only by LedgerPostingService (SRS M11).' },
   ],
 
   components: {
@@ -125,6 +126,60 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      LedgerEntry: {
+        type: 'object',
+        required: ['_id', 'entryDate', 'accountCode', 'debit', 'credit'],
+        properties: {
+          _id: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          entryDate: { type: 'string', format: 'date-time' },
+          voucher: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          voucherNumber: { type: 'string', example: 'INC-2026-27-00001' },
+          voucherType: { type: 'string', enum: ['income', 'payment', 'receipt', 'journal'] },
+          account: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          accountCode: { type: 'string', description: 'Snapshot at posting time — survives a later rename' },
+          accountName: { type: 'string', description: 'Snapshot at posting time' },
+          debit: { type: 'integer', description: 'Integer PAISE. Exactly one of debit/credit is non-zero.' },
+          credit: { type: 'integer', description: 'Integer PAISE' },
+          narration: { type: 'string' },
+          partyType: { type: 'string', nullable: true, enum: ['vendor', 'student', 'teacher', 'other', null] },
+          party: { type: 'string', nullable: true },
+          partyName: { type: 'string', description: 'Denormalised — survives deletion of the SMS record' },
+          isReversal: { type: 'boolean' },
+          status: { type: 'string', enum: ['posted', 'reversed'] },
+        },
+      },
+
+      Balance: {
+        type: 'object',
+        required: ['balance', 'naturalBalance'],
+        properties: {
+          balance: { type: 'integer', description: 'Raw Σdebit − Σcredit, integer paise' },
+          naturalBalance: {
+            type: 'integer',
+            description: 'Sign-flipped for credit-normal accounts, so positive means the normal side',
+          },
+          drCr: { type: 'string', nullable: true, enum: ['Dr', 'Cr', null] },
+        },
+      },
+
+      TrialBalanceLine: {
+        type: 'object',
+        required: ['accountCode', 'totalDebit', 'totalCredit'],
+        properties: {
+          account: { type: 'string' },
+          accountCode: { type: 'string' },
+          accountName: { type: 'string' },
+          accountType: { type: 'string', nullable: true, enum: ['asset','liability','income','expense','equity', null] },
+          normalBalance: { type: 'string', nullable: true, enum: ['debit','credit', null] },
+          totalDebit: { type: 'integer' },
+          totalCredit: { type: 'integer' },
+          entries: { type: 'integer' },
+          balance: { type: 'integer' },
+          naturalBalance: { type: 'integer' },
+          drCr: { type: 'string', nullable: true },
         },
       },
 
@@ -566,6 +621,203 @@ const spec = {
           200: { description: 'Deleted', content: { 'application/json': { schema: { type: 'object' } } } },
           404: { $ref: '#/components/responses/NotFound' },
           409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+
+    '/ledger': {
+      get: {
+        tags: ['General Ledger'],
+        summary: 'List ledger entries (general journal)',
+        description:
+          'Requires `ledger: read`. `summary` totals cover the WHOLE filtered set, ' +
+          'not the current page — a page total would be useless for reconciliation.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', description: 'Inclusive of the whole day', schema: { type: 'string', format: 'date' } },
+          { name: 'account', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'financialYear', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'voucher', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'voucherType', in: 'query', schema: { type: 'string', enum: ['income','payment','receipt','journal'] } },
+          { name: 'partyType', in: 'query', schema: { type: 'string', enum: ['vendor','student','teacher','other'] } },
+          { name: 'party', in: 'query', schema: { type: 'string' } },
+          { name: 'minAmount', in: 'query', description: 'Integer paise', schema: { type: 'integer' } },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated entries with whole-set totals',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success', 'count', 'pagination', 'summary', 'data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    count: { type: 'integer' },
+                    pagination: { $ref: '#/components/schemas/Pagination' },
+                    summary: {
+                      type: 'object',
+                      required: ['totalDebit', 'totalCredit', 'balanced'],
+                      properties: {
+                        totalDebit: { type: 'integer' },
+                        totalCredit: { type: 'integer' },
+                        difference: { type: 'integer' },
+                        balanced: { type: 'boolean' },
+                      },
+                    },
+                    data: { type: 'array', items: { $ref: '#/components/schemas/LedgerEntry' } },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+
+    '/ledger/trial-balance': {
+      get: {
+        tags: ['General Ledger'],
+        summary: 'Trial balance',
+        description:
+          'Per-account totals plus the system-wide check. **`totals.balanced` must ' +
+          'always be true** — if it is false the ledger has been written to by ' +
+          'something other than LedgerPostingService.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'financialYear', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+        ],
+        responses: {
+          200: {
+            description: 'Trial balance',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success', 'data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    data: {
+                      type: 'object',
+                      required: ['lines', 'totals'],
+                      properties: {
+                        period: { type: 'object' },
+                        lines: { type: 'array', items: { $ref: '#/components/schemas/TrialBalanceLine' } },
+                        totals: {
+                          type: 'object',
+                          required: ['totalDebit', 'totalCredit', 'balanced'],
+                          properties: {
+                            totalDebit: { type: 'integer' },
+                            totalCredit: { type: 'integer' },
+                            difference: { type: 'integer' },
+                            balanced: { type: 'boolean' },
+                            accounts: { type: 'integer' },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+
+    '/ledger/accounts/{id}': {
+      get: {
+        tags: ['General Ledger'],
+        summary: 'Account statement with running balance',
+        description:
+          'Requires `ledger: read`. Returns opening balance, movements with a ' +
+          'running balance, and closing balance. The running balance is computed ' +
+          'over the whole matched set before pagination, so a row on page 3 ' +
+          'carries the balance after every earlier row.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: {
+          200: {
+            description: 'Account statement',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success', 'account', 'opening', 'closing', 'data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    count: { type: 'integer' },
+                    pagination: { $ref: '#/components/schemas/Pagination' },
+                    account: { type: 'object' },
+                    period: { type: 'object' },
+                    opening: { $ref: '#/components/schemas/Balance' },
+                    movement: { type: 'object' },
+                    closing: { $ref: '#/components/schemas/Balance' },
+                    data: { type: 'array', items: { $ref: '#/components/schemas/LedgerEntry' } },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/ledger/vouchers/{id}': {
+      get: {
+        tags: ['General Ledger'],
+        summary: 'Voucher drill-down',
+        description:
+          'The voucher behind a ledger row, with all its lines and both ends of ' +
+          'any reversal chain (`reversedBy` / `reversalOf`).',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: {
+            description: 'Voucher with lines',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success', 'data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    data: {
+                      type: 'object',
+                      required: ['voucher', 'lines', 'totals'],
+                      properties: {
+                        voucher: { type: 'object' },
+                        lines: { type: 'array', items: { $ref: '#/components/schemas/LedgerEntry' } },
+                        totals: { type: 'object' },
+                        reversedBy: { type: 'object', nullable: true },
+                        reversalOf: { type: 'object', nullable: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          404: { $ref: '#/components/responses/NotFound' },
         },
       },
     },

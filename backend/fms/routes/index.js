@@ -125,11 +125,11 @@ router.get('/docs', (req, res) => {
 
 router.use('/financial-years', protect, require('./financialYear'));
 router.use('/accounts', protect, require('./accounts'));           // Chart of Accounts (P2.1)
+router.use('/ledger',   protect, require('./ledger'));             // General Ledger, READ-ONLY (P2.2)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P2.2  router.use('/ledger',        protect, require('./ledger'));         // 'ledger'
 // P2.3  router.use('/journal',       protect, require('./journal'));        // 'journal'
 // P2.4  router.use('/books',         protect, require('./cashBankBook'));   // 'ledger'
 // P3.1  router.use('/income',        protect, require('./income'));         // 'income'
