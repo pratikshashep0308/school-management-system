@@ -253,10 +253,22 @@ async function main() {
   await throws('the requester cannot approve their own request',
     () => svc.approveRequest(school, pr5._id, requester, {}), /Separation of duties/);
 
-  await throws('a blacklisted vendor cannot quote', async () => {
-    await vendorSvc.setStatus(school, vB._id, { vendorStatus:'blacklisted', reason:'test' }, manager);
-    return svc.addQuotation(school, pr5._id, { vendor: vB._id, vendorName: vB.vendorName, items: [] }, po_officer);
-  }, /blacklisted/);
+  // A DEDICATED vendor for this test. Blacklisting vB here poisoned every later
+  // section, because fullChain() asks both vendors to quote — the guard was
+  // right and the check was leaking state into its own fixtures.
+  const vBad = await vendorSvc.create(school,
+    { vendorName: 'Dodgy Traders', bank: bankDetails }, po_officer);
+  await vendorSvc.setStatus(school, vBad._id, { vendorStatus: 'active' }, manager);
+  await vendorSvc.setStatus(school, vBad._id,
+    { vendorStatus: 'blacklisted', reason: 'Repeated non-delivery' }, manager);
+
+  await throws('a blacklisted vendor cannot quote',
+    () => svc.addQuotation(school, pr5._id,
+      { vendor: vBad._id, vendorName: vBad.vendorName, items: [] }, po_officer),
+    /blacklisted/);
+
+  ok('the other vendors are untouched',
+    (await vendorSvc.assertTransactable(school, vB._id)).vendorStatus === 'active');
 
   const po6 = await FmsPurchaseOrder.findById(c.purchaseOrder._id);
   await throws('cannot receive more than ordered',
