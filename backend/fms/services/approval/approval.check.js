@@ -255,9 +255,35 @@ async function main() {
   // ── 6. Separation of duties ───────────────────────────────────────────────
   console.log('\n6. Separation of duties');
   const own = await raise(9000);
-  await throws('the requester cannot verify their own expense',
+
+  // The role guard runs BEFORE separation of duties, and correctly so: a
+  // deptHead can never verify, whoever raised the expense. Reporting the more
+  // fundamental reason first is right, so that is what this asserts.
+  await throws('a deptHead cannot verify at all — role guard fires first',
     () => svc.act(school, own._id, { action: 'verify', step: 'accounts' }, requester),
+    /cannot perform step/);
+
+  // To exercise separation of duties on VERIFICATION the raiser must actually
+  // hold the accountant role — otherwise the role guard masks it.
+  const acctRaiser = who('acctraiser@test', 'accountant');
+  const ownAcct = await expenseSvc.create(school, {
+    requestDate: new Date('2026-07-20'),
+    department: { name: 'Accounts' },
+    category: 'Stationery',
+    purpose: 'Raised by an accountant',
+    budgetHead: head._id,
+    baseAmount: money.toPaise(9000), totalAmount: money.toPaise(9000),
+    paymentMode: 'cheque', attachments: attachment,
+  }, acctRaiser);
+  await expenseSvc.submit(school, ownAcct._id, acctRaiser, {});
+
+  await throws('an accountant cannot verify an expense THEY raised',
+    () => svc.act(school, ownAcct._id, { action: 'verify', step: 'accounts' }, acctRaiser),
     /Separation of duties/);
+
+  ok('but a different accountant can',
+    (await svc.act(school, ownAcct._id, { action: 'verify', step: 'accounts' }, accountant))
+      .expense.expenseStatus === 'accountsVerified');
 
   await svc.act(school, own._id, { action: 'verify', step: 'accounts' }, accountant);
   await throws('the requester cannot approve their own expense',
