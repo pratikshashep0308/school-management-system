@@ -23,12 +23,21 @@ function ok(name, cond, detail) {
   else { fail += 1; failures.push(name); console.log(`  ✖ ${name}${detail ? '  — ' + detail : ''}`); }
 }
 
+/**
+ * `errors.validation()` puts generic text in `message` and the specific reason
+ * in `details.fields`. Searching only code+message would miss it — which it did
+ * on the first run, reporting three false failures against working guards.
+ */
 async function throws(name, fn, match) {
   try {
     await fn();
     ok(name, false, 'expected a throw, got none');
   } catch (e) {
-    const text = `${e.code || ''} ${e.message}`;
+    const text = [
+      e.code || '',
+      e.message || '',
+      e.details ? JSON.stringify(e.details) : '',
+    ].join(' ');
     ok(name, !match || match.test(text), text);
   }
 }
