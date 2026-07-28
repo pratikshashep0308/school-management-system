@@ -36,6 +36,21 @@ const mongoose = require('mongoose');
 
 const { ObjectId } = mongoose.Schema.Types;
 const ACCOUNT_TYPES = ['asset', 'liability', 'income', 'expense', 'equity'];
+
+/**
+ * Where a posting came from. ONE list, used by both fms_vouchers and
+ * fms_ingeststate.
+ *
+ * These were originally two separate enums and they drifted: `purchase` was
+ * added to vouchers in P4.3 but not to ingest state, so the first purchase
+ * posting failed validation. A single list is the only way that cannot recur.
+ *
+ *   manual    entered by a person; no external source, so no idempotency key
+ *   cycle     an ingest RUN marker rather than a document
+ */
+const POSTING_SOURCES = [
+  'manual', 'fee', 'payroll', 'expense', 'purchase', 'bank', 'gateway', 'cycle',
+];
 const NORMAL_BALANCE = ['debit', 'credit'];
 const DOC_STATUS = ['active', 'inactive', 'archived'];
 
@@ -160,11 +175,7 @@ const VoucherSchema = new mongoose.Schema({
   referenceNumber: { type: String },
 
   // Provenance of an ingested posting.
-  source: {
-    type: String,
-    enum: ['manual', 'fee', 'payroll', 'expense', 'purchase', 'bank'],
-    default: 'manual',
-  },
+  source: { type: String, enum: POSTING_SOURCES, default: 'manual' },
   sourceRef: { type: ObjectId },     // SMS source _id — opaque
   sourceKey: { type: String },       // idempotency key actually used (e.g. receiptNumber)
   sourceModel: { type: String },
@@ -282,11 +293,7 @@ NumberSequenceSchema.statics.next = async function (school, financialYear, type,
 // ─────────────────────────────────────────────────────────────────────────────
 const IngestStateSchema = new mongoose.Schema({
   school: { type: ObjectId, required: true, index: true },
-  source: {
-    type: String,
-    enum: ['fee', 'payroll', 'expense', 'bank', 'gateway', 'cycle'],
-    required: true,
-  },
+  source: { type: String, enum: POSTING_SOURCES, required: true },
   // The idempotency key. Confirmed clean on production 2026-07-27:
   //   fees    → receiptNumber   (0 duplicates, 0 null/blank across 160 ledgers)
   //   payroll → salarySlip._id
@@ -424,4 +431,7 @@ const models = {
 };
 
 module.exports = models;
-module.exports.constants = { ACCOUNT_TYPES, NORMAL_BALANCE, DOC_STATUS, FINANCE_ROLES, MODULE_KEYS };
+module.exports.constants = {
+  ACCOUNT_TYPES, NORMAL_BALANCE, DOC_STATUS, FINANCE_ROLES, MODULE_KEYS,
+  POSTING_SOURCES,
+};
