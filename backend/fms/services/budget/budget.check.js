@@ -103,9 +103,31 @@ async function main() {
     return e;
   };
 
+  /**
+   * Walk the approval chain to completion, whatever tier the amount falls into.
+   *
+   * Hardcoding an approver here would silently break the moment a test used an
+   * amount above ₹10,000 — which is exactly what happened the first time this
+   * check ran. Resolve the required step instead.
+   */
+  const actorFor = { accounts: accountant, deptHead, principal, chairman: principal, trustee: principal };
+
   const approveAndPay = async (expenseId) => {
-    await approvalSvc.act(school, expenseId, { action: 'verify', step: 'accounts' }, accountant);
-    await approvalSvc.act(school, expenseId, { action: 'approve', step: 'deptHead' }, deptHead);
+    for (let guard = 0; guard < 6; guard++) {
+      const e = await FmsExpenseRequest.findById(expenseId);
+      const pos = await approvalSvc.position(school, e);
+      if (pos.next.done || !pos.next.step || pos.next.step === 'payment') break;
+
+      const actor = actorFor[pos.next.step];
+      // chairman/trustee steps need a role that may act there
+      const asRole = ['chairman', 'trustee'].includes(pos.next.step)
+        ? { user: actor.user, fmsRole: 'chairman' }
+        : actor;
+
+      await approvalSvc.act(school, expenseId,
+        { action: pos.next.step === 'accounts' ? 'verify' : 'approve', step: pos.next.step }, asRole);
+    }
+
     return paymentSvc.pay(school, expenseId, {
       paymentMode: 'cheque', instrumentNumber: `CHQ${Math.random().toString().slice(2, 8)}`,
     }, cashier);

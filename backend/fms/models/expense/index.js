@@ -116,10 +116,16 @@ const ExpenseRequestSchema = new mongoose.Schema({
   budgetCheck: {
     checked: { type: Boolean, default: false },
     reason: { type: String },
+    budgetId: { type: ObjectId, default: null },
     budgetAmount: { type: Number },
     consumed: { type: Number },
     available: { type: Number },
     outcome: { type: String, enum: ['ok', 'warning', 'exceeded', 'notChecked'], default: 'notChecked' },
+    // The policy that governed the decision. Without it, an auditor asking
+    // "why was this over-budget request allowed through?" cannot tell whether
+    // the head was configured to warn or whether a control was bypassed.
+    policy: { type: String, enum: ['block', 'warn', null], default: null },
+    blocking: { type: Boolean, default: null },
     checkedAt: { type: Date },
   },
 
