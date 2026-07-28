@@ -134,11 +134,11 @@ router.use('/approvals',protect, require('./approval'));           // Approval W
 router.use('/payments', protect, require('./payment'));            // Payment Processing (P3.4)
 router.use('/budgets',  protect, require('./budget'));             // Budget Management (P4.1)
 router.use('/vendors',  protect, require('./vendor'));             // Vendor Management (P4.2)
+router.use('/purchase', protect, require('./purchase'));           // Procure-to-Pay (P4.3)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P4.3  router.use('/purchase',      protect, require('./purchase'));       // 'purchase'
 // P4.4  router.use('/banking',       protect, require('./banking'));        // 'banking'
 // P4.5  router.use('/petty-cash',    protect, require('./pettyCash'));      // 'pettyCash'
 // P5.x  router.use('/integrations',  protect, require('./integrations'));   // 'ledger'
