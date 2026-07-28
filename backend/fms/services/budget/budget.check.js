@@ -334,12 +334,16 @@ async function main() {
 
   // ── 9. A reversal releases budget ─────────────────────────────────────────
   console.log('\n9. Reversal releases budget');
+  // A DEDICATED account. Section 8 already committed ₹1,000 against `noBudget`,
+  // and reusing it here made the assertion below read ₹21,000 — the code was
+  // right and the test was leaking state between sections.
+  const relAccount = await mkA('5401', 'Fuel & Vehicle Running', gExp, 'expense', 'debit');
   const relBudget = await svc.create(school, {
-    financialYear: fy._id, account: noBudget._id, budgetAmount: money.toPaise(50000),
+    financialYear: fy._id, account: relAccount._id, budgetAmount: money.toPaise(50000),
   }, principal);
   await svc.activate(school, relBudget._id, principal);
 
-  const rel = await raise(20000, noBudget);
+  const rel = await raise(20000, relAccount);
   await expenseSvc.submit(school, rel._id, requester, {});
   const relPay = await approveAndPay(rel._id);
 
