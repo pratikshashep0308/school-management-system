@@ -131,11 +131,11 @@ router.use('/books',    protect, require('./books'));              // Cash & Ban
 router.use('/income',   protect, require('./income'));             // Income Management (P3.1)
 router.use('/expenses', protect, require('./expense'));            // Expense Requests (P3.2)
 router.use('/approvals',protect, require('./approval'));           // Approval Workflow (P3.3)
+router.use('/payments', protect, require('./payment'));            // Payment Processing (P3.4)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P3.4  router.use('/payments',      protect, require('./payments'));       // 'payments'
 // P4.1  router.use('/budgets',       protect, require('./budget'));         // 'budgets'
 // P4.2  router.use('/vendors',       protect, require('./vendor'));         // 'vendors'
 // P4.3  router.use('/purchase',      protect, require('./purchase'));       // 'purchase'

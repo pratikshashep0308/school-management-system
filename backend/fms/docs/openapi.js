@@ -62,6 +62,7 @@ const spec = {
     { name: 'Income', description: 'Money received. Posts immediately — the cash is already in hand (SRS M3).' },
     { name: 'Expenses', description: 'Requests to spend. No ledger posting until payment (SRS M4).' },
     { name: 'Approvals', description: 'Threshold-routed approval workflow with separation of duties (SRS M5, BPMN WF1).' },
+    { name: 'Payments', description: 'Paying approved expenses. Posts to the ledger; paying twice is impossible (BPMN WF3).' },
   ],
 
   components: {
@@ -131,6 +132,39 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      PaymentVoucher: {
+        type: 'object',
+        required: ['_id', 'paymentNumber', 'paymentDate', 'amount', 'paymentMode', 'paymentStatus'],
+        properties: {
+          _id: { type: 'string' },
+          paymentNumber: { type: 'string', example: 'PMT-2026-27-00001', description: 'Also the GL voucher number' },
+          paymentDate: { type: 'string', format: 'date-time' },
+          expenseRequest: { type: 'string' },
+          expenseNumber: { type: 'string' },
+          amount: { type: 'integer', description: 'Integer PAISE. The expense total including GST.' },
+          paymentMode: { type: 'string', enum: ['cash','cheque','neft','rtgs','upi','dd'] },
+          instrumentNumber: { type: 'string', description: 'Required for cheque and DD' },
+          bankReference: { type: 'string', description: 'NEFT/RTGS/UPI reference' },
+          debitAccount: { type: 'string', description: 'The expense head' },
+          debitAccountCode: { type: 'string' },
+          creditAccount: { type: 'string', description: 'Cash or bank the money came from' },
+          creditAccountCode: { type: 'string' },
+          payeeName: { type: 'string' },
+          paymentStatus: { type: 'string', enum: ['pending','processing','paid','failed'] },
+          isLive: {
+            type: 'boolean',
+            description:
+              'A unique partial index on { school, expenseRequest } where isLive ' +
+              'is true makes double payment impossible at the database, not merely ' +
+              'checked in code. A failed payment sets it false, freeing the expense ' +
+              'for a retry.',
+          },
+          voucher: { type: 'string' },
+          reversalVoucher: { type: 'string', nullable: true },
+          failureReason: { type: 'string' },
         },
       },
 
@@ -1881,6 +1915,157 @@ const spec = {
         responses: {
           200: { description: 'Paginated log', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, data: { type: 'array', items: { $ref: '#/components/schemas/ApprovalRecord' } } } } } } },
           400: { $ref: '#/components/responses/BadRequest' },
+        },
+      },
+    },
+
+
+    '/payments/queue': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Approved expenses awaiting payment (SCR-53)',
+        description: 'Requires `payments: read`. Ordered by priority, then due date.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { name: 'paymentMode', in: 'query', schema: { type: 'string', enum: ['cash','cheque','neft','rtgs','upi','dd'] } },
+        ],
+        responses: {
+          200: { description: 'The queue', content: { 'application/json': { schema: { type: 'object', required: ['success','count','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, summary: { type: 'object' }, data: { type: 'array', items: { type: 'object' } } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+
+    '/payments': {
+      get: {
+        tags: ['Payments'],
+        summary: 'List payments',
+        description: 'Totals exclude failed payments — money that bounced did not leave.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'paymentStatus', in: 'query', schema: { type: 'string', enum: ['pending','processing','paid','failed'] } },
+          { name: 'paymentMode', in: 'query', schema: { type: 'string', enum: ['cash','cheque','neft','rtgs','upi','dd'] } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: {
+          200: { description: 'Paginated payments', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','summary','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, summary: { type: 'object' }, data: { type: 'array', items: { $ref: '#/components/schemas/PaymentVoucher' } } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+        },
+      },
+    },
+
+    '/payments/{id}': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Get a payment voucher',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The payment', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/PaymentVoucher' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/payments/{id}/cheque': {
+      get: {
+        tags: ['Payments'],
+        summary: 'Printable cheque overlay (SCR-40)',
+        description:
+          'Returns HTML positioned in millimetres for a CTS-2010 cheque leaf, so ' +
+          'it prints ONTO a real cheque rather than producing a picture of one.\n\n' +
+          '**The offsets need calibrating to the school\'s bank before first use** — ' +
+          'every layout differs slightly. `?guide=false` hides the alignment border.\n\n' +
+          'Only cheque and DD payments have a cheque to print; anything else returns 409.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'guide', in: 'query', schema: { type: 'boolean', default: true } },
+        ],
+        responses: {
+          200: { description: 'Cheque HTML', content: { 'text/html': { schema: { type: 'string' } } } },
+          409: { description: 'Not a cheque or DD payment', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/payments/{expenseId}/pay': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Pay an approved expense',
+        description:
+          'Requires `payments: edit`. Creates the voucher, posts the ledger and ' +
+          'advances the expense in one call — the money leaves in a single act, so ' +
+          'splitting it would only create a window where the books and reality ' +
+          'disagree.\n\n' +
+          'Posts **Dr the expense head / Cr cash or bank** for the full amount ' +
+          'including GST. (A GST-registered entity able to claim input credit would ' +
+          'split the GST to an input-credit account; education services are exempt, ' +
+          'so the whole amount is genuinely the cost.)\n\n' +
+          '**Paying twice is impossible** — a unique partial index rejects a second ' +
+          'live payment at the database. The expense must be at `paymentPending`.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['paymentMode'], properties: {
+            paymentMode: { type: 'string', enum: ['cash','cheque','neft','rtgs','upi','dd'] },
+            creditAccount: { type: 'string', description: 'Inferred when exactly one account fits the mode' },
+            instrumentNumber: { type: 'string', description: 'Required for cheque and DD' },
+            instrumentDate: { type: 'string', format: 'date' },
+            bankReference: { type: 'string' },
+            bankName: { type: 'string' },
+            paymentDate: { type: 'string', format: 'date', description: 'Defaults to now; cannot be in the future' },
+            payeeName: { type: 'string', description: 'Defaults to the vendor on the expense' },
+            narration: { type: 'string' },
+          } } } },
+        },
+        responses: {
+          201: { description: 'Paid and posted', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { description: 'Not approved, already paid, or the period is locked', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/payments/{id}/fail': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Mark a payment failed',
+        description:
+          'A bounced cheque or rejected transfer. **Reverses the posting** and ' +
+          'returns the expense to `paymentPending` so it can be paid again. The ' +
+          'failed voucher stays on record — a cheque that bounced is part of the ' +
+          'history. A reason is mandatory.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Failed and reversed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/payments/expense/{expenseId}/close': {
+      post: {
+        tags: ['Payments'],
+        summary: 'Close a paid expense',
+        description: 'Terminal. Only a `paymentCompleted` expense can be closed.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Closed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
         },
       },
     },
