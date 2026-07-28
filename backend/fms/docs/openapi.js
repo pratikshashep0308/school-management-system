@@ -55,6 +55,7 @@ const spec = {
   tags: [
     { name: 'Plugin', description: 'Status and health. No authentication.' },
     { name: 'Financial Year', description: 'Accounting periods.' },
+    { name: 'Chart of Accounts', description: 'Account groups and ledger heads (SRS M2).' },
   ],
 
   components: {
@@ -124,6 +125,85 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      AccountGroup: {
+        type: 'object',
+        required: ['_id', 'groupCode', 'groupName', 'accountType', 'normalBalance'],
+        properties: {
+          _id: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          groupCode: { type: 'string', example: '4100' },
+          groupName: { type: 'string', example: 'Fee Income' },
+          accountType: { type: 'string', enum: ['asset', 'liability', 'income', 'expense', 'equity'] },
+          normalBalance: { type: 'string', enum: ['debit', 'credit'] },
+          parent: { type: 'string', nullable: true, pattern: '^[0-9a-fA-F]{24}$' },
+          level: { type: 'integer', minimum: 1 },
+          isSystem: {
+            type: 'boolean',
+            description: 'Seeded groups. Cannot be deleted, only deactivated.',
+          },
+          status: { type: 'string', enum: ['active', 'inactive', 'archived'] },
+        },
+      },
+
+      Account: {
+        type: 'object',
+        required: ['_id', 'accountCode', 'accountName', 'accountType', 'normalBalance'],
+        properties: {
+          _id: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          accountCode: { type: 'string', example: '4101' },
+          accountName: { type: 'string', example: 'Tuition Fee Income' },
+          accountGroup: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          accountType: {
+            type: 'string',
+            enum: ['asset', 'liability', 'income', 'expense', 'equity'],
+            description: 'Inherited from the group. Never set directly by a client.',
+          },
+          normalBalance: { type: 'string', enum: ['debit', 'credit'] },
+          isPostable: {
+            type: 'boolean',
+            description: 'False for grouping heads. Posting to one is rejected with 409.',
+          },
+          isBankAccount: { type: 'boolean' },
+          isCashAccount: { type: 'boolean' },
+          openingBalance: {
+            type: 'integer',
+            description:
+              'Integer PAISE. Stored but NOT posted — it becomes real only when a ' +
+              'financial-year opening journal is posted, so it is excluded from currentBalance.',
+          },
+          currentBalance: {
+            type: 'integer',
+            description: 'Integer PAISE. Σ debit − Σ credit over ledger entries. Cache; authoritative value is the aggregate.',
+          },
+          smsFeeTypeId: {
+            type: 'string', nullable: true,
+            description: 'SMS FeeType._id this head receives income for. Opaque — no join.',
+          },
+          smsExpenseCategoryId: { type: 'string', nullable: true },
+          status: { type: 'string', enum: ['active', 'inactive', 'archived'] },
+        },
+      },
+
+      AccountBalance: {
+        type: 'object',
+        required: ['accountCode', 'totalDebit', 'totalCredit', 'currentBalance'],
+        properties: {
+          accountCode: { type: 'string' },
+          accountName: { type: 'string' },
+          normalBalance: { type: 'string', enum: ['debit', 'credit'] },
+          openingBalance: { type: 'integer' },
+          openingBalancePosted: { type: 'boolean' },
+          totalDebit: { type: 'integer' },
+          totalCredit: { type: 'integer' },
+          currentBalance: { type: 'integer', description: 'Recomputed from the ledger' },
+          cachedBalance: { type: 'integer' },
+          drift: {
+            type: 'integer',
+            description: 'cached − computed. Non-zero means the cache has diverged and is a bug.',
+          },
+          entries: { type: 'integer' },
         },
       },
 
@@ -247,6 +327,245 @@ const spec = {
         responses: {
           200: { description: 'SMS reachable', content: { 'application/json': { schema: { type: 'object' } } } },
           503: { description: 'SMS unreachable', content: { 'application/json': { schema: { type: 'object' } } } },
+        },
+      },
+    },
+
+
+    '/accounts': {
+      get: {
+        tags: ['Chart of Accounts'],
+        summary: 'List accounts',
+        description: 'Requires `accounts: read`.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'accountType', in: 'query', schema: { type: 'string', enum: ['asset','liability','income','expense','equity'] } },
+          { name: 'accountGroup', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['active','inactive','archived'] } },
+          { name: 'isPostable', in: 'query', schema: { type: 'boolean' } },
+          { name: 'q', in: 'query', description: 'Search code or name', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success', 'count', 'pagination', 'data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    count: { type: 'integer' },
+                    pagination: { $ref: '#/components/schemas/Pagination' },
+                    data: { type: 'array', items: { $ref: '#/components/schemas/Account' } },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Chart of Accounts'],
+        summary: 'Create an account',
+        description:
+          'Requires `accounts: edit`. `accountType` and `normalBalance` are INHERITED ' +
+          'from the group and are ignored if supplied — letting a client set them ' +
+          'independently is how an income head ends up in the expense tree.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['accountCode', 'accountName', 'accountGroup'],
+                properties: {
+                  accountCode: { type: 'string', example: '4101' },
+                  accountName: { type: 'string', example: 'Tuition Fee Income' },
+                  accountGroup: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+                  isPostable: { type: 'boolean', default: true },
+                  isBankAccount: { type: 'boolean', default: false },
+                  isCashAccount: { type: 'boolean', default: false },
+                  openingBalance: { type: 'integer', description: 'Integer PAISE' },
+                  smsFeeTypeId: { type: 'string', nullable: true },
+                  smsExpenseCategoryId: { type: 'string', nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Created', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, message: { type: 'string' }, data: { $ref: '#/components/schemas/Account' } } } } } },
+          401: { $ref: '#/components/responses/Unauthorized' },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/accounts/{id}': {
+      get: {
+        tags: ['Chart of Accounts'],
+        summary: 'Get an account',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The account', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/Account' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      patch: {
+        tags: ['Chart of Accounts'],
+        summary: 'Update an account',
+        description:
+          'Requires `accounts: edit`. Once the account carries ledger entries, ' +
+          '`accountCode`, `accountGroup` and `openingBalance` are FROZEN (409) — ' +
+          'history references the code and interprets the type.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Updated', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/Account' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+      delete: {
+        tags: ['Chart of Accounts'],
+        summary: 'Delete an account',
+        description:
+          'Requires `accounts: admin`. Succeeds ONLY if the account has never been ' +
+          'posted to. Otherwise 409 with the posting count — deactivate instead ' +
+          '(`PATCH { "status": "inactive" }`), which blocks new postings while ' +
+          'keeping history intact.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Deleted', content: { 'application/json': { schema: { type: 'object' } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+          409: { description: 'Account has postings', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+
+    '/accounts/{id}/balance': {
+      get: {
+        tags: ['Chart of Accounts'],
+        summary: 'Account balance recomputed from the ledger',
+        description: '`drift` is cached − computed. Non-zero indicates a bug, not a rounding artefact.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Balance', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/AccountBalance' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/accounts/groups': {
+      get: {
+        tags: ['Chart of Accounts'],
+        summary: 'List account groups',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'accountType', in: 'query', schema: { type: 'string', enum: ['asset','liability','income','expense','equity'] } },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated list',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success', 'count', 'pagination', 'data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    count: { type: 'integer' },
+                    pagination: { $ref: '#/components/schemas/Pagination' },
+                    data: { type: 'array', items: { $ref: '#/components/schemas/AccountGroup' } },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Chart of Accounts'],
+        summary: 'Create an account group',
+        description: 'Requires `accounts: edit`. A child group must share its parent\'s accountType.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['groupCode','groupName','accountType'], properties: { groupCode: { type: 'string' }, groupName: { type: 'string' }, accountType: { type: 'string', enum: ['asset','liability','income','expense','equity'] }, normalBalance: { type: 'string', enum: ['debit','credit'] }, parent: { type: 'string', nullable: true } } } } },
+        },
+        responses: {
+          201: { description: 'Created', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/AccountGroup' } } } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/accounts/groups/tree': {
+      get: {
+        tags: ['Chart of Accounts'],
+        summary: 'Nested group hierarchy',
+        description: 'For the SCR-08 sidebar. Each node carries a `children` array.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'Tree', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { type: 'array', items: { $ref: '#/components/schemas/AccountGroup' } } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+
+    '/accounts/groups/{id}': {
+      get: {
+        tags: ['Chart of Accounts'],
+        summary: 'Get an account group',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The group', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/AccountGroup' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      patch: {
+        tags: ['Chart of Accounts'],
+        summary: 'Update an account group',
+        description: '`groupCode` and `accountType` are immutable — accounts reference this group and changing its type would silently reclassify them.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Updated', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/AccountGroup' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+      delete: {
+        tags: ['Chart of Accounts'],
+        summary: 'Delete an account group',
+        description: 'Requires `accounts: admin`. Rejected with 409 if the group has child groups or accounts, or is a system group.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Deleted', content: { 'application/json': { schema: { type: 'object' } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+          409: { $ref: '#/components/responses/Conflict' },
         },
       },
     },
