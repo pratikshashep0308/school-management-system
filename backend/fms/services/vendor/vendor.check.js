@@ -238,8 +238,24 @@ async function main() {
       address: { stateCode: '27' },
     }, purchaseOfficer), /contradicts the GSTIN/);
 
-  const updated = await svc.update(school, panOnly._id, { gstin: '24AAACC1206D1ZM' }, purchaseOfficer);
-  ok('adding a GSTIN later updates the PAN to match', updated.pan === 'AAACC1206D');
+  // A GSTIN that CONTRADICTS the stored PAN must be refused, not silently
+  // applied. `panOnly` holds AAACB2894G; 24AAACC1206D1ZM embeds AAACC1206D,
+  // which is a different person — one of the two is wrong and a human has to
+  // say which. (The original version of this test asserted the unsafe
+  // behaviour: that the stored PAN would be quietly overwritten.)
+  await throws('adding a GSTIN that CONTRADICTS the stored PAN is refused',
+    () => svc.update(school, panOnly._id, { gstin: '24AAACC1206D1ZM' }, purchaseOfficer),
+    /does not match/);
+
+  const unchanged = await FmsVendor.findById(panOnly._id);
+  ok('and the stored PAN is untouched', unchanged.pan === 'AAACB2894G', unchanged.pan);
+  ok('and no GSTIN was set', unchanged.gstin === null);
+
+  // The matching GSTIN for that PAN is accepted.
+  const updated = await svc.update(school, panOnly._id, { gstin: '07AAACB2894G1ZP' }, purchaseOfficer);
+  ok('a GSTIN whose PAN AGREES is accepted', updated.gstin === '07AAACB2894G1ZP');
+  ok('the PAN is unchanged, as it should be', updated.pan === 'AAACB2894G');
+  ok('and the vendor is now GST registered', updated.isGstRegistered === true);
 
   // ── 5. Documents ──────────────────────────────────────────────────────────
   console.log('\n5. Documents');
