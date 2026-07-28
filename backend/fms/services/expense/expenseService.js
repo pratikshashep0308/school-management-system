@@ -67,7 +67,7 @@ function step(req, action, fromStatus, toStatus, comment) {
  * let every unbudgeted request pass a control that was never actually applied,
  * and the records would later read as though it had been.
  */
-async function checkBudget(school, budgetHead, financialYear, amount) {
+async function checkBudget(school, budgetHead, financialYear, amount, departmentName) {
   const names = (await mongoose.connection.db.listCollections().toArray()).map((c) => c.name);
 
   if (!names.includes('fms_budgets')) {
@@ -79,57 +79,11 @@ async function checkBudget(school, budgetHead, financialYear, amount) {
     };
   }
 
-  const budget = await mongoose.connection.db.collection('fms_budgets').findOne({
-    school: new mongoose.Types.ObjectId(String(school)),
-    account: new mongoose.Types.ObjectId(String(budgetHead)),
-    financialYear: new mongoose.Types.ObjectId(String(financialYear)),
-    budgetStatus: { $in: ['active', 'revised'] },
-  });
-
-  if (!budget) {
-    return {
-      checked: false,
-      outcome: 'notChecked',
-      reason: 'No active budget is set for this head',
-      checkedAt: new Date(),
-    };
-  }
-
-  const budgetAmount = budget.revisedBudget ?? budget.budgetAmount ?? 0;
-
-  // Committed = everything already asked for and not rejected/cancelled.
-  // Counting only paid spend would let ten pending requests each pass a check
-  // that they collectively blow.
-  const [committed] = await FmsExpenseRequest.aggregate([
-    {
-      $match: {
-        school: new mongoose.Types.ObjectId(String(school)),
-        budgetHead: new mongoose.Types.ObjectId(String(budgetHead)),
-        financialYear: new mongoose.Types.ObjectId(String(financialYear)),
-        expenseStatus: { $nin: ['draft', 'rejected', 'cancelled'] },
-      },
-    },
-    { $group: { _id: null, total: { $sum: '$totalAmount' } } },
-  ]);
-
-  const consumed = committed?.total || 0;
-  const available = budgetAmount - consumed;
-
-  let outcome = 'ok';
-  let reason;
-  if (amount > available) {
-    outcome = 'exceeded';
-    reason = `Request of ${amount} exceeds the available balance of ${available}`;
-  } else if (consumed + amount > budgetAmount * WARN_AT) {
-    outcome = 'warning';
-    reason = `This request takes the head past ${Math.round(WARN_AT * 100)}% of its budget`;
-  }
-
-  return {
-    checked: true, outcome, reason,
-    budgetAmount, consumed, available,
-    checkedAt: new Date(),
-  };
+  // Delegate to the budget service. Two implementations of "how much is left"
+  // would eventually disagree, and the one people saw would depend on which
+  // screen they opened.
+  const budgetService = require('../budget/budgetService');
+  return budgetService.checkAvailability(school, budgetHead, financialYear, amount, departmentName);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -319,9 +273,15 @@ async function submit(school, id, req, { comment, acknowledgeOverBudget } = {}) 
 
   await resolveFy(school, doc.requestDate);
 
-  const check = await checkBudget(school, doc.budgetHead, doc.financialYear, doc.totalAmount);
+  const check = await checkBudget(
+    school, doc.budgetHead, doc.financialYear, doc.totalAmount, doc.department?.name
+  );
 
-  if (check.outcome === 'exceeded' && !acknowledgeOverBudget) {
+  // `blocking` comes from the budget's own overBudgetPolicy: a head configured
+  // to 'warn' lets the request through and flags it instead of refusing.
+  const mustBlock = check.blocking !== false && check.outcome === 'exceeded';
+
+  if (mustBlock && !acknowledgeOverBudget) {
     throw errors.conflict(
       `Over budget: ${check.reason}`,
       {

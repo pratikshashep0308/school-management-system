@@ -63,6 +63,7 @@ const spec = {
     { name: 'Expenses', description: 'Requests to spend. No ledger posting until payment (SRS M4).' },
     { name: 'Approvals', description: 'Threshold-routed approval workflow with separation of duties (SRS M5, BPMN WF1).' },
     { name: 'Payments', description: 'Paying approved expenses. Posts to the ledger; paying twice is impossible (BPMN WF3).' },
+    { name: 'Budgets', description: 'Spending allowances. Actuals are derived from postings, never stored (SRS M6).' },
   ],
 
   components: {
@@ -132,6 +133,56 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      BudgetPosition: {
+        type: 'object',
+        required: ['effectiveBudget', 'actual', 'committed', 'consumed', 'available'],
+        properties: {
+          budgetAmount: { type: 'integer', description: 'The ORIGINAL allocation, never overwritten' },
+          revisedBudget: { type: 'integer', nullable: true },
+          effectiveBudget: { type: 'integer', description: 'The revision if there is one, else the original' },
+          actual: {
+            type: 'integer',
+            description: 'Σ(debit − credit) from the LEDGER. Derived, never stored. A reversal reduces it.',
+          },
+          actualEntries: { type: 'integer' },
+          committed: {
+            type: 'integer',
+            description:
+              'Approved but NOT yet paid. Excludes paid expenses, which are already ' +
+              'in `actual` — counting both would exhaust the budget at half its real spend.',
+          },
+          committedRequests: { type: 'integer' },
+          consumed: { type: 'integer', description: 'actual + committed, with no overlap' },
+          available: { type: 'integer', description: 'effectiveBudget − consumed' },
+          utilisation: { type: 'number', description: 'consumed / effectiveBudget' },
+          isOverBudget: { type: 'boolean' },
+          isNearLimit: { type: 'boolean' },
+        },
+      },
+
+      Budget: {
+        type: 'object',
+        required: ['_id', 'account', 'budgetAmount', 'budgetStatus'],
+        properties: {
+          _id: { type: 'string' },
+          financialYear: { type: 'string' },
+          account: { type: 'string', description: 'Must be an expense-type, postable head' },
+          accountCode: { type: 'string' },
+          accountName: { type: 'string' },
+          department: { type: 'object', properties: { name: { type: 'string', nullable: true }, ref: { type: 'string', nullable: true } } },
+          budgetAmount: { type: 'integer', description: 'Integer PAISE' },
+          revisedBudget: { type: 'integer', nullable: true },
+          warnThreshold: { type: 'number', default: 0.9, description: 'Fraction at which a warning is raised' },
+          overBudgetPolicy: {
+            type: 'string', enum: ['block', 'warn'],
+            description: "'block' refuses unless acknowledged; 'warn' allows and flags",
+          },
+          budgetStatus: { type: 'string', enum: ['draft', 'active', 'revised', 'closed'] },
+          revisions: { type: 'array', items: { type: 'object' }, description: 'Append-only, each with a reason' },
+          position: { $ref: '#/components/schemas/BudgetPosition' },
         },
       },
 
@@ -2063,6 +2114,165 @@ const spec = {
         description: 'Terminal. Only a `paymentCompleted` expense can be closed.',
         security: [{ bearerAuth: [] }],
         parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Closed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+
+    '/budgets': {
+      get: {
+        tags: ['Budgets'],
+        summary: 'List budgets, each with its live position',
+        description: 'Requires `budgets: read`. Positions are derived at query time, so the figures are never stale.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'budgetStatus', in: 'query', schema: { type: 'string', enum: ['draft','active','revised','closed'] } },
+          { name: 'financialYear', in: 'query', schema: { type: 'string' } },
+          { name: 'account', in: 'query', schema: { type: 'string' } },
+          { name: 'department', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: { description: 'Paginated budgets', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, data: { type: 'array', items: { $ref: '#/components/schemas/Budget' } } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Budgets'],
+        summary: 'Create a draft budget',
+        description:
+          'Requires `budgets: edit`. Only **expense-type, postable** heads may be ' +
+          'budgeted. A draft is NOT consulted by expense submission — activate it first.',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['financialYear','account','budgetAmount'], properties: {
+          financialYear: { type: 'string' },
+          account: { type: 'string' },
+          budgetAmount: { type: 'integer', description: 'Integer PAISE' },
+          department: { type: 'object', properties: { name: { type: 'string' } } },
+          warnThreshold: { type: 'number', default: 0.9 },
+          overBudgetPolicy: { type: 'string', enum: ['block','warn'], default: 'block' },
+          notes: { type: 'string' },
+        } } } } },
+        responses: {
+          201: { description: 'Draft created', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { description: 'A budget already exists for this head', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/budgets/vs-actual': {
+      get: {
+        tags: ['Budgets'],
+        summary: 'Budget vs Actual monitor (SCR-25)',
+        description:
+          'Every budget in a year with its derived position, plus totals and a ' +
+          'count of over-budget and near-limit heads.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'financialYear', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'department', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: { description: 'Budget vs actual', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { type: 'object', properties: { lines: { type: 'array', items: { $ref: '#/components/schemas/Budget' } }, totals: { type: 'object' } } } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+        },
+      },
+    },
+
+    '/budgets/check/availability': {
+      get: {
+        tags: ['Budgets'],
+        summary: 'Preview availability without raising anything',
+        description:
+          'Returns `checked: false` when no live budget exists — **not** `ok`. ' +
+          'Reporting a pass when nothing was consulted would let every unbudgeted ' +
+          'request through a control that was never applied.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'account', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'financialYear', in: 'query', required: true, schema: { type: 'string' } },
+          { name: 'amount', in: 'query', required: true, schema: { type: 'integer', description: 'Integer PAISE' } },
+          { name: 'department', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: { description: 'Availability', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/BudgetCheck' } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+        },
+      },
+    },
+
+    '/budgets/{id}': {
+      get: {
+        tags: ['Budgets'],
+        summary: 'Get a budget with its position',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The budget', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/Budget' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      patch: {
+        tags: ['Budgets'],
+        summary: 'Edit a draft budget',
+        description: 'Drafts only. **A live budget must be revised, not edited** — a change to money already allocated has to carry a reason.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Updated', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { description: 'Not a draft', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+
+    '/budgets/{id}/activate': {
+      post: {
+        tags: ['Budgets'],
+        summary: 'Activate a draft',
+        description: 'Requires `budgets: admin`. Only a live budget is consulted by expense submission.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Activated', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+    '/budgets/{id}/revise': {
+      post: {
+        tags: ['Budgets'],
+        summary: 'Revise a live budget (SCR-24)',
+        description:
+          'Requires `budgets: admin`. **The original allocation is preserved** — the ' +
+          'revision sits beside it, so "what was originally allocated" stays ' +
+          'answerable. A reason is mandatory.\n\n' +
+          'Revising BELOW what has already been consumed is permitted but returns a ' +
+          'warning: it records a real decision rather than being refused.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['newAmount','reason'], properties: { newAmount: { type: 'integer', description: 'Integer PAISE' }, reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Revised', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/budgets/{id}/close': {
+      post: {
+        tags: ['Budgets'],
+        summary: 'Close a budget',
+        description: 'Terminal. Budgets are closed, never deleted — a budget that was spent against is part of how the year was managed.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
         responses: {
           200: { description: 'Closed', content: { 'application/json': { schema: { type: 'object' } } } },
           409: { $ref: '#/components/responses/Conflict' },
