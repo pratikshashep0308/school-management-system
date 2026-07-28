@@ -54,6 +54,7 @@ async function main() {
   const requester = who('req@test', 'deptHead');
   const accountant = who('acct@test', 'accountant');
   const deptHead = who('dept@test', 'deptHead');
+  const principal = who('principal@test', 'principal');
   const cashier = who('cash@test', 'cashier');
 
   const fy = await M.FmsFinancialYear.create({
@@ -145,8 +146,22 @@ async function main() {
     attachments: [{ fileName: 'inv.pdf', url: '/u/inv.pdf', kind: 'invoice' }],
   }, requester);
   await expenseSvc.submit(school, e1._id, requester, {});
-  await approvalSvc.act(school, e1._id, { action: 'verify', step: 'accounts' }, accountant);
-  await approvalSvc.act(school, e1._id, { action: 'approve', step: 'deptHead' }, deptHead);
+
+  // Walk the chain rather than naming an approver. ₹12,000 is tier 2, so it
+  // needs a principal — hardcoding deptHead here worked only for amounts under
+  // ₹10,000, which is the same trap that caught budget.check.js.
+  const actorFor = { accounts: accountant, deptHead, principal, chairman: principal, trustee: principal };
+  for (let guard = 0; guard < 6; guard++) {
+    const cur = await FmsExpenseRequest.findById(e1._id);
+    const pos = await approvalSvc.position(school, cur);
+    if (pos.next.done || !pos.next.step || pos.next.step === 'payment') break;
+    const base = actorFor[pos.next.step];
+    const asRole = ['chairman', 'trustee'].includes(pos.next.step)
+      ? { user: base.user, fmsRole: 'chairman' } : base;
+    await approvalSvc.act(school, e1._id,
+      { action: pos.next.step === 'accounts' ? 'verify' : 'approve', step: pos.next.step }, asRole);
+  }
+
   await paymentSvc.pay(school, e1._id, { paymentMode: 'cheque', instrumentNumber: '00991' }, cashier);
 
   const unpaidAmt = money.toPaise(5000);
