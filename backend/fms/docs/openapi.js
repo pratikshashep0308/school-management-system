@@ -64,6 +64,7 @@ const spec = {
     { name: 'Approvals', description: 'Threshold-routed approval workflow with separation of duties (SRS M5, BPMN WF1).' },
     { name: 'Payments', description: 'Paying approved expenses. Posts to the ledger; paying twice is impossible (BPMN WF3).' },
     { name: 'Budgets', description: 'Spending allowances. Actuals are derived from postings, never stored (SRS M6).' },
+    { name: 'Vendors', description: 'Vendor master with GSTIN checksum validation and KYC documents (SRS M7).' },
   ],
 
   components: {
@@ -133,6 +134,72 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      Vendor: {
+        type: 'object',
+        required: ['_id', 'vendorCode', 'vendorName', 'vendorStatus'],
+        properties: {
+          _id: { type: 'string' },
+          vendorCode: { type: 'string', example: 'VEN-2026-27-00001' },
+          vendorName: { type: 'string' },
+          legalName: { type: 'string' },
+          vendorType: { type: 'string', enum: ['goods','services','both','contractor','utility'] },
+          gstin: {
+            type: 'string', nullable: true,
+            description:
+              'Validated against its mod-36 CHECK CHARACTER, not merely its shape — ' +
+              'a single-digit typo passes a regex and fails the school when the ' +
+              'expense is questioned.',
+          },
+          pan: { type: 'string', nullable: true, description: 'Derived from the GSTIN when not supplied' },
+          isGstRegistered: { type: 'boolean' },
+          address: { type: 'object' },
+          bank: { type: 'object' },
+          creditDays: { type: 'integer' },
+          rating: { type: 'integer', nullable: true, minimum: 1, maximum: 5, description: 'Advisory, never a control' },
+          vendorStatus: {
+            type: 'string',
+            enum: ['draft','active','onHold','blacklisted','inactive'],
+            description: 'Activation requires bank details; holding or blacklisting requires a reason.',
+          },
+          statusReason: { type: 'string' },
+        },
+      },
+
+      VendorDocument: {
+        type: 'object',
+        required: ['_id', 'docType', 'fileName', 'url'],
+        properties: {
+          _id: { type: 'string' },
+          vendor: { type: 'string' },
+          docType: { type: 'string', enum: ['gstCertificate','panCard','cancelledCheque','bankLetter','msmeCertificate','tradeLicence','agreement','other'] },
+          docNumber: { type: 'string' },
+          fileName: { type: 'string' },
+          url: { type: 'string' },
+          issueDate: { type: 'string', format: 'date-time' },
+          expiryDate: { type: 'string', format: 'date-time' },
+          verified: { type: 'boolean' },
+          verifiedBy: { type: 'string', nullable: true },
+        },
+      },
+
+      TaxIdValidation: {
+        type: 'object',
+        required: ['valid'],
+        properties: {
+          valid: { type: 'boolean' },
+          reason: { type: 'string' },
+          expected: { type: 'string', description: 'The correct check character, when the checksum fails' },
+          stateCode: { type: 'string' },
+          stateName: { type: 'string' },
+          pan: { type: 'string', description: 'Extracted from a GSTIN' },
+          holderTypeName: { type: 'string', description: 'From the PAN 4th character' },
+          checksumVerified: {
+            type: 'boolean',
+            description: "Always false for PAN — its check algorithm is not published, so claiming to verify it would be dishonest.",
+          },
         },
       },
 
@@ -2275,6 +2342,175 @@ const spec = {
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
         responses: {
           200: { description: 'Closed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+
+    '/vendors': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'List vendors (SCR-26)',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'vendorStatus', in: 'query', schema: { type: 'string', enum: ['draft','active','onHold','blacklisted','inactive'] } },
+          { name: 'vendorType', in: 'query', schema: { type: 'string', enum: ['goods','services','both','contractor','utility'] } },
+          { name: 'gstRegistered', in: 'query', schema: { type: 'boolean' } },
+          { name: 'q', in: 'query', description: 'Search name, code, GSTIN or PAN', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: { description: 'Paginated vendors', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, data: { type: 'array', items: { $ref: '#/components/schemas/Vendor' } } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Vendors'],
+        summary: 'Create a vendor (SCR-27)',
+        description:
+          'Requires `vendors: edit`. Created as a **draft** — activation needs bank ' +
+          'details.\n\n' +
+          'A GSTIN is validated against its **check character**, and a PAN is derived ' +
+          'from it when not supplied. If both are given they must describe the same ' +
+          'taxable person. A GSTIN also fixes the state, and an address contradicting ' +
+          'it is refused — that difference decides whether GST is CGST+SGST or IGST.',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['vendorName'], properties: {
+          vendorName: { type: 'string' }, legalName: { type: 'string' },
+          vendorType: { type: 'string', enum: ['goods','services','both','contractor','utility'] },
+          gstin: { type: 'string', example: '27AAPFU0939F1ZV' },
+          pan: { type: 'string', example: 'AAPFU0939F' },
+          address: { type: 'object' }, bank: { type: 'object' },
+          contactPerson: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' },
+          creditDays: { type: 'integer' }, rating: { type: 'integer', minimum: 1, maximum: 5 },
+        } } } } },
+        responses: {
+          201: { description: 'Draft created', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { description: 'GSTIN already belongs to another vendor', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { description: 'Bad GSTIN checksum, malformed PAN, or a mismatched pair', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+
+    '/vendors/validate-tax-id': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Check a GSTIN or PAN without saving',
+        description: 'Useful while typing. Returns the decoded state, the embedded PAN, and the expected check character when the checksum fails.',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { gstin: { type: 'string' }, pan: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Validation result', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { type: 'object', properties: { gstin: { $ref: '#/components/schemas/TaxIdValidation' }, pan: { $ref: '#/components/schemas/TaxIdValidation' }, pair: { type: 'object' } } } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+        },
+      },
+    },
+
+    '/vendors/documents/expiring': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'KYC documents expiring soon',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'withinDays', in: 'query', schema: { type: 'integer', default: 30 } }],
+        responses: {
+          200: { description: 'Expiring documents', content: { 'application/json': { schema: { type: 'object' } } } },
+        },
+      },
+    },
+
+    '/vendors/{id}': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'Get a vendor with its documents',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The vendor', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/Vendor' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      patch: {
+        tags: ['Vendors'],
+        summary: 'Update a vendor',
+        description: 'Changing the GSTIN re-validates it and re-derives the PAN.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Updated', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/vendors/{id}/history': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'Purchase and payment history (SCR-28)',
+        description:
+          'Aggregates expenses and payments for this vendor, with totals billed, ' +
+          'paid and outstanding.\n\n' +
+          'Purchase orders arrive in P4.3 and are **explicitly absent** — the response ' +
+          'says so rather than implying the totals are complete.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+        ],
+        responses: {
+          200: { description: 'History', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { type: 'object', properties: { vendor: { type: 'object' }, summary: { type: 'object' }, expenses: { type: 'array', items: { type: 'object' } }, payments: { type: 'array', items: { type: 'object' } }, purchaseOrders: { type: 'array', items: { type: 'object' } }, note: { type: 'string' } } } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/vendors/{id}/status': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Change vendor status',
+        description:
+          'Requires `vendors: edit`. **Activation requires bank details** — a vendor ' +
+          'that cannot be paid should not read as active. **Holding or blacklisting ' +
+          'requires a reason** — it stops payments, and someone will ask why.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['vendorStatus'], properties: { vendorStatus: { type: 'string', enum: ['draft','active','onHold','blacklisted','inactive'] }, reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Status changed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/vendors/{id}/documents': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Attach a KYC document (SCR-29)',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['docType','fileName','url'], properties: { docType: { type: 'string', enum: ['gstCertificate','panCard','cancelledCheque','bankLetter','msmeCertificate','tradeLicence','agreement','other'] }, docNumber: { type: 'string' }, fileName: { type: 'string' }, url: { type: 'string' }, issueDate: { type: 'string', format: 'date' }, expiryDate: { type: 'string', format: 'date' } } } } } },
+        responses: {
+          201: { description: 'Attached', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/VendorDocument' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/vendors/documents/{docId}/verify': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Verify a KYC document',
+        description: '**The verifier must not be whoever uploaded it** — self-verification is not verification.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'docId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Verified', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { description: 'Separation of duties', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           409: { $ref: '#/components/responses/Conflict' },
         },
       },
