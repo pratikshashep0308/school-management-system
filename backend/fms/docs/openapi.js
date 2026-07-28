@@ -58,6 +58,7 @@ const spec = {
     { name: 'Chart of Accounts', description: 'Account groups and ledger heads (SRS M2).' },
     { name: 'General Ledger', description: 'Read-only. Every route is a GET — entries are written only by LedgerPostingService (SRS M11).' },
     { name: 'Journal Voucher', description: 'Manual journal entries with an approval step (SRS M12).' },
+    { name: 'Cash & Bank Book', description: 'Derived entirely from ledger postings. Daily closing records the physical count (SRS M13/M14).' },
   ],
 
   components: {
@@ -127,6 +128,62 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      BookDay: {
+        type: 'object',
+        required: ['date', 'openingBalance', 'receipts', 'payments', 'closingBalance'],
+        properties: {
+          date: { type: 'string', format: 'date' },
+          openingBalance: { type: 'integer', description: 'Integer PAISE. Equals the previous day\'s closing.' },
+          receipts: { type: 'integer', description: 'Money in (ledger debits on the account)' },
+          payments: { type: 'integer', description: 'Money out (ledger credits)' },
+          closingBalance: { type: 'integer', description: 'opening + receipts − payments' },
+          entries: { type: 'integer' },
+          closing: {
+            type: 'object', nullable: true,
+            description: 'Present only if the day has been closed',
+            properties: {
+              status: { type: 'string', enum: ['open','closed','verified','disputed'] },
+              physicalCount: { type: 'integer', nullable: true },
+              variance: { type: 'integer' },
+              verified: { type: 'boolean' },
+            },
+          },
+        },
+      },
+
+      DailyClosing: {
+        type: 'object',
+        required: ['_id', 'closingDate', 'bookType', 'systemClosing', 'closingStatus'],
+        properties: {
+          _id: { type: 'string' },
+          account: { type: 'string' },
+          accountCode: { type: 'string' },
+          accountName: { type: 'string' },
+          bookType: { type: 'string', enum: ['cash', 'bank'] },
+          closingDate: { type: 'string', format: 'date-time' },
+          openingBalance: { type: 'integer' },
+          totalReceipts: { type: 'integer' },
+          totalPayments: { type: 'integer' },
+          systemClosing: {
+            type: 'integer',
+            description:
+              'What the ledger said at the moment of closing. A snapshot for ' +
+              'investigating variances, never the source of truth for a balance.',
+          },
+          physicalCount: { type: 'integer', nullable: true, description: 'Required for cash' },
+          variance: { type: 'integer', description: 'physical − system. Derived, never supplied.' },
+          varianceReason: { type: 'string' },
+          closingStatus: {
+            type: 'string',
+            enum: ['open', 'closed', 'verified', 'disputed'],
+            description: 'A non-zero variance opens as `disputed` until verified.',
+          },
+          closedBy: { type: 'string' },
+          verifiedBy: { type: 'string', nullable: true },
+          entryCount: { type: 'integer' },
         },
       },
 
@@ -1029,6 +1086,154 @@ const spec = {
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
         responses: {
           200: { description: 'Reversed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+
+    '/books/{bookType}': {
+      get: {
+        tags: ['Cash & Bank Book'],
+        summary: 'Cash or bank book, day by day',
+        description:
+          'Requires `ledger: read`. Every figure is derived from ledger postings ' +
+          'at query time — nothing is stored twice.\n\n' +
+          'Days with no movement are still returned, carrying the balance forward, ' +
+          'so continuity is readable. `continuous` proves ' +
+          '`opening + receipts − payments = closing` independently of the row loop.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'bookType', in: 'path', required: true, schema: { type: 'string', enum: ['cash','bank'] } },
+          { name: 'from', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          { name: 'account', in: 'query', description: 'Limit to one account; otherwise all of that type', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+        ],
+        responses: {
+          200: {
+            description: 'The book',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['success','data'],
+                  properties: {
+                    success: { type: 'boolean', enum: [true] },
+                    data: {
+                      type: 'object',
+                      required: ['bookType','openingBalance','closingBalance','days','continuous'],
+                      properties: {
+                        bookType: { type: 'string', enum: ['cash','bank'] },
+                        accounts: { type: 'array', items: { type: 'object' } },
+                        period: { type: 'object' },
+                        openingBalance: { type: 'integer' },
+                        totalReceipts: { type: 'integer' },
+                        totalPayments: { type: 'integer' },
+                        closingBalance: { type: 'integer' },
+                        continuous: { type: 'boolean' },
+                        days: { type: 'array', items: { $ref: '#/components/schemas/BookDay' } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/books/{bookType}/day/{date}': {
+      get: {
+        tags: ['Cash & Bank Book'],
+        summary: 'One day in full',
+        description: 'Every entry for the day with a running balance, plus the closing record if the day has been closed.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'bookType', in: 'path', required: true, schema: { type: 'string', enum: ['cash','bank'] } },
+          { name: 'date', in: 'path', required: true, schema: { type: 'string', format: 'date' } },
+          { name: 'account', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+        ],
+        responses: {
+          200: { description: 'The day', content: { 'application/json': { schema: { type: 'object' } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/books/close': {
+      post: {
+        tags: ['Cash & Bank Book'],
+        summary: 'Close a day',
+        description:
+          'Requires `pettyCash: edit`.\n\n' +
+          '**A cash closing requires `physicalCount`** — closing cash without ' +
+          'counting it is not a control. Bank closings do not, since there is ' +
+          'nothing to count.\n\n' +
+          'Any variance requires `varianceReason` and opens the closing as ' +
+          '`disputed`. Variance is computed, never accepted from the caller.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['account','date'], properties: {
+            account: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+            date: { type: 'string', format: 'date' },
+            physicalCount: { type: 'integer', description: 'Integer PAISE. Required for cash.' },
+            varianceReason: { type: 'string' },
+            notes: { type: 'string' },
+            denominations: { type: 'array', items: { type: 'object', properties: { denomination: { type: 'integer' }, count: { type: 'integer' } } } },
+          } } } },
+        },
+        responses: {
+          201: { description: 'Closed', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, message: { type: 'string' }, data: { $ref: '#/components/schemas/DailyClosing' } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { description: 'Already closed for that date', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/books/closings/list': {
+      get: {
+        tags: ['Cash & Bank Book'],
+        summary: 'List daily closings',
+        description: '`?unverified=true` returns everything still needing attention.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'bookType', in: 'query', schema: { type: 'string', enum: ['cash','bank'] } },
+          { name: 'closingStatus', in: 'query', schema: { type: 'string', enum: ['open','closed','verified','disputed'] } },
+          { name: 'account', in: 'query', schema: { type: 'string' } },
+          { name: 'unverified', in: 'query', schema: { type: 'boolean' } },
+        ],
+        responses: {
+          200: { description: 'Paginated list', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, data: { type: 'array', items: { $ref: '#/components/schemas/DailyClosing' } } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
+        },
+      },
+    },
+
+    '/books/closings/{id}/verify': {
+      post: {
+        tags: ['Cash & Bank Book'],
+        summary: 'Verify a daily closing',
+        description:
+          'Requires `pettyCash: admin`. **The verifier must not be whoever closed ' +
+          'it** — self-verification is not verification. A closing with a variance ' +
+          'requires a note.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Verified', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { description: 'Not permitted, or separation of duties', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
           409: { $ref: '#/components/responses/Conflict' },
           422: { $ref: '#/components/responses/ValidationFailed' },
         },

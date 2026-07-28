@@ -127,11 +127,11 @@ router.use('/financial-years', protect, require('./financialYear'));
 router.use('/accounts', protect, require('./accounts'));           // Chart of Accounts (P2.1)
 router.use('/ledger',   protect, require('./ledger'));             // General Ledger, READ-ONLY (P2.2)
 router.use('/journal',  protect, require('./journal'));            // Journal Vouchers (P2.3)
+router.use('/books',    protect, require('./books'));              // Cash & Bank Book (P2.4)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P2.4  router.use('/books',         protect, require('./cashBankBook'));   // 'ledger'
 // P3.1  router.use('/income',        protect, require('./income'));         // 'income'
 // P3.2  router.use('/expenses',      protect, require('./expense'));        // 'expenses'
 // P3.3  router.use('/approvals',     protect, require('./approval'));       // 'approvals'
