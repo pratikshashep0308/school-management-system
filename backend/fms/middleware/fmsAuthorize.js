@@ -25,6 +25,7 @@
 
 const { FmsRoleAssignment } = require('../models/core');
 const matrix = require('../services/auth/permissionMatrix');
+const { errors } = require('../utils/apiResponse');
 
 const { MODULE_KEYS, ACTIONS } = matrix;
 
@@ -56,13 +57,9 @@ async function loadAssignment(userId, school) {
   return doc || null;
 }
 
-function deny(res, message, detail) {
-  return res.status(403).json({
-    success: false,
-    message,
-    ...(detail ? { detail } : {}),
-  });
-}
+// Errors are THROWN, not written directly, so fmsErrorHandler renders them in
+// the one standard envelope. Responding here would produce a second error shape
+// for the same class of failure — which the contract test exists to catch.
 
 /**
  * Guard a route.
@@ -84,12 +81,12 @@ function fmsAuthorize(moduleKey, action = 'VIEW') {
   return async function (req, res, next) {
     // 1 — authenticated
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: 'Not authorized. Please login.' });
+      return next(errors.unauthorized());
     }
 
     const school = req.user.school;
     if (!school) {
-      return deny(res, 'No branch assigned to this account.');
+      return next(errors.forbidden('No branch assigned to this account.'));
     }
 
     // 2 — has an active FMS role
@@ -97,30 +94,32 @@ function fmsAuthorize(moduleKey, action = 'VIEW') {
     try {
       assignment = await loadAssignment(req.user._id, school);
     } catch (err) {
-      // A lookup failure must not fail open.
-      return res.status(503).json({
-        success: false,
-        message: 'Authorization check unavailable.',
-      });
+      // A lookup failure must NOT fail open. If permission cannot be
+      // determined, access is refused.
+      const e = errors.internal('Authorization check unavailable.');
+      e.status = 503;
+      e.code = 'AUTHZ_UNAVAILABLE';
+      return next(e);
     }
 
     if (!assignment) {
-      return deny(
-        res,
+      return next(errors.forbidden(
         'No FMS role assigned to this account.',
-        'An administrator must grant an FMS finance role before this area is accessible.'
-      );
+        { hint: 'An administrator must grant an FMS finance role before this area is accessible.' }
+      ));
     }
 
     // 3 — permitted
     if (!matrix.can(assignment, moduleKey, action)) {
-      return deny(
-        res,
+      return next(errors.forbidden(
         `Your role does not permit ${action} on ${moduleKey}.`,
-        `Role '${assignment.financeRole}' has '${matrix.levelFor(
-          assignment.financeRole, moduleKey, assignment.permissions
-        )}' on '${moduleKey}'; ${action} requires '${matrix.ACTION_LEVEL[action]}'.`
-      );
+        {
+          role: assignment.financeRole,
+          has: matrix.levelFor(assignment.financeRole, moduleKey, assignment.permissions),
+          requires: matrix.ACTION_LEVEL[action],
+          module: moduleKey,
+        }
+      ));
     }
 
     // 4 — branch scope. Every FMS query must filter on req.fmsScope.school.
@@ -148,11 +147,10 @@ function requireDifferentActor(getOriginatorId) {
   return async function (req, res, next) {
     const originator = await getOriginatorId(req);
     if (originator && String(originator) === String(req.user._id)) {
-      return deny(
-        res,
+      return next(errors.forbidden(
         'Separation of duties: you cannot approve your own request.',
-        'A different authorised user must action this.'
-      );
+        { hint: 'A different authorised user must action this.' }
+      ));
     }
     next();
   };
