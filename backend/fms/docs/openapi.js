@@ -61,6 +61,7 @@ const spec = {
     { name: 'Cash & Bank Book', description: 'Derived entirely from ledger postings. Daily closing records the physical count (SRS M13/M14).' },
     { name: 'Income', description: 'Money received. Posts immediately — the cash is already in hand (SRS M3).' },
     { name: 'Expenses', description: 'Requests to spend. No ledger posting until payment (SRS M4).' },
+    { name: 'Approvals', description: 'Threshold-routed approval workflow with separation of duties (SRS M5, BPMN WF1).' },
   ],
 
   components: {
@@ -130,6 +131,65 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      ApprovalTier: {
+        type: 'object',
+        required: ['minAmount', 'approvers'],
+        properties: {
+          tier: { type: 'integer' },
+          minAmount: { type: 'integer', description: 'Integer PAISE, inclusive' },
+          maxAmount: { type: 'integer', nullable: true, description: 'Inclusive. null = open-ended (highest tier only)' },
+          approvers: { type: 'array', items: { type: 'string', enum: ['deptHead','principal','chairman','trustee'] } },
+          label: { type: 'string' },
+        },
+      },
+
+      ApprovalPosition: {
+        type: 'object',
+        required: ['tier', 'approvers', 'chain', 'next'],
+        properties: {
+          tier: { type: 'integer' },
+          approvers: { type: 'array', items: { type: 'string' } },
+          chain: { type: 'array', items: { type: 'object', properties: { step: { type: 'string' }, roles: { type: 'array', items: { type: 'string' } }, completed: { type: 'boolean' }, toStatus: { type: 'string' } } } },
+          completedSteps: { type: 'array', items: { type: 'string' } },
+          next: {
+            type: 'object',
+            description:
+              'Who must act now. This resolves the state ambiguity: a tier-3 ' +
+              'expense at chairmanApproved is complete, while a tier-4 one is ' +
+              'waiting for a trustee.',
+            properties: {
+              done: { type: 'boolean' },
+              step: { type: 'string', nullable: true },
+              roles: { type: 'array', items: { type: 'string' } },
+              isFinal: { type: 'boolean' },
+              remaining: { type: 'array', items: { type: 'string' } },
+              reason: { type: 'string' },
+            },
+          },
+        },
+      },
+
+      ApprovalRecord: {
+        type: 'object',
+        required: ['_id', 'step', 'action', 'actor', 'fromStatus', 'toStatus'],
+        properties: {
+          _id: { type: 'string' },
+          expenseRequest: { type: 'string' },
+          expenseNumber: { type: 'string' },
+          step: { type: 'string', enum: ['accounts','deptHead','principal','chairman','trustee'] },
+          action: { type: 'string', enum: ['verify','approve','reject','return'] },
+          actor: { type: 'string' },
+          actorEmail: { type: 'string' },
+          actorRole: { type: 'string' },
+          fromStatus: { type: 'string' },
+          toStatus: { type: 'string' },
+          amountAtAction: { type: 'integer', description: 'Snapshot — stays meaningful if the request is later edited' },
+          tierAtAction: { type: 'integer' },
+          comment: { type: 'string' },
+          actedAt: { type: 'string', format: 'date-time' },
         },
       },
 
@@ -1631,6 +1691,196 @@ const spec = {
           200: { description: 'Cancelled', content: { 'application/json': { schema: { type: 'object' } } } },
           409: { $ref: '#/components/responses/Conflict' },
           422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+
+    '/approvals/inbox': {
+      get: {
+        tags: ['Approvals'],
+        summary: 'Expenses awaiting YOUR action (SCR-18)',
+        description:
+          'Requires `approvals: read`. Computed, not stored — a stored queue ' +
+          'would drift the moment the matrix changed or a role was reassigned.\n\n' +
+          'Excludes your own requests and anything you have already acted on, ' +
+          'since either would only produce a 403 on click.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+        ],
+        responses: {
+          200: { description: 'Your queue', content: { 'application/json': { schema: { type: 'object', required: ['success','count','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, role: { type: 'string' }, data: { type: 'array', items: { type: 'object' } } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+    },
+
+    '/approvals/position/{expenseId}': {
+      get: {
+        tags: ['Approvals'],
+        summary: 'Tier, chain and who must act next',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Position', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/ApprovalPosition' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/approvals/history/{expenseId}': {
+      get: {
+        tags: ['Approvals'],
+        summary: 'Full approval trail (SCR-21)',
+        description: 'Every action, oldest first, each with actor, role, from/to status and a snapshot of the amount and tier at the time.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'History', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { type: 'object', properties: { expenseNumber: { type: 'string' }, currentStatus: { type: 'string' }, position: { $ref: '#/components/schemas/ApprovalPosition' }, approvals: { type: 'array', items: { $ref: '#/components/schemas/ApprovalRecord' } } } } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/approvals/{expenseId}/verify': {
+      post: {
+        tags: ['Approvals'],
+        summary: 'Accounts verification — the first step at every tier',
+        description:
+          'Requires `approvals: admin` and the `accountant` or `accountsManager` ' +
+          'role. Separate from approve because verification is checking the ' +
+          'paperwork, not authorising the spend.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { comment: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Verified', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { description: 'Wrong step, wrong role, or separation of duties', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+    '/approvals/{expenseId}/approve': {
+      post: {
+        tags: ['Approvals'],
+        summary: 'Approve at the next required step',
+        description:
+          'Requires `approvals: admin`. `step` may be given explicitly; otherwise ' +
+          'the next required step is used.\n\n' +
+          '**Four guards apply:** the expense must be at the right status; steps ' +
+          'cannot be skipped; only roles mapped to the step may act; and nobody ' +
+          'may approve what they raised, submitted, or already acted on.\n\n' +
+          'A 403 explains which step was expected and which roles may perform it.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { step: { type: 'string', enum: ['deptHead','principal','chairman','trustee'] }, comment: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Approved', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { description: 'Out of order, wrong role, or separation of duties', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+    '/approvals/{expenseId}/reject': {
+      post: {
+        tags: ['Approvals'],
+        summary: 'Reject — terminal',
+        description: 'A reason is mandatory. The request must be raised afresh, not resubmitted.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Rejected', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/approvals/{expenseId}/return': {
+      post: {
+        tags: ['Approvals'],
+        summary: 'Return for correction',
+        description:
+          'Sends the request back to its author, who may edit and resubmit. ' +
+          '**Resubmission restarts the chain from accounts** — approvals given to ' +
+          'the version that was returned do not carry over to the corrected one.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'expenseId', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Returned', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/approvals/matrix': {
+      get: {
+        tags: ['Approvals'],
+        summary: 'Current thresholds (SCR-20)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          200: { description: 'The matrix in force', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { type: 'object', properties: { tiers: { type: 'array', items: { $ref: '#/components/schemas/ApprovalTier' } }, source: { type: 'string', enum: ['configured','default'] }, version: { type: 'integer', nullable: true } } } } } } } },
+        },
+      },
+      put: {
+        tags: ['Approvals'],
+        summary: 'Replace the thresholds',
+        description:
+          'Requires `approvals: edit`. **A matrix with a gap or an overlap is ' +
+          'rejected** — a gap leaves amounts unroutable, an overlap makes routing ' +
+          'depend on iteration order.\n\n' +
+          'The previous version is superseded rather than edited, so the routing ' +
+          'that applied to past approvals stays reconstructable.',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['tiers'], properties: { tiers: { type: 'array', items: { $ref: '#/components/schemas/ApprovalTier' } }, financialYear: { type: 'string', nullable: true }, notes: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Saved', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          422: { description: 'Gap, overlap or unknown approver role', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+
+    '/approvals/matrix/preview': {
+      post: {
+        tags: ['Approvals'],
+        summary: 'Where would this amount route?',
+        description: 'Sanity-check a matrix before saving it.',
+        security: [{ bearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['amount'], properties: { amount: { type: 'integer', description: 'Integer PAISE' }, tiers: { type: 'array', items: { $ref: '#/components/schemas/ApprovalTier' } } } } } } },
+        responses: {
+          200: { description: 'Routing', content: { 'application/json': { schema: { type: 'object' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/approvals/log': {
+      get: {
+        tags: ['Approvals'],
+        summary: 'Every approval action taken',
+        description: 'Append-only. Filterable by step, action and actor.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'step', in: 'query', schema: { type: 'string', enum: ['accounts','deptHead','principal','chairman','trustee'] } },
+          { name: 'action', in: 'query', schema: { type: 'string', enum: ['verify','approve','reject','return'] } },
+          { name: 'actor', in: 'query', schema: { type: 'string' } },
+        ],
+        responses: {
+          200: { description: 'Paginated log', content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, data: { type: 'array', items: { $ref: '#/components/schemas/ApprovalRecord' } } } } } } },
+          400: { $ref: '#/components/responses/BadRequest' },
         },
       },
     },
