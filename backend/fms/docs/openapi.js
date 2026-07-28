@@ -57,6 +57,7 @@ const spec = {
     { name: 'Financial Year', description: 'Accounting periods.' },
     { name: 'Chart of Accounts', description: 'Account groups and ledger heads (SRS M2).' },
     { name: 'General Ledger', description: 'Read-only. Every route is a GET — entries are written only by LedgerPostingService (SRS M11).' },
+    { name: 'Journal Voucher', description: 'Manual journal entries with an approval step (SRS M12).' },
   ],
 
   components: {
@@ -126,6 +127,56 @@ const spec = {
           },
           ingestEnabled: { type: 'boolean' },
           timestamp: { type: 'string', format: 'date-time' },
+        },
+      },
+
+      JournalLine: {
+        type: 'object',
+        required: ['account'],
+        properties: {
+          _id: { type: 'string' },
+          account: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          accountCode: { type: 'string' },
+          accountName: { type: 'string' },
+          debit: { type: 'integer', description: 'Integer PAISE. Exactly one of debit/credit non-zero.' },
+          credit: { type: 'integer', description: 'Integer PAISE' },
+          narration: { type: 'string' },
+          partyType: { type: 'string', nullable: true, enum: ['vendor','student','teacher','other', null] },
+          party: { type: 'string', nullable: true },
+          partyName: { type: 'string' },
+        },
+      },
+
+      JournalVoucher: {
+        type: 'object',
+        required: ['_id', 'jvDate', 'narration', 'lines', 'jvStatus'],
+        properties: {
+          _id: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' },
+          financialYear: { type: 'string' },
+          jvDate: { type: 'string', format: 'date-time' },
+          narration: { type: 'string' },
+          reference: { type: 'string' },
+          lines: { type: 'array', items: { $ref: '#/components/schemas/JournalLine' } },
+          totalDebit: { type: 'integer', description: 'Integer PAISE' },
+          totalCredit: { type: 'integer', description: 'Integer PAISE' },
+          jvStatus: {
+            type: 'string',
+            enum: ['draft', 'submitted', 'posted', 'rejected', 'cancelled', 'reversed'],
+            description:
+              'draft → submitted → posted → reversed. reject returns it to the ' +
+              'author; cancel is terminal and pre-posting only. A posted voucher ' +
+              'is immutable.',
+          },
+          voucher: { type: 'string', nullable: true, description: 'fms_vouchers._id once posted' },
+          voucherNumber: { type: 'string', nullable: true, example: 'JV-2026-27-00001' },
+          attachments: { type: 'array', items: { type: 'object' } },
+          workflow: {
+            type: 'array',
+            description: 'Append-only trail: who did what, when, with comments',
+            items: { type: 'object' },
+          },
+          rejectionReason: { type: 'string' },
+          reversalReason: { type: 'string' },
         },
       },
 
@@ -818,6 +869,168 @@ const spec = {
             },
           },
           404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+
+
+    '/journal': {
+      get: {
+        tags: ['Journal Voucher'],
+        summary: 'List journal vouchers',
+        description: 'Requires `journal: read`. `?mine=true` limits to your own.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' },
+          { $ref: '#/components/parameters/sort' },
+          { name: 'jvStatus', in: 'query', schema: { type: 'string', enum: ['draft','submitted','posted','rejected','cancelled','reversed'] } },
+          { name: 'financialYear', in: 'query', schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } },
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'mine', in: 'query', schema: { type: 'boolean' } },
+        ],
+        responses: {
+          200: {
+            description: 'Paginated list',
+            content: { 'application/json': { schema: { type: 'object', required: ['success','count','pagination','data'], properties: { success: { type: 'boolean', enum: [true] }, count: { type: 'integer' }, pagination: { $ref: '#/components/schemas/Pagination' }, data: { type: 'array', items: { $ref: '#/components/schemas/JournalVoucher' } } } } } },
+          },
+          400: { $ref: '#/components/responses/BadRequest' },
+          403: { $ref: '#/components/responses/Forbidden' },
+        },
+      },
+      post: {
+        tags: ['Journal Voucher'],
+        summary: 'Create a draft journal voucher',
+        description:
+          'Requires `journal: edit`. **Lines must balance even for a draft** — an ' +
+          'unbalanced voucher cannot be saved at all, not merely blocked at posting. ' +
+          'Amounts are integer paise.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['financialYear','jvDate','narration','lines'], properties: { financialYear: { type: 'string' }, jvDate: { type: 'string', format: 'date' }, narration: { type: 'string' }, reference: { type: 'string' }, lines: { type: 'array', minItems: 2, items: { $ref: '#/components/schemas/JournalLine' } }, attachments: { type: 'array', items: { type: 'object' } } } } } },
+        },
+        responses: {
+          201: { description: 'Draft created', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, message: { type: 'string' }, data: { $ref: '#/components/schemas/JournalVoucher' } } } } } },
+          403: { $ref: '#/components/responses/Forbidden' },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { description: 'Validation failed — including an unbalanced voucher', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
+
+    '/journal/{id}': {
+      get: {
+        tags: ['Journal Voucher'],
+        summary: 'Get a journal voucher with lines and workflow trail',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'The voucher', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/JournalVoucher' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+        },
+      },
+      patch: {
+        tags: ['Journal Voucher'],
+        summary: 'Update a draft or rejected voucher',
+        description:
+          'Requires `journal: edit`. **A posted voucher returns 409** — reverse it ' +
+          'and raise a new one. Editing a rejected voucher returns it to draft, so ' +
+          'the correction cannot skip re-approval.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Updated', content: { 'application/json': { schema: { type: 'object', required: ['success','data'], properties: { success: { type: 'boolean', enum: [true] }, data: { $ref: '#/components/schemas/JournalVoucher' } } } } } },
+          404: { $ref: '#/components/responses/NotFound' },
+          409: { description: 'Voucher is not editable in its current status', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/journal/{id}/submit': {
+      post: {
+        tags: ['Journal Voucher'],
+        summary: 'Submit for approval',
+        description: 'draft | rejected → submitted. Requires `journal: edit`.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Submitted', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/journal/{id}/approve': {
+      post: {
+        tags: ['Journal Voucher'],
+        summary: 'Approve and post to the ledger',
+        description:
+          'Requires `journal: admin`. submitted → posted, writing the ledger via ' +
+          'LedgerPostingService.\n\n' +
+          '**Separation of duties:** the approver must not be the creator or the ' +
+          'submitter. Approving your own voucher returns 403 — a control where one ' +
+          'person can raise and approve their own entry is not a control.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Posted', content: { 'application/json': { schema: { type: 'object' } } } },
+          403: { description: 'Not permitted, or separation of duties', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+    '/journal/{id}/reject': {
+      post: {
+        tags: ['Journal Voucher'],
+        summary: 'Reject a submitted voucher',
+        description: 'Requires `journal: admin`. A reason is mandatory — a rejection without one cannot be acted on.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Rejected', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
+        },
+      },
+    },
+
+    '/journal/{id}/cancel': {
+      post: {
+        tags: ['Journal Voucher'],
+        summary: 'Cancel a pre-posting voucher',
+        description:
+          'Requires `journal: edit`. Terminal, and never a delete — the record of ' +
+          'the attempt survives. A posted voucher returns 409; reverse it instead.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        responses: {
+          200: { description: 'Cancelled', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+        },
+      },
+    },
+
+    '/journal/{id}/reverse': {
+      post: {
+        tags: ['Journal Voucher'],
+        summary: 'Reverse a posted voucher',
+        description:
+          'Requires `journal: admin`. Posts an equal-and-opposite voucher. The ' +
+          'original ledger entries are never modified — total debits and credits ' +
+          'both increase.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-fA-F]{24}$' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } },
+        responses: {
+          200: { description: 'Reversed', content: { 'application/json': { schema: { type: 'object' } } } },
+          409: { $ref: '#/components/responses/Conflict' },
+          422: { $ref: '#/components/responses/ValidationFailed' },
         },
       },
     },
