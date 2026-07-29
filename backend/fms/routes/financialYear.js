@@ -12,8 +12,9 @@ const router = express.Router();
 const fmsAuthorize = require('../middleware/fmsAuthorize');
 const { asyncHandler } = require('../middleware/fmsErrorHandler');
 const { FmsFinancialYear } = require('../models/core');
+const fyService = require('../services/financialYear/financialYearService');
 const {
-  ok, paginated, parsePagination, errors, check,
+  ok, paginated, parsePagination, validate, errors, check,
 } = require('../utils/apiResponse');
 
 const FY_STATUS = ['open', 'closing', 'closed', 'locked', 'reopened'];
@@ -79,6 +80,66 @@ router.get(
     if (!doc) throw errors.notFound('Financial year');
 
     return ok(res, doc);
+  })
+);
+
+/**
+ * GET /api/fms/financial-years/:id/readiness
+ * What is in the year, and what argues against closing it (SCR-67).
+ */
+router.get(
+  '/:id/readiness',
+  fmsAuthorize('financialYear', 'VIEW'),
+  asyncHandler(async (req, res) => {
+    if (check.objectId(req.params.id)) throw errors.badRequest('Invalid id');
+    return ok(res, await fyService.readiness(req.fmsScope.school, req.params.id));
+  })
+);
+
+/** POST /api/fms/financial-years/:id/close — postings are refused afterwards. */
+router.post(
+  '/:id/close',
+  fmsAuthorize('financialYear', 'APPROVE'),
+  asyncHandler(async (req, res) => {
+    if (check.objectId(req.params.id)) throw errors.badRequest('Invalid id');
+    const r = await fyService.close(req.fmsScope.school, req.params.id, req, req.body || {});
+    return ok(res, r.financialYear, {
+      message: `${r.financialYear.yearCode} closed` +
+        (r.acknowledgedWarnings.length ? ` with ${r.acknowledgedWarnings.length} acknowledged warning(s)` : ''),
+    });
+  })
+);
+
+/**
+ * POST /api/fms/financial-years/:id/lock
+ *
+ * IRREVERSIBLE. Requires the year code typed back, because there is no undo —
+ * a correction afterwards can only be made by posting into the current year.
+ */
+router.post(
+  '/:id/lock',
+  fmsAuthorize('financialYear', 'APPROVE'),
+  asyncHandler(async (req, res) => {
+    if (check.objectId(req.params.id)) throw errors.badRequest('Invalid id');
+    const fy = await fyService.lock(req.fmsScope.school, req.params.id, req, req.body || {});
+    return ok(res, fy, { message: `${fy.yearCode} locked permanently` });
+  })
+);
+
+/**
+ * POST /api/fms/financial-years/:id/reopen
+ *
+ * Restricted by role, requires a meaningful reason, and is audited.
+ * A LOCKED year cannot be reopened at all.
+ */
+router.post(
+  '/:id/reopen',
+  fmsAuthorize('financialYear', 'APPROVE'),
+  asyncHandler(async (req, res) => {
+    if (check.objectId(req.params.id)) throw errors.badRequest('Invalid id');
+    validate(req.body, { reason: { required: true, rules: [check.nonEmpty] } });
+    const fy = await fyService.reopen(req.fmsScope.school, req.params.id, req, req.body);
+    return ok(res, fy, { message: `${fy.yearCode} reopened — this is recorded` });
   })
 );
 

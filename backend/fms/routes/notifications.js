@@ -1,11 +1,22 @@
 // backend/fms/routes/notifications.js
 //
 // Notifications — SRS M19 / FR-M19, screen SCR-64.
+//
+// ─── OWN-RESOURCE ROUTES USE fmsResolveScope, NOT fmsAuthorize ───────────────
+// "Can you read your own inbox" is not a module permission. fmsResolveScope
+// denies anyone without an active FMS role and sets req.fmsRole and
+// req.fmsScope — it simply does not check a module.
+//
+// These routes previously checked `req.fmsRole` by hand with no middleware at
+// all. Nothing else sets that field, so it was always undefined and every one
+// of them threw: the inbox was unreachable. The service tests passed because
+// they exercise the service, not the route.
 
 const express = require('express');
 const router = express.Router();
 
 const fmsAuthorize = require('../middleware/fmsAuthorize');
+const { fmsResolveScope } = require('../middleware/fmsAuthorize');
 const { asyncHandler } = require('../middleware/fmsErrorHandler');
 const svc = require('../services/notification/notificationService');
 const events = require('../services/notification/events');
@@ -17,23 +28,20 @@ const { FmsNotification } = require('../models/notification');
  * A person's own inbox. No module permission — everyone can read what was sent
  * TO THEM, and nothing else.
  */
-router.get('/', asyncHandler(async (req, res) => {
-  if (!req.fmsRole) throw errors.forbidden('No FMS role');
+router.get('/', fmsResolveScope(), asyncHandler(async (req, res) => {
   return ok(res, await svc.inbox(req.fmsScope.school, req.user._id, {
     unreadOnly: req.query.unread === 'true',
     limit: parseInt(req.query.limit, 10) || 50,
   }));
 }));
 
-router.post('/read', asyncHandler(async (req, res) => {
-  if (!req.fmsRole) throw errors.forbidden('No FMS role');
+router.post('/read', fmsResolveScope(), asyncHandler(async (req, res) => {
   validate(req.body, { ids: { required: true, rules: [check.array] } });
   return ok(res, await svc.markRead(req.fmsScope.school, req.user._id, req.body.ids));
 }));
 
 /** GET /api/fms/notifications/events — what can be subscribed to. */
-router.get('/events', asyncHandler(async (req, res) => {
-  if (!req.fmsRole) throw errors.forbidden('No FMS role');
+router.get('/events', fmsResolveScope(), asyncHandler(async (req, res) => {
   return ok(res, {
     events: Object.values(events.EVENTS).map((e) => ({
       key: e.key, label: e.label, roles: e.roles,
@@ -49,8 +57,7 @@ router.get('/events', asyncHandler(async (req, res) => {
  * PUT /api/fms/notifications/preferences
  * A preference can only NARROW what an event already sends.
  */
-router.put('/preferences', asyncHandler(async (req, res) => {
-  if (!req.fmsRole) throw errors.forbidden('No FMS role');
+router.put('/preferences', fmsResolveScope(), asyncHandler(async (req, res) => {
   validate(req.body, {
     event: { required: true, rules: [check.nonEmpty] },
     channels: { rules: [check.array] },
@@ -69,8 +76,7 @@ router.put('/preferences', asyncHandler(async (req, res) => {
   }
 }));
 
-router.get('/preferences', asyncHandler(async (req, res) => {
-  if (!req.fmsRole) throw errors.forbidden('No FMS role');
+router.get('/preferences', fmsResolveScope(), asyncHandler(async (req, res) => {
   const { FmsNotificationPreference } = require('../models/notification');
   return ok(res, await FmsNotificationPreference.find({
     school: req.fmsScope.school, user: req.user._id,

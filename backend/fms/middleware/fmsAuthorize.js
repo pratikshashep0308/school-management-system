@@ -135,6 +135,62 @@ function fmsAuthorize(moduleKey, action = 'VIEW') {
 }
 
 /**
+ * Resolve the caller's FMS role and branch scope WITHOUT requiring a module
+ * permission.
+ *
+ * For routes where the resource is the user's own — their notification inbox,
+ * their preferences. "Can you read your own inbox" is not a module permission,
+ * and inventing one would either be too permissive or exclude people who
+ * legitimately need it.
+ *
+ * ─── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+ * The notification routes originally checked `req.fmsRole` by hand, without
+ * calling fmsAuthorize at all. But NOTHING ELSE SETS THAT FIELD — so it was
+ * always undefined, every one of those routes threw, and the inbox was
+ * unreachable. The service tests passed because they exercise the service, not
+ * the routes.
+ *
+ * It still denies anyone without an active FMS role, and still sets the branch
+ * scope every query depends on. It is not a way to skip authorization; it is
+ * authorization without a module check.
+ */
+function fmsResolveScope() {
+  return async function (req, res, next) {
+    if (!req.user || !req.user._id) {
+      return next(errors.unauthorized());
+    }
+
+    const school = req.user.school;
+    if (!school) {
+      return next(errors.forbidden('No branch assigned to this account.'));
+    }
+
+    let assignment;
+    try {
+      assignment = await loadAssignment(req.user._id, school);
+    } catch (err) {
+      const e = errors.internal('Authorization check unavailable.');
+      e.status = 503;
+      e.code = 'AUTHZ_UNAVAILABLE';
+      return next(e);
+    }
+
+    if (!assignment) {
+      return next(errors.forbidden(
+        'No FMS role assigned to this account.',
+        { hint: 'An administrator must grant an FMS finance role before this area is accessible.' }
+      ));
+    }
+
+    req.fmsRole = assignment.financeRole;
+    req.fmsAssignment = assignment;
+    req.fmsScope = { school, multiBranch: !!assignment.multiBranch };
+
+    next();
+  };
+}
+
+/**
  * Separation of duties.
  *
  * Prevents the same person approving their own request. Mount AFTER
@@ -167,6 +223,7 @@ function assertInScope(req, doc) {
 }
 
 module.exports = fmsAuthorize;
+module.exports.fmsResolveScope = fmsResolveScope;
 module.exports.requireDifferentActor = requireDifferentActor;
 module.exports.assertInScope = assertInScope;
 module.exports.clearAuthCache = clearAuthCache;

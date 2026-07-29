@@ -68,6 +68,21 @@ const FinancialYearSchema = new mongoose.Schema({
   yearCode: { type: String, required: true, trim: true },      // '2026-27'
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
+  // ── Lifecycle (P7.1, SCR-67) ─────────────────────────────────────────────
+  // CLOSED can be reopened; LOCKED cannot. That distinction is the whole point
+  // of having two states — if a locked year could be reopened, locking would be
+  // a suggestion.
+  closedBy: { type: ObjectId },
+  closedAt: { type: Date },
+  closeReason: { type: String },
+  lockedBy: { type: ObjectId },
+  lockedAt: { type: Date },
+  reopenedBy: { type: ObjectId },
+  reopenedAt: { type: Date },
+  reopenReason: { type: String },
+  /** So "how many times has this year been reopened" is answerable. */
+  reopenCount: { type: Number, default: 0 },
+
   fyStatus: {
     type: String,
     enum: ['open', 'closing', 'closed', 'locked', 'reopened'],
