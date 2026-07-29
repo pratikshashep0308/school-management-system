@@ -281,8 +281,15 @@ async function main() {
   const empty = await svc.createGroup(school, {
     groupCode: '7000', groupName: 'Empty', accountType: 'expense',
   }, req);
-  ok('empty group can be deleted',
-    (await svc.deleteGroup(school, empty._id, req)).deleted === true);
+  // Deactivated, not deleted — same reasoning as removeAccount. The emptiness
+  // checks above still apply, because withdrawing a group with children would
+  // orphan them in the tree.
+  const gone = await svc.deleteGroup(school, empty._id, req);
+  ok('an empty group is DEACTIVATED, not deleted', gone.deactivated === true);
+  ok('and it still exists',
+    (await M.FmsAccountGroup.countDocuments({ _id: empty._id })) === 1);
+  ok('with status inactive',
+    (await M.FmsAccountGroup.findById(empty._id)).status === 'inactive');
 
   // ── 9. Balance ────────────────────────────────────────────────────────────
   console.log('\n9. Balance');

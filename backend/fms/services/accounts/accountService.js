@@ -182,13 +182,22 @@ async function deleteGroup(school, id, req) {
     );
   }
 
+  const before = doc.toObject();
+
+  // Deactivated, not deleted — for the same reason as removeAccount. A group
+  // that is empty TODAY may still be named in a report layout or referenced by
+  // something outside the chart, and "created then withdrawn" is more useful
+  // than "never existed". The emptiness checks above stay, because withdrawing
+  // a group that still has children would orphan them in the tree.
+  doc.status = 'inactive';
+  doc.updatedBy = req?.user?._id;
+  await doc.save();
+
   await audit({
     school, entity: 'fms_accountgroups', entityId: doc._id,
-    action: 'cancel', before: doc.toObject(), req,
+    action: 'cancel', before, after: doc.toObject(), req,
   });
-
-  await FmsAccountGroup.deleteOne({ _id: id, school });
-  return { deleted: true };
+  return { deactivated: true, groupCode: doc.groupCode };
 }
 
 /** Nested tree for the SCR-08 sidebar. */
