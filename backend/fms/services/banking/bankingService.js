@@ -157,7 +157,12 @@ async function recordMovement(school, payload, req) {
     voucherDate: date,
     narration: narration || `${movementType} — ${bank.accountName}`,
     referenceNumber: reference,
-    source: 'bank', sourceId: undefined,
+    // 'manual', not 'bank'. A deposit someone TYPES IN is a human act, the
+    // same as a journal voucher. `source: 'bank'` is for postings created by an
+    // automated bank feed (P5.4), where a replayed event genuinely needs an
+    // idempotency key — and LedgerPostingService rightly demands a sourceId
+    // for any non-manual source.
+    source: 'manual',
     postedBy: req?.user?._id,
     lines: [bankLine, counterLine],
   });
@@ -198,7 +203,7 @@ async function transfer(school, payload, req) {
   const result = await posting.post({
     school, financialYear: fy._id, voucherType: 'payment', voucherDate: date,
     narration: narration || `Transfer ${from.accountName} → ${to.accountName}`,
-    referenceNumber: reference, source: 'bank',
+    referenceNumber: reference, source: 'manual',   // hand-entered — see recordMovement
     postedBy: req?.user?._id,
     lines: [
       { account: to.ledgerAccount, debit: amount, credit: 0, narration: `From ${from.accountName}` },
