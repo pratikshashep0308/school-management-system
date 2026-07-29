@@ -140,6 +140,7 @@ router.use('/petty-cash', protect, require('./pettyCash'));        // Petty Cash
 router.use('/integrations', protect, require('./integrations'));   // SMS integrations (P5.1)
 router.use('/reports',  protect, require('./reports'));            // Financial Reports (P6.1)
 router.use('/audit',    protect, require('./audit'));              // Audit Trail Viewer (P6.2)
+router.use('/notifications', protect, require('./notifications')); // Notifications (P6.3)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
