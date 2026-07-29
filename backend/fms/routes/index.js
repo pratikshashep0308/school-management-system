@@ -138,11 +138,11 @@ router.use('/purchase', protect, require('./purchase'));           // Procure-to
 router.use('/banking',  protect, require('./banking'));            // Banking & Reconciliation (P4.4)
 router.use('/petty-cash', protect, require('./pettyCash'));        // Petty Cash (P4.5)
 router.use('/integrations', protect, require('./integrations'));   // SMS integrations (P5.1)
+router.use('/reports',  protect, require('./reports'));            // Financial Reports (P6.1)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P6.1  router.use('/reports',       protect, require('./reports'));        // 'financialReports'
 // P6.2  router.use('/audit',         protect, require('./audit'));          // 'audit'
 
 // ─────────────────────────────────────────────────────────────────────────────
