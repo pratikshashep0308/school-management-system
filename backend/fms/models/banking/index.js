@@ -16,7 +16,21 @@ const mongoose = require('mongoose');
 const { ObjectId } = mongoose.Schema.Types;
 
 const RECON_STATUS = ['unreconciled', 'matched', 'reconciled'];
-const PERIOD_STATUS = ['draft', 'reconciled', 'locked', 'reopened'];
+/**
+ * A reconciliation period.
+ *
+ *   draft        being prepared
+ *   inProgress   matching under way
+ *   reconciled   complete and balanced — CLOSED TO NEW POSTINGS
+ *   locked       closed permanently, e.g. after year-end
+ *   reopened     deliberately reopened; the lock is lifted
+ *
+ * `reconciled` and `locked` are the two that LedgerPostingService refuses to
+ * post into. This list is the union of every value the service, the routes and
+ * the checks actually use — derived by grepping all three rather than one,
+ * which is how 'inProgress' came to be missing the first time.
+ */
+const PERIOD_STATUS = ['draft', 'inProgress', 'reconciled', 'locked', 'reopened'];
 const STATEMENT_DIRECTION = ['debit', 'credit'];
 
 // ─────────────────────────────────────────────────────────────────────────────
