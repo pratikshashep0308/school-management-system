@@ -75,13 +75,23 @@ function runCheck(file) {
       encoding: 'utf8', cwd: path.join(ROOT, '..'), stdio: 'pipe',
     });
     const m = out.match(/(\d+) passed, (\d+) failed/);
-    return m
-      ? { pass: Number(m[1]), fail: Number(m[2]), ok: Number(m[2]) === 0 }
-      : { pass: 0, fail: 0, ok: true, note: 'no summary line' };
+    if (!m) return { pass: 0, fail: 0, ok: true, note: 'no summary line' };
+    return {
+      pass: Number(m[1]), fail: Number(m[2]), ok: Number(m[2]) === 0,
+      failures: [...out.matchAll(/^\s*✖ (.+)$/gm)].map((x) => x[1].trim()),
+    };
   } catch (err) {
     const out = (err.stdout || '') + (err.stderr || '');
     const m = out.match(/(\d+) passed, (\d+) failed/);
-    if (m) return { pass: Number(m[1]), fail: Number(m[2]), ok: Number(m[2]) === 0 };
+    if (m) {
+      return {
+        pass: Number(m[1]), fail: Number(m[2]), ok: Number(m[2]) === 0,
+        // The failing assertion NAMES, not just a count. Without these a batch
+        // failure can only be investigated by re-running things and guessing —
+        // which is exactly what happened before this was added.
+        failures: [...out.matchAll(/^\s*✖ (.+)$/gm)].map((x) => x[1].trim()),
+      };
+    }
     const abort = out.match(/CHECK ABORTED: (.+)/);
     return { pass: 0, fail: 1, ok: false, error: abort ? abort[1] : out.slice(-300).trim() };
   }
@@ -135,6 +145,7 @@ if (failed.length) {
   console.log(`\n  ${failed.length} file(s) failed:`);
   for (const f of failed) {
     console.log(`    ${f.file}${f.error ? `\n      ${f.error.slice(0, 200)}` : ''}`);
+    for (const a of (f.failures || [])) console.log(`      ✖ ${a}`);
   }
 }
 console.log();
