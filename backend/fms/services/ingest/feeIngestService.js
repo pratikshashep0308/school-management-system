@@ -379,10 +379,12 @@ async function sync(school, opts = {}, req) {
 async function status(school) {
   const [total, failed, recent] = await Promise.all([
     FmsIngestState.countDocuments({ school: oid(school), source: 'fee' }),
-    FmsIngestState.countDocuments({ school: oid(school), source: 'fee', status: 'failed' }),
+    // The field is `ingestStatus`. Querying `status` matched nothing, so this
+    // silently reported zero failures however many there were.
+    FmsIngestState.countDocuments({ school: oid(school), source: 'fee', ingestStatus: 'failed' }),
     FmsIngestState.find({ school: oid(school), source: 'fee' })
       .sort({ updatedAt: -1 }).limit(10)
-      .select('sourceId status error updatedAt').lean(),
+      .select('sourceId ingestStatus lastError updatedAt').lean(),
   ]);
 
   const unclassified = await FmsIncomeVoucher.countDocuments({

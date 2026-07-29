@@ -14,6 +14,7 @@ const { FmsAccountMapping, MAPPING_TYPE } = require('../models/integration');
 const { FmsAccount } = require('../models/core');
 const { FmsIncomeVoucher } = require('../models/income');
 const feeIngest = require('../services/ingest/feeIngestService');
+const payrollIngest = require('../services/ingest/payrollIngestService');
 const {
   ok, created, paginated, parsePagination, validate, check, errors,
 } = require('../utils/apiResponse');
@@ -76,6 +77,55 @@ router.get('/fees/unclassified', fmsAuthorize('ledger', 'VIEW'), asyncHandler(as
               'admissionNumber creditAccountCode sourceCollection')
       .sort(sort).skip(skip).limit(limit).lean(),
     FmsIncomeVoucher.countDocuments(filter),
+  ]);
+
+  return paginated(res, items, { page, limit, total });
+}));
+
+// ─── Payroll (§3) ────────────────────────────────────────────────────────────
+
+/** GET /api/fms/integrations/payroll/status */
+router.get('/payroll/status', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await payrollIngest.status(req.fmsScope.school));
+}));
+
+/**
+ * POST /api/fms/integrations/payroll/sync
+ *
+ * `?dryRun=true` is the SCR-54 review: every slip assessed, with its balance
+ * check, chosen posting date and the reason for that choice — and nothing
+ * written. Worth running before every real cycle, since a slip that does not
+ * reconcile is a data defect in the SMS rather than something to post around.
+ */
+router.post('/payroll/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(async (req, res) => {
+  validate(req.body || {}, { dryRun: { rules: [check.boolean] } });
+
+  const cycle = await payrollIngest.sync(req.fmsScope.school, {
+    dryRun: req.body?.dryRun === true || req.query.dryRun === 'true',
+  }, req);
+
+  return ok(res, cycle, {
+    message: cycle.dryRun
+      ? `Review — ${cycle.counts.posted} would post, ${cycle.counts.failed} would not`
+      : `${cycle.counts.posted} posted, ${cycle.counts.alreadyPosted} already present, ` +
+        `${cycle.counts.failed} failed, ${cycle.reversals.length} reversed`,
+  });
+}));
+
+/** GET /api/fms/integrations/payroll/postings — what was posted, and how. */
+router.get('/payroll/postings', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  const { FmsPayrollPosting } = require('../models/payroll');
+  const { page, limit, skip, sort } = parsePagination(req.query, {
+    allowedSort: ['postingDate', 'grossAmount', 'createdAt'], defaultSort: '-postingDate',
+  });
+
+  const filter = { school: req.fmsScope.school };
+  if (req.query.postingStatus) filter.postingStatus = req.query.postingStatus;
+  if (req.query.year) filter.year = Number(req.query.year);
+
+  const [items, total] = await Promise.all([
+    FmsPayrollPosting.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+    FmsPayrollPosting.countDocuments(filter),
   ]);
 
   return paginated(res, items, { page, limit, total });
