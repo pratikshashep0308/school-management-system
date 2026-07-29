@@ -55,6 +55,9 @@ async function main() {
   const B = new Types.ObjectId();
   const R = (r) => r * 100;
 
+  // Every posting must be attributable — LedgerPostingService requires it.
+  const POSTER = new Types.ObjectId();
+
   const setup = async (school, feeAmount, salaryAmount) => {
     const fy = await M.FmsFinancialYear.create({
       school, yearCode: '2026-27',
@@ -80,7 +83,7 @@ async function main() {
     await posting.post({
       school, financialYear: fy._id, voucherType: 'receipt',
       voucherDate: new Date('2026-05-10'), narration: 'Fees',
-      source: 'manual', lines: [
+      source: 'manual', postedBy: POSTER, lines: [
         { account: cash._id, debit: feeAmount, credit: 0 },
         { account: tuition._id, debit: 0, credit: feeAmount },
       ],
@@ -89,7 +92,7 @@ async function main() {
     await posting.post({
       school, financialYear: fy._id, voucherType: 'payment',
       voucherDate: new Date('2026-06-30'), narration: 'Salaries',
-      source: 'manual', lines: [
+      source: 'manual', postedBy: POSTER, lines: [
         { account: salary._id, debit: salaryAmount, credit: 0 },
         { account: cash._id, debit: 0, credit: salaryAmount },
       ],
@@ -212,7 +215,7 @@ async function main() {
   await posting.post({
     school: A, financialYear: a.fy._id, voucherType: 'journal',
     voucherDate: new Date('2026-07-01'), narration: 'Paid on behalf of Campus B',
-    source: 'manual', lines: [
+    source: 'manual', postedBy: POSTER, lines: [
       { account: ibAcct._id, debit: R(5000), credit: 0 },
       { account: a.cash._id, debit: 0, credit: R(5000) },
     ],
