@@ -90,8 +90,37 @@ async function profitAndLoss(school, opts) {
  * MOVEMENT in each account as though it were the balance, which is wrong and
  * would still balance.
  */
+/**
+ * The as-at date for a balance sheet.
+ *
+ * A balance sheet needs ONE date, not a range — `from` became meaningless once
+ * the result window was fixed to year-to-date. Accepts `to`, or the end of a
+ * named financial year, or today.
+ */
+async function resolveAsAt(school, { financialYear, to }) {
+  if (to) {
+    const d = new Date(to);
+    if (Number.isNaN(d.getTime())) {
+      throw errors.badRequest("'to' is not a valid date");
+    }
+    d.setUTCHours(23, 59, 59, 999);
+    return d;
+  }
+
+  if (financialYear) {
+    const fy = await FmsFinancialYear.findOne({
+      _id: financialYear, school: oid(school),
+    }).lean();
+    if (!fy) throw errors.notFound('Financial year');
+    return fy.endDate;
+  }
+
+  return new Date();
+}
+
 async function balanceSheet(school, opts) {
-  const period = await resolvePeriod(school, opts);
+  const asAt = await resolveAsAt(school, opts);
+  const period = { from: null, to: asAt };
 
   // ── The two windows, and why they differ ─────────────────────────────────
   //
@@ -363,6 +392,7 @@ function catalogue() {
 
 module.exports = {
   resolvePeriod,
+  resolveAsAt,
   profitAndLoss,
   balanceSheet,
   cashMovement,
