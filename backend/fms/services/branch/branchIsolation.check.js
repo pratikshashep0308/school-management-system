@@ -130,13 +130,13 @@ async function main() {
   ok('and shows only its own assets', bsA.totals.assets === R(20000), String(bsA.totals.assets));
 
   // Ledger reads
-  const ledgerA = await gl.accountLedger(A, a.tuition._id, {});
+  const ledgerA = await gl.accountLedger(A, a.tuition._id, {}, { skip: 0, limit: 50 });
   ok('an account ledger returns only its branch entries',
     ledgerA.entries.every((e) => String(e.school) === String(A)));
 
   // A foreign account id must not resolve
   await throws("branch A cannot read branch B's account ledger",
-    () => gl.accountLedger(A, b.tuition._id, {}), /not found|Account/i);
+    () => gl.accountLedger(A, b.tuition._id, {}, { skip: 0, limit: 50 }), /not found|Account/i);
 
   // Budgets
   const budA = await budgetSvc.create(A, {
