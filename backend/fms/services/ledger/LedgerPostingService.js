@@ -419,8 +419,10 @@ async function reverse(voucherId, postedBy, reason) {
         );
       }
 
+      // Scoped by school so the { school, voucher } index applies — see the
+      // note in voucherDetail. Without it this scans the whole ledger.
       const originalLines = await FmsLedgerEntry
-        .find({ voucher: original._id }).session(session);
+        .find({ school: original.school, voucher: original._id }).session(session);
       if (!originalLines.length) {
         throw new PostingError('Voucher has no ledger lines', 'NO_LINES');
       }

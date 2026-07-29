@@ -56,7 +56,10 @@ async function main() {
     ['fms_ledgerentries', 'trial balance', { school: S }],
     ['fms_ledgerentries', 'account ledger', { school: S, account: A }],
     ['fms_ledgerentries', 'ledger by date', { school: S, entryDate: { $gte: new Date('2026-04-01') } }],
-    ['fms_ledgerentries', 'by voucher', { voucher: A }],
+    // Scoped, because that is what the services now issue. An unscoped
+    // { voucher } query cannot use the { school, voucher } index — which is
+    // exactly what this audit caught, and why both call sites were fixed.
+    ['fms_ledgerentries', 'by voucher', { school: S, voucher: A }],
     ['fms_vouchers', 'voucher list', { school: S, voucherType: 'journal' }],
     ['fms_vouchers', 'idempotency', { school: S, source: 'fee', sourceId: 'X' }],
     ['fms_ingeststate', 'ingest replay guard', { school: S, source: 'fee', sourceId: 'X' }],

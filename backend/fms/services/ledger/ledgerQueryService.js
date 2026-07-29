@@ -271,8 +271,12 @@ async function voucherDetail(school, voucherId) {
   const voucher = await FmsVoucher.findOne({ _id: voucherId, school: oid(school) }).lean();
   if (!voucher) throw errors.notFound('Voucher');
 
+  // `school` is included so the { school, voucher } index can serve this. A
+  // query on `voucher` alone cannot use a compound index whose leading key is
+  // school — it COLLECTION-SCANNED the largest collection in the system on
+  // every voucher view. The index audit found it; nothing else would have.
   const lines = await FmsLedgerEntry
-    .find({ voucher: voucher._id })
+    .find({ school: oid(school), voucher: voucher._id })
     .select('_id account accountCode accountName debit credit narration partyType party partyName isReversal')
     .sort({ debit: -1, _id: 1 })          // debits first, the conventional order
     .lean();
