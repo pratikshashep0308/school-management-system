@@ -134,6 +134,14 @@ const VendorDocumentSchema = new mongoose.Schema({
 VendorDocumentSchema.index({ school: 1, vendor: 1, docType: 1 });
 VendorDocumentSchema.index({ school: 1, expiryDate: 1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// KYC evidence, and the record of who verified it.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  VendorDocumentSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_vendordocuments: vendor documents are never deleted');
+  })
+);
+
 function reg(name, schema) {
   return mongoose.models[name] || mongoose.model(name, schema);
 }

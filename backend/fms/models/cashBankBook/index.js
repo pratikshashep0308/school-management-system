@@ -80,6 +80,14 @@ DailyClosingSchema.index({ school: 1, account: 1, closingDate: 1 }, { unique: tr
 DailyClosingSchema.index({ school: 1, bookType: 1, closingDate: -1 });
 DailyClosingSchema.index({ school: 1, closingStatus: 1, closingDate: -1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// A signed statement that the cash was counted and this is what was there.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  DailyClosingSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_dailyclosings: daily closings are a signed count and are never deleted');
+  })
+);
+
 function reg(name, schema) {
   return mongoose.models[name] || mongoose.model(name, schema);
 }

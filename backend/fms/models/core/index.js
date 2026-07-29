@@ -89,6 +89,15 @@ FinancialYearSchema.index(
   { school: 1, isCurrent: 1 },
   { partialFilterExpression: { isCurrent: true } }
 );
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// A financial year with postings against it is the period those postings belong
+// to. Deleting it would leave every voucher in that range pointing at nothing.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  FinancialYearSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_financialyears: financial years are closed or locked, never deleted');
+  })
+);
 // Async-throw style: works on Mongoose 8 (the deployed version) AND 9, which
 // dropped the callback `next` argument for document middleware.
 FinancialYearSchema.pre('save', async function () {
@@ -116,6 +125,15 @@ const AccountGroupSchema = new mongoose.Schema({
 AccountGroupSchema.index({ school: 1, groupCode: 1 }, { unique: true });
 AccountGroupSchema.index({ school: 1, parent: 1 });
 AccountGroupSchema.index({ school: 1, accountType: 1 });
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// An account group is part of how the chart was structured when the postings were
+// made. Deactivate it instead.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  AccountGroupSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_accountgroups: account groups are deactivated, never deleted');
+  })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. fms_accounts — the Chart of Accounts
@@ -149,6 +167,15 @@ AccountSchema.index({ school: 1, isBankAccount: 1 });
 AccountSchema.index(
   { school: 1, smsFeeTypeId: 1 },
   { unique: true, partialFilterExpression: { smsFeeTypeId: { $type: 'objectId' } } }
+);
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// An account that has ever been posted to is part of the ledger's meaning. The
+// service already refuses; the model must too, so a direct query cannot bypass it.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  AccountSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_accounts: accounts are deactivated, never deleted');
+  })
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -192,6 +219,16 @@ VoucherSchema.index({ school: 1, voucherNumber: 1 }, { unique: true });
 VoucherSchema.index({ school: 1, financialYear: 1, voucherDate: -1 });
 VoucherSchema.index({ school: 1, voucherType: 1, voucherDate: -1 });
 VoucherSchema.index({ source: 1, sourceRef: 1 });
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// THE MOST IMPORTANT ONE. Ledger entries are already protected, but deleting a
+// voucher HEADER would orphan its entries — leaving postings with no document
+// behind them and a trial balance that still balances.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  VoucherSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_vouchers: vouchers are reversed, never deleted — deleting one would orphan its ledger entries');
+  })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. fms_ledgerentries — APPEND-ONLY. The heart of the system.
@@ -255,7 +292,7 @@ const MUTATIONS = [
 // would block legitimate inserts.
 MUTATIONS.forEach((op) =>
   LedgerEntrySchema.pre(op, { query: true, document: false }, async function () {
-    throw new Error('fms_ledgerentries is append-only — post a reversing voucher instead');
+    throw new Error('fms_ledgerentries: the ledger is append-only — post a reversing voucher instead');
   })
 );
 
@@ -284,6 +321,15 @@ const NumberSequenceSchema = new mongoose.Schema({
 }, { timestamps: true, collection: 'fms_numbersequences' });
 
 NumberSequenceSchema.index({ school: 1, financialYear: 1, type: 1 }, { unique: true });
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// The counter behind gapless voucher numbering. Deleting it restarts numbering
+// from one and produces duplicate voucher numbers.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  NumberSequenceSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_numbersequences: number sequences are never deleted — doing so would restart gapless numbering');
+  })
+);
 
 /**
  * Atomic issuer — one round-trip $inc, safe under concurrency.
@@ -331,6 +377,16 @@ const IngestStateSchema = new mongoose.Schema({
 IngestStateSchema.index({ school: 1, source: 1, sourceId: 1 }, { unique: true });
 IngestStateSchema.index({ school: 1, source: 1, ingestStatus: 1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// Each row is the claim that a source record has already been posted. Deleting one
+// RELEASES ITS IDEMPOTENCY KEY, so the next ingest cycle would post the same fee
+// or salary a second time.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  IngestStateSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_ingeststate: ingest state is never deleted — it is what prevents double-posting');
+  })
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. fms_roleassignments — FMS finance roles, keyed by SMS User._id
 // ─────────────────────────────────────────────────────────────────────────────
@@ -360,6 +416,15 @@ const RoleAssignmentSchema = new mongoose.Schema({
 
 RoleAssignmentSchema.index({ school: 1, smsUserId: 1 }, { unique: true });
 RoleAssignmentSchema.index({ school: 1, financeRole: 1, status: 1 });
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// Who could do what, and when. Revoke by setting isActive false; deleting erases
+// the answer to "who approved this?" for everything they touched.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  RoleAssignmentSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_roleassignments: role assignments are deactivated, never deleted');
+  })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 9. fms_settings — plugin configuration + migration state
@@ -407,7 +472,7 @@ const AuditTrailSchema = new mongoose.Schema({
 // Append-only, same reasoning as the ledger.
 MUTATIONS.forEach((op) =>
   AuditTrailSchema.pre(op, { query: true, document: false }, async function () {
-    throw new Error('fms_audittrail is append-only');
+    throw new Error('fms_audittrail: the audit trail is append-only — an audit trail that can be edited or deleted is not one');
   })
 );
 

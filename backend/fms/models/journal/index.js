@@ -160,6 +160,14 @@ JournalVoucherSchema.index({ school: 1, financialYear: 1, jvDate: -1 });
 JournalVoucherSchema.index({ school: 1, createdBy: 1, jvStatus: 1 });
 JournalVoucherSchema.index({ voucher: 1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// A financial document.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  JournalVoucherSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_journalvouchers: journal vouchers are reversed, never deleted');
+  })
+);
+
 function reg(name, schema) {
   return mongoose.models[name] || mongoose.model(name, schema);
 }

@@ -92,6 +92,14 @@ PettyCashFloatSchema.index({ school: 1, account: 1 }, { unique: true });
 PettyCashFloatSchema.index({ school: 1, floatStatus: 1 });
 PettyCashFloatSchema.index({ school: 1, custodian: 1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// A float that held cash is part of who was answerable for it.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  PettyCashFloatSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_pettycashfloats: petty cash floats are closed, never deleted');
+  })
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PettyCashTransactionSchema = new mongoose.Schema({

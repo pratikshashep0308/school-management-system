@@ -381,15 +381,19 @@ PurchaseInvoiceSchema.index({ school: 1, purchaseOrder: 1 });
 // ─────────────────────────────────────────────────────────────────────────────
 
 const NEVER_DELETE = ['deleteOne', 'deleteMany', 'findOneAndDelete'];
-for (const [schema, label] of [
-  [PurchaseRequestSchema, 'purchase requests'],
-  [PurchaseOrderSchema, 'purchase orders'],
-  [GoodsReceiptSchema, 'goods receipts'],
-  [PurchaseInvoiceSchema, 'purchase invoices'],
+// The COLLECTION name leads each message, not just a friendly label — a stack
+// trace reading 'goods receipts are cancelled' tells a reader less than one
+// naming fms_goodsreceipts, and consistency across the codebase means a guard
+// failure is recognisable wherever it surfaces.
+for (const [schema, collection, label] of [
+  [PurchaseRequestSchema, 'fms_purchaserequests', 'purchase requests'],
+  [PurchaseOrderSchema, 'fms_purchaseorders', 'purchase orders'],
+  [GoodsReceiptSchema, 'fms_goodsreceipts', 'goods receipts'],
+  [PurchaseInvoiceSchema, 'fms_purchaseinvoices', 'purchase invoices'],
 ]) {
   NEVER_DELETE.forEach((op) =>
     schema.pre(op, { query: true, document: false }, async function () {
-      throw new Error(`${label} are cancelled, never deleted`);
+      throw new Error(`${collection}: ${label} are cancelled, never deleted`);
     })
   );
 }

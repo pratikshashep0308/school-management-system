@@ -44,6 +44,15 @@ AccountMappingSchema.index(
 );
 AccountMappingSchema.index({ school: 1, mappingType: 1, isActive: 1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// A mapping explains where past postings were sent. Deactivate it so the reason a
+// fee type stopped resolving stays visible.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  AccountMappingSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_accountmappings: mappings are deactivated, never deleted');
+  })
+);
+
 function reg(name, schema) {
   return mongoose.models[name] || mongoose.model(name, schema);
 }

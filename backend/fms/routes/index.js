@@ -139,11 +139,11 @@ router.use('/banking',  protect, require('./banking'));            // Banking & 
 router.use('/petty-cash', protect, require('./pettyCash'));        // Petty Cash (P4.5)
 router.use('/integrations', protect, require('./integrations'));   // SMS integrations (P5.1)
 router.use('/reports',  protect, require('./reports'));            // Financial Reports (P6.1)
+router.use('/audit',    protect, require('./audit'));              // Audit Trail Viewer (P6.2)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
 //
-// P6.2  router.use('/audit',         protect, require('./audit'));          // 'audit'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Terminal handlers. Order matters: 404 first, then the error handler.

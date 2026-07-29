@@ -65,6 +65,14 @@ BankAccountSchema.index({ school: 1, accountNumber: 1 }, { unique: true });
 BankAccountSchema.index({ school: 1, ledgerAccount: 1 }, { unique: true });
 BankAccountSchema.index({ school: 1, isActive: 1 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// Reconciliation history hangs off it.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  BankAccountSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_bankaccounts: bank accounts are deactivated, never deleted');
+  })
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BankTransactionSchema = new mongoose.Schema({
@@ -120,6 +128,14 @@ BankTransactionSchema.index(
 BankTransactionSchema.index({ school: 1, bankAccount: 1, valueDate: 1 });
 BankTransactionSchema.index({ school: 1, reconciliationStatus: 1, valueDate: 1 });
 BankTransactionSchema.index({ school: 1, matchedEntry: 1 });
+
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// Imported statement lines are the evidence a reconciliation rests on.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  BankTransactionSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_banktransactions: bank transactions are never deleted — they are the statement as the bank sent it');
+  })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 

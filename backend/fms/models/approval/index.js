@@ -44,6 +44,15 @@ ApprovalMatrixSchema.index(
   { unique: true, partialFilterExpression: { isActive: true } }
 );
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// The matrix in force when past approvals were routed. A new version supersedes
+// it rather than replacing it.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  ApprovalMatrixSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_approvalmatrix: approval matrices are superseded, never deleted');
+  })
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Approval records
 //
