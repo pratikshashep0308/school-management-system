@@ -49,8 +49,11 @@ async function loadContext(school) {
   const [accounts, mappings] = await Promise.all([
     FmsAccount.find({ school, status: 'active', isPostable: true })
       .select('_id accountCode accountName accountType isCashAccount isBankAccount').lean(),
+    // mappingType MUST be selected: indexMappings groups by it, so omitting it
+    // indexed every mapping under `undefined` and the lookup silently found
+    // nothing. Filtering on a field is not the same as projecting it.
     FmsAccountMapping.find({ school, mappingType: 'expenseCategory', isActive: true })
-      .select('sourceKey account accountCode').lean(),
+      .select('mappingType sourceKey account accountCode').lean(),
   ]);
 
   return {
