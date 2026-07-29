@@ -16,6 +16,7 @@ const { FmsIncomeVoucher } = require('../models/income');
 const feeIngest = require('../services/ingest/feeIngestService');
 const payrollIngest = require('../services/ingest/payrollIngestService');
 const expenseIngest = require('../services/ingest/expenseIngestService');
+const settlement = require('../services/settlement/settlementService');
 const {
   ok, created, paginated, parsePagination, validate, check, errors,
 } = require('../utils/apiResponse');
@@ -163,6 +164,112 @@ router.post('/expenses/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(as
       : `${cycle.counts.posted} imported, ${cycle.counts.alreadyPosted} already present, ` +
         `${cycle.counts.failed} failed`,
   });
+}));
+
+// ─── Gateway settlement (§5) ─────────────────────────────────────────────────
+//
+// NO PAYMENT GATEWAY IS INSTALLED. No SDK, no webhook route, no settlement
+// model, no credentials — §5 confirms it. Online and UPI fee receipts therefore
+// accumulate in the 1202 clearing head and are settled MANUALLY here.
+//
+// That manual step is a real, ongoing task for whoever keeps the books, not a
+// stub standing in for automation. These endpoints make it tractable.
+
+/** GET /api/fms/integrations/settlements/status */
+router.get('/settlements/status', fmsAuthorize('banking', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await settlement.status(req.fmsScope.school));
+}));
+
+/** GET /api/fms/integrations/settlements/pending — what is waiting to clear. */
+router.get('/settlements/pending', fmsAuthorize('banking', 'VIEW'), asyncHandler(async (req, res) => {
+  const older = parseInt(req.query.olderThanDays, 10);
+  return ok(res, await settlement.pending(req.fmsScope.school, {
+    from: req.query.from,
+    to: req.query.to,
+    olderThanDays: Number.isInteger(older) ? older : undefined,
+  }));
+}));
+
+/**
+ * POST /api/fms/integrations/settlements/suggest
+ * Given a bank credit, which clearing entries does it probably cover?
+ * A SUGGESTION — it refuses to guess when nothing fits.
+ */
+router.post('/settlements/suggest', fmsAuthorize('banking', 'VIEW'), asyncHandler(async (req, res) => {
+  validate(req.body, {
+    amount: { required: true, rules: [check.paise] },
+    upToDate: { rules: [check.date] },
+    tolerance: { rules: [check.integer] },
+  });
+  return ok(res, await settlement.suggest(req.fmsScope.school, req.body));
+}));
+
+/**
+ * POST /api/fms/integrations/settlements
+ *
+ * Posts Dr bank / Dr charges / Cr clearing. Idempotent on the settlement
+ * reference — a replay is refused rather than crediting the clearing head for
+ * money that arrived once.
+ *
+ * Where a gateway nets its charges off the credit, those charges are posted to
+ * their own expense head. Netting them silently against income would understate
+ * both.
+ */
+router.post('/settlements', fmsAuthorize('banking', 'APPROVE'), asyncHandler(async (req, res) => {
+  validate(req.body, {
+    entryIds: { required: true, rules: [check.array] },
+    bankAccount: { required: true, rules: [check.objectId] },
+    settlementReference: { required: true, rules: [check.nonEmpty] },
+    settlementDate: { rules: [check.date] },
+    settledAmount: { rules: [check.paise] },
+    feeAccount: { rules: [check.objectId] },
+    narration: { rules: [check.string] },
+  });
+
+  const r = await settlement.settle(req.fmsScope.school, req.body, req);
+  return created(res, {
+    settlement: r.settlement,
+    voucher: { _id: r.voucher._id, voucherNumber: r.voucher.voucherNumber },
+  }, `${r.settlement.entryCount} receipt(s) settled — ${r.voucher.voucherNumber}`);
+}));
+
+/** POST /api/fms/integrations/settlements/:id/reverse — the credit bounced. */
+router.post('/settlements/:id/reverse', fmsAuthorize('banking', 'CANCEL'), asyncHandler(async (req, res) => {
+  if (check.objectId(req.params.id)) throw errors.badRequest('Invalid id');
+  validate(req.body, { reason: { required: true, rules: [check.nonEmpty] } });
+
+  const r = await settlement.reverse(req.fmsScope.school, req.params.id, req, req.body.reason);
+  return ok(res, {
+    settlement: r.settlement,
+    reversalVoucher: { _id: r.reversal._id, voucherNumber: r.reversal.voucherNumber },
+    releasedEntries: r.releasedEntries,
+  }, { message: 'Settlement reversed; the receipts return to pending' });
+}));
+
+/**
+ * POST /api/fms/integrations/gateway/webhook
+ *
+ * Deliberately NOT implemented. §5: no gateway is installed, so there is
+ * nothing to receive from and no signature to verify. Accepting and discarding
+ * a payload would be worse than refusing it — a caller would believe the money
+ * had been recorded.
+ *
+ * The shape is documented so that adding a gateway later is a matter of
+ * filling this in rather than designing it.
+ */
+router.post('/gateway/webhook', asyncHandler(async (req, res) => {
+  throw errors.conflict(
+    'No payment gateway is configured',
+    {
+      status: 'notConfigured',
+      design: {
+        pattern: 'webhook (gateway → FMS) — the only touchpoint where push is correct',
+        idempotencyKey: 'gateway settlement reference',
+        posting: 'Dr 1201 Bank — Current A/c  /  Cr 1202 Bank — Online Collections',
+        note: 'Until a gateway exists, settle manually via POST /integrations/settlements',
+      },
+    }
+  );
 }));
 
 // ─── Account mappings (§8) ───────────────────────────────────────────────────
