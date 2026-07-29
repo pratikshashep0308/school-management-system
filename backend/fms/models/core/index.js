@@ -201,6 +201,16 @@ const LedgerEntrySchema = new mongoose.Schema({
   financialYear: { type: ObjectId, ref: 'FmsFinancialYear', required: true },
   voucher: { type: ObjectId, ref: 'FmsVoucher', required: true },
   voucherNumber: { type: String },                    // denormalised
+  /**
+   * Instrument or bank reference — cheque number, UTR, NEFT ref.
+   *
+   * Snapshotted onto the ENTRY, not left on the voucher, because BANK
+   * RECONCILIATION MATCHES ON IT. A statement line reading 'NEFT CR NEFT001'
+   * can only be tied to its posting if the posting carries NEFT001 somewhere a
+   * matcher can see. Without this, only payments that happen to mention their
+   * cheque number in free-text narration reconcile automatically.
+   */
+  referenceNumber: { type: String, default: null },
   voucherType: { type: String, enum: ['income', 'payment', 'receipt', 'journal'] },
   account: { type: ObjectId, ref: 'FmsAccount', required: true },
   accountCode: { type: String },                      // denormalised snapshot

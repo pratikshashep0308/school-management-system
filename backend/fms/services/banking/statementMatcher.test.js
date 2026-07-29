@@ -269,9 +269,20 @@ test('matching a whole statement', async (t) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 test('the reconciliation statement', async (t) => {
+  // The standard form:
+  //   bank balance
+  //   LESS unpresented cheques  — the bank still shows money already spent
+  //   PLUS deposits in transit  — recorded by us, not yet on the statement
+  //   = what the books should say
+  //
+  // These assertions previously encoded the signs the other way round, which
+  // agreed with the implementation and with nothing else. Both were wrong, and
+  // both reconciled only when the adjustments happened to be zero.
+
   await t.test('timing differences explain the gap', () => {
     // Bank says ₹1,00,000. We have issued a ₹12,500 cheque not yet presented
     // and banked ₹5,000 not yet credited.
+    //   100,000 − 12,500 + 5,000 = 92,500
     const r = m.reconciliationStatement({
       bankClosingBalance: R(100000),
       bookBalance: R(92500),
@@ -282,12 +293,36 @@ test('the reconciliation statement', async (t) => {
     });
     assert.strictEqual(r.unpresentedCheques, R(12500));
     assert.strictEqual(r.depositsInTransit, R(5000));
-    assert.strictEqual(r.adjustedBankBalance, R(107500));
-    assert.strictEqual(r.difference, R(15000));
-    assert.strictEqual(r.reconciled, false);
+    assert.strictEqual(r.adjustedBankBalance, R(92500));
+    assert.strictEqual(r.difference, 0);
+    assert.strictEqual(r.reconciled, true);
   });
 
-  await t.test('a clean reconciliation balances to zero', () => {
+  await t.test('AN UNPRESENTED CHEQUE REDUCES the adjusted bank balance', () => {
+    // The single most important sign in the whole module. The bank has not yet
+    // paid the cheque, so its balance is HIGHER than the books by that amount.
+    const r = m.reconciliationStatement({
+      bankClosingBalance: R(100000),
+      bookBalance: R(90000),
+      unmatchedEntries: [{ _id: 'a', debit: 0, credit: R(10000) }],
+    });
+    assert.strictEqual(r.adjustedBankBalance, R(90000));
+    assert.strictEqual(r.reconciled, true);
+  });
+
+  await t.test('A DEPOSIT IN TRANSIT INCREASES it', () => {
+    // We have banked the money; the statement does not show it yet, so the
+    // bank's balance is LOWER than the books.
+    const r = m.reconciliationStatement({
+      bankClosingBalance: R(100000),
+      bookBalance: R(105000),
+      unmatchedEntries: [{ _id: 'b', debit: R(5000), credit: 0 }],
+    });
+    assert.strictEqual(r.adjustedBankBalance, R(105000));
+    assert.strictEqual(r.reconciled, true);
+  });
+
+  await t.test('an unexplained difference does NOT reconcile', () => {
     const r = m.reconciliationStatement({
       bankClosingBalance: R(100000),
       bookBalance: R(107500),
@@ -296,16 +331,20 @@ test('the reconciliation statement', async (t) => {
         { _id: 'b', debit: R(5000), credit: 0 },
       ],
     });
-    assert.strictEqual(r.difference, 0);
-    assert.strictEqual(r.reconciled, true);
+    assert.strictEqual(r.adjustedBankBalance, R(92500));
+    assert.strictEqual(r.difference, R(-15000));
+    assert.strictEqual(r.reconciled, false);
+    assert.match(r.explanation, /Unexplained difference/);
   });
 
   await t.test('with nothing outstanding the balances must simply agree', () => {
     assert.strictEqual(
       m.reconciliationStatement({ bankClosingBalance: R(50000), bookBalance: R(50000) }).reconciled,
-      true);
+      true
+    );
     assert.strictEqual(
-      m.reconciliationStatement({ bankClosingBalance: R(50000), bookBalance: R(49000) }).reconciled,
-      false);
+      m.reconciliationStatement({ bankClosingBalance: R(50000), bookBalance: R(50001) }).reconciled,
+      false
+    );
   });
 });

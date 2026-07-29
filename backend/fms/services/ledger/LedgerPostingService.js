@@ -293,6 +293,7 @@ async function post(p) {
         school: p.school,
         financialYear: p.financialYear,
         voucherNumber,
+        referenceNumber: p.referenceNumber || null,
         voucherType: p.voucherType,
         voucherDate: p.voucherDate,
         narration: p.narration || '',

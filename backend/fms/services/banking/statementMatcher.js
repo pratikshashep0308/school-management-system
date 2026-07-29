@@ -279,7 +279,9 @@ function scoreMatch(line, entry, opts = {}) {
   const days = daysBetween(line.valueDate, entry.entryDate);
   const refMatch = referencesOverlap(
     `${line.narration} ${line.reference}`,
-    `${entry.narration || ''} ${entry.voucherNumber || ''}`
+    // referenceNumber first: it is the field that actually carries the UTR or
+    // cheque number. Narration only helps when someone typed it in by hand.
+    `${entry.referenceNumber || ''} ${entry.narration || ''} ${entry.voucherNumber || ''}`
   );
 
   let confidence;
@@ -385,7 +387,15 @@ function reconciliationStatement({ bankClosingBalance, bookBalance, unmatchedEnt
     else depositsInTransit += e.debit || 0;
   }
 
-  const adjusted = bankClosingBalance + unpresentedCheques - depositsInTransit;
+  // Standard bank reconciliation:
+  //   start from the BANK's balance
+  //   LESS unpresented cheques  — the bank still shows money already spent
+  //   PLUS deposits in transit  — recorded by us, not yet on the statement
+  //   = what the books should say
+  //
+  // The signs were the other way round, which reconciled only when both
+  // figures were zero.
+  const adjusted = bankClosingBalance - unpresentedCheques + depositsInTransit;
   const difference = adjusted - bookBalance;
 
   return {
