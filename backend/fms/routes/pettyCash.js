@@ -33,7 +33,12 @@ router.get('/floats', fmsAuthorize('pettyCash', 'VIEW'), asyncHandler(async (req
   }
   if (req.query.mine === 'true') filter.custodian = req.user._id;
 
-  const floats = await FmsPettyCashFloat.find(filter).sort({ name: 1 }).lean();
+    // A hard cap rather than full pagination: this set is naturally small (a
+    // school has a handful), so paging would be ceremony. The cap exists
+    // because "naturally small" is an assumption, and an endpoint that CANNOT
+    // return unbounded data is safer than one that merely does not today.
+    const MAX = 200;
+  const floats = await FmsPettyCashFloat.find(filter).sort({ name: 1 }).limit(MAX).lean();
 
   const items = [];
   for (const f of floats) {

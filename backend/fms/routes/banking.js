@@ -22,7 +22,13 @@ const {
 // ─── Accounts (SCR-36/37) ────────────────────────────────────────────────────
 
 router.get('/accounts', fmsAuthorize('banking', 'VIEW'), asyncHandler(async (req, res) => {
-  const docs = await FmsBankAccount.find({ school: req.fmsScope.school }).sort({ accountName: 1 });
+  // A hard cap rather than full pagination: a school has a handful of bank
+  // accounts, so paging would be ceremony. The cap exists because "a handful"
+  // is an assumption, and this loop computes a balance PER ACCOUNT — an
+  // unbounded result would mean an unbounded number of aggregations.
+  const MAX = 200;
+  const docs = await FmsBankAccount.find({ school: req.fmsScope.school })
+    .sort({ accountName: 1 }).limit(MAX);
   const items = [];
   for (const d of docs) {
     items.push({ ...d.toObject(), balance: await svc.accountBalance(req.fmsScope.school, d._id) });

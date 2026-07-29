@@ -282,7 +282,13 @@ router.get('/mappings', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req,
     }
     filter.mappingType = req.query.mappingType;
   }
-  return ok(res, await FmsAccountMapping.find(filter).sort({ mappingType: 1, sourceLabel: 1 }).lean());
+    // A hard cap rather than full pagination: this set is naturally small (a
+    // school has a handful), so paging would be ceremony. The cap exists
+    // because "naturally small" is an assumption, and an endpoint that CANNOT
+    // return unbounded data is safer than one that merely does not today.
+    const MAX = 200;
+  return ok(res, await FmsAccountMapping.find(filter)
+    .sort({ mappingType: 1, sourceLabel: 1 }).limit(MAX).lean());
 }));
 
 /**
