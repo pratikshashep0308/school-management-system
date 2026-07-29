@@ -15,6 +15,7 @@ const { FmsAccount } = require('../models/core');
 const { FmsIncomeVoucher } = require('../models/income');
 const feeIngest = require('../services/ingest/feeIngestService');
 const payrollIngest = require('../services/ingest/payrollIngestService');
+const expenseIngest = require('../services/ingest/expenseIngestService');
 const {
   ok, created, paginated, parsePagination, validate, check, errors,
 } = require('../utils/apiResponse');
@@ -129,6 +130,39 @@ router.get('/payroll/postings', fmsAuthorize('ledger', 'VIEW'), asyncHandler(asy
   ]);
 
   return paginated(res, items, { page, limit, total });
+}));
+
+// ─── SMS expenses (§4) ───────────────────────────────────────────────────────
+//
+// Note what is NOT here: purchase orders, goods receipts and vendor payables.
+// §4 confirms the SMS has no procurement, vendor or inventory model — those are
+// FMS-owned and posted by the Purchase module (P4.3). SMS `Expense` records are
+// the only genuine boundary in this touchpoint.
+
+router.get('/expenses/status', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await expenseIngest.status(req.fmsScope.school));
+}));
+
+/**
+ * POST /api/fms/integrations/expenses/sync
+ *
+ * Imports SMS expenses as COMPLETED records with no FMS approval trail — the
+ * money was already spent when the SMS recorded it, and running it through the
+ * approval chain retroactively would manufacture approvals that never happened.
+ */
+router.post('/expenses/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(async (req, res) => {
+  validate(req.body || {}, { dryRun: { rules: [check.boolean] } });
+
+  const cycle = await expenseIngest.sync(req.fmsScope.school, {
+    dryRun: req.body?.dryRun === true || req.query.dryRun === 'true',
+  }, req);
+
+  return ok(res, cycle, {
+    message: cycle.dryRun
+      ? `Dry run — ${cycle.counts.posted} would import, ${cycle.counts.failed} would fail`
+      : `${cycle.counts.posted} imported, ${cycle.counts.alreadyPosted} already present, ` +
+        `${cycle.counts.failed} failed`,
+  });
 }));
 
 // ─── Account mappings (§8) ───────────────────────────────────────────────────

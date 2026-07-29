@@ -140,6 +140,17 @@ const ExpenseRequestSchema = new mongoose.Schema({
   cancelledAt: { type: Date },
   cancellationReason: { type: String },
 
+  // ── Ingest linkage (P5.3) ────────────────────────────────────────────────
+  // Set when this record was imported from an SMS Expense rather than raised
+  // here. Such a record is recorded as COMPLETED with an empty approval chain,
+  // because the money was already spent when the SMS recorded it — running it
+  // through the FMS workflow retroactively would manufacture approvals that
+  // never happened.
+  sourceSystem: { type: String, enum: ['sms', null], default: null },
+  sourceExpenseId: { type: ObjectId, default: null },
+  /** The SMS category had no mapping, so this went to Other Expenses. */
+  needsReclassification: { type: Boolean, default: false },
+
   createdBy: { type: ObjectId },
   updatedBy: { type: ObjectId },
 }, { timestamps: true, collection: 'fms_expenserequests' });
@@ -185,6 +196,12 @@ ExpenseRequestSchema.methods.isEditable = function () {
 };
 
 ExpenseRequestSchema.index({ school: 1, expenseNumber: 1 }, { unique: true });
+// The SMS expense id is the import idempotency key — a unique partial index
+// makes a replayed cycle impossible at the database.
+ExpenseRequestSchema.index(
+  { school: 1, sourceExpenseId: 1 },
+  { unique: true, partialFilterExpression: { sourceExpenseId: { $type: 'objectId' } } }
+);
 ExpenseRequestSchema.index({ school: 1, expenseStatus: 1, requestDate: -1 });
 ExpenseRequestSchema.index({ school: 1, financialYear: 1, requestDate: -1 });
 ExpenseRequestSchema.index({ school: 1, requestedBy: 1, expenseStatus: 1 });
