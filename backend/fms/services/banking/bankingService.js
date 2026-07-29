@@ -306,7 +306,9 @@ async function unmatchedEntries(school, bank, from, to) {
     account: oid(bank.ledgerAccount),
     entryDate: { $gte: from, $lte: to },
     _id: { $nin: matched },
-  }).select('_id entryDate debit credit narration voucher voucherNumber').lean();
+  // referenceNumber is what the matcher keys on — a statement line reading
+  // 'NEFT CR NEFT001' can only find its posting if the posting carries NEFT001.
+  }).select('_id entryDate debit credit narration voucher voucherNumber referenceNumber').lean();
 }
 
 /** Run auto-matching. Applies confident matches; returns the rest for review. */
