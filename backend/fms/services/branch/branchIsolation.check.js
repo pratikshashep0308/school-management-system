@@ -130,9 +130,16 @@ async function main() {
   ok('and shows only its own assets', bsA.totals.assets === R(20000), String(bsA.totals.assets));
 
   // Ledger reads
+  // accountLedger projects `school` out of its entries, so isolation cannot be
+  // asserted on the field. Assert it by VALUE instead: A's tuition ledger must
+  // close at A's own income, not the sum of both branches.
   const ledgerA = await gl.accountLedger(A, a.tuition._id, {}, { skip: 0, limit: 50 });
-  ok('an account ledger returns only its branch entries',
-    ledgerA.entries.every((e) => String(e.school) === String(A)));
+  ok('AN ACCOUNT LEDGER CLOSES AT ITS OWN BRANCH FIGURE',
+    Math.abs(ledgerA.closing.amount ?? ledgerA.closing) === R(60000),
+    JSON.stringify(ledgerA.closing));
+  ok('and not the two branches combined',
+    Math.abs(ledgerA.closing.amount ?? ledgerA.closing) !== R(85000));
+  ok('with one entry, not two', ledgerA.entries.length === 1, String(ledgerA.entries.length));
 
   // A foreign account id must not resolve
   await throws("branch A cannot read branch B's account ledger",
@@ -144,7 +151,9 @@ async function main() {
   }, { user: { _id: new Types.ObjectId() } });
   await budgetSvc.activate(A, budA._id, { user: { _id: new Types.ObjectId() } });
 
-  const posA = await budgetSvc.position(A, budA._id);
+  // position() takes the budget DOCUMENT, not (school, id).
+  const { FmsBudget } = require('../../models/budget');
+  const posA = await budgetSvc.position(await FmsBudget.findById(budA._id));
   ok('a budget counts only its own branch spending',
     posA.actual === R(40000), String(posA.actual));
 
