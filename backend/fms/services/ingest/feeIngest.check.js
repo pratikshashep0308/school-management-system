@@ -306,7 +306,23 @@ async function main() {
   console.log('\n7. Status');
   const st = await svc.status(school);
   ok('status reports posted receipts', st.postedReceipts >= 4, String(st.postedReceipts));
-  ok('and how many need reclassifying', st.needingReclassification === 1, String(st.needingReclassification));
+  // Every StudentFee-sourced receipt lacks a fee type and is therefore flagged:
+  // RCP-1001 from section 2 and RCP-GOOD from section 4. Asserting a hardcoded
+  // 1 encoded an assumption about the fixture rather than the behaviour, and
+  // broke the moment section 4 added another.
+  const flagged = await FmsIncomeVoucher.countDocuments({
+    school, needsReclassification: true, incomeStatus: 'posted',
+  });
+  ok('status agrees with the flagged vouchers',
+    st.needingReclassification === flagged, `status=${st.needingReclassification} vouchers=${flagged}`);
+  ok('and it is exactly the StudentFee-sourced receipts',
+    flagged === (await FmsIncomeVoucher.countDocuments({
+      school, sourceCollection: 'studentFee', incomeStatus: 'posted',
+    })), String(flagged));
+  ok('none of the fee-type-carrying receipts are flagged',
+    (await FmsIncomeVoucher.countDocuments({
+      school, sourceCollection: 'feeAssignment', needsReclassification: true,
+    })) === 0);
   ok('and that the chart is ready', st.chartReady === true);
 
   // ── 8. Integrity ──────────────────────────────────────────────────────────
