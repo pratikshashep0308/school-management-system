@@ -87,6 +87,27 @@ const IncomeVoucherSchema = new mongoose.Schema({
   cancellationReason: { type: String },
   reversalVoucher: { type: ObjectId, default: null },
 
+  // ── Ingest linkage ───────────────────────────────────────────────────────
+  // Set when this receipt came from the SMS rather than being keyed in here.
+  //
+  // These live on the income voucher rather than in a separate fms_feePostings
+  // collection (which the integration plan proposed) because an income voucher
+  // ALREADY records 'money received from X, for Y, on date Z' — which is what a
+  // fee receipt is. A parallel collection would be a second place to ask "did we
+  // post this receipt?", and two records of one event drift. Idempotency is
+  // handled by fms_ingeststate, so a third record adds nothing.
+  sourceSystem: { type: String, enum: ['sms', null], default: null },
+  /** The SMS receipt number — the idempotency key, distinct from ours. */
+  sourceReceiptNumber: { type: String, default: null },
+  sourceCollection: { type: String },          // studentFee | feeAssignment
+  sourceDocId: { type: ObjectId, default: null },
+  /**
+   * True when the source carried no fee type and the money went to
+   * 'Fee Income — Unclassified'. Flagged so somebody can reclassify it, rather
+   * than it disappearing into a bucket nobody looks at.
+   */
+  needsReclassification: { type: Boolean, default: false },
+
   printCount: { type: Number, default: 0 },
   lastPrintedAt: { type: Date },
 
@@ -96,6 +117,13 @@ const IncomeVoucherSchema = new mongoose.Schema({
 
 /** A receipt number must be unique per school — it is a legal document number. */
 IncomeVoucherSchema.index({ school: 1, receiptNumber: 1 }, { unique: true });
+// The SMS receipt number is the ingest idempotency key. A unique index makes a
+// replayed cycle a database impossibility rather than a code-level hope.
+IncomeVoucherSchema.index(
+  { school: 1, sourceReceiptNumber: 1 },
+  { unique: true, partialFilterExpression: { sourceReceiptNumber: { $type: 'string' } } }
+);
+IncomeVoucherSchema.index({ school: 1, needsReclassification: 1 });
 IncomeVoucherSchema.index({ school: 1, receiptDate: -1 });
 IncomeVoucherSchema.index({ school: 1, category: 1, receiptDate: -1 });
 IncomeVoucherSchema.index({ school: 1, smsStudentId: 1, receiptDate: -1 });
