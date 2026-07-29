@@ -293,7 +293,6 @@ async function post(p) {
         school: p.school,
         financialYear: p.financialYear,
         voucherNumber,
-        referenceNumber: p.referenceNumber || null,
         voucherType: p.voucherType,
         voucherDate: p.voucherDate,
         narration: p.narration || '',
@@ -318,6 +317,11 @@ async function post(p) {
           financialYear: p.financialYear,
           voucher: voucher._id,
           voucherNumber,
+          // The instrument or bank reference, snapshotted onto the ENTRY.
+          // Bank reconciliation matches on this: a statement line reading
+          // 'NEFT CR NEFT001' can only find its posting if the posting carries
+          // NEFT001 where a matcher can see it.
+          referenceNumber: p.referenceNumber || null,
           voucherType: p.voucherType,
           account: a._id,
           accountCode: a.accountCode,      // snapshot — survives a later rename
@@ -451,6 +455,9 @@ async function reverse(voucherId, postedBy, reason) {
         financialYear: l.financialYear,
         voucher: rev._id,
         voucherNumber,
+        // Carried from the original. A reversed cheque still needs to be
+        // findable by its number when the bank statement shows it bouncing.
+        referenceNumber: l.referenceNumber || null,
         voucherType: l.voucherType,
         account: l.account,
         accountCode: l.accountCode,
