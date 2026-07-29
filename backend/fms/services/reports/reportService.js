@@ -93,33 +93,61 @@ async function profitAndLoss(school, opts) {
 async function balanceSheet(school, opts) {
   const period = await resolvePeriod(school, opts);
 
-  // Position: everything up to the as-at date.
+  // ── The two windows, and why they differ ─────────────────────────────────
+  //
+  // POSITION — assets, liabilities, equity — is cumulative from inception to
+  // the as-at date. That is what a balance sheet IS.
+  //
+  // RESULT — the surplus carried into equity — runs from the FINANCIAL YEAR
+  // START to the same date. Year-to-date, not the requested period.
+  //
+  // An earlier version used the requested period for the result, so a sheet
+  // asked for "July only" showed July's surplus against an asset position that
+  // already reflected April to June. It was out by everything that happened
+  // before July. A balance sheet as at a date shows the year to that date;
+  // there is no such thing as a July-only balance sheet.
+  const yearStart = await financialYearStart(school, period.to);
+
   const position = await gl.trialBalance(school, { to: period.to });
-  // Result: the period only.
-  const activity = await trialBalanceLines(school, period);
+  const yearToDate = await gl.trialBalance(school, { from: yearStart, to: period.to });
 
   const balanceLines = position.lines.filter(
     (l) => ['asset', 'liability', 'equity'].includes(l.accountType)
   );
-  const resultLines = activity.lines.filter(
+  const resultLines = yearToDate.lines.filter(
     (l) => ['income', 'expense'].includes(l.accountType)
   );
 
   const bs = fs.balanceSheet([...balanceLines, ...resultLines], { asAt: period.to });
-  const pl = fs.profitAndLoss(resultLines, { period });
+  const pl = fs.profitAndLoss(resultLines, { period: { from: yearStart, to: period.to } });
 
   return {
     ...bs,
-    period,
+    asAt: period.to,
+    resultPeriod: { from: yearStart, to: period.to },
     verification: fs.verify({
       trialBalance: position,
       balanceSheetResult: bs,
       profitAndLossResult: pl,
     }),
     note:
-      'Assets, liabilities and equity are the position as at the end date. ' +
-      'The surplus is the period figure only.',
+      'Assets, liabilities and equity are cumulative to the as-at date. The ' +
+      'surplus is from the start of the financial year to the same date — a ' +
+      'balance sheet shows the year to date, never a narrower slice.',
   };
+}
+
+/**
+ * The start of the financial year containing a date.
+ *
+ * Falls back to the epoch when no year covers it, so the result becomes
+ * "everything up to this date" rather than silently reporting nothing.
+ */
+async function financialYearStart(school, asAt) {
+  const fy = await FmsFinancialYear.findOne({
+    school: oid(school), startDate: { $lte: asAt }, endDate: { $gte: asAt },
+  }).lean();
+  return fy ? fy.startDate : new Date(0);
 }
 
 /**

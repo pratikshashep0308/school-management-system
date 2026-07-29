@@ -176,12 +176,28 @@ async function main() {
   // A sheet for July only must still show the FULL asset position, not July's
   // movement in each account. Getting this wrong produces a sheet that balances
   // and is wrong.
-  const julyOnly = await svc.balanceSheet(school, { from: '2026-07-01', to: '2026-07-31' });
-  ok('a July-only sheet still shows the full asset position',
-    julyOnly.totals.assets === R(90000), String(julyOnly.totals.assets));
-  ok('but only July income and expenditure',
-    julyOnly.equity.periodResult === -R(10000), String(julyOnly.equity.periodResult));
-  ok('and it still balances', julyOnly.totals.balanced);
+  // A balance sheet as at 31 July shows the position to that date AND the
+  // surplus from the FINANCIAL YEAR START to that date — year-to-date.
+  //
+  // An earlier version of this check asserted a "July-only" surplus, which is
+  // not a thing: the May and June activity is already in the asset position, so
+  // a July-only result leaves the sheet out by everything before July. The
+  // check was asserting the bug.
+  const asAtJuly = await svc.balanceSheet(school, { from: '2026-07-01', to: '2026-07-31' });
+  ok('the position is cumulative to the as-at date',
+    asAtJuly.totals.assets === R(90000), String(asAtJuly.totals.assets));
+  ok('THE SURPLUS IS YEAR-TO-DATE, not the requested slice',
+    asAtJuly.equity.periodResult === R(30000), String(asAtJuly.equity.periodResult));
+  ok('the result window starts at the financial year start',
+    asAtJuly.resultPeriod.from.toISOString().slice(0, 10) === '2026-04-01',
+    asAtJuly.resultPeriod.from.toISOString().slice(0, 10));
+  ok('AND IT BALANCES', asAtJuly.totals.balanced, JSON.stringify(asAtJuly.totals));
+
+  // Mid-year: as at 30 June, before the stationery was bought on credit.
+  const asAtJune = await svc.balanceSheet(school, { to: '2026-06-30' });
+  ok('a mid-year sheet balances too', asAtJune.totals.balanced, JSON.stringify(asAtJune.totals));
+  ok('and excludes what had not happened yet',
+    asAtJune.equity.periodResult === R(40000), String(asAtJune.equity.periodResult));
 
   // ── 6. Operational reports ───────────────────────────────────────────────
   console.log('\n6. Operational reports');
