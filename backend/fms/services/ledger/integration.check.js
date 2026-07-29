@@ -50,10 +50,10 @@ async function main() {
   if (!uri) throw new Error('MONGO_URI not set — run from backend/');
 
   // Redirect to a throwaway database on the same replica set.
-  const testUri = uri.replace(/\/([^/?]+)(\?|$)/, '/$1_fmscheck$2');
+  const testUri = uri.replace(/\/([^/?]+)(\?|$)/, `/$1_fmscheck${process.pid}$2`);
   const dbName = testUri.match(/\/([^/?]+)(\?|$)/)[1];
 
-  if (!dbName.endsWith('_fmscheck')) {
+  if (!/_fmscheck\d*$/.test(dbName)) {
     throw new Error(`Refusing to run: resolved database '${dbName}' is not a _fmscheck database`);
   }
 
@@ -262,7 +262,7 @@ main().catch(async (err) => {
   try {
     if (mongoose.connection.readyState === 1) {
       const n = mongoose.connection.db.databaseName;
-      if (n.endsWith('_fmscheck')) await mongoose.connection.db.dropDatabase();
+      if (/_fmscheck\d*$/.test(n)) await mongoose.connection.db.dropDatabase();
       await mongoose.disconnect();
     }
   } catch (_) { /* ignore */ }
