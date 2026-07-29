@@ -134,11 +134,13 @@ async function main() {
   // asserted on the field. Assert it by VALUE instead: A's tuition ledger must
   // close at A's own income, not the sum of both branches.
   const ledgerA = await gl.accountLedger(A, a.tuition._id, {}, { skip: 0, limit: 50 });
+  // present() returns { balance, naturalBalance, drCr }. Tuition is credit-
+  // normal, so naturalBalance is the positive figure a reader expects.
   ok('AN ACCOUNT LEDGER CLOSES AT ITS OWN BRANCH FIGURE',
-    Math.abs(ledgerA.closing.amount ?? ledgerA.closing) === R(60000),
-    JSON.stringify(ledgerA.closing));
+    ledgerA.closing.naturalBalance === R(60000), JSON.stringify(ledgerA.closing));
   ok('and not the two branches combined',
-    Math.abs(ledgerA.closing.amount ?? ledgerA.closing) !== R(85000));
+    ledgerA.closing.naturalBalance !== R(85000));
+  ok('and it is presented on its natural side', ledgerA.closing.drCr === 'Cr');
   ok('with one entry, not two', ledgerA.entries.length === 1, String(ledgerA.entries.length));
 
   // A foreign account id must not resolve
