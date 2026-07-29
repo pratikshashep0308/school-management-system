@@ -334,30 +334,51 @@ async function updateAccount(school, id, payload, req) {
  * Delete — but only ever for an account that has never been posted to.
  * Anything else is deactivated instead, and the caller is told why.
  */
+/**
+ * Withdraw an account.
+ *
+ * DEACTIVATES rather than deletes, and that changed deliberately.
+ *
+ * The original version hard-deleted an account with no ledger entries. But
+ * `postingCount` only looks at the LEDGER — an account can also be referenced
+ * by an account mapping, a budget head, a bank account, or a petty cash float.
+ * Deleting one that was "unused" in the ledger could leave any of those
+ * pointing at nothing.
+ *
+ * Deactivating achieves the same visible outcome — the account stops accepting
+ * postings and disappears from pickers — while keeping the record that somebody
+ * created it and withdrew it, which is more useful than it never having existed.
+ */
 async function removeAccount(school, id, req) {
   const doc = await FmsAccount.findOne({ _id: id, school });
   if (!doc) throw errors.notFound('Account');
 
-  const posted = await postingCount(id);
-
-  if (posted > 0) {
-    throw errors.conflict(
-      `Account ${doc.accountCode} has ${posted} ledger entries and cannot be deleted`,
-      {
-        postings: posted,
-        hint: 'Deactivate it instead: PATCH with { "status": "inactive" }. ' +
-              'Inactive accounts reject new postings but keep their history.',
-      }
-    );
+  if (doc.status === 'inactive') {
+    throw errors.conflict(`Account ${doc.accountCode} is already inactive`);
   }
+
+  const posted = await postingCount(id);
+  const before = doc.toObject();
+
+  doc.status = 'inactive';
+  doc.updatedBy = req?.user?._id;
+  await doc.save();
 
   await audit({
     school, entity: 'fms_accounts', entityId: doc._id,
-    action: 'cancel', before: doc.toObject(), req,
+    action: 'cancel', before, after: doc.toObject(), req,
   });
 
-  await FmsAccount.deleteOne({ _id: id, school });
-  return { deleted: true, accountCode: doc.accountCode };
+  return {
+    deactivated: true,
+    accountCode: doc.accountCode,
+    hadPostings: posted > 0,
+    postings: posted,
+    note: posted > 0
+      ? `${posted} ledger entries remain and are unaffected`
+      : 'The account had no postings, but is deactivated rather than deleted — ' +
+        'mappings, budgets and bank accounts may still reference it',
+  };
 }
 
 /**

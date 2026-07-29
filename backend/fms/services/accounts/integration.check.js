@@ -145,8 +145,16 @@ async function main() {
   const throwaway = await svc.createAccount(school, {
     accountCode: '4199', accountName: 'Throwaway', accountGroup: grandchild._id,
   }, req);
+  // Changed from delete to DEACTIVATE. postingCount only sees the ledger, but
+  // an account can also be referenced by a mapping, a budget head, a bank
+  // account or a petty cash float — deleting an "unused" one could leave any
+  // of those dangling. The delete guard added in P6.2 surfaced this.
   const del = await svc.removeAccount(school, throwaway._id, req);
-  ok('unused account can be deleted', del.deleted === true);
+  ok('an unused account is DEACTIVATED, not deleted', del.deactivated === true);
+  ok('and it still exists', (await M.FmsAccount.countDocuments({ _id: throwaway._id })) === 1);
+  ok('with status inactive',
+    (await M.FmsAccount.findById(throwaway._id)).status === 'inactive');
+  ok('and the reason is stated', /may still reference it/.test(del.note));
   ok('and is really gone',
     (await M.FmsAccount.countDocuments({ _id: throwaway._id })) === 0);
 
@@ -174,13 +182,31 @@ async function main() {
 
   ok('posting count is 1', (await svc.postingCount(tuition._id)) === 1);
 
-  await throws('DELETE blocked after posting',
-    () => svc.removeAccount(school, tuition._id, req),
-    /cannot be deleted/);
+  // Under the new design, having postings is no longer a BLOCKER — deactivation
+  // is always safe, because the history stays and the account simply stops
+  // accepting new entries. What changes is that the result SAYS so.
+  const withHistory = await svc.removeAccount(school, tuition._id, req);
+  ok('an account WITH postings can still be deactivated', withHistory.deactivated === true);
+  ok('and the result says it had history', withHistory.hadPostings === true);
+  ok('naming how many entries remain', withHistory.postings === 1);
+  ok('the entries are untouched',
+    (await M.FmsLedgerEntry.countDocuments({ school, account: tuition._id })) === 1);
 
-  await throws('and for the cash side too',
-    () => svc.removeAccount(school, cash._id, req),
-    /cannot be deleted/);
+  await throws('but it cannot be deactivated twice',
+    () => svc.removeAccount(school, tuition._id, req), /already inactive/);
+
+  // And a deactivated account must refuse new postings — otherwise
+  // deactivation would be cosmetic.
+  await throws('A DEACTIVATED ACCOUNT REFUSES NEW POSTINGS',
+    () => posting.post({
+      school, financialYear: fy._id, voucherType: 'income',
+      voucherDate: new Date('2026-07-29'), narration: 'After deactivation',
+      postedBy: req.user._id,
+      lines: [
+        { account: cash._id, debit: 100, credit: 0 },
+        { account: tuition._id, debit: 0, credit: 100 },
+      ],
+    }), /inactive|not postable|ACCOUNT/i);
 
   ok('account still exists after the blocked delete',
     (await M.FmsAccount.countDocuments({ _id: tuition._id })) === 1);

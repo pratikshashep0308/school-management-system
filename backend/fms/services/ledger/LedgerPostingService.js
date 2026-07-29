@@ -50,6 +50,27 @@ const VOUCHER_PREFIX = {
   journal: 'JV',
 };
 
+/**
+ * Reversals draw from their OWN series, not the series of the voucher they
+ * reverse.
+ *
+ * ─── WHY ─────────────────────────────────────────────────────────────────────
+ * A receipt number is printed and handed to a parent. P3.1 made the GL voucher
+ * number the receipt number precisely so it would be gapless — because a
+ * MISSING RECEIPT NUMBER LOOKS LIKE A DESTROYED RECEIPT.
+ *
+ * But a reversal was taking the next number from the same series. Cancelling
+ * receipt 1 consumed number 2 for its reversal, so the receipts read 1, 3, 4,
+ * 5 — exactly the appearance the design set out to avoid.
+ *
+ * A separate series fixes it and reads better besides: an auditor scanning
+ * voucher numbers sees a reversal immediately rather than having to open it.
+ *
+ * The reversal's `voucherType` is unchanged — a reversal of an income voucher
+ * is still an income-type voucher, and filtering by type must still find it.
+ */
+const REVERSAL_PREFIX = 'REV';
+
 const LOCKED_FY = ['closed', 'locked'];
 
 /** Thrown for anything the caller could have prevented. */
@@ -427,9 +448,10 @@ async function reverse(voucherId, postedBy, reason) {
         throw new PostingError('Voucher has no ledger lines', 'NO_LINES');
       }
 
-      const prefix = VOUCHER_PREFIX[original.voucherType];
+      // REV, not the original's prefix — see the note by REVERSAL_PREFIX.
       const voucherNumber = await FmsNumberSequence.next(
-        original.school, original.financialYear, prefix, prefix, fy.yearCode, session
+        original.school, original.financialYear,
+        REVERSAL_PREFIX, REVERSAL_PREFIX, fy.yearCode, session
       );
 
       const [rev] = await FmsVoucher.create([{

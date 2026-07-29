@@ -130,6 +130,12 @@ async function main() {
 
   ok('status cancelled', c.income.incomeStatus === 'cancelled');
   ok('CANCEL POSTED A REVERSAL', !!c.reversal.voucherNumber, c.reversal.voucherNumber);
+  // A reversal takes its number from the REV series, NOT the receipt series —
+  // otherwise cancelling a receipt would leave a gap in the receipt numbers,
+  // which looks like a destroyed receipt. This is what the gapless assertion
+  // at the end of the check exists to protect.
+  ok('and it uses the REVERSAL series, not the receipt series',
+    c.reversal.voucherNumber.startsWith('REV-'), c.reversal.voucherNumber);
   ok('reason recorded', c.income.cancellationReason === 'Paid twice by mistake');
 
   const after = await gl.trialBalance(school);
