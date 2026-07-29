@@ -155,8 +155,6 @@ async function main() {
   ok('with status inactive',
     (await M.FmsAccount.findById(throwaway._id)).status === 'inactive');
   ok('and the reason is stated', /may still reference it/.test(del.note));
-  ok('and is really gone',
-    (await M.FmsAccount.countDocuments({ _id: throwaway._id })) === 0);
 
   // ── 4. THE P2.1 VERIFICATION ──────────────────────────────────────────────
   console.log('\n4. Delete after posting — the P2.1 verification');
