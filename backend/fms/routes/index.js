@@ -142,6 +142,7 @@ router.use('/reports',  protect, require('./reports'));            // Financial 
 router.use('/audit',    protect, require('./audit'));              // Audit Trail Viewer (P6.2)
 router.use('/notifications', protect, require('./notifications')); // Notifications (P6.3)
 router.use('/branches', protect, require('./branches'));           // Multi-Branch (P6.4)
+router.use('/dashboard', protect, require('./dashboard'));         // Financial Dashboard (P6.5)
 
 // Mounted as their phases land. Listed so the mount points and permission
 // module keys are fixed now.
