@@ -99,7 +99,11 @@ async function main() {
     month: 'July', year: 2026,
     basicSalary: 40000, grossSalary: 50000, netSalary: 42200,
     deductions: { pf: 3600, tax: 2200, loan: 1500, other: 500 },
-    paymentDate: new Date('2026-07-31'), updatedAt: new Date('2026-08-01'),
+    // These must be genuinely in the PAST. An earlier version used 2026-07-31,
+    // which is in the future relative to the real clock — so the G4 rule
+    // correctly fell back to updatedAt and the assertion below failed. The
+    // rule was right; the fixture was not.
+    paymentDate: new Date('2026-07-10'), updatedAt: new Date('2026-07-12'),
     ...o,
   });
 
@@ -178,28 +182,29 @@ async function main() {
 
   const paidSlip = slip({ teacher: { _id: T2, name: 'S. Iyer' } });
   SLIPS = [paidSlip];
-  await FmsPayrollPosting.deleteMany;  // no-op: deletes are blocked by design
   const c4 = await svc.sync(school, {}, req);
   ok('a paid slip with a past paymentDate uses it', c4.counts.posted === 1);
 
   const rec = await FmsPayrollPosting.findOne({ school, teacherName: 'S. Iyer' }).lean();
   ok('dateChosen is recorded as paymentDate', rec.dateChosen === 'paymentDate');
   ok('the posting date is the payment date',
-    rec.postingDate.toISOString().slice(0, 10) === '2026-07-31');
+    rec.postingDate.toISOString().slice(0, 10) === '2026-07-10');
   ok('BOTH SOURCE DATES ARE KEPT, so the choice is auditable',
     !!rec.sourcePaymentDate && !!rec.sourceUpdatedAt);
 
   // A future paymentDate must fall back — it records when the slip was drafted.
   const future = slip({
     teacher: { _id: new Types.ObjectId(), name: 'K. Rao' },
-    paymentDate: new Date('2027-03-01'), updatedAt: new Date('2026-08-10'),
+    // paymentDate deliberately in the future; updatedAt in the past so the
+    // fallback has something usable to land on.
+    paymentDate: new Date('2027-03-01'), updatedAt: new Date('2026-07-15'),
   });
   SLIPS = [future];
   await svc.sync(school, {}, req);
   const rec2 = await FmsPayrollPosting.findOne({ school, teacherName: 'K. Rao' }).lean();
   ok('A FUTURE paymentDate FALLS BACK to updatedAt', rec2.dateChosen === 'updatedAt');
   ok('and the posting sits on the fallback date',
-    rec2.postingDate.toISOString().slice(0, 10) === '2026-08-10');
+    rec2.postingDate.toISOString().slice(0, 10) === '2026-07-15');
 
   // ── 5. §3.5 — status regression forces a reversal ────────────────────────
   console.log('\n5. §3.5 — paid → pending after posting');
