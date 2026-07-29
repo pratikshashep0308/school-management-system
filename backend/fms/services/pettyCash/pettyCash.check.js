@@ -240,11 +240,30 @@ async function main() {
 
   // ── 5. Guards ─────────────────────────────────────────────────────────────
   console.log('\n5. Guards');
+  // The balance guard needs an amount that trips ONLY it. On the main float,
+  // ₹9,000 exceeds both the balance AND the ₹2,000 single-expense limit, and
+  // the limit fires first — so that test proved nothing about the balance.
+  // A second float with no limit isolates it.
+  const bare = await svc.createFloat(school, {
+    name: 'Lab Petty Cash', account: petty2._id,
+    custodian: custodian.user._id, floatAmount: R(1000),
+  }, manager);
+  await svc.record(school, bare._id, {
+    transactionType: 'float', amount: R(1000), counterAccount: bank._id,
+    particulars: 'Lab float', transactionDate: new Date('2026-07-05'),
+  }, manager);
+
   await throws('CANNOT SPEND MORE THAN IS IN THE TIN',
-    () => svc.record(school, float._id, {
-      transactionType: 'expense', amount: R(9000), counterAccount: sundry._id,
-      particulars: 'Too much', transactionDate: new Date('2026-07-05'),
+    () => svc.record(school, bare._id, {
+      transactionType: 'expense', amount: R(1500), counterAccount: sundry._id,
+      particulars: 'More than the tin holds', transactionDate: new Date('2026-07-05'),
     }, custodian), /cannot be paid out/);
+
+  ok('spending exactly the balance is allowed',
+    (await svc.record(school, bare._id, {
+      transactionType: 'expense', amount: R(1000), counterAccount: sundry._id,
+      particulars: 'Exactly the balance', transactionDate: new Date('2026-07-05'),
+    }, custodian)).position.balance === 0);
 
   await throws('a single expense above the limit is refused',
     () => svc.record(school, float._id, {
