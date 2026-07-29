@@ -65,16 +65,21 @@ function mailTransport() {
 async function recipientsFor(school, roles) {
   if (!roles?.length) return [];
 
+  // Field names follow fms_roleassignments as it actually is — smsUserId,
+  // smsUserEmail, financeRole, status — which is the same shape fmsAuthorize
+  // queries. An earlier version invented `user`/`fmsRole`/`isActive` and
+  // matched nothing, which would have meant NOBODY WAS EVER NOTIFIED while
+  // every dispatch reported success.
   const assignments = await FmsRoleAssignment.find({
-    school: oid(school), fmsRole: { $in: roles }, isActive: true,
-  }).select('user userEmail fmsRole').lean();
+    school: oid(school), financeRole: { $in: roles }, status: 'active',
+  }).select('smsUserId smsUserEmail financeRole').lean();
 
   // One person may hold two of the addressed roles; they are told once.
   const byUser = new Map();
   for (const a of assignments) {
-    const k = String(a.user || a.userEmail);
+    const k = String(a.smsUserId || a.smsUserEmail);
     if (!byUser.has(k)) {
-      byUser.set(k, { user: a.user, email: a.userEmail, role: a.fmsRole });
+      byUser.set(k, { user: a.smsUserId, email: a.smsUserEmail, role: a.financeRole });
     }
   }
   return [...byUser.values()];

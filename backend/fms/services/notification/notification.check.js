@@ -55,12 +55,15 @@ async function main() {
   const REQUESTER = new Types.ObjectId();
 
   await M.FmsRoleAssignment.create([
-    { school, user: MANAGER, userEmail: 'mgr@school.test', fmsRole: 'accountsManager', isActive: true },
-    { school, user: ACCOUNTANT, userEmail: 'acct@school.test', fmsRole: 'accountant', isActive: true },
-    { school, user: PRINCIPAL, userEmail: 'principal@school.test', fmsRole: 'principal', isActive: true },
+    { school, smsUserId: MANAGER, smsUserEmail: 'mgr@school.test',
+      financeRole: 'accountsManager', status: 'active' },
+    { school, smsUserId: ACCOUNTANT, smsUserEmail: 'acct@school.test',
+      financeRole: 'accountant', status: 'active' },
+    { school, smsUserId: PRINCIPAL, smsUserEmail: 'principal@school.test',
+      financeRole: 'principal', status: 'active' },
     // Inactive — must never be notified.
-    { school, user: new Types.ObjectId(), userEmail: 'former@school.test',
-      fmsRole: 'accountsManager', isActive: false },
+    { school, smsUserId: new Types.ObjectId(), smsUserEmail: 'former@school.test',
+      financeRole: 'accountsManager', status: 'inactive' },
   ]);
 
   // ── 1. A notification cannot disrupt the caller ──────────────────────────
