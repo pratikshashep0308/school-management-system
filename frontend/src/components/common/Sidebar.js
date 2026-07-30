@@ -60,6 +60,18 @@ const MENU_ITEMS = [
   { path: '/assignments',   icon: '📋', label: 'Assignments',   roles: ['superAdmin','schoolAdmin','teacher'] },
   { path: '/fees',          icon: '💳', label: 'Fees',          roles: ['superAdmin','schoolAdmin','accountant'] },
   { path: '/expenses',      icon: '💸', label: 'Expenses',      roles: ['superAdmin','schoolAdmin','accountant'] },
+  // Financial Management System.
+  //
+  // Deliberately absent from PATH_TO_MODULE, so it is not switchable from Access
+  // Control. The FMS already has its own toggle — the FMS_ENABLED environment
+  // variable, enforced by FmsGuard — and a second switch here could disagree
+  // with it, leaving "why can't I see Finance?" with two possible answers.
+  //
+  // The roles below only decide whether the LINK appears. FmsGuard decides
+  // whether the page renders, based on the plugin being enabled AND the person
+  // holding an FMS finance role, which lives in fms_roleassignments and is
+  // separate from the SMS role named here.
+  { path: '/fms',           icon: '📒', label: 'Finance',       roles: ['superAdmin','schoolAdmin','accountant'] },
   { path: '/library',       icon: '📚', label: 'Library',       roles: ['superAdmin','schoolAdmin','librarian'] },
   { path: '/transport',     icon: '🚌', label: 'Transport',     roles: ['superAdmin','schoolAdmin','transportManager'] },
   { path: '/homework',      icon: '📚', label: 'Homework',          roles: ['superAdmin','schoolAdmin','teacher','student','parent'] },
