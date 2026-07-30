@@ -30,7 +30,19 @@ function toPaise(v) {
 
 const CashBankBook = () => {
   const [bookType, setBookType] = useState('cash');
-  const [range, setRange] = useState({ from: '', to: '' });
+  // Open on the current month rather than empty. /fms/books REQUIRES from and
+  // to, so an empty range meant the page greeted the user with
+  // "Both 'from' and 'to' are required" before they had done anything — an
+  // error that is correct, useless, and looks like a fault.
+  //
+  // A cash book is nearly always read for the current month, so this is also
+  // the range most people would have picked.
+  const [range, setRange] = useState(() => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const iso = (d) => d.toISOString().slice(0, 10);
+    return { from: iso(first), to: iso(now) };
+  });
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,6 +51,8 @@ const CashBankBook = () => {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    // Clearing a date is a half-finished edit, not a request for everything.
+    if (!range.from || !range.to) { setLoading(false); return; }
     setLoading(true); setError(null);
     try {
       const params = {};
