@@ -71,7 +71,7 @@ const BankReconciliation = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fmsAPI.getBankAccounts();
+        const res = await fmsAPI.getBankAccounts({ limit: 200 });
         const list = res?.data?.data ?? res?.data ?? [];
         setAccounts(list);
         if (list.length === 1) setAccount(list[0]._id);

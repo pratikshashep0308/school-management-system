@@ -49,7 +49,7 @@ const PettyCash = () => {
   const loadFloats = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const res = await fmsAPI.getPettyCashFloats();
+      const res = await fmsAPI.getPettyCashFloats({ limit: 200 });
       const list = res?.data?.data ?? res?.data ?? [];
       setFloats(Array.isArray(list) ? list : []);
       if (Array.isArray(list) && list.length && !selected) setSelected(list[0]);
@@ -63,7 +63,10 @@ const PettyCash = () => {
   useEffect(() => { loadFloats(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fmsAPI.getAccounts({ isPostable: true })
+    // limit: 500 — list endpoints paginate at 25 by default. There are 41
+    // accounts and expense heads (5xxx) sort LAST, so without this the expense
+    // dropdown would silently omit most of them.
+    fmsAPI.getAccounts({ isPostable: true, limit: 500 })
       .then((r) => setAccounts(r?.data?.data ?? r?.data ?? []))
       .catch(() => setAccounts([]));
   }, []);

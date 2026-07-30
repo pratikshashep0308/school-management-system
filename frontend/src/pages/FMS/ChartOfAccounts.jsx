@@ -46,7 +46,11 @@ const SetupReview = ({ existingCodes, onDone, onCancel }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fmsAPI.getAccountGroups()
+      // limit: 200 — this endpoint PAGINATES at 25 by default and there are 26
+      // account groups, so the highest code (5500) silently fell off page one.
+      // 39 of 41 accounts were created and the two needing 5500 were refused,
+      // which is a very confusing way for a default page size to present itself.
+    fmsAPI.getAccountGroups({ limit: 200 })
       .then((r) => setGroups(r?.data?.data ?? r?.data ?? []))
       .catch(() => setGroups([]));
   }, []);

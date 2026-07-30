@@ -58,7 +58,7 @@ const Payments = () => {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    fmsAPI.getBankAccounts()
+    fmsAPI.getBankAccounts({ limit: 200 })
       .then((r) => setBanks(r?.data?.data ?? r?.data ?? []))
       .catch(() => setBanks([]));   // a missing bank list must not break the page
   }, []);
