@@ -98,7 +98,7 @@ const Payments = () => {
             key={k}
             onClick={() => setTab(k)}
             className={`rounded-md px-3 py-1.5 text-sm ${
-              tab === k ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
+              tab === k ? 'bg-[var(--mod)] text-white' : 'bg-[var(--canvas)] text-[var(--ink)] border border-[var(--border)]'
             }`}
           >
             {label}
@@ -108,7 +108,7 @@ const Payments = () => {
 
       {error && <ErrorBanner error={error} />}
 
-      {loading && <div className="py-10 text-center text-slate-500">Loading…</div>}
+      {loading && <div className="py-10 text-center text-[var(--muted)]">Loading…</div>}
 
       {!loading && !error && rows.length === 0 && (
         <EmptyState
@@ -121,9 +121,9 @@ const Payments = () => {
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-600">
+            <thead className="bg-[var(--canvas)] text-left text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-2">Expense</th>
                 <th className="px-3 py-2">Department</th>
@@ -137,7 +137,7 @@ const Payments = () => {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r._id} className="border-t border-slate-100">
+                <tr key={r._id} className="border-t border-[var(--border)]">
                   <td className="px-3 py-2 font-mono text-xs">
                     {r.expenseNumber || r.paymentNumber || '—'}
                   </td>
@@ -157,7 +157,7 @@ const Payments = () => {
                     <td className="px-3 py-2 text-right">
                       <button
                         onClick={() => openPay(r)}
-                        className="rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white"
+                        className="rounded-md bg-[var(--mod)] px-3 py-1.5 text-xs text-white"
                       >
                         Pay
                       </button>
@@ -177,7 +177,7 @@ const Payments = () => {
             <h3 className="text-lg font-semibold">
               Pay {paying.expenseNumber}
             </h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-[var(--muted)]">
               {paying.purpose} — <Money paise={paying.totalAmount ?? paying.amount} />
             </p>
 
@@ -185,11 +185,11 @@ const Payments = () => {
 
             <div className="mt-4 space-y-3">
               <label className="block text-sm">
-                <span className="text-slate-600">Payment mode</span>
+                <span className="text-[var(--muted)]">Payment mode</span>
                 <select
                   value={form.paymentMode}
                   onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                 >
                   {MODES.map((m) => <option key={m} value={m}>{m.toUpperCase()}</option>)}
                 </select>
@@ -198,11 +198,11 @@ const Payments = () => {
               {/* Cash leaves no bank trail, so no bank account is asked for. */}
               {!cash && (
                 <label className="block text-sm">
-                  <span className="text-slate-600">Paid from</span>
+                  <span className="text-[var(--muted)]">Paid from</span>
                   <select
                     value={form.bankAccount}
                     onChange={(e) => setForm({ ...form, bankAccount: e.target.value })}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                    className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                   >
                     <option value="">Select an account…</option>
                     {banks.map((b) => (
@@ -215,22 +215,22 @@ const Payments = () => {
               )}
 
               <label className="block text-sm">
-                <span className="text-slate-600">
+                <span className="text-[var(--muted)]">
                   Reference {form.paymentMode === 'cheque' ? '(cheque number)' : '(UTR / transaction id)'}
                 </span>
                 <input
                   value={form.reference}
                   onChange={(e) => setForm({ ...form, reference: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                 />
               </label>
 
               <label className="block text-sm">
-                <span className="text-slate-600">Remarks</span>
+                <span className="text-[var(--muted)]">Remarks</span>
                 <input
                   value={form.remarks}
                   onChange={(e) => setForm({ ...form, remarks: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                 />
               </label>
             </div>
@@ -238,14 +238,14 @@ const Payments = () => {
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setPaying(null)}
-                className="rounded-md px-3 py-1.5 text-sm text-slate-600"
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)]"
               >
                 Cancel
               </button>
               <button
                 onClick={submitPayment}
                 disabled={submitting}
-                className="rounded-md bg-slate-900 px-4 py-1.5 text-sm text-white disabled:opacity-50"
+                className="rounded-md bg-[var(--mod)] px-4 py-1.5 text-sm text-white disabled:opacity-50"
               >
                 {submitting ? 'Recording…' : 'Record payment'}
               </button>

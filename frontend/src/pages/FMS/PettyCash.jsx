@@ -115,7 +115,7 @@ const PettyCash = () => {
     <FmsLayout title="Petty Cash">
       {error && <ErrorBanner error={error} />}
 
-      {loading && <div className="py-10 text-center text-slate-500">Loading…</div>}
+      {loading && <div className="py-10 text-center text-[var(--muted)]">Loading…</div>}
 
       {!loading && floats.length === 0 && (
         <EmptyState
@@ -134,7 +134,7 @@ const PettyCash = () => {
                   key={f._id}
                   onClick={() => setSelected(f)}
                   className={`rounded-md px-3 py-1.5 text-sm ${
-                    selected?._id === f._id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
+                    selected?._id === f._id ? 'bg-[var(--mod)] text-white' : 'bg-[var(--canvas)] text-[var(--ink)] border border-[var(--border)]'
                   }`}
                 >
                   {f.name}
@@ -145,21 +145,21 @@ const PettyCash = () => {
 
           {/* ── The imprest position ──────────────────────────────────────── */}
           <div className="mb-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500">Float amount</div>
+            <div className="rounded-lg border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Float amount</div>
               <div className="mt-1 text-xl font-semibold"><Money paise={floatAmt} /></div>
             </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <div className="text-xs uppercase tracking-wide text-slate-500">In hand now</div>
+            <div className="rounded-lg border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">In hand now</div>
               <div className="mt-1 text-xl font-semibold"><Money paise={balance} /></div>
             </div>
             <div className={`rounded-lg border p-4 ${
-              needsTopUp ? 'border-amber-300 bg-amber-50' : 'border-slate-200'
+              needsTopUp ? 'border-[var(--gold)] bg-[var(--gold-soft)]' : 'border-[var(--border)]'
             }`}>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Replenish at</div>
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Replenish at</div>
               <div className="mt-1 text-xl font-semibold"><Money paise={threshold} /></div>
               {needsTopUp && (
-                <div className="mt-1 text-xs text-amber-700">Due for replenishment</div>
+                <div className="mt-1 text-xs text-[var(--gold)]">Due for replenishment</div>
               )}
             </div>
           </div>
@@ -167,7 +167,7 @@ const PettyCash = () => {
           <div className="mb-3 flex justify-end">
             <button
               onClick={() => { setTxnOpen(true); setActionError(null); }}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white"
+              className="rounded-md bg-[var(--mod)] px-3 py-1.5 text-sm text-white"
             >
               Record a transaction
             </button>
@@ -175,9 +175,9 @@ const PettyCash = () => {
 
           {/* ── The book ──────────────────────────────────────────────────── */}
           {book?.entries?.length ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
+            <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-600">
+                <thead className="bg-[var(--canvas)] text-left text-[var(--muted)]">
                   <tr>
                     <th className="px-3 py-2">Date</th>
                     <th className="px-3 py-2">Particulars</th>
@@ -189,7 +189,7 @@ const PettyCash = () => {
                 </thead>
                 <tbody>
                   {book.entries.map((e, i) => (
-                    <tr key={e._id || i} className="border-t border-slate-100">
+                    <tr key={e._id || i} className="border-t border-[var(--border)]">
                       <td className="px-3 py-2">
                         {e.transactionDate
                           ? new Date(e.transactionDate).toLocaleDateString('en-IN')
@@ -198,7 +198,7 @@ const PettyCash = () => {
                       <td className="px-3 py-2">
                         {e.particulars || '—'}
                         {e.status === 'cancelled' && (
-                          <span className="ml-2 text-xs text-slate-500">(cancelled)</span>
+                          <span className="ml-2 text-xs text-[var(--muted)]">(cancelled)</span>
                         )}
                       </td>
                       <td className="px-3 py-2">{e.paidTo || '—'}</td>
@@ -235,11 +235,11 @@ const PettyCash = () => {
 
             <div className="mt-4 space-y-3">
               <label className="block text-sm">
-                <span className="text-slate-600">Type</span>
+                <span className="text-[var(--muted)]">Type</span>
                 <select
                   value={txn.type}
                   onChange={(e) => setTxn({ ...txn, type: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                 >
                   <option value="expense">Expense — money out</option>
                   <option value="replenishment">Replenishment — money in</option>
@@ -247,22 +247,22 @@ const PettyCash = () => {
               </label>
 
               <label className="block text-sm">
-                <span className="text-slate-600">Amount (₹)</span>
+                <span className="text-[var(--muted)]">Amount (₹)</span>
                 <input
                   value={txn.amount}
                   onChange={(e) => setTxn({ ...txn, amount: e.target.value })}
                   placeholder="0.00"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                 />
               </label>
 
               {txn.type === 'expense' && (
                 <label className="block text-sm">
-                  <span className="text-slate-600">Expense head</span>
+                  <span className="text-[var(--muted)]">Expense head</span>
                   <select
                     value={txn.account}
                     onChange={(e) => setTxn({ ...txn, account: e.target.value })}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                    className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                   >
                     <option value="">Select a head…</option>
                     {accounts
@@ -277,21 +277,21 @@ const PettyCash = () => {
               )}
 
               <label className="block text-sm">
-                <span className="text-slate-600">Particulars</span>
+                <span className="text-[var(--muted)]">Particulars</span>
                 <input
                   value={txn.particulars}
                   onChange={(e) => setTxn({ ...txn, particulars: e.target.value })}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                 />
               </label>
 
               {txn.type === 'expense' && (
                 <label className="block text-sm">
-                  <span className="text-slate-600">Paid to</span>
+                  <span className="text-[var(--muted)]">Paid to</span>
                   <input
                     value={txn.paidTo}
                     onChange={(e) => setTxn({ ...txn, paidTo: e.target.value })}
-                    className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5"
+                    className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
                   />
                 </label>
               )}
@@ -300,14 +300,14 @@ const PettyCash = () => {
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => setTxnOpen(false)}
-                className="rounded-md px-3 py-1.5 text-sm text-slate-600"
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)]"
               >
                 Cancel
               </button>
               <button
                 onClick={submitTxn}
                 disabled={submitting}
-                className="rounded-md bg-slate-900 px-4 py-1.5 text-sm text-white disabled:opacity-50"
+                className="rounded-md bg-[var(--mod)] px-4 py-1.5 text-sm text-white disabled:opacity-50"
               >
                 {submitting ? 'Recording…' : 'Record'}
               </button>
