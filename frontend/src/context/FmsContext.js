@@ -27,7 +27,15 @@ import { useAuth } from './AuthContext';
 const FmsContext = createContext(null);
 
 export const FmsProvider = ({ children }) => {
-  const { user, token } = useAuth() || {};
+  // AuthContext exposes `user`, NOT `token` — an earlier version destructured
+  // `token`, which was always undefined, so the guard below returned early every
+  // time and the status call was never made. The screen then reported "couldn't
+  // check the finance module", which was true but for an invisible reason.
+  //
+  // The token is not needed here anyway: utils/api.js attaches it via a request
+  // interceptor. All this context needs to know is whether somebody is signed in.
+  const { user } = useAuth() || {};
+  const signedIn = !!user;
 
   const [state, setState] = useState({
     loading: true,
@@ -43,7 +51,7 @@ export const FmsProvider = ({ children }) => {
 
   const load = useCallback(async () => {
     // Nothing to resolve until somebody is signed in.
-    if (!token) {
+    if (!signedIn) {
       setState((s) => ({ ...s, loading: false, enabled: false, hasRole: false }));
       return;
     }
@@ -119,7 +127,7 @@ export const FmsProvider = ({ children }) => {
         reason: status === 404 ? 'pluginDisabled' : 'statusCheckFailed',
       });
     }
-  }, [token]);
+  }, [signedIn]);
 
   useEffect(() => { load(); }, [load]);
 
