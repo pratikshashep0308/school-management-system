@@ -165,7 +165,11 @@ async function main() {
   const summary = await svc.summary(school);
   ok('one row per source', summary.length === 4, `got ${summary.length}`);
   const feeRow = summary.find((r) => r.source === 'fee');
-  ok('fee run counted', feeRow.runs === 2, `got ${feeRow.runs}`);
+  // ONE, not two. Section 4 ran a second fee sync with the log write forced to
+  // fail, so no log was written for it — which is exactly what section 4 set out
+  // to prove. Expecting two here contradicted the test above it.
+  ok('one fee run logged; the failed-write run left no log', feeRow.runs === 1,
+    `got ${feeRow.runs}`);
   ok('last outcome reported', !!feeRow.lastOutcome);
 
   const list = await svc.list(school, { limit: 10 });
@@ -181,6 +185,10 @@ async function main() {
   // ───────────────────────────────────────────────────────────────────────────
   // Operational logs must not grow without limit. The financial evidence is
   // permanent elsewhere, so nothing recoverable is lost when one expires.
+  // Mongoose builds indexes in the background after the model is first used, so
+  // reading them straight after a write races the build. init() resolves once
+  // they are in place.
+  await FmsSyncLog.init();
   const indexes = await mongoose.connection.db.collection('fms_synclogs').indexes();
   const ttl = indexes.find((i) => i.expireAfterSeconds !== undefined);
   ok('a TTL index exists', !!ttl);

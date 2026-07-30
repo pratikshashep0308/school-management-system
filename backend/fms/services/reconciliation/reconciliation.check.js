@@ -136,7 +136,11 @@ async function main() {
     r.exceptions[0]?.evidence?.payerName === 'Rahul Shinde'
     && r.exceptions[0]?.evidence?.evidenceMissing === false);
   ok('voucher identified for reversal', !!r.exceptions[0]?.posting?.voucherNumber);
-  ok('50% missing is flagged suspect', r.suspect === true);
+  // NOT suspect, deliberately. The service requires more than one orphan before
+  // it doubts the fetch, and a single deleted receipt is entirely plausible —
+  // half of two is a ratio, not evidence. Without that guard every small school
+  // would get a red warning the first time anybody deleted anything.
+  ok('a single orphan is not treated as a suspect fetch', r.suspect === false);
 
   // ── Nothing was written ────────────────────────────────────────────────────
   const claimsAfter = await FmsIngestState.countDocuments({ school, source: 'fee' });
@@ -210,6 +214,26 @@ async function main() {
   r = await recon.reconcileFees(school);
   ok('blank receipt surfaced as a source anomaly', r.sourceAnomalies >= 1);
   ok('and did not become a phantom orphan', r.orphanCount === 0);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  console.log('\n9. Several orphans at once DOES look like a bad fetch');
+  // ───────────────────────────────────────────────────────────────────────────
+  // The other half of the guard. One missing receipt is a deletion; a quarter of
+  // the book going missing at once is far more likely to be the SMS answering
+  // wrongly, and acting on that list would mean reversing live postings.
+  await postReceipt('RCP-2001-DDDDD', 100000, 'Kiran Wagh');
+  await postReceipt('RCP-2002-EEEEE', 100000, 'Meena Joshi');
+  SMS.studentFees = [
+    smsLedger('RCP-1001-AAAAA', 5000, 'Aarti Patil'),
+    smsLedger('RCP-1002-BBBBB', 2500, 'Rahul Shinde'),
+  ];
+
+  r = await recon.reconcileFees(school);
+  ok('two orphans found', r.orphanCount === 2, `got ${r.orphanCount}`);
+  ok('flagged suspect', r.suspect === true);
+  ok('and says why in plain terms', /more likely to be an incomplete fetch/.test(r.suspectReason || ''));
+  // The list is still returned — the flag warns, it does not withhold.
+  ok('the exceptions are still listed', r.exceptions.length === 2);
 
   // ── Result ─────────────────────────────────────────────────────────────────
   console.log(`\n${pass} passed, ${fail} failed`);
