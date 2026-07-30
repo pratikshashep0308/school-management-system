@@ -248,6 +248,37 @@ exports.getReceipt = async (req, res) => {
 // Removes a single payment by receipt number. Updates the StudentFee ledger,
 // the FeePayment collection, and any linked FeeAssignment payments.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/fees/payments-ledger
+//
+// Read-only. Returns receipts from the FeePayment collection.
+//
+// Added 2026-07-30 for one reason: this school runs THREE fee collection
+// stores — StudentFee.paymentHistory, FeeAssignment.payments and FeePayment —
+// and only the first two were reachable over the API. That meant nothing could
+// answer "is there a receipt in FeePayment that exists in neither of the
+// others", which is a question about whether any money has been collected that
+// no report has ever counted.
+//
+// Deliberately minimal: no writes, no side effects, and only the fields needed
+// to reconcile a receipt. Not a general-purpose payment feed.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getPaymentsLedger = async (req, res) => {
+  const filter = { school: req.user.school };
+  if (req.query.from || req.query.to) {
+    filter.paidOn = {};
+    if (req.query.from) filter.paidOn.$gte = new Date(req.query.from);
+    if (req.query.to)   filter.paidOn.$lte = new Date(req.query.to + 'T23:59:59');
+  }
+
+  const payments = await FeePayment.find(filter)
+    .select('receiptNumber amount paidOn method student')
+    .sort({ paidOn: -1 })
+    .lean();
+
+  res.json({ success: true, count: payments.length, data: payments });
+};
+
 exports.deletePayment = async (req, res) => {
   const { receiptNumber } = req.params;
   if (!receiptNumber) return res.status(400).json({ success: false, message: 'Receipt number required' });

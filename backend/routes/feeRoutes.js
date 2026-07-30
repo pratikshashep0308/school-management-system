@@ -15,6 +15,9 @@ const STAFF = ['superAdmin', 'schoolAdmin', 'accountant', 'teacher'];
 // Dashboard
 router.get('/dashboard',      authorize(...ADMIN), ctrl.getDashboard);
 router.get('/recent-payments', authorize(...ADMIN), ctrl.getRecentPayments);
+// Read-only view of the FeePayment collection. Exists so the third fee store can
+// be reconciled against the other two — nothing else reaches it.
+router.get('/payments-ledger', authorize(...ADMIN), ctrl.getPaymentsLedger);
 router.get('/analytics',      authorize(...ADMIN), ctrl.getAnalytics);   // ← NEW: school-wide analytics
 
 // Summary & analytics (existing — kept)

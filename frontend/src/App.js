@@ -25,6 +25,7 @@ import FmsBankReconciliation from './pages/FMS/BankReconciliation';
 import FmsFinancialYears from './pages/FMS/FinancialYears';
 import FmsAuditTrail from './pages/FMS/AuditTrail';
 import FmsIngestConsole from './pages/FMS/IngestConsole';
+import FmsDiagnostics from './pages/FMS/Diagnostics';
 import FmsMappings from './pages/FMS/Mappings';
 import FmsPayments from './pages/FMS/Payments';
 import FmsPettyCash from './pages/FMS/PettyCash';
@@ -168,6 +169,7 @@ export default function App() {
               <Route path="fms/financial-years" element={<FmsGuard><FmsFinancialYears /></FmsGuard>} />
               <Route path="fms/audit" element={<FmsGuard><FmsAuditTrail /></FmsGuard>} />
               <Route path="fms/integrations" element={<FmsGuard><FmsIngestConsole /></FmsGuard>} />
+              <Route path="fms/diagnostics" element={<FmsGuard><FmsDiagnostics /></FmsGuard>} />
               <Route path="fms/settings/mappings" element={<FmsGuard><FmsMappings /></FmsGuard>} />
 
               {/* Profile — all roles */}

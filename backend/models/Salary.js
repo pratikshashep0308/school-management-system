@@ -14,10 +14,20 @@ const SalarySlipSchema = new mongoose.Schema({
     other:      { type: Number, default: 0 },
   },
   deductions:   {
-    pf:         { type: Number, default: 0 },
-    tax:        { type: Number, default: 0 },
-    loan:       { type: Number, default: 0 },
-    other:      { type: Number, default: 0 },
+    pf:              { type: Number, default: 0 },
+    tax:             { type: Number, default: 0 },   // TDS
+    // Added 2026-07-30. The school confirmed it deducts both. Until now they
+    // were pooled into `other`, which meant the ESIC and professional tax
+    // liability accounts could never be fed and read zero — indistinguishable
+    // from "nothing was deducted".
+    //
+    // Historic slips keep their combined figure in `other` and are NOT
+    // restated: reclassifying past postings is a journal voucher and the
+    // accountant's decision, not a migration script.
+    esic:            { type: Number, default: 0 },
+    professionalTax: { type: Number, default: 0 },
+    loan:            { type: Number, default: 0 },
+    other:           { type: Number, default: 0 },
   },
   grossSalary:  { type: Number, default: 0 },
   netSalary:    { type: Number, default: 0 },

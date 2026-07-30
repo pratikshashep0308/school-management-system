@@ -35,7 +35,12 @@ exports.pay = async (req, res) => {
     const allow  = allowances || {};
     const deduct = deductions || {};
     const totalAllow  = (allow.hra||0)+(allow.da||0)+(allow.ta||0)+(allow.medical||0)+(allow.other||0);
-    const totalDeduct = (deduct.pf||0)+(deduct.tax||0)+(deduct.loan||0)+(deduct.other||0);
+    // Every deduction field must appear here. A field present on the schema but
+    // missing from this sum saves fine and then silently overstates netSalary,
+    // which breaks the finance import's gross === net + deductions assertion and
+    // stops payroll posting altogether.
+    const totalDeduct = (deduct.pf||0)+(deduct.tax||0)+(deduct.esic||0)
+      +(deduct.professionalTax||0)+(deduct.loan||0)+(deduct.other||0);
     const grossSalary = (basicSalary||0) + totalAllow;
     const netSalary   = grossSalary - totalDeduct;
     const slip = await SalarySlip.findOneAndUpdate(
@@ -58,7 +63,12 @@ exports.update = async (req, res) => {
     const allow  = allowances || {};
     const deduct = deductions || {};
     const totalAllow  = (allow.hra||0)+(allow.da||0)+(allow.ta||0)+(allow.medical||0)+(allow.other||0);
-    const totalDeduct = (deduct.pf||0)+(deduct.tax||0)+(deduct.loan||0)+(deduct.other||0);
+    // Every deduction field must appear here. A field present on the schema but
+    // missing from this sum saves fine and then silently overstates netSalary,
+    // which breaks the finance import's gross === net + deductions assertion and
+    // stops payroll posting altogether.
+    const totalDeduct = (deduct.pf||0)+(deduct.tax||0)+(deduct.esic||0)
+      +(deduct.professionalTax||0)+(deduct.loan||0)+(deduct.other||0);
     const grossSalary = (basicSalary||0) + totalAllow;
     const netSalary   = grossSalary - totalDeduct;
     const slip = await SalarySlip.findOneAndUpdate(

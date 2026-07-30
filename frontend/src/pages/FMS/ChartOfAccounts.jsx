@@ -241,6 +241,68 @@ const SetupReview = ({ existingCodes, onDone, onCancel }) => {
 // The chart itself
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Which accounts can actually receive a posting.
+//
+// An account with no route into it reads zero, and a zero looks like a fact —
+// "no late fees were collected" rather than "no late fee can be recorded". That
+// has already caught two statutory payroll heads and two income heads here.
+//
+// Only the blocked ones are shown by default. Most balance sheet accounts are
+// journal-voucher territory and having no automatic feed is normal for them;
+// listing those too would bury the ones that matter.
+// ─────────────────────────────────────────────────────────────────────────────
+const CoverageNotice = () => {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fmsAPI.getChartCoverage()
+      .then((res) => { if (alive) setData(res?.data?.data ?? res?.data ?? null); })
+      .catch(() => { /* a diagnostic must never break the screen it sits on */ });
+    return () => { alive = false; };
+  }, []);
+
+  if (!data || !data.blocked?.length) return null;
+
+  return (
+    <div className="mb-4 rounded-lg border border-[var(--gold)] bg-[var(--gold-soft)] p-4">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-left">
+        <span className="text-sm font-medium text-[var(--gold)]">
+          {data.blocked.length} account(s) can never receive a posting
+        </span>
+        <span className="text-xs text-[var(--muted)]">{open ? 'Hide' : 'Show'}</span>
+      </button>
+
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        These will read zero on every report, which looks like a measurement rather than
+        an absence.
+      </p>
+
+      {open && (
+        <ul className="mt-3 space-y-3">
+          {data.blocked.map((a) => (
+            <li key={a.accountCode} className="text-xs">
+              <span className="font-mono font-medium">{a.accountCode}</span> {a.accountName}
+              <div className="mt-0.5 text-[var(--muted)]">{a.reason}</div>
+              {a.remedy && <div className="mt-0.5">{a.remedy}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {open && data.feeTypesReadable === false && (
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          The school system could not be reached for its fee types, so fee income accounts
+          could not be assessed this time.
+        </p>
+      )}
+    </div>
+  );
+};
+
 const ChartOfAccounts = () => {
   const [groups, setGroups] = useState([]);
   const [accounts, setAccounts] = useState([]);
@@ -350,6 +412,8 @@ const ChartOfAccounts = () => {
       }
     >
       {error && <ErrorBanner error={error} onRetry={load} className="mb-4" />}
+
+      <CoverageNotice />
 
       {loading && (
         <div className="space-y-2">

@@ -16,6 +16,12 @@ const { FmsIncomeVoucher } = require('../models/income');
 const feeIngest = require('../services/ingest/feeIngestService');
 const payrollIngest = require('../services/ingest/payrollIngestService');
 const expenseIngest = require('../services/ingest/expenseIngestService');
+const admissionIngest = require('../services/ingest/admissionIngestService');
+const payrollMappingReport = require('../services/ingest/payrollMappingReport');
+const chartCoverage = require('../services/reporting/chartCoverageReport');
+const diagnostics = require('../services/reporting/diagnosticsService');
+const syncLog = require('../services/reporting/syncLogService');
+const receiptReconciliation = require('../services/reconciliation/receiptReconciliationService');
 const settlement = require('../services/settlement/settlementService');
 const {
   ok, created, paginated, parsePagination, validate, check, errors,
@@ -44,11 +50,16 @@ router.post('/fees/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(async 
     dryRun: { rules: [check.boolean] },
   });
 
-  const cycle = await feeIngest.sync(req.fmsScope.school, {
-    dryRun: req.body?.dryRun === true || req.query.dryRun === 'true',
-    from: req.body?.from || req.query.from,
-    to: req.body?.to || req.query.to,
-  }, req);
+  const dryRun = req.body?.dryRun === true || req.query.dryRun === 'true';
+
+  const cycle = await syncLog.run(
+    { source: 'fee', school: req.fmsScope.school, req, dryRun },
+    () => feeIngest.sync(req.fmsScope.school, {
+      dryRun,
+      from: req.body?.from || req.query.from,
+      to: req.body?.to || req.query.to,
+    }, req),
+  );
 
   // A cycle with failures is not a failed request — the batch is designed to
   // continue past a bad record. 200 with the failures listed is the honest
@@ -84,6 +95,79 @@ router.get('/fees/unclassified', fmsAuthorize('ledger', 'VIEW'), asyncHandler(as
   return paginated(res, items, { page, limit, total });
 }));
 
+/**
+ * GET /api/fms/integrations/fees/reconciliation
+ *
+ * D1 — receipts the books hold that the school system no longer has.
+ *
+ * The SMS allows a fee payment to be hard-deleted (feeController.deletePayment)
+ * with no audit record and no notification. The income voucher stays posted, the
+ * ingest claim still reads "posted", and no future sync re-examines it. Nothing
+ * else in either system compares the two.
+ *
+ * READ-ONLY, deliberately and completely. It reports; it never reverses. A
+ * voucher is reversed by an accountant through the existing approval workflow,
+ * after somebody has established what actually happened. Automatic reversal off
+ * the back of a comparison with an external system is exactly the kind of
+ * unattended write that turns one bad fetch into a corrupted ledger.
+ *
+ * VIEW rather than APPROVE: running it changes nothing, so gating it behind the
+ * approval permission would only stop the people most likely to spot a problem
+ * from looking.
+ *
+ * `suspect: true` in the response means the result is NOT a work list — too high
+ * a proportion of receipts came back missing for deletion to be the likely
+ * explanation. Investigate the fetch first.
+ */
+router.get('/fees/reconciliation', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  // No validate() on `limit`: query params arrive as strings, and check.integer
+  // rejects '50'. The service clamps it to 1..500 and ignores anything that is
+  // not a finite number, which is the behaviour wanted anyway.
+  const report = await receiptReconciliation.reconcileFees(req.fmsScope.school, {
+    limit: Number(req.query.limit) || undefined,
+  });
+
+  return ok(res, report);
+}));
+
+// ─── Admission registration fees (A2) ────────────────────────────────────────
+
+/** GET /api/fms/integrations/admissions/status */
+router.get('/admissions/status', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await admissionIngest.status(req.fmsScope.school));
+}));
+
+/**
+ * POST /api/fms/integrations/admissions/sync
+ *
+ * Registration fees collected at admission (Admission.registrationFee), posted
+ * as income. Keyed on the admission _id rather than the receipt number, which is
+ * optional and hand-typed.
+ *
+ * `?dryRun=true` resolves everything and writes nothing. Worth running first:
+ * these post to 4107 Other Fee Income unless a dedicated 4110 has been created,
+ * and it is better to see that in a preview than in the trial balance.
+ */
+router.post('/admissions/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(async (req, res) => {
+  validate(req.body || {}, {
+    dryRun: { rules: [check.boolean] },
+  });
+
+  const dryRun = req.body?.dryRun === true || req.query.dryRun === 'true';
+
+  const cycle = await syncLog.run(
+    { source: 'admission', school: req.fmsScope.school, req, dryRun },
+    () => admissionIngest.sync(req.fmsScope.school, { dryRun }, req),
+  );
+
+  return ok(res, cycle, {
+    message: cycle.dryRun
+      ? `Preview — ${cycle.counts.posted} would post, ${cycle.counts.failed} would fail`
+      : `${cycle.counts.posted} posted, ${cycle.counts.alreadyPosted} already present, `
+        + `${cycle.counts.failed} failed`,
+  });
+}));
+
 // ─── Payroll (§3) ────────────────────────────────────────────────────────────
 
 /** GET /api/fms/integrations/payroll/status */
@@ -102,9 +186,12 @@ router.get('/payroll/status', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async
 router.post('/payroll/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(async (req, res) => {
   validate(req.body || {}, { dryRun: { rules: [check.boolean] } });
 
-  const cycle = await payrollIngest.sync(req.fmsScope.school, {
-    dryRun: req.body?.dryRun === true || req.query.dryRun === 'true',
-  }, req);
+  const dryRun = req.body?.dryRun === true || req.query.dryRun === 'true';
+
+  const cycle = await syncLog.run(
+    { source: 'payroll', school: req.fmsScope.school, req, dryRun },
+    () => payrollIngest.sync(req.fmsScope.school, { dryRun }, req),
+  );
 
   return ok(res, cycle, {
     message: cycle.dryRun
@@ -112,6 +199,26 @@ router.post('/payroll/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(asy
       : `${cycle.counts.posted} posted, ${cycle.counts.alreadyPosted} already present, ` +
         `${cycle.counts.failed} failed, ${cycle.reversals.length} reversed`,
   });
+}));
+
+/**
+ * GET /api/fms/integrations/payroll/mapping-report
+ *
+ * B1 — what the payroll ingest cannot see.
+ *
+ * SalarySlip.deductions has no `esic` or `professionalTax` field, so accounts
+ * 2105 and 2106 can never be fed and read zero regardless of what is actually
+ * deducted. Anything taken under those heads is pooled into `deductions.other`.
+ *
+ * This quantifies the pool, names the slips, and states the schema change that
+ * would fix it. It changes nothing — whether those deductions are taken at all
+ * can only be answered by the accountant, and posting to a statutory liability
+ * head on a guess would be worse than the gap it replaced.
+ *
+ * VIEW, not APPROVE: it is a report.
+ */
+router.get('/payroll/mapping-report', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await payrollMappingReport.build(req.fmsScope.school));
 }));
 
 /** GET /api/fms/integrations/payroll/postings — what was posted, and how. */
@@ -154,9 +261,12 @@ router.get('/expenses/status', fmsAuthorize('ledger', 'VIEW'), asyncHandler(asyn
 router.post('/expenses/sync', fmsAuthorize('ledger', 'APPROVE'), asyncHandler(async (req, res) => {
   validate(req.body || {}, { dryRun: { rules: [check.boolean] } });
 
-  const cycle = await expenseIngest.sync(req.fmsScope.school, {
-    dryRun: req.body?.dryRun === true || req.query.dryRun === 'true',
-  }, req);
+  const dryRun = req.body?.dryRun === true || req.query.dryRun === 'true';
+
+  const cycle = await syncLog.run(
+    { source: 'expense', school: req.fmsScope.school, req, dryRun },
+    () => expenseIngest.sync(req.fmsScope.school, { dryRun }, req),
+  );
 
   return ok(res, cycle, {
     message: cycle.dryRun
@@ -270,6 +380,80 @@ router.post('/gateway/webhook', asyncHandler(async (req, res) => {
       },
     }
   );
+}));
+
+// ─── Sync history ────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/fms/integrations/sync-logs
+ *
+ * What each import run did: when, who asked, which endpoints it called, how
+ * long, and what came back.
+ *
+ * The list omits the per-call and per-record detail — that is the bulky part and
+ * nobody reads it until they open one run.
+ */
+router.get('/sync-logs', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  const [logs, summary] = await Promise.all([
+    syncLog.list(req.fmsScope.school, {
+      source: req.query.source,
+      outcome: req.query.outcome,
+      limit: Number(req.query.limit) || 25,
+    }),
+    syncLog.summary(req.fmsScope.school),
+  ]);
+  return ok(res, { summary, logs });
+}));
+
+/** GET /api/fms/integrations/sync-logs/:id — one run, with every call and record. */
+router.get('/sync-logs/:id', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  const log = await syncLog.get(req.fmsScope.school, req.params.id);
+  if (!log) throw errors.notFound('Sync log');
+  return ok(res, log);
+}));
+
+// ─── Diagnostics ─────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/fms/integrations/diagnostics
+ *
+ * Every integration check, run on demand: deleted receipts, receipts no report
+ * counts, transport fees collected outside the fee module, registration fees,
+ * unnamed salary deductions, library fines, and accounts nothing can reach.
+ *
+ * These began as queries in a gap-analysis document that somebody had to paste
+ * into a shell. Checks that live in a document get run once. This is the same
+ * checks behind a button.
+ *
+ * Read-only throughout, and each check fails independently — one unreachable
+ * endpoint returns its own error rather than emptying the screen.
+ *
+ * Not cached: it is run when somebody is worried, and a cached answer is the
+ * wrong answer at exactly that moment.
+ */
+router.get('/diagnostics', fmsAuthorize('ledger', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await diagnostics.runAll(req.fmsScope.school));
+}));
+
+// ─── Chart coverage ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/fms/integrations/chart-coverage
+ *
+ * Which accounts can actually be fed, and which will read zero forever.
+ *
+ * An account that exists with no path into it is worse than a missing one: it
+ * reports a zero, and a zero looks like a measurement rather than an absence.
+ * This has already caught 2105/2106 (since fixed by extending the salary
+ * schema), 4108 Late Fee Income (unreachable — nothing sets the flag that
+ * routes to it) and 4105 Library Fee Income (fines are computed, never
+ * collected).
+ *
+ * Read-only. Deactivating an account is the accountant's call, through the
+ * accounts screen, which already refuses to hard-delete anything with postings.
+ */
+router.get('/chart-coverage', fmsAuthorize('accounts', 'VIEW'), asyncHandler(async (req, res) => {
+  return ok(res, await chartCoverage.build(req.fmsScope.school));
 }));
 
 // ─── Account mappings (§8) ───────────────────────────────────────────────────

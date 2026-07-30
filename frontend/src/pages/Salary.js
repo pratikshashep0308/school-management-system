@@ -53,7 +53,9 @@ function printDetailedReceipt(slip, schoolName) {
     <tr><td>Basic / Fixed Salary</td><td>₹${(slip.basicSalary||0).toLocaleString('en-IN')}</td><td>PF</td><td>₹${(slip.deductions?.pf||0).toLocaleString('en-IN')}</td></tr>
     <tr><td>HRA</td><td>₹${(slip.allowances?.hra||0).toLocaleString('en-IN')}</td><td>Income Tax</td><td>₹${(slip.deductions?.tax||0).toLocaleString('en-IN')}</td></tr>
     <tr><td>DA</td><td>₹${(slip.allowances?.da||0).toLocaleString('en-IN')}</td><td>Loan EMI</td><td>₹${(slip.deductions?.loan||0).toLocaleString('en-IN')}</td></tr>
-    <tr><td>Bonus / Other</td><td>₹${(slip.allowances?.other||0).toLocaleString('en-IN')}</td><td>Other</td><td>₹${(slip.deductions?.other||0).toLocaleString('en-IN')}</td></tr>
+    <tr><td>Bonus / Other</td><td>₹${(slip.allowances?.other||0).toLocaleString('en-IN')}</td><td>ESIC</td><td>₹${(slip.deductions?.esic||0).toLocaleString('en-IN')}</td></tr>
+    <tr><td></td><td></td><td>Professional Tax</td><td>₹${(slip.deductions?.professionalTax||0).toLocaleString('en-IN')}</td></tr>
+    <tr><td></td><td></td><td>Other</td><td>₹${(slip.deductions?.other||0).toLocaleString('en-IN')}</td></tr>
     <tr class="total-row"><td><b>Gross Salary</b></td><td><b>₹${(slip.grossSalary||0).toLocaleString('en-IN')}</b></td><td><b>Total Deductions</b></td><td><b>₹${(Object.values(slip.deductions||{}).reduce((a,b)=>a+b,0)).toLocaleString('en-IN')}</b></td></tr>
   </table>
   ${slip.remarks?`<div class="remarks"><b>Remarks:</b> ${slip.remarks}</div>`:''}
@@ -105,6 +107,16 @@ function printThermalReceipt(slip, schoolName) {
 }
 
 // ── Pay Salary Form (eSkooly style) ──────────────────────────────────────────
+/**
+ * Every deduction head, summed. Kept in one place because the preview tiles and
+ * the submit payload must agree — when they were computed separately, adding a
+ * head to one and not the other showed the clerk a net salary the server did
+ * not save.
+ */
+const TOTAL_DEDUCTION = (f) =>
+  (Number(f.pf)||0) + (Number(f.tax)||0) + (Number(f.esic)||0)
+  + (Number(f.professionalTax)||0) + (Number(f.loan)||0) + (Number(f.deduction)||0);
+
 function PaySalaryTab() {
   const [teachers,    setTeachers]    = useState([]);
   const [search,      setSearch]      = useState('');
@@ -116,7 +128,17 @@ function PaySalaryTab() {
     paymentDate: NOW.toISOString().split('T')[0],
     fixedSalary: '',
     bonus:       '0',
-    deduction:   '0',
+    // Deductions are entered per head, not as one lump. Until 2026-07-30 this
+    // was a single 'deduction' box whose whole value was written to
+    // deductions.other, so PF, TDS, ESIC and professional tax all posted to a
+    // single "Other Deductions" account and the statutory liability heads read
+    // zero no matter what was actually withheld.
+    pf:              '0',
+    tax:             '0',
+    esic:            '0',
+    professionalTax: '0',
+    loan:            '0',
+    deduction:       '0',   // genuinely other — anything not named above
     paymentMode: 'bank',
     remarks:     '',
   });
@@ -149,7 +171,16 @@ function PaySalaryTab() {
     const [year, month] = form.salaryMonth.split('-').map(Number);
     const basic   = Number(form.fixedSalary) || 0;
     const bonus   = Number(form.bonus)       || 0;
-    const deduct  = Number(form.deduction)   || 0;
+    const num     = (v) => Number(v) || 0;
+    const deductions = {
+      pf:              num(form.pf),
+      tax:             num(form.tax),
+      esic:            num(form.esic),
+      professionalTax: num(form.professionalTax),
+      loan:            num(form.loan),
+      other:           num(form.deduction),
+    };
+    const deduct  = Object.values(deductions).reduce((a, b) => a + b, 0);
 
     setSaving(true);
     try {
@@ -158,7 +189,7 @@ function PaySalaryTab() {
         month, year,
         basicSalary: basic,
         allowances:  { hra:0, da:0, ta:0, medical:0, other: bonus },
-        deductions:  { pf:0, tax:0, loan:0, other: deduct },
+        deductions,
         paymentMode: form.paymentMode,
         paymentDate: form.paymentDate,
         remarks:     form.remarks,
@@ -167,7 +198,9 @@ function PaySalaryTab() {
       // Reset
       setSelected(null); setSearch('');
       setForm({ salaryMonth:'', paymentDate: NOW.toISOString().split('T')[0],
-                fixedSalary:'', bonus:'0', deduction:'0', paymentMode:'bank', remarks:'' });
+                fixedSalary:'', bonus:'0', pf:'0', tax:'0', esic:'0',
+                professionalTax:'0', loan:'0', deduction:'0',
+                paymentMode:'bank', remarks:'' });
     } catch (e) {
       toast.error(e?.response?.data?.message || 'Failed to save salary');
     } finally { setSaving(false); }
@@ -269,8 +302,8 @@ function PaySalaryTab() {
               </div>
             </div>
 
-            {/* Salary + Bonus + Deduction */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16 }}>
+            {/* Salary + Bonus */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
               <div>
                 <label style={{ ...LBL, color:'#374151' }}>Fixed Salary <span style={{ color:'#3B5BDB' }}>*</span></label>
                 <input type="number" value={form.fixedSalary} onChange={e=>set('fixedSalary',e.target.value)}
@@ -281,10 +314,28 @@ function PaySalaryTab() {
                 <input type="number" value={form.bonus} onChange={e=>set('bonus',e.target.value)}
                   placeholder="Bonus amount" style={INP}/>
               </div>
-              <div>
-                <label style={{ ...LBL, color:'#374151' }}>Any Deduction</label>
-                <input type="number" value={form.deduction} onChange={e=>set('deduction',e.target.value)}
-                  placeholder="Deduction amount" style={INP}/>
+            </div>
+
+            {/* Deductions, per head. Each one posts to its own liability account,
+                which is the whole reason they are separated. Leave a box at 0 if
+                that deduction was not taken. */}
+            <div>
+              <label style={{ ...LBL, color:'#374151' }}>Deductions</label>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+                {[
+                  { k:'pf',              label:'PF' },
+                  { k:'tax',             label:'TDS / Income Tax' },
+                  { k:'esic',            label:'ESIC' },
+                  { k:'professionalTax', label:'Professional Tax' },
+                  { k:'loan',            label:'Loan EMI' },
+                  { k:'deduction',       label:'Other' },
+                ].map(d=>(
+                  <div key={d.k}>
+                    <label style={{ ...LBL, color:'#6B7280', fontSize:11 }}>{d.label}</label>
+                    <input type="number" value={form[d.k]} onChange={e=>set(d.k,e.target.value)}
+                      placeholder="0" style={INP}/>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -311,8 +362,8 @@ function PaySalaryTab() {
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
                 {[
                   { label:'Gross Salary', val: (Number(form.fixedSalary)||0)+(Number(form.bonus)||0), color:'#1D4ED8', bg:'#EFF6FF' },
-                  { label:'Deduction',    val: Number(form.deduction)||0,                             color:'#DC2626', bg:'#FEF2F2' },
-                  { label:'Net Salary',   val: (Number(form.fixedSalary)||0)+(Number(form.bonus)||0)-(Number(form.deduction)||0), color:'#166534', bg:'#DCFCE7' },
+                  { label:'Deduction',    val: TOTAL_DEDUCTION(form),                                  color:'#DC2626', bg:'#FEF2F2' },
+                  { label:'Net Salary',   val: (Number(form.fixedSalary)||0)+(Number(form.bonus)||0)-TOTAL_DEDUCTION(form), color:'#166534', bg:'#DCFCE7' },
                 ].map(s=>(
                   <div key={s.label} style={{ background:s.bg, borderRadius:10, padding:'12px 16px', textAlign:'center' }}>
                     <div style={{ fontSize:20, fontWeight:900, color:s.color }}>₹{s.val.toLocaleString('en-IN')}</div>

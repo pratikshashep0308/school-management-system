@@ -245,9 +245,20 @@ const fmsAPI = {
   syncFees:             (body = {})    => api.post('/fms/integrations/fees/sync', body),
   getUnclassifiedFees:  (params = {})  => api.get('/fms/integrations/fees/unclassified', { params }),
 
+  // D1 — receipts the books hold that the school system no longer has. Read-only:
+  // it reports, it never reverses.
+  getFeeReconciliation: (params = {})  => api.get('/fms/integrations/fees/reconciliation', { params }),
+
   getPayrollStatus:     ()             => api.get('/fms/integrations/payroll/status'),
   syncPayroll:          (body = {})    => api.post('/fms/integrations/payroll/sync', body),
   getPayrollPostings:   (params = {})  => api.get('/fms/integrations/payroll/postings', { params }),
+
+  // B1 — deductions the payroll ingest cannot break out (ESIC, professional tax).
+  getPayrollMappingReport:()           => api.get('/fms/integrations/payroll/mapping-report'),
+
+  // A2 — registration fees collected at admission.
+  getAdmissionIngestStatus:()          => api.get('/fms/integrations/admissions/status'),
+  syncAdmissions:       (body = {})    => api.post('/fms/integrations/admissions/sync', body),
 
   getExpenseIngestStatus:()            => api.get('/fms/integrations/expenses/status'),
   syncExpenses:         (body = {})    => api.post('/fms/integrations/expenses/sync', body),
@@ -262,6 +273,15 @@ const fmsAPI = {
   reverseSettlement:    (id, body)     => api.post(`/fms/integrations/settlements/${id}/reverse`, body),
 
   // Fee type → income account. Required before fee ingest can run.
+  // Which accounts can actually be fed, and which will read zero forever.
+  getChartCoverage:     ()             => api.get('/fms/integrations/chart-coverage'),
+  // Every integration check in one call.
+  getDiagnostics:       ()             => api.get('/fms/integrations/diagnostics'),
+
+  // What each import run did — when, who, which endpoints, what came back.
+  getSyncLogs:          (params = {})  => api.get('/fms/integrations/sync-logs', { params }),
+  getSyncLog:           (id)           => api.get(`/fms/integrations/sync-logs/${id}`),
+
   getMappings:          (params = {})  => api.get('/fms/integrations/mappings', { params }),
   upsertMapping:        (body)         => api.put('/fms/integrations/mappings', body),
   deactivateMapping:    (id)           => api.delete(`/fms/integrations/mappings/${id}`),

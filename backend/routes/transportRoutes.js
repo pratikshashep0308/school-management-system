@@ -113,8 +113,32 @@ router.delete('/assignments/:id',  admin, ctrl.removeAssignment);
 router.get('/fees/my-summary',     portalRoles, attachStudent, ctrl.getStudentFeeSummary);
 router.get('/fees/summary',        admin, ctrl.getFeeSummary);
 router.get('/fees',                allRoles,    ctrl.getFees);       // student/parent auto-filtered inside controller
-router.post('/fees/generate',      admin, ctrl.generateMonthlyFees);
-router.post('/fees/:id/payment',   admin, ctrl.recordPayment);
+// ─── Transport fee COLLECTION is closed ──────────────────────────────────────
+// Decision, 2026-07-30: transport fees are billed and collected through the FEE
+// module (POST /api/fees/generate-transport), not here.
+//
+// Why these are gone rather than merely unused: money taken through this path
+// never reached the accounting ledger. The fee module raises transport fees
+// against a FeeType with category 'transport', which the finance import maps to
+// 4103 Transport Fee Income automatically. This path bypassed all of it.
+//
+// It also allowed the same student to be billed twice for one month — once here
+// and once in the fee module — because neither generator knows about the other.
+//
+// The controller functions are deliberately left in place: they are still
+// referenced by the read endpoints below, and deleting them would be a larger
+// change than closing the door. 410 rather than 404 because the route did exist
+// and its absence is intentional — a 404 would read as a bug and get "fixed".
+const transportFeeCollectionClosed = (req, res) => res.status(410).json({
+  success: false,
+  message: 'Transport fees are collected through the fee module. '
+    + 'Use POST /api/fees/generate-transport to raise them, then collect through '
+    + 'the normal fee payment screen so the money reaches the accounts.',
+  code: 'TRANSPORT_FEE_COLLECTION_MOVED',
+});
+
+router.post('/fees/generate',      admin, transportFeeCollectionClosed);
+router.post('/fees/:id/payment',   admin, transportFeeCollectionClosed);
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 router.get('/trips/today',         admin, ctrl.getTodayTrips);

@@ -20,6 +20,42 @@ const config = require('../config');
 let cachedToken = null;
 let cachedAt = 0;
 
+// ─── Call recording ──────────────────────────────────────────────────────────
+// A sync cycle needs to report which endpoints it hit, what came back and
+// whether the token had to be refreshed mid-run. Only this module knows the
+// last two, so it collects them here rather than every ingest service
+// reimplementing a guess.
+//
+// Recording is off unless somebody starts a collector, so nothing accumulates
+// in normal operation and there is no global buffer to leak.
+let collector = null;
+
+/** Begin collecting. Returns the array the calls land in. */
+function startRecording() {
+  collector = [];
+  return collector;
+}
+
+/** Stop, and hand back what was collected. */
+function stopRecording() {
+  const calls = collector || [];
+  collector = null;
+  return calls;
+}
+
+/** Full bodies are opt-in and truncated. See the fms_synclogs comment. */
+const LOG_BODIES = String(process.env.FMS_SYNC_LOG_BODIES || '').toLowerCase() === 'true';
+const BODY_LIMIT = 2000;
+const truncate = (v) => {
+  if (!LOG_BODIES || v === undefined) return undefined;
+  const text = typeof v === 'string' ? v : JSON.stringify(v);
+  return text.length > BODY_LIMIT ? `${text.slice(0, BODY_LIMIT)}… [truncated]` : text;
+};
+
+function record(entry) {
+  if (collector) collector.push(entry);
+}
+
 function tokenIsFresh() {
   return cachedToken && Date.now() - cachedAt < config.sms.tokenTtlMs;
 }
@@ -82,6 +118,7 @@ async function getToken() {
  */
 async function get(path, params = {}) {
   let attempt = 0;
+  const startedAt = Date.now();
 
   for (;;) {
     const token = await getToken();
@@ -91,9 +128,22 @@ async function get(path, params = {}) {
         headers: { Authorization: `Bearer ${token}` },
       });
       // SMS convention is { success, data } but a few routes return raw arrays.
-      return res.data && typeof res.data === 'object' && 'data' in res.data
+      const payload = res.data && typeof res.data === 'object' && 'data' in res.data
         ? res.data.data
         : res.data;
+
+      record({
+        endpoint: path,
+        params,
+        httpStatus: res.status,
+        ok: true,
+        records: Array.isArray(payload) ? payload.length : undefined,
+        durationMs: Date.now() - startedAt,
+        retries: attempt,
+        responseBody: truncate(payload),
+      });
+
+      return payload;
     } catch (err) {
       const status = err.response?.status;
 
@@ -104,6 +154,17 @@ async function get(path, params = {}) {
       }
 
       const detail = err.response?.data?.message || err.message;
+
+      record({
+        endpoint: path,
+        params,
+        httpStatus: status,
+        ok: false,
+        durationMs: Date.now() - startedAt,
+        retries: attempt,
+        error: detail,
+      });
+
       const wrapped = new Error(`SMS GET ${path} failed (${status || 'network'}): ${detail}`);
       wrapped.status = status;
       wrapped.isSmsError = true;
@@ -149,6 +210,8 @@ module.exports = {
   authenticate,
   clearToken,
   endpoints,
+  startRecording,
+  stopRecording,
   // exposed for tests
   _internal: { tokenIsFresh },
 };

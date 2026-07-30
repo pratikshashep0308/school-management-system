@@ -48,6 +48,7 @@ const NAV = [
   { to: '/fms/financial-years', label: 'Financial Years', roles: ['chairman', 'trustee', 'principal', 'accountsManager'] },
   { to: '/fms/settings/mappings', label: 'Account Mappings', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/integrations', label: 'Data Import', roles: ['accountsManager', 'accountant'] },
+  { to: '/fms/diagnostics', label: 'Diagnostics', roles: ['chairman', 'trustee', 'principal', 'accountsManager', 'accountant', 'auditor'] },
 ];
 
 // NOT YET BUILT — no page exists, so they are deliberately absent above:

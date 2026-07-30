@@ -62,11 +62,14 @@ export const tripAPI = {
 };
 
 // ─── Fees ─────────────────────────────────────────────────────────────────────
+// Read-only. Transport fees are billed and collected through the FEE module
+// (decision 2026-07-30) so that the money reaches 4103 Transport Fee Income.
+// `generate` and `pay` were removed: the server now answers 410 on both, and
+// leaving callable wrappers around a closed door only invites someone to try.
+// The remaining two read historical transport fee records.
 export const transportFeeAPI = {
   getAll:    (params)   => api.get('/transport/fees', { params }),
   summary:   (params)   => api.get('/transport/fees/summary', { params }),
-  generate:  (data)     => api.post('/transport/fees/generate', data),
-  pay:       (id, data) => api.post(`/transport/fees/${id}/payment`, data),
 };
 
 // ─── Student/Parent portal ────────────────────────────────────────────────────

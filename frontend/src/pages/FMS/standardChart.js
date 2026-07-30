@@ -62,6 +62,11 @@ export const STANDARD_ACCOUNTS = [
   { code: '4106', name: 'Sports Fee Income',         group: '4100', type: 'income',    normalBalance: 'credit' },
   { code: '4107', name: 'Other Fee Income',          group: '4100', type: 'income',    normalBalance: 'credit' },
   { code: '4108', name: 'Late Fee Income',           group: '4100', type: 'income',    normalBalance: 'credit' },
+  // Registration fees taken at admission. Added 2026-07-30 on the school's
+  // decision to report them separately rather than pooling them into 4107 —
+  // admissionIngestService prefers this code the moment it exists.
+  { code: '4110', name: 'Admission & Registration Fee Income',
+    group: '4100', type: 'income',    normalBalance: 'credit' },
   {
     code: '4109', name: 'Fee Income — Unclassified', group: '4100', type: 'income',    normalBalance: 'credit',
     note: 'Some older fee payments in the school system do not record which fee type they were for. Those land here and are flagged so somebody can reclassify them later. It is not an error.',

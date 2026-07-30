@@ -13,17 +13,20 @@
 //   Salary Payable    ✅ netSalary
 //   PF                ✅ deductions.pf
 //   TDS               ✅ deductions.tax
-//   ESIC              ❌ NO FIELD EXISTS
-//   Professional Tax  ❌ NO FIELD EXISTS
+//   ESIC              ✅ deductions.esic            (added 2026-07-30)
+//   Professional Tax  ✅ deductions.professionalTax  (added 2026-07-30)
 //   Loan recovery     ✅ deductions.loan — present, but not in the requested list
 //
-// Option (a) from §3.1 is implemented: post what exists. ESIC and PT heads may
-// exist in the Chart of Accounts but are NEVER posted from ingest.
+// RESOLVED 2026-07-30. The school confirmed it deducts ESIC and professional
+// tax, so both fields were added to SalarySlip.deductions and both now post to
+// their own liability heads. Every requested component is sourced.
 //
-// The two absences are reported on every posting rather than silently omitted.
-// If the school does deduct them, the money is inside `deductions.other` and
-// invisible — and somebody should know that rather than assume the statutory
-// breakdown is complete.
+// One thing this does NOT do: restate history. Slips written before the schema
+// change carry the combined figure in `other` and still post to 2109. Moving
+// them into 2105/2106 would mean rewriting posted vouchers, which the books do
+// not permit — it is a journal voucher and the accountant's decision. So a
+// trial balance spanning the change will show a 2109 balance that predates it.
+// That is correct, and worth saying out loud before somebody calls it a bug.
 //
 // ─── WHY THE BALANCE CHECK IS LOAD-BEARING ───────────────────────────────────
 // grossSalary and netSalary are computed in an SMS controller with no
@@ -37,6 +40,8 @@ const COMPONENT_CODES = {
   netSalary: '2101',        // Salary Payable            Cr
   pf: '2102',               // PF Payable                Cr
   tax: '2103',              // TDS Payable               Cr
+  esic: '2105',             // ESIC Payable              Cr
+  professionalTax: '2106',  // Professional Tax Payable  Cr
   loan: '2104',             // Staff Loan Recovery       Cr
   other: '2109',            // Other Deductions Payable  Cr
 };
@@ -46,10 +51,11 @@ const COMPONENT_CODES = {
  * source has no field to post from. Named so a reader is not left wondering
  * why an account never moves.
  */
-const UNSOURCED_COMPONENTS = [
-  { code: '2105', name: 'ESIC Payable', reason: 'SalarySlip has no esic field' },
-  { code: '2106', name: 'Professional Tax Payable', reason: 'SalarySlip has no professionalTax field' },
-];
+// Empty since 2026-07-30 — every component the brief asked for now has a field
+// behind it. Kept as a named export rather than deleted: the report and the
+// console both read it, and an empty list is the honest way to say "nothing is
+// unsourced" without those callers having to special-case its absence.
+const UNSOURCED_COMPONENTS = [];
 
 /** ₹ float → integer paise, strict. Never rounds a value that is already wrong. */
 function toPaise(rupees) {
@@ -77,6 +83,10 @@ function convertSlip(slip) {
     net: slip.netSalary,
     pf: d.pf,
     tax: d.tax,
+    // Absent on every slip written before the schema change. toPaise treats
+    // undefined as 0, so old slips convert exactly as they did before.
+    esic: d.esic,
+    professionalTax: d.professionalTax,
     loan: d.loan,
     other: d.other,
   };
@@ -97,14 +107,15 @@ function convertSlip(slip) {
 /**
  * The assertion §3.3 calls load-bearing.
  *
- *     gross === net + pf + tax + loan + other
+ *     gross === net + pf + tax + esic + professionalTax + loan + other
  *
  * A slip that fails this is NOT posted. Plugging the difference would produce
  * a voucher that balances arithmetically while describing something that never
  * happened.
  */
 function checkSlipBalance(amounts) {
-  const deductions = amounts.pf + amounts.tax + amounts.loan + amounts.other;
+  const deductions = amounts.pf + amounts.tax + amounts.esic
+    + amounts.professionalTax + amounts.loan + amounts.other;
   const expected = amounts.net + deductions;
   const difference = amounts.gross - expected;
 
@@ -181,6 +192,9 @@ function buildLines(amounts, byCode, { partyName, party } = {}) {
     { key: 'net', code: COMPONENT_CODES.netSalary, amount: amounts.net },
     { key: 'pf', code: COMPONENT_CODES.pf, amount: amounts.pf },
     { key: 'tax', code: COMPONENT_CODES.tax, amount: amounts.tax },
+    { key: 'esic', code: COMPONENT_CODES.esic, amount: amounts.esic },
+    { key: 'professionalTax', code: COMPONENT_CODES.professionalTax,
+      amount: amounts.professionalTax },
     { key: 'loan', code: COMPONENT_CODES.loan, amount: amounts.loan },
     { key: 'other', code: COMPONENT_CODES.other, amount: amounts.other },
   ].filter((c) => c.amount > 0);
