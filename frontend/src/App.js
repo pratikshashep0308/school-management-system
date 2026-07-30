@@ -26,6 +26,8 @@ import FmsFinancialYears from './pages/FMS/FinancialYears';
 import FmsAuditTrail from './pages/FMS/AuditTrail';
 import FmsIngestConsole from './pages/FMS/IngestConsole';
 import FmsMappings from './pages/FMS/Mappings';
+import FmsPayments from './pages/FMS/Payments';
+import FmsPettyCash from './pages/FMS/PettyCash';
 import { ThemeProvider } from './context/ThemeContext';
 
 // Pages — Auth & Landing
@@ -160,6 +162,8 @@ export default function App() {
               <Route path="fms/reports/:report" element={<FmsGuard><FmsReports /></FmsGuard>} />
               <Route path="fms/banking/settlements" element={<FmsGuard><FmsSettlements /></FmsGuard>} />
               <Route path="fms/budgets" element={<FmsGuard><FmsBudgets /></FmsGuard>} />
+              <Route path="fms/payments" element={<FmsGuard><FmsPayments /></FmsGuard>} />
+              <Route path="fms/petty-cash" element={<FmsGuard><FmsPettyCash /></FmsGuard>} />
               <Route path="fms/banking/reconcile" element={<FmsGuard><FmsBankReconciliation /></FmsGuard>} />
               <Route path="fms/financial-years" element={<FmsGuard><FmsFinancialYears /></FmsGuard>} />
               <Route path="fms/audit" element={<FmsGuard><FmsAuditTrail /></FmsGuard>} />

@@ -37,6 +37,8 @@ const NAV = [
   { to: '/fms/books', label: 'Cash & Bank Book' },
   { to: '/fms/approvals', label: 'Approvals' },
   { to: '/fms/budgets', label: 'Budgets' },
+  { to: '/fms/payments', label: 'Payments' },
+  { to: '/fms/petty-cash', label: 'Petty Cash' },
   // Banking has two screens and no index page; point at reconciliation, which
   // is the one people open. Settlements is reachable from within it.
   { to: '/fms/banking/reconcile', label: 'Bank Reconciliation' },
@@ -49,11 +51,11 @@ const NAV = [
 ];
 
 // NOT YET BUILT — no page exists, so they are deliberately absent above:
-//   /fms/income       Receipts    (fees are collected in the SMS; the FMS ingests them)
-//   /fms/expenses     Expenses    (raised in the SMS; the FMS adds the approval chain)
-//   /fms/payments     Payments
-//   /fms/petty-cash   Petty Cash
-// The BACKEND for all four is complete and tested — only the screens are missing.
+//   /fms/income     Receipts   (fees are collected in the SMS's Fees screens; the
+//                               FMS ingests them, so a list here is a VIEW, not entry)
+//   /fms/expenses   Expenses   (raised in the SMS's AddExpense; what the FMS adds is
+//                               the approval chain, which Approvals already covers)
+// The BACKEND for both is complete and tested — only the screens are missing.
 
 const FmsLayout = ({ children, title, actions }) => {
   const { financialYear, fmsRole } = useFms();
