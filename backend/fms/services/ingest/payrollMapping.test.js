@@ -33,28 +33,56 @@ const goodSlip = (o = {}) => ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-test('G1 — what cannot be sourced is NAMED, not silently dropped', async (t) => {
-  await t.test('ESIC and Professional Tax are declared unsourced', () => {
-    const codes = m.UNSOURCED_COMPONENTS.map((c) => c.code);
-    assert.deepStrictEqual(codes.sort(), ['2105', '2106']);
+test('G1 — CLOSED 2026-07-30: every component now has a field behind it', async (t) => {
+  // This block previously asserted the opposite: that ESIC and professional tax
+  // could NOT be sourced, because SalarySlip had no field for either. The school
+  // confirmed it deducts both, the fields were added, and the assertions are
+  // inverted to match. Kept rather than deleted — if a future change strands a
+  // component again, this is where it should fail.
+  await t.test('nothing is left unsourced', () => {
+    assert.deepStrictEqual(m.UNSOURCED_COMPONENTS, []);
   });
 
-  await t.test('each says WHY it cannot be posted', () => {
-    for (const c of m.UNSOURCED_COMPONENTS) {
-      assert.match(c.reason, /SalarySlip has no/);
-    }
+  await t.test('ESIC and Professional Tax now map to their own heads', () => {
+    assert.equal(m.COMPONENT_CODES.esic, '2105');
+    assert.equal(m.COMPONENT_CODES.professionalTax, '2106');
   });
 
-  await t.test('neither appears in the component map', () => {
-    const mapped = Object.values(m.COMPONENT_CODES);
-    assert.ok(!mapped.includes('2105'));
-    assert.ok(!mapped.includes('2106'));
+  await t.test('a slip carrying them converts both', () => {
+    const { ok: converted, amounts } = m.convertSlip(
+      goodSlip({ deductions: { pf: 3600, tax: 2200, esic: 750, professionalTax: 200,
+        loan: 1500, other: 500 } }),
+    );
+    assert.ok(converted);
+    assert.equal(amounts.esic, 75000);
+    assert.equal(amounts.professionalTax, 20000);
   });
 
-  await t.test('and a built posting reports them every time', () => {
+  await t.test('a slip written before the change still converts, both as zero', () => {
+    // The compatibility guarantee. Old slips have no esic key at all.
+    const { ok: converted, amounts } = m.convertSlip(goodSlip());
+    assert.ok(converted);
+    assert.equal(amounts.esic, 0);
+    assert.equal(amounts.professionalTax, 0);
+  });
+
+  await t.test('a built posting reports nothing unsourced', () => {
     const { amounts } = m.convertSlip(goodSlip());
     const built = m.buildLines(amounts, CHART, { partyName: 'A Teacher' });
-    assert.strictEqual(built.componentsUnsourced.length, 2);
+    assert.strictEqual(built.componentsUnsourced.length, 0);
+  });
+
+  await t.test('and posts ESIC and PT to their heads when the slip carries them', () => {
+    // CHART below is the pre-change fixture and has no 2105/2106, so this proves
+    // the other half too: a missing account is reported, not silently skipped.
+    const { amounts } = m.convertSlip(
+      goodSlip({ deductions: { pf: 3600, tax: 2200, esic: 750, professionalTax: 200,
+        loan: 1500, other: 500 } }),
+    );
+    const built = m.buildLines(amounts, CHART, {});
+    assert.strictEqual(built.ok, false);
+    assert.ok(built.missing.includes('2105'));
+    assert.ok(built.missing.includes('2106'));
   });
 
   await t.test('LOAN is posted even though the brief did not list it', () => {

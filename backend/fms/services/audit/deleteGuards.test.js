@@ -34,6 +34,13 @@ const ALLOWED_TO_DELETE = {
   FmsSettings:
     'Configuration only. Holds no financial record, no approval and no ' +
     'idempotency claim — a removed setting reverts to its default.',
+
+  FmsSyncLog:
+    'An operations diary, not a financial record. It describes import runs; the ' +
+    'vouchers, ledger entries and ingest claims those runs produced are permanent ' +
+    'and untouched by removing one. It also carries a TTL index and is DESIGNED to ' +
+    'expire, so guarding it against deletion would contradict its own retention ' +
+    'policy. Added 2026-07-30 with the sync logging work.',
 };
 
 function loadAll() {

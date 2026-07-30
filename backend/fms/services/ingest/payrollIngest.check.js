@@ -107,18 +107,19 @@ async function main() {
     ...o,
   });
 
-  // ── 1. G1 — what cannot be sourced is stated, not hidden ─────────────────
-  console.log('1. G1 — ESIC and Professional Tax cannot be sourced');
+  // ── 1. G1 — CLOSED 2026-07-30 ────────────────────────────────────────────
+  // This section used to prove the opposite: that ESIC and professional tax
+  // could not be sourced because SalarySlip had no field for either. The school
+  // confirmed it deducts both, the fields were added, and the assertions are
+  // inverted. Kept rather than removed — if anything ever strands a component
+  // again, this is where it should fail loudly.
+  console.log('1. G1 — every component now has a field behind it');
 
   SLIPS = [slip()];
   const review = await svc.sync(school, { dryRun: true }, req);
 
-  ok('the cycle NAMES the unsourced components', review.unsourcedComponents.length === 2);
-  ok('and says why', review.unsourcedComponents.every((c) => /no .* field/.test(c.reason)));
-  ok('the note explains where the money would be',
-    /deductions.other/.test(review.note));
-  ok('ESIC and PT are the two named',
-    review.unsourcedComponents.map((c) => c.code).sort().join(',') === '2105,2106');
+  ok('nothing is reported as unsourced', review.unsourcedComponents.length === 0,
+    JSON.stringify(review.unsourcedComponents));
 
   // ── 2. THE P5.2 VERIFICATION ─────────────────────────────────────────────
   console.log('\n2. Post a payroll → right heads, balanced → re-post does nothing');
@@ -142,8 +143,11 @@ async function main() {
   ok('Cr 2104 Staff Loan Recovery', at('2104')?.credit === R(1500));
   ok('Cr 2109 Other Deductions', at('2109')?.credit === R(500));
 
-  ok('ESIC WAS NOT POSTED', !at('2105'));
-  ok('PROFESSIONAL TAX WAS NOT POSTED', !at('2106'));
+  // Correct, but note WHY: this fixture is a pre-change slip with no esic or
+  // professionalTax key, so there is nothing to post. It is not the code
+  // refusing. Section 9 covers a slip that does carry them.
+  ok('a slip without ESIC posts nothing to 2105', !at('2105'));
+  ok('a slip without professional tax posts nothing to 2106', !at('2106'));
   ok('the teacher is named on every line',
     v.lines.every((l) => l.partyName === 'R. Sharma' && l.partyType === 'teacher'));
 
@@ -250,7 +254,8 @@ async function main() {
   ok('status counts posted slips', st.postedSlips >= 2, String(st.postedSlips));
   ok('and reversed ones', st.reversedSlips === 1, String(st.reversedSlips));
   ok('and reports the chart as ready', st.chartReady === true);
-  ok('and still names the unsourced components', st.unsourcedComponents.length === 2);
+  ok('and reports nothing unsourced', st.unsourcedComponents.length === 0,
+    JSON.stringify(st.unsourcedComponents));
 
   // ── 7. Guards ────────────────────────────────────────────────────────────
   console.log('\n7. Guards');
@@ -278,6 +283,36 @@ async function main() {
 
   const audits = await M.FmsAuditTrail.countDocuments({ school, entity: 'fms_payrollpostings' });
   ok('cycles are audited', audits >= 3, `${audits} entries`);
+
+  // ── 9. The other half of the closed gap ──────────────────────────────────
+  // Everything above uses pre-change fixtures with no esic key, which is why
+  // 2105 and 2106 stay empty there. This proves the positive case: a slip that
+  // DOES carry them lands on the right heads and still balances.
+  console.log('\n9. A slip carrying ESIC and professional tax posts both');
+
+  SLIPS = [slip({
+    _id: new Types.ObjectId(),
+    teacher: { _id: new Types.ObjectId(), name: 'S. Kulkarni' },
+    month: 8,
+    grossSalary: 50000,
+    netSalary: 41250,
+    deductions: { pf: 3600, tax: 2200, esic: 750, professionalTax: 200, loan: 1500, other: 500 },
+  })];
+
+  const c9 = await svc.sync(school, {}, req);
+  ok('the slip posted', c9.counts.posted === 1, JSON.stringify(c9.counts));
+
+  const rec9 = await FmsPayrollPosting.findOne({ school }).sort({ createdAt: -1 }).lean();
+  const v9 = await gl.voucherDetail(school, rec9.voucher);
+  const at9 = (code) => v9.lines.find((l) => l.accountCode === code);
+
+  ok('IT BALANCES', v9.totals.balanced, JSON.stringify(v9.totals));
+  ok('Cr 2105 ESIC Payable', at9('2105')?.credit === R(750), String(at9('2105')?.credit));
+  ok('Cr 2106 Professional Tax Payable', at9('2106')?.credit === R(200),
+    String(at9('2106')?.credit));
+  ok('Cr 2109 Other holds only the genuinely other', at9('2109')?.credit === R(500));
+  ok('eight lines now — one debit, seven credits', v9.lines.length === 8,
+    String(v9.lines.length));
 
   await mongoose.connection.db.dropDatabase();
   await mongoose.disconnect();
