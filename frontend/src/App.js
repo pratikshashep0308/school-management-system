@@ -3,6 +3,29 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+
+// ── Financial Management System (plugin) ────────────────────────────────────
+// The FMS is toggleable. FmsProvider resolves whether it is switched on and
+// what finance role the signed-in person holds; FmsGuard hides every FMS route
+// when it is off or when they have no finance role.
+import { FmsProvider } from './context/FmsContext';
+import FmsGuard from './components/fms/FmsGuard';
+import FmsDashboard from './pages/FMS/Dashboard';
+import FmsTrialBalance from './pages/FMS/TrialBalance';
+import FmsChartOfAccounts from './pages/FMS/ChartOfAccounts';
+import FmsApprovalInbox from './pages/FMS/ApprovalInbox';
+import FmsApprovalAction from './pages/FMS/ApprovalAction';
+import FmsGeneralLedger from './pages/FMS/GeneralLedger';
+import FmsJournalVouchers from './pages/FMS/JournalVouchers';
+import FmsCashBankBook from './pages/FMS/CashBankBook';
+import FmsReports from './pages/FMS/Reports';
+import FmsSettlements from './pages/FMS/Settlements';
+import FmsBudgets from './pages/FMS/Budgets';
+import FmsBankReconciliation from './pages/FMS/BankReconciliation';
+import FmsFinancialYears from './pages/FMS/FinancialYears';
+import FmsAuditTrail from './pages/FMS/AuditTrail';
+import FmsIngestConsole from './pages/FMS/IngestConsole';
+import FmsMappings from './pages/FMS/Mappings';
 import { ThemeProvider } from './context/ThemeContext';
 
 // Pages — Auth & Landing
@@ -91,6 +114,7 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
+          <FmsProvider>
           <Toaster
             position="top-right"
             toastOptions={{
@@ -122,6 +146,25 @@ export default function App() {
 
               {/* Smart dashboard — renders based on role */}
               <Route path="dashboard" element={<SmartDashboard />} />
+
+              {/* ── FMS ───────────────────────────────────────────────────── */}
+              <Route path="fms" element={<FmsGuard><FmsDashboard /></FmsGuard>} />
+              <Route path="fms/reports/trial-balance" element={<FmsGuard><FmsTrialBalance /></FmsGuard>} />
+              <Route path="fms/accounts" element={<FmsGuard><FmsChartOfAccounts /></FmsGuard>} />
+              <Route path="fms/approvals" element={<FmsGuard><FmsApprovalInbox /></FmsGuard>} />
+              <Route path="fms/approvals/:id" element={<FmsGuard><FmsApprovalAction /></FmsGuard>} />
+              <Route path="fms/ledger" element={<FmsGuard><FmsGeneralLedger /></FmsGuard>} />
+              <Route path="fms/journal" element={<FmsGuard><FmsJournalVouchers /></FmsGuard>} />
+              <Route path="fms/books" element={<FmsGuard><FmsCashBankBook /></FmsGuard>} />
+              <Route path="fms/reports" element={<FmsGuard><FmsReports /></FmsGuard>} />
+              <Route path="fms/reports/:report" element={<FmsGuard><FmsReports /></FmsGuard>} />
+              <Route path="fms/banking/settlements" element={<FmsGuard><FmsSettlements /></FmsGuard>} />
+              <Route path="fms/budgets" element={<FmsGuard><FmsBudgets /></FmsGuard>} />
+              <Route path="fms/banking/reconcile" element={<FmsGuard><FmsBankReconciliation /></FmsGuard>} />
+              <Route path="fms/financial-years" element={<FmsGuard><FmsFinancialYears /></FmsGuard>} />
+              <Route path="fms/audit" element={<FmsGuard><FmsAuditTrail /></FmsGuard>} />
+              <Route path="fms/integrations" element={<FmsGuard><FmsIngestConsole /></FmsGuard>} />
+              <Route path="fms/settings/mappings" element={<FmsGuard><FmsMappings /></FmsGuard>} />
 
               {/* Profile — all roles */}
               <Route path="profile" element={<Profile />} />
@@ -161,6 +204,7 @@ export default function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </FmsProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
