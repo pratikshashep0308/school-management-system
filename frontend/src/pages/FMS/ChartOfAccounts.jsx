@@ -273,14 +273,29 @@ const ChartOfAccounts = () => {
     [accounts],
   );
 
+  // An account stores `accountGroup` as an ObjectId and has NO groupCode field —
+  // so keying on groupCode put all 41 accounts under 'ungrouped', and since the
+  // tree only draws real groups, a fully populated chart rendered as a blank
+  // page. Key on the id the account actually carries.
   const byGroup = useMemo(() => {
     const m = {};
     for (const a of accounts) {
-      const key = a.groupCode || a.accountGroup?.groupCode || 'ungrouped';
+      const gid = a.accountGroup?._id || a.accountGroup;
+      const key = gid ? String(gid) : 'ungrouped';
       (m[key] = m[key] || []).push(a);
     }
     return m;
   }, [accounts]);
+
+  /** Accounts whose group is not in the list — should be empty, but if it ever
+   *  is not, they must still be VISIBLE rather than silently dropped. */
+  const orphaned = useMemo(() => {
+    const known = new Set((groups || []).map((g) => String(g._id)));
+    return accounts.filter((a) => {
+      const gid = a.accountGroup?._id || a.accountGroup;
+      return !gid || !known.has(String(gid));
+    });
+  }, [accounts, groups]);
 
   const deactivate = async (account) => {
     // Say what actually happens. "Delete" would be a lie — the record stays.
@@ -362,9 +377,9 @@ const ChartOfAccounts = () => {
       {!loading && accounts.length > 0 && (
         <div className="space-y-3">
           {groups
-            .filter((g) => (byGroup[g.groupCode] || []).length > 0)
+            .filter((g) => (byGroup[String(g._id)] || []).length > 0)
             .map((g) => {
-              const rows = byGroup[g.groupCode] || [];
+              const rows = byGroup[String(g._id)] || [];
               const open = expanded[g.groupCode] !== false;
 
               return (
@@ -422,6 +437,49 @@ const ChartOfAccounts = () => {
                 </div>
               );
             })}
+
+          {/* Should always be empty. It exists because the previous failure mode was
+
+              41 accounts existing and NONE being shown — an account that does not
+
+              match a group must still be visible, not silently dropped. */}
+
+          {orphaned.length > 0 && (
+
+            <div className="mt-3 rounded-lg border border-[var(--gold)] bg-[var(--gold-soft)] p-4">
+
+              <p className="text-sm font-medium">
+
+                {orphaned.length} account(s) are not under any known group
+
+              </p>
+
+              <p className="mt-1 text-xs text-[var(--muted)]">
+
+                Their group may have been removed. They are listed here so they are not
+
+                invisible.
+
+              </p>
+
+              <ul className="mt-2 space-y-1 text-xs">
+
+                {orphaned.map((a) => (
+
+                  <li key={a._id}>
+
+                    <span className="font-mono">{a.accountCode}</span> {a.accountName}
+
+                  </li>
+
+                ))}
+
+              </ul>
+
+            </div>
+
+          )}
+
 
           <p className="pt-2 text-xs leading-relaxed text-[var(--muted)]">
             Accounts are deactivated, never deleted — an account that has been used is part
