@@ -34,7 +34,12 @@ export function extractError(err) {
 }
 
 const ErrorBanner = ({ error, onRetry, className = '' }) => {
-  const e = error?.message ? error : extractError(error);
+  // An axios error ALWAYS carries a .message ("Request failed with status code
+  // 409"), so testing for .message meant extractError never ran and the
+  // backend's actual explanation was never shown — which defeats the entire
+  // purpose of this component. Detect the axios shape by its .response instead.
+  const e = (error?.response || error?.isAxiosError) ? extractError(error)
+    : (error?.message ? error : extractError(error));
   if (!e) return null;
 
   const details = e.details && typeof e.details === 'object' ? e.details : null;

@@ -126,7 +126,14 @@ const Settlements = () => {
           <div className="mb-4 rounded-lg border border-[var(--border)] bg-white p-4 text-sm leading-relaxed">
             <p>
               Online and UPI fee payments are recorded against{' '}
-              <strong>{pending?.clearingAccount?.code} {pending?.clearingAccount?.name}</strong>,
+              {/* Falls back to the code when the chart has not been set up, so
+                  the sentence does not read "recorded against , not the bank
+                  account" with a hole where the name should be. */}
+              <strong>
+                {pending?.clearingAccount
+                  ? `${pending.clearingAccount.code} ${pending.clearingAccount.name}`
+                  : '1202 Bank — Online Collections'}
+              </strong>,
               not the bank account, because the money has not reached the bank yet.
             </p>
             <p className="mt-2 text-[var(--muted)]">
