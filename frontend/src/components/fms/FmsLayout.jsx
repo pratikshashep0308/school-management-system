@@ -20,24 +20,40 @@ import { useFms } from '../../context/FmsContext';
  * enforce it — the backend refuses regardless, and this only decides what is
  * worth showing.
  */
+// EVERY ENTRY HERE MUST HAVE A MATCHING ROUTE IN App.js.
+//
+// An earlier version listed Receipts, Expenses, Payments and Petty Cash, whose
+// pages were never built, plus a bare /fms/banking that was never registered.
+// React Router found no match, fell through to the catch-all, and bounced the
+// user to the login screen — which looks like being logged out rather than like
+// a missing page, and is a far more alarming thing to see.
+//
+// If you add a nav entry, add its route in the same commit.
 const NAV = [
   { to: '/fms', label: 'Dashboard', end: true },
   { to: '/fms/accounts', label: 'Chart of Accounts' },
   { to: '/fms/ledger', label: 'General Ledger' },
   { to: '/fms/journal', label: 'Journal Vouchers' },
   { to: '/fms/books', label: 'Cash & Bank Book' },
-  { to: '/fms/income', label: 'Receipts' },
-  { to: '/fms/expenses', label: 'Expenses' },
   { to: '/fms/approvals', label: 'Approvals' },
-  { to: '/fms/payments', label: 'Payments' },
   { to: '/fms/budgets', label: 'Budgets' },
-  { to: '/fms/banking', label: 'Banking' },
-  { to: '/fms/petty-cash', label: 'Petty Cash' },
+  // Banking has two screens and no index page; point at reconciliation, which
+  // is the one people open. Settlements is reachable from within it.
+  { to: '/fms/banking/reconcile', label: 'Bank Reconciliation' },
+  { to: '/fms/banking/settlements', label: 'Settlements' },
   { to: '/fms/reports', label: 'Reports' },
   { to: '/fms/audit', label: 'Audit Trail', roles: ['chairman', 'trustee', 'principal', 'accountsManager', 'auditor'] },
   { to: '/fms/financial-years', label: 'Financial Years', roles: ['chairman', 'trustee', 'principal', 'accountsManager'] },
+  { to: '/fms/settings/mappings', label: 'Account Mappings', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/integrations', label: 'Data Import', roles: ['accountsManager', 'accountant'] },
 ];
+
+// NOT YET BUILT — no page exists, so they are deliberately absent above:
+//   /fms/income       Receipts    (fees are collected in the SMS; the FMS ingests them)
+//   /fms/expenses     Expenses    (raised in the SMS; the FMS adds the approval chain)
+//   /fms/payments     Payments
+//   /fms/petty-cash   Petty Cash
+// The BACKEND for all four is complete and tested — only the screens are missing.
 
 const FmsLayout = ({ children, title, actions }) => {
   const { financialYear, fmsRole } = useFms();
