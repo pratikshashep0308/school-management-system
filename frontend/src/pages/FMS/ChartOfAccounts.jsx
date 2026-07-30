@@ -36,9 +36,27 @@ import { STANDARD_ACCOUNTS, TYPE_LABEL, TYPE_ORDER } from './standardChart';
 
 const SetupReview = ({ existingCodes, onDone, onCancel }) => {
   const [creating, setCreating] = useState(false);
+  // The API needs the group's ObjectId, not its code. An earlier version sent
+  // groupCode: '1110' and every single account failed validation with
+  // "accountGroup is required" — 41 refusals with no visible reason, because
+  // the error detail was not being shown either.
+  const [groups, setGroups] = useState(null);   // null = still loading
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fmsAPI.getAccountGroups()
+      .then((r) => setGroups(r?.data?.data ?? r?.data ?? []))
+      .catch(() => setGroups([]));
+  }, []);
+
+  /** groupCode → _id, so each account can be filed under the right group. */
+  const groupIdByCode = useMemo(() => {
+    const m = new Map();
+    for (const g of (groups || [])) m.set(String(g.groupCode), g._id);
+    return m;
+  }, [groups]);
 
   const pending = STANDARD_ACCOUNTS.filter((a) => !existingCodes.has(a.code));
   const alreadyThere = STANDARD_ACCOUNTS.length - pending.length;
@@ -62,10 +80,17 @@ const SetupReview = ({ existingCodes, onDone, onCancel }) => {
       try {
         // Created through the ordinary endpoint, so each one carries an audit
         // record and an author — which running a migration would not give.
+        const accountGroup = groupIdByCode.get(String(a.group));
+        if (!accountGroup) {
+          // Better to say which group is missing than to send a request that
+          // will be refused for a reason nobody can see.
+          throw new Error(`account group ${a.group} does not exist — migration 004 may not have run`);
+        }
+
         await fmsAPI.createAccount({
           accountCode: a.code,
           accountName: a.name,
-          groupCode: a.group,
+          accountGroup,
           accountType: a.type,
           normalBalance: a.normalBalance,
           isCashAccount: !!a.isCashAccount,
@@ -73,10 +98,18 @@ const SetupReview = ({ existingCodes, onDone, onCancel }) => {
         });
         created.push(a.code);
       } catch (err) {
+        // `details` carries the per-field reason — e.g. { accountGroup: 'is
+        // required' }. Without it a validation failure reads only "Validation
+        // failed", which is exactly the message that made 41 refusals
+        // impossible to diagnose.
+        const detail = err?.response?.data?.error?.details;
         failed.push({
           code: a.code,
           name: a.name,
           message: err?.response?.data?.error?.message || err.message,
+          detail: detail && typeof detail === 'object'
+            ? Object.entries(detail).map(([k, v]) => `${k}: ${v}`).join('; ')
+            : null,
         });
       }
       setProgress({ done: i + 1, total: pending.length });
@@ -103,6 +136,9 @@ const SetupReview = ({ existingCodes, onDone, onCancel }) => {
               {results.failed.map((f) => (
                 <li key={f.code}>
                   <span className="font-mono">{f.code}</span> {f.name} — {f.message}
+                  {f.detail && (
+                    <span className="block pl-4 text-[var(--muted)]">{f.detail}</span>
+                  )}
                 </li>
               ))}
             </ul>
