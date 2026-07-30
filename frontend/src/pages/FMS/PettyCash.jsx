@@ -36,6 +36,10 @@ const PettyCash = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newFloat, setNewFloat] = useState({
+    name: '', account: '', custodianName: '', floatAmount: '', replenishThreshold: '', maxSingleExpense: '',
+  });
   const [txnOpen, setTxnOpen] = useState(false);
   const [txn, setTxn] = useState({ type: 'expense', amount: '', account: '', particulars: '', paidTo: '' });
   const [accounts, setAccounts] = useState([]);
@@ -76,6 +80,50 @@ const PettyCash = () => {
   }, [selected]);
 
   useEffect(() => { loadBook(); }, [loadBook]);
+
+  const submitFloat = async () => {
+    const amount = toPaise(newFloat.floatAmount);
+    if (!newFloat.name.trim()) {
+      setActionError({ response: { data: { error: { message: 'Give the float a name.' } } } });
+      return;
+    }
+    if (!newFloat.account) {
+      setActionError({ response: { data: { error: {
+        message: 'Choose the cash account this float is held in.',
+      } } } });
+      return;
+    }
+    if (amount === null || amount <= 0) {
+      setActionError({ response: { data: { error: {
+        message: 'Enter the float amount in rupees, to at most two decimal places.',
+      } } } });
+      return;
+    }
+
+    setSubmitting(true); setActionError(null);
+    try {
+      await fmsAPI.createPettyCashFloat({
+        name: newFloat.name.trim(),
+        account: newFloat.account,
+        custodianName: newFloat.custodianName || undefined,
+        floatAmount: amount,
+        // The backend defaults the threshold to a quarter of the float when it
+        // is not given, so an empty field is a sensible default rather than a
+        // missing value.
+        replenishThreshold: toPaise(newFloat.replenishThreshold) ?? undefined,
+        maxSingleExpense: toPaise(newFloat.maxSingleExpense) ?? undefined,
+      });
+      setCreateOpen(false);
+      setNewFloat({ name: '', account: '', custodianName: '', floatAmount: '', replenishThreshold: '', maxSingleExpense: '' });
+      await loadFloats();
+    } catch (err) {
+      setActionError(err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const cashAccounts = accounts.filter((a) => a.isCashAccount);
 
   const submitTxn = async () => {
     if (!selected?._id) return;
@@ -121,7 +169,17 @@ const PettyCash = () => {
         <EmptyState
           title="No petty cash float has been set up"
           reason={error ? undefined : 'A float is a fixed sum of cash held for small day-to-day expenses.'}
-          hint="A float needs a cash account in the Chart of Accounts before it can be created."
+          hint={cashAccounts.length === 0
+            ? 'A float needs a cash account in the Chart of Accounts before it can be created.'
+            : 'Create one against a cash account to start recording petty cash.'}
+          action={cashAccounts.length > 0 ? (
+            <button
+              onClick={() => { setCreateOpen(true); setActionError(null); }}
+              className="rounded-md bg-[var(--mod)] px-4 py-1.5 text-sm font-medium text-white"
+            >
+              Create a float
+            </button>
+          ) : null}
         />
       )}
 
@@ -164,7 +222,13 @@ const PettyCash = () => {
             </div>
           </div>
 
-          <div className="mb-3 flex justify-end">
+          <div className="mb-3 flex justify-end gap-2">
+            <button
+              onClick={() => { setCreateOpen(true); setActionError(null); }}
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--ink)]"
+            >
+              New float
+            </button>
             <button
               onClick={() => { setTxnOpen(true); setActionError(null); }}
               className="rounded-md bg-[var(--mod)] px-3 py-1.5 text-sm text-white"
@@ -223,6 +287,117 @@ const PettyCash = () => {
             />
           )}
         </>
+      )}
+
+      {/* ── Create float dialog ──────────────────────────────────────────── */}
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold">Create a petty cash float</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              A fixed sum of cash, held by one person, spent down and topped back up.
+            </p>
+
+            {actionError && <div className="mt-3"><ErrorBanner error={actionError} /></div>}
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm">
+                <span className="text-[var(--muted)]">Name</span>
+                <input
+                  value={newFloat.name}
+                  onChange={(e) => setNewFloat({ ...newFloat, name: e.target.value })}
+                  placeholder="Office petty cash"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-[var(--muted)]">Held in</span>
+                <select
+                  value={newFloat.account}
+                  onChange={(e) => setNewFloat({ ...newFloat, account: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                >
+                  <option value="">Select a cash account…</option>
+                  {cashAccounts.map((a) => (
+                    <option key={a._id} value={a._id}>
+                      {a.accountCode} — {a.accountName}
+                    </option>
+                  ))}
+                </select>
+                {/* Only cash accounts are offered: petty cash is physical money,
+                    and the backend refuses a bank account with that reason. */}
+                <span className="mt-1 block text-xs text-[var(--muted)]">
+                  Only accounts flagged as cash can hold a float.
+                </span>
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-[var(--muted)]">Custodian</span>
+                <input
+                  value={newFloat.custodianName}
+                  onChange={(e) => setNewFloat({ ...newFloat, custodianName: e.target.value })}
+                  placeholder="Who holds the cash"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="text-[var(--muted)]">Float amount (₹)</span>
+                <input
+                  value={newFloat.floatAmount}
+                  onChange={(e) => setNewFloat({ ...newFloat, floatAmount: e.target.value })}
+                  placeholder="5000.00"
+                  className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-sm">
+                  <span className="text-[var(--muted)]">Replenish at (₹)</span>
+                  <input
+                    value={newFloat.replenishThreshold}
+                    onChange={(e) => setNewFloat({ ...newFloat, replenishThreshold: e.target.value })}
+                    placeholder="optional"
+                    className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                  />
+                  <span className="mt-1 block text-xs text-[var(--muted)]">
+                    Defaults to a quarter of the float.
+                  </span>
+                </label>
+
+                <label className="block text-sm">
+                  <span className="text-[var(--muted)]">Max single expense (₹)</span>
+                  <input
+                    value={newFloat.maxSingleExpense}
+                    onChange={(e) => setNewFloat({ ...newFloat, maxSingleExpense: e.target.value })}
+                    placeholder="optional"
+                    className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                  />
+                  <span className="mt-1 block text-xs text-[var(--muted)]">
+                    Anything larger must go through an expense request.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setCreateOpen(false)}
+                className="rounded-md px-3 py-1.5 text-sm text-[var(--muted)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitFloat}
+                disabled={submitting}
+                className="rounded-md bg-[var(--mod)] px-4 py-1.5 text-sm text-white disabled:opacity-50"
+              >
+                {submitting ? 'Creating…' : 'Create float'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Transaction dialog ───────────────────────────────────────────── */}
