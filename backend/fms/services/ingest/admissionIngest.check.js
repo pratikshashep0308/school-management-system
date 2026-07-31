@@ -66,6 +66,11 @@ async function main() {
   } = require('../../models/core');
   const { FmsIncomeVoucher } = require('../../models/income');
 
+  // The unique index on (school, source, sourceId) is what makes a replay a
+  // no-op. Mongoose builds it in the background, so on a fresh database the
+  // first replay can beat the build and post twice. Wait for it.
+  await Promise.all([FmsIngestState.init(), FmsVoucher.init()]);
+
   const school = new mongoose.Types.ObjectId();
   const user = new mongoose.Types.ObjectId();
 

@@ -30,17 +30,17 @@ const MODEL_DIRS = [
  * Deliberately tiny. Anything holding a financial record, an approval, a
  * signature, or an idempotency claim does NOT belong here.
  */
+// NOTE 2026-07-30 — FmsSyncLog was briefly added here and removed again. The
+// "nothing on the allowlist holds money or approvals" test below caught it:
+// sync logs carry postedAmount and voucherNumber, which are exactly how you
+// would audit what an import did. It has a delete guard like everything else.
+// Its TTL still expires old rows, because TTL deletion happens inside mongod
+// and never passes through a Mongoose hook.
 const ALLOWED_TO_DELETE = {
   FmsSettings:
     'Configuration only. Holds no financial record, no approval and no ' +
     'idempotency claim — a removed setting reverts to its default.',
 
-  FmsSyncLog:
-    'An operations diary, not a financial record. It describes import runs; the ' +
-    'vouchers, ledger entries and ingest claims those runs produced are permanent ' +
-    'and untouched by removing one. It also carries a TTL index and is DESIGNED to ' +
-    'expire, so guarding it against deletion would contradict its own retention ' +
-    'policy. Added 2026-07-30 with the sync logging work.',
 };
 
 function loadAll() {

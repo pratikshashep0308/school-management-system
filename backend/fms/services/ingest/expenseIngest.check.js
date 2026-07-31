@@ -54,6 +54,20 @@ async function main() {
   };
 
   const M = require('../../models/core');
+
+  // ── Wait for the indexes ───────────────────────────────────────────────────
+  // Mongoose builds indexes in the BACKGROUND after a model is first used. This
+  // file creates a fresh database on every run, so the unique index on
+  // (school, source, sourceId) — the thing that makes ingest idempotent — may
+  // not exist yet when the first replay is attempted.
+  //
+  // That is exactly what the "A REPLAY IMPORTS NOTHING" and "a duplicate source
+  // id is impossible at the database" failures were: not a broken guarantee, a
+  // race against the index build. It is intermittent, which is why this suite
+  // passed one run and failed the next while banking did the opposite.
+  //
+  // init() resolves once the build is done.
+  await Promise.all([M.FmsIngestState.init(), M.FmsVoucher.init()]);
   const { FmsExpenseRequest } = require('../../models/expense');
   const { FmsAccountMapping } = require('../../models/integration');
   const svc = require('./expenseIngestService');

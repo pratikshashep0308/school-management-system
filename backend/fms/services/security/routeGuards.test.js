@@ -27,6 +27,23 @@ const ROUTES_DIR = path.join(__dirname, '..', '..', 'routes');
  * Deliberately tiny. Every entry weakens the guarantee.
  */
 const ALLOWED_UNGUARDED = {
+  'access.js POST /auth/unlock':
+    'The exchange that issues a finance session. It cannot require a finance role: ' +
+    'checking one before authentication would tell an attacker which accounts are ' +
+    'worth attacking, and nobody could ever obtain a first session. It sits behind ' +
+    '`protect`, verifies the password with bcrypt, and locks out after five failures.',
+
+  'access.js GET /auth/session':
+    'Reports whether the caller already holds a valid finance session. Requiring a ' +
+    'session to ask whether you have a session is circular — the browser needs this ' +
+    'to decide whether to show the unlock prompt. It reveals a boolean and an expiry, ' +
+    'never a figure.',
+
+  'access.js POST /auth/lock':
+    'Ends a finance session. Refusing to let somebody without a valid session close ' +
+    'one would be perverse, and the worst a caller can do is write an audit entry ' +
+    'saying they locked something that was already locked.',
+
   'integrations.js POST /gateway/webhook':
     'A webhook cannot require an FMS role — the caller is a payment gateway, not ' +
     'a user. It is mounted behind `protect` (a valid JWT) and immediately throws ' +

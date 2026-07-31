@@ -462,6 +462,22 @@ SyncLogSchema.index({ school: 1, outcome: 1, startedAt: -1 });
 const SYNC_LOG_TTL_DAYS = Number(process.env.FMS_SYNC_LOG_TTL_DAYS || 180);
 SyncLogSchema.index({ startedAt: 1 }, { expireAfterSeconds: SYNC_LOG_TTL_DAYS * 86400 });
 
+// ─── No hard deletes ─────────────────────────────────────────────────────────
+// This was briefly on the delete allowlist, on the reasoning that an operations
+// log is not a financial record. The allowlist's own test refused it, correctly:
+// a sync log carries postedAmount and voucherNumber, which are exactly what you
+// would read to establish what an import did and when. Being able to erase that
+// selectively is worth more to somebody covering a mistake than to anybody else.
+//
+// The TTL above is unaffected. Expiry happens inside mongod and never passes
+// through a Mongoose hook, so old rows still age out — what this blocks is
+// somebody deleting a specific one.
+['deleteOne', 'deleteMany', 'findOneAndDelete'].forEach((op) =>
+  SyncLogSchema.pre(op, { query: true, document: false }, async function () {
+    throw new Error('fms_synclogs: sync logs age out on their own, they are not deleted');
+  })
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. fms_ingeststate — idempotency ledger for REST ingest
 // ─────────────────────────────────────────────────────────────────────────────
