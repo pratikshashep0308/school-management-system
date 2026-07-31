@@ -233,7 +233,10 @@ async function revoke(school, smsUserId, req) {
     school,
     entity: 'fms_roleassignments',
     entityId: before._id,
-    action: 'deactivate',
+    // 'cancel' rather than 'deactivate': it is the enum value the audit trail
+    // defines for soft-removal, and accountService already uses it for the same
+    // act. Inventing a value here threw on write.
+    action: 'cancel',
     before: { financeRole: before.financeRole, status: before.status },
     after: { financeRole: after.financeRole, status: after.status },
     req,
