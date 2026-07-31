@@ -93,7 +93,7 @@ async function transportUsage() {
 async function feePaymentOnly() {
   const [ledgerRaw, sf, fa] = await Promise.all([
     smsClient.get('/fees/payments-ledger'),
-    smsClient.get('/fees/students'),
+    smsClient.getAll('/fees/students').then((r) => r.rows),   // paginates at 50
     smsClient.get('/fees/assignments'),
   ]);
 

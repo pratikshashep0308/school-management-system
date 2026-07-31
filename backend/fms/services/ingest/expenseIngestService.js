@@ -247,7 +247,8 @@ async function sync(school, opts = {}, req) {
 
   let expenses;
   try {
-    const raw = await smsClient.get('/expenses');
+    // /expenses paginates at 50. See the note in feeIngestService.
+    const { rows: raw } = await smsClient.getAll('/expenses');
     expenses = Array.isArray(raw) ? raw : (raw?.data || []);
   } catch (err) {
     throw errors.conflict(

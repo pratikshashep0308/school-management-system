@@ -70,7 +70,12 @@ async function fetchLiveReceipts() {
 
   try {
     const [sf, fa] = await Promise.all([
-      smsClient.get('/fees/students'),
+      // getAll is load-bearing here beyond mere completeness: with only the
+      // first 50 receipts visible, every posted receipt beyond page one would
+      // be reported as deleted. The suspect-ratio guard would flag it, but a
+      // reconciliation that cries wolf on its first run is one nobody trusts
+      // afterwards.
+      smsClient.getAll('/fees/students').then((r) => r.rows),
       smsClient.get('/fees/assignments'),
     ]);
     studentFees = Array.isArray(sf) ? sf : (sf?.data || []);

@@ -186,6 +186,50 @@ async function health() {
   }
 }
 
+
+/**
+ * Fetch every page of a paginated SMS endpoint.
+ *
+ * ─── WHY THIS EXISTS ────────────────────────────────────────────────────────
+ * Several SMS list endpoints default to 50 rows — /fees/students and /expenses
+ * among them — and `get()` returns only what came back. A caller that asks once
+ * receives the first 50 and no indication there are more.
+ *
+ * That is not a loud failure. An import would post 50 fee ledgers, report
+ * success, and silently ignore the rest; the trial balance would look plausible
+ * and be wrong by whatever sits beyond page one. Nothing would flag it.
+ *
+ * ─── WHY IT PAGES BLIND ─────────────────────────────────────────────────────
+ * The SMS returns { success, count, total, page, pages, data }, but `get()`
+ * unwraps to `data` and the metadata never reaches us. Rather than change that
+ * unwrapping — every existing caller depends on it — this keeps asking until a
+ * page comes back shorter than requested. That is the reliable end-of-data
+ * signal when you cannot see the total.
+ *
+ * @param {string} path
+ * @param {object} [params]   merged into every request
+ * @param {object} [opts]
+ * @param {number} [opts.pageSize=200]
+ * @param {number} [opts.maxPages=100]  hard stop; 20,000 rows
+ * @returns {Promise<{rows: Array, pages: number, truncated: boolean}>}
+ */
+async function getAll(path, params = {}, { pageSize = 200, maxPages = 100 } = {}) {
+  const rows = [];
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await get(path, { ...params, page, limit: pageSize });
+    const list = Array.isArray(batch) ? batch : (batch?.data || []);
+    rows.push(...list);
+
+    // A short page means there is no next one.
+    if (list.length < pageSize) return { rows, pages: page, truncated: false };
+  }
+
+  // Ran out of pages before running out of data. Report it rather than let a
+  // caller treat a prefix as the whole set.
+  return { rows, pages: maxPages, truncated: true };
+}
+
 // ── Read-only endpoint helpers ───────────────────────────────────────────────
 // Endpoints verified present in backend/routes/ during discovery P0.3 §2.2.
 // Implementations land in Phase 5; the surface is fixed here so the ingest
@@ -206,6 +250,7 @@ const endpoints = {
 
 module.exports = {
   get,
+  getAll,
   health,
   authenticate,
   clearToken,

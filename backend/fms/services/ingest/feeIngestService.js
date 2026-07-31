@@ -290,7 +290,10 @@ async function sync(school, opts = {}, req) {
     // the client's base URL which already carries /api. It also unwraps the
     // SMS's { success, data } envelope, so what comes back is the array.
     const [sf, fa] = await Promise.all([
-      smsClient.get('/fees/students', { from, to }),
+      // getAll, not get: /fees/students defaults to 50 rows per page. A single
+      // call would import the first 50 fee ledgers, report success, and leave
+      // the rest out of the books with nothing to show for it.
+      smsClient.getAll('/fees/students', { from, to }).then((r) => r.rows),
       smsClient.get('/fees/assignments', { from, to }),
     ]);
     studentFees = Array.isArray(sf) ? sf : (sf?.data || []);
