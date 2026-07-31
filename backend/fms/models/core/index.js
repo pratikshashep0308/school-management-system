@@ -368,6 +368,101 @@ NumberSequenceSchema.statics.next = async function (school, financialYear, type,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 6b. fms_synclogs — what each sync run did
+//
+// Distinct from fms_audittrail on purpose. The audit trail records changes to
+// financial documents and is something an auditor reads; filling it with
+// operational telemetry would bury the entries that matter. This is the
+// operations log: which cycle ran, what it called, how long it took, what came
+// back.
+//
+// ─── WHY THE REQUEST AND RESPONSE BODIES ARE NOT STORED BY DEFAULT ───────────
+// The brief asks for "Request, Response" on every synchronisation. Taken
+// literally that means a second copy of every fee payment — student names,
+// amounts, receipt numbers — accumulating in a collection nobody prunes, on a
+// server with 1GB of RAM. It would become the largest collection in the
+// database within a term, and it would duplicate personal data into a place
+// with no access controls of its own.
+//
+// So by default this stores the SHAPE of each call: endpoint, parameters,
+// status code, record count, duration, retries. That answers every question an
+// operator actually asks — did it call, did it answer, how many, how long, did
+// it retry. Full bodies can be switched on with FMS_SYNC_LOG_BODIES=true for
+// debugging a specific problem, are truncated when they are, and should be
+// switched off again afterwards.
+// ─────────────────────────────────────────────────────────────────────────────
+const SyncCallSchema = new mongoose.Schema({
+  endpoint: { type: String, required: true },     // '/fees/students'
+  params: { type: mongoose.Schema.Types.Mixed },  // query string, never a body
+  httpStatus: { type: Number },
+  ok: { type: Boolean, default: true },
+  records: { type: Number },                      // how many came back
+  durationMs: { type: Number },
+  retries: { type: Number, default: 0 },          // re-auth attempts, per G3
+  error: { type: String },
+  requestBody: { type: String },                  // only with FMS_SYNC_LOG_BODIES
+  responseBody: { type: String },                 // only with FMS_SYNC_LOG_BODIES
+}, { _id: false });
+
+const SyncRecordSchema = new mongoose.Schema({
+  sourceId: { type: String },                     // receiptNumber, admission _id, slip _id
+  status: { type: String },                       // posted | alreadyPosted | failed | skipped
+  voucherNumber: { type: String },
+  amount: { type: Number },                       // integer paise
+  failureReason: { type: String },
+  stage: { type: String },                        // where it stopped
+}, { _id: false });
+
+const SyncLogSchema = new mongoose.Schema({
+  school: { type: ObjectId, required: true, index: true },
+  source: { type: String, enum: POSTING_SOURCES, required: true },
+
+  dryRun: { type: Boolean, default: false },
+  startedAt: { type: Date, required: true },
+  finishedAt: { type: Date },
+  durationMs: { type: Number },
+
+  // Who asked for it. Null for anything a scheduler runs.
+  actor: { type: ObjectId },
+  actorEmail: { type: String },
+
+  calls: { type: [SyncCallSchema], default: [] },
+
+  counts: {
+    posted: { type: Number, default: 0 },
+    alreadyPosted: { type: Number, default: 0 },
+    failed: { type: Number, default: 0 },
+    skipped: { type: Number, default: 0 },
+  },
+  postedAmount: { type: Number, default: 0 },     // integer paise
+
+  // Capped. Failures are kept in preference to successes: a list of 200 things
+  // that worked is not what anyone opens this for.
+  records: { type: [SyncRecordSchema], default: [] },
+  recordsTruncated: { type: Boolean, default: false },
+  totalRecords: { type: Number, default: 0 },
+
+  outcome: {
+    type: String,
+    enum: ['success', 'partial', 'failed', 'aborted'],
+    default: 'success',
+    index: true,
+  },
+  error: { type: String },                        // set when the cycle itself threw
+}, { timestamps: true, collection: 'fms_synclogs' });
+
+SyncLogSchema.index({ school: 1, source: 1, startedAt: -1 });
+SyncLogSchema.index({ school: 1, outcome: 1, startedAt: -1 });
+
+// ─── Retention ───────────────────────────────────────────────────────────────
+// Operational logs are not financial records and must not grow without limit.
+// 180 days is long enough to investigate anything anybody remembers, and the
+// financial evidence — vouchers, ledger entries, ingest state — is permanent
+// regardless, so nothing recoverable is lost when a log expires.
+const SYNC_LOG_TTL_DAYS = Number(process.env.FMS_SYNC_LOG_TTL_DAYS || 180);
+SyncLogSchema.index({ startedAt: 1 }, { expireAfterSeconds: SYNC_LOG_TTL_DAYS * 86400 });
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 7. fms_ingeststate — idempotency ledger for REST ingest
 // ─────────────────────────────────────────────────────────────────────────────
 const IngestStateSchema = new mongoose.Schema({
@@ -479,6 +574,13 @@ const AuditTrailSchema = new mongoose.Schema({
       'submit', 'verify', 'approve', 'reject', 'return',
       'post', 'reverse',
       'lock', 'reopen',
+      // Finance session events, added 2026-07-30 with the step-up login.
+      // Distinct values rather than folding into 'approve'/'reject': a refused
+      // password and a rejected voucher are not the same act, and a trail that
+      // said otherwise would be misleading in precisely the situation somebody
+      // reads it. 'lock' above already covers a session being closed — the same
+      // verb on a different entity, which is how 'create' and 'update' work too.
+      'unlock', 'unlockFailed', 'lockout',
     ],
     required: true,
   },
@@ -523,6 +625,7 @@ const models = {
   FmsLedgerEntry: reg('FmsLedgerEntry', LedgerEntrySchema),
   FmsNumberSequence: reg('FmsNumberSequence', NumberSequenceSchema),
   FmsIngestState: reg('FmsIngestState', IngestStateSchema),
+  FmsSyncLog: reg('FmsSyncLog', SyncLogSchema),
   FmsRoleAssignment: reg('FmsRoleAssignment', RoleAssignmentSchema),
   FmsSettings: reg('FmsSettings', SettingsSchema),
   FmsAuditTrail: reg('FmsAuditTrail', AuditTrailSchema),
