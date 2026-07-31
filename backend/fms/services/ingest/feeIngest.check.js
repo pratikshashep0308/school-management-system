@@ -44,7 +44,7 @@ async function main() {
 
   // ── Stub the SMS BEFORE the service is required ──────────────────────────
   const clientPath = require.resolve('../../client/smsClient');
-  let SMS = { studentFees: [], assignments: [] };
+  let SMS = { studentFees: [], assignments: [], feeTypes: [] };
   let smsUp = true;
   require.cache[clientPath] = {
     id: clientPath, filename: clientPath, loaded: true,
@@ -74,6 +74,8 @@ async function main() {
         }
         if (path.includes('students')) return SMS.studentFees;
         if (path.includes('assignments')) return SMS.assignments;
+        // The split resolves a fee-head LABEL to a category through this list.
+        if (path.includes('types')) return SMS.feeTypes;
         return [];
       },
       async health() { return { reachable: smsUp }; },
@@ -336,6 +338,136 @@ async function main() {
       school, sourceCollection: 'feeAssignment', needsReclassification: true,
     })) === 0);
   ok('and that the chart is ready', st.chartReady === true);
+
+  // ── 8. THE SPLIT — one receipt, several fee heads ─────────────────────────
+  // A receipt at this school covers School Fee plus Stationary plus occasionally
+  // Transport, taken as one payment. Crediting the whole amount to one account
+  // balances and tells nobody anything: the first live import put all ₹8,53,698
+  // into 4109 Unclassified for exactly that reason.
+  //
+  // These assertions did not exist when the split was written, which is why the
+  // suite passed 54 both before and after it. Untested code that moves money is
+  // the thing this file exists to prevent.
+  console.log('\n8. Splitting a receipt across the heads it covered');
+
+  SMS.feeTypes = [
+    { name: 'School Fee', category: 'tuition' },
+    { name: 'Exam Fee', category: 'exam' },
+    { name: 'Mystery Levy', category: 'notARealCategory' },
+  ];
+
+  const splitStudent = new Types.ObjectId();
+  SMS.studentFees = [{
+    _id: 'sf-split', student: splitStudent,
+    paymentHistory: [{
+      _id: 'ps1', receiptNumber: 'RCP-SPLIT-1', amount: 6700,
+      paidOn: '2026-07-10', method: 'cash',
+      items: [
+        { label: 'School Fee', payingNow: 5000 },
+        { label: 'Exam Fee', payingNow: 1700 },
+      ],
+    }],
+  }];
+  SMS.assignments = [];
+
+  const cSplit = await svc.sync(school, {}, req);
+  ok('the split receipt posted', cSplit.counts.posted === 1, JSON.stringify(cSplit.counts));
+
+  const vSplit = await M.FmsVoucher.findOne({ school, sourceKey: 'RCP-SPLIT-1' }).lean();
+  const lSplit = await M.FmsLedgerEntry.find({ school, voucher: vSplit._id }).lean();
+  const at = (code) => lSplit.find((l) => l.accountCode === code);
+
+  ok('three lines — one debit, two credits', lSplit.length === 3, String(lSplit.length));
+  ok('Dr 1101 the full amount', at('1101')?.debit === R(6700), String(at('1101')?.debit));
+  ok('Cr 4101 for School Fee', at('4101')?.credit === R(5000), String(at('4101')?.credit));
+  ok('Cr 4102 for Exam Fee', at('4102')?.credit === R(1700), String(at('4102')?.credit));
+  ok('nothing landed in Unclassified', !at('4109'));
+  ok('IT BALANCES',
+    lSplit.reduce((a, l) => a + l.debit, 0) === lSplit.reduce((a, l) => a + l.credit, 0));
+  ok('each line is named after its head',
+    at('4101').narration === 'School Fee' && at('4102').narration === 'Exam Fee');
+
+  // ── The residual ──────────────────────────────────────────────────────────
+  // Five of the 213 live receipts are short by a round amount — a head collected
+  // but not itemised. That gap must be visible, not smeared across the heads
+  // that ARE known to make the arithmetic tidy.
+  console.log('\n   …and a breakdown that does not cover the whole payment');
+
+  SMS.studentFees = [{
+    _id: 'sf-resid', student: splitStudent,
+    paymentHistory: [{
+      _id: 'ps2', receiptNumber: 'RCP-SPLIT-2', amount: 8500,
+      paidOn: '2026-07-11', method: 'cash',
+      items: [{ label: 'School Fee', payingNow: 5000 }],
+    }],
+  }];
+
+  await svc.sync(school, {}, req);
+  const vR = await M.FmsVoucher.findOne({ school, sourceKey: 'RCP-SPLIT-2' }).lean();
+  const lR = await M.FmsLedgerEntry.find({ school, voucher: vR._id }).lean();
+  const atR = (code) => lR.find((l) => l.accountCode === code);
+
+  ok('the known head is credited', atR('4101')?.credit === R(5000));
+  ok('THE RESIDUAL GOES TO 4109, NOT INTO 4101', atR('4109')?.credit === R(3500),
+    String(atR('4109')?.credit));
+  ok('and says so', /nattributed/.test(atR('4109')?.narration || ''));
+  ok('still balances', lR.reduce((a, l) => a + l.debit, 0) === lR.reduce((a, l) => a + l.credit, 0));
+
+  // ── An unrecognised label ─────────────────────────────────────────────────
+  console.log('\n   …and a label with no category behind it');
+
+  SMS.studentFees = [{
+    _id: 'sf-unk', student: splitStudent,
+    paymentHistory: [{
+      _id: 'ps3', receiptNumber: 'RCP-SPLIT-3', amount: 2000,
+      paidOn: '2026-07-12', method: 'cash',
+      items: [{ label: 'Mystery Levy', payingNow: 2000 }],
+    }],
+  }];
+
+  await svc.sync(school, {}, req);
+  const vU = await M.FmsVoucher.findOne({ school, sourceKey: 'RCP-SPLIT-3' }).lean();
+  const lU = await M.FmsLedgerEntry.find({ school, voucher: vU._id }).lean();
+  ok('an unmappable head falls to 4109 rather than guessing',
+    lU.find((l) => l.accountCode === '4109')?.credit === R(2000));
+  ok('and the voucher still balances',
+    lU.reduce((a, l) => a + l.debit, 0) === lU.reduce((a, l) => a + l.credit, 0));
+
+  // ── A breakdown claiming more than was received ───────────────────────────
+  console.log('\n   …and a breakdown larger than the payment');
+
+  SMS.studentFees = [{
+    _id: 'sf-over', student: splitStudent,
+    paymentHistory: [{
+      _id: 'ps4', receiptNumber: 'RCP-SPLIT-4', amount: 1000,
+      paidOn: '2026-07-13', method: 'cash',
+      items: [{ label: 'School Fee', payingNow: 5000 }],
+    }],
+  }];
+
+  const cOver = await svc.sync(school, {}, req);
+  ok('REFUSED rather than posted', cOver.counts.failed === 1, JSON.stringify(cOver.counts));
+  ok('and nothing was written',
+    (await M.FmsVoucher.countDocuments({ school, sourceKey: 'RCP-SPLIT-4' })) === 0);
+
+  // ── No breakdown at all ───────────────────────────────────────────────────
+  // Every payment before this change had no items array. They must still post,
+  // exactly as they did before, or the split would have broken history.
+  console.log('\n   …and a payment with no breakdown at all');
+
+  SMS.studentFees = [{
+    _id: 'sf-plain', student: splitStudent,
+    paymentHistory: [{
+      _id: 'ps5', receiptNumber: 'RCP-SPLIT-5', amount: 1200,
+      paidOn: '2026-07-14', method: 'cash',
+    }],
+  }];
+
+  await svc.sync(school, {}, req);
+  const vP = await M.FmsVoucher.findOne({ school, sourceKey: 'RCP-SPLIT-5' }).lean();
+  const lP = await M.FmsLedgerEntry.find({ school, voucher: vP._id }).lean();
+  ok('posts as a single credit, as before', lP.length === 2, String(lP.length));
+  ok('to Unclassified, as before', lP.find((l) => l.accountCode === '4109')?.credit === R(1200));
 
   // ── 8. Integrity ──────────────────────────────────────────────────────────
   console.log('\n8. Integrity');
