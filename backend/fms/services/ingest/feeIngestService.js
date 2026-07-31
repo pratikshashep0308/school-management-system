@@ -113,23 +113,54 @@ function normalise(p, source, parent) {
     year: p.year || parent.year,
     sourceDocId: parent._id,
     sourceSubdocId: p._id,
+
+    // ── The per-fee-head breakdown ─────────────────────────────────────────
+    // A receipt at this school covers several heads at once — School Fee plus
+    // Stationary plus, occasionally, Transport — collected as one payment. The
+    // Collect Fees screen records what each head received in `payingNow`, and
+    // that is what makes a properly split posting possible.
+    //
+    // Without it every receipt credited a single account, and because a payment
+    // taken through the StudentFee ledger carries no fee type at all, that
+    // account was 4109 Unclassified. All ₹8,53,698 of the first import landed
+    // there: correct, balanced, and useless for telling anybody how much came
+    // from tuition.
+    items: Array.isArray(p.items)
+      ? p.items
+        .filter((i) => Number(i.payingNow) > 0)
+        .map((i) => ({ label: (i.label || '').trim(), amount: Number(i.payingNow) }))
+      : [],
   };
 }
 
 /** Load the chart and mappings once per cycle rather than per payment. */
 async function loadContext(school) {
-  const [accounts, mappings] = await Promise.all([
+  const [accounts, mappings, feeTypes] = await Promise.all([
     FmsAccount.find({ school, status: 'active' })
       .select('_id accountCode accountName accountType isPostable isCashAccount isBankAccount').lean(),
     FmsAccountMapping.find({ school, isActive: true })
       .select('mappingType sourceKey account accountCode').lean(),
+    // Fee-head labels on a payment are names, not references. The fee type list
+    // turns a name into a category, which the mapper already knows how to route.
+    // Fetched once per cycle; a failure here degrades to 4109 rather than
+    // stopping the import.
+    smsClient.get('/fees/types').catch(() => []),
   ]);
+
+  const types = Array.isArray(feeTypes) ? feeTypes : (feeTypes?.data || []);
+  const categoryByLabel = new Map(
+    types
+      .filter((t) => t.name)
+      .map((t) => [String(t.name).trim().toLowerCase(), t.category])
+  );
 
   return {
     byCode: new Map(accounts.filter((a) => a.isPostable).map((a) => [a.accountCode, a])),
     index: mapper.indexMappings(mappings),
+    categoryByLabel,
     accountCount: accounts.length,
     mappingCount: mappings.length,
+    feeTypeCount: types.length,
   };
 }
 
@@ -182,6 +213,64 @@ async function postOne(school, payment, ctx, req) {
 
   const party = payment.studentName || 'Student';
 
+  // ── Split the receipt across the heads it actually covered ────────────────
+  // One receipt commonly covers several fee heads. Crediting the whole amount
+  // to one account is arithmetically fine and analytically useless — it is how
+  // the entire first import landed in 4109 Unclassified.
+  //
+  // Each head is credited to its own account, resolved label -> fee type ->
+  // category -> account through the existing mapper. Anything left over — a
+  // head collected but not itemised — is credited to 4109 and flagged, rather
+  // than being spread across the others to make the arithmetic work. A voucher
+  // that balances by assumption is worse than one that shows what is unknown.
+  const creditLines = [];
+  let attributed = 0;
+  const unmappedLabels = [];
+
+  for (const item of payment.items || []) {
+    const m = mapper.toPaiseStrict(item.amount);
+    if (!m.ok) continue;
+
+    // NOT resolveFeeIncomeAccount(): that function short-circuits to 4109 when a
+    // payment carries no feeType id, which is deliberate and correct for its own
+    // callers — a payment with no fee type genuinely cannot be classified from a
+    // fee type. Here the signal is different: a fee-head LABEL that resolves to a
+    // real category via the fee type list. So the category is mapped directly,
+    // leaving that guard intact for everybody else.
+    const category = ctx.categoryByLabel?.get(item.label.toLowerCase());
+    const code = category ? mapper.FEE_CATEGORY_TO_CODE[category] : null;
+    const acc = code ? ctx.byCode.get(code) : null;
+
+    if (!acc) { unmappedLabels.push(item.label); continue; }
+
+    creditLines.push({
+      account: acc._id, debit: 0, credit: m.paise,
+      narration: item.label,
+      partyType: 'student', party: payment.smsStudentId || null, partyName: party,
+    });
+    attributed += m.paise;
+  }
+
+  // Whatever the breakdown did not account for.
+  const residual = money.paise - attributed;
+  if (residual > 0 || creditLines.length === 0) {
+    creditLines.push({
+      account: credit.account, debit: 0, credit: residual > 0 ? residual : money.paise,
+      narration: creditLines.length
+        ? 'Unattributed portion of this receipt'
+        : (payment.feeTypeName || 'Fee income'),
+      partyType: 'student', party: payment.smsStudentId || null, partyName: party,
+    });
+  } else if (residual < 0) {
+    // The breakdown claims more than was received. Refuse rather than post a
+    // voucher describing something that did not happen.
+    return {
+      sourceId: key, status: 'failed', stage: 'split',
+      reason: `fee-head breakdown totals more than the payment `
+        + `(${attributed / 100} vs ${money.paise / 100})`,
+    };
+  }
+
   try {
     const result = await posting.post({
       school,
@@ -202,11 +291,7 @@ async function postOne(school, payment, ctx, req) {
           narration: `${payment.method}${payment.transactionId ? ' ' + payment.transactionId : ''}`,
           partyType: 'student', party: payment.smsStudentId || null, partyName: party,
         },
-        {
-          account: credit.account, debit: 0, credit: money.paise,
-          narration: payment.feeTypeName || 'Fee income',
-          partyType: 'student', party: payment.smsStudentId || null, partyName: party,
-        },
+        ...creditLines,
       ],
     });
 
@@ -248,6 +333,10 @@ async function postOne(school, payment, ctx, req) {
       receiptNumber: key,
       status: 'posted',
       amount: money.paise,
+      creditLines: creditLines.length,
+      attributedPaise: attributed,
+      unattributedPaise: Math.max(0, money.paise - attributed),
+      unmappedLabels: unmappedLabels.length ? unmappedLabels : undefined,
       voucherNumber: result.voucher.voucherNumber,
       incomeVoucher: voucher._id,
       debitAccount: debit.accountCode,
