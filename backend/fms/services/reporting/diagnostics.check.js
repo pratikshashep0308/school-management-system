@@ -52,6 +52,18 @@ async function main() {
   require.cache[clientPath] = {
     id: clientPath, filename: clientPath, loaded: true,
     exports: {
+      // getAll() pages through endpoints that return 50 rows at a time. These
+      // stubs return a whole array in one go, so paging is a single pass — but
+      // the method must exist, or the service under test fails with
+      // "smsClient.getAll is not a function" and tests nothing at all.
+      async getAll(path, params = {}) {
+        const rows = await this.get(path, params);
+        return {
+          rows: Array.isArray(rows) ? rows : (rows?.data || []),
+          pages: 1,
+          truncated: false,
+        };
+      },
       async get(path) {
         if (broken.has(path)) throw new Error(`SMS GET ${path} failed (503): upstream down`);
         if (!(path in SMS)) throw new Error(`stub: unexpected path '${path}'`);

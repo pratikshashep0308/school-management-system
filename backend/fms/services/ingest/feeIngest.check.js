@@ -52,6 +52,18 @@ async function main() {
       // Same signature as the real client: get(path, params), returning the
       // ALREADY-UNWRAPPED array. A stub that differs from the thing it stands
       // in for tests the stub, not the code.
+      // getAll() pages through endpoints that return 50 rows at a time. These
+      // stubs return a whole array in one go, so paging is a single pass — but
+      // the method must exist, or the service under test fails with
+      // "smsClient.getAll is not a function" and tests nothing at all.
+      async getAll(path, params = {}) {
+        const rows = await this.get(path, params);
+        return {
+          rows: Array.isArray(rows) ? rows : (rows?.data || []),
+          pages: 1,
+          truncated: false,
+        };
+      },
       async get(path, params = {}) {
         if (!smsUp) throw new Error('connect ECONNREFUSED 127.0.0.1:5000');
         if (typeof path !== 'string' || path.startsWith('/api/')) {
