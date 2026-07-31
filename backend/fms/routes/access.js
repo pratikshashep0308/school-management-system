@@ -81,13 +81,18 @@ const requireGovernance = (req, res, next) => {
   ));
 };
 
-// audit/VIEW is the lightest real permission every governance role already
-// holds; it exists here to populate req.fmsScope and req.fmsRole, not to decide
-// anything. requireGovernance does the deciding.
-const governance = [fmsAuthorize('audit', 'VIEW'), requireGovernance];
+// Deliberately NOT collapsed into a shared `const governance = [...]` array.
+// It reads better, but the route-guard audit is a static check over the source:
+// a guard hidden behind a spread is invisible to it, and four genuinely guarded
+// routes were reported as unguarded. A safety check that cannot see the safety
+// is worse than the small repetition below.
+//
+// audit/VIEW is the lightest permission every governance role already holds. It
+// is here to populate req.fmsScope and req.fmsRole, not to decide anything —
+// requireGovernance does the deciding.
 
 /** GET /api/fms/access/roles — the catalogue, so the screen can explain itself. */
-router.get('/access/roles', ...governance, asyncHandler(async (req, res) => {
+router.get('/access/roles', fmsAuthorize('audit', 'VIEW'), requireGovernance, asyncHandler(async (req, res) => {
   return ok(res, {
     roles: accessService.ROLE_CATALOGUE,
     administratorRoles: accessService.ADMIN_ROLES,
@@ -101,7 +106,7 @@ router.get('/access/roles', ...governance, asyncHandler(async (req, res) => {
  * who hold none, because granting access to somebody new is the main thing this
  * screen exists for.
  */
-router.get('/access/users', ...governance, asyncHandler(async (req, res) => {
+router.get('/access/users', fmsAuthorize('audit', 'VIEW'), requireGovernance, asyncHandler(async (req, res) => {
   return ok(res, await accessService.listUsers(req.fmsScope.school));
 }));
 
@@ -111,7 +116,7 @@ router.get('/access/users', ...governance, asyncHandler(async (req, res) => {
  * Grant or change a finance role. Upserts — changing a role and granting one
  * are the same operation.
  */
-router.put('/access/users/:smsUserId', ...governance, asyncHandler(async (req, res) => {
+router.put('/access/users/:smsUserId', fmsAuthorize('audit', 'VIEW'), requireGovernance, asyncHandler(async (req, res) => {
   validate(req.body || {}, {
     financeRole: { required: true, rules: [check.nonEmpty] },
     multiBranch: { rules: [check.boolean] },
@@ -135,7 +140,7 @@ router.put('/access/users/:smsUserId', ...governance, asyncHandler(async (req, r
  * record that this person once had access, which is what gets asked about
  * afterwards.
  */
-router.delete('/access/users/:smsUserId', ...governance, asyncHandler(async (req, res) => {
+router.delete('/access/users/:smsUserId', fmsAuthorize('audit', 'VIEW'), requireGovernance, asyncHandler(async (req, res) => {
   const doc = await accessService.revoke(req.fmsScope.school, req.params.smsUserId, req);
   return ok(res, doc, { message: 'Finance access withdrawn' });
 }));

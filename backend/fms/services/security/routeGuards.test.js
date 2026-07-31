@@ -26,24 +26,36 @@ const ROUTES_DIR = path.join(__dirname, '..', '..', 'routes');
  *
  * Deliberately tiny. Every entry weakens the guarantee.
  */
-const ALLOWED_UNGUARDED = {
+/**
+ * Authentication endpoints, which cannot carry an FMS authorization check
+ * because they run BEFORE anyone has a finance session.
+ *
+ * A separate list from ALLOWED_UNGUARDED on purpose. That one is for webhooks,
+ * and its assertion — every entry must be a webhook — is worth keeping sharp.
+ * Folding a different category into it would blunt the only test that stops
+ * somebody quietly adding a fifth "special case".
+ *
+ * All three sit behind `protect`, so a valid school-system login is still
+ * required to reach them.
+ */
+const ALLOWED_AUTH_ROUTES = {
   'access.js POST /auth/unlock':
-    'The exchange that issues a finance session. It cannot require a finance role: ' +
-    'checking one before authentication would tell an attacker which accounts are ' +
-    'worth attacking, and nobody could ever obtain a first session. It sits behind ' +
-    '`protect`, verifies the password with bcrypt, and locks out after five failures.',
+    'Issues the finance session. Checking a finance role first would reveal which ' +
+    'accounts are worth attacking, and nobody could obtain a first session. ' +
+    'Verifies the password with bcrypt and locks out after five failures.',
 
   'access.js GET /auth/session':
     'Reports whether the caller already holds a valid finance session. Requiring a ' +
-    'session to ask whether you have a session is circular — the browser needs this ' +
-    'to decide whether to show the unlock prompt. It reveals a boolean and an expiry, ' +
-    'never a figure.',
+    'session to ask whether you have one is circular — the browser needs this to ' +
+    'decide whether to show the unlock prompt. Returns a boolean and an expiry.',
 
   'access.js POST /auth/lock':
-    'Ends a finance session. Refusing to let somebody without a valid session close ' +
-    'one would be perverse, and the worst a caller can do is write an audit entry ' +
-    'saying they locked something that was already locked.',
+    'Ends a finance session. Refusing somebody without a valid session the ability ' +
+    'to close one would be perverse, and the worst a caller achieves is an audit ' +
+    'entry saying they locked something already locked.',
+};
 
+const ALLOWED_UNGUARDED = {
   'integrations.js POST /gateway/webhook':
     'A webhook cannot require an FMS role — the caller is a payment gateway, not ' +
     'a user. It is mounted behind `protect` (a valid JWT) and immediately throws ' +
@@ -89,6 +101,7 @@ test('every FMS route is guarded', async (t) => {
     const unguarded = routes.filter((r) => !r.guarded);
     const unexplained = unguarded.filter(
       (r) => !ALLOWED_UNGUARDED[`${r.file} ${r.method} ${r.path}`]
+        && !ALLOWED_AUTH_ROUTES[`${r.file} ${r.method} ${r.path}`]
     );
 
     assert.deepStrictEqual(
@@ -109,6 +122,17 @@ test('every FMS route is guarded', async (t) => {
     // A webhook that did something would need authorization. This one throws.
     for (const key of Object.keys(ALLOWED_UNGUARDED)) {
       assert.match(key, /webhook/, `${key} is not a webhook — why is it unguarded?`);
+    }
+  });
+
+  await t.test('the auth exemptions are only auth routes, and only three', () => {
+    const keys = Object.keys(ALLOWED_AUTH_ROUTES);
+    assert.ok(keys.length <= 3, `the auth exemption list has grown to ${keys.length}`);
+    for (const k of keys) {
+      // Nothing but /auth/* may sit here. The moment a business route appears,
+      // somebody has used this list to skip a permission check.
+      assert.match(k, /\/auth\//, `${k} is not an auth route — why is it exempt?`);
+      assert.ok(ALLOWED_AUTH_ROUTES[k].length > 60, `${k} needs a real reason`);
     }
   });
 });
