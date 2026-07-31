@@ -15,11 +15,66 @@
 
 import api from './api';
 
+// ─── Finance session ─────────────────────────────────────────────────────────
+// The step-up token, held in sessionStorage so it dies with the tab. Not
+// localStorage: leaving the books open across browser restarts would give back
+// most of what the step-up is for.
+//
+// It rides on its own header rather than replacing the SMS Authorization
+// header, because both are required — the first says who you are, the second
+// says you re-proved it.
+const SESSION_KEY = 'fmsSession';
+
+export function setFinanceSession(token, expiresAt) {
+  try {
+    if (!token) sessionStorage.removeItem(SESSION_KEY);
+    else sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, expiresAt }));
+  } catch { /* private browsing — the session simply will not persist */ }
+}
+
+export function getFinanceSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (s.expiresAt && new Date(s.expiresAt) <= new Date()) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return s;
+  } catch { return null; }
+}
+
+export function clearFinanceSession() { setFinanceSession(null); }
+
+// Attach the finance token to every /fms request. Scoped to /fms on purpose —
+// the school system has no business receiving it.
+api.interceptors.request.use((cfg) => {
+  if (cfg.url && cfg.url.startsWith('/fms')) {
+    const s = getFinanceSession();
+    if (s?.token) cfg.headers['X-FMS-Session'] = s.token;
+  }
+  return cfg;
+});
+
 const fmsAPI = {
   // ── Plugin status ──────────────────────────────────────────────────────────
   // Returns { enabled, version, currency, financialYear }. When the FMS is
   // switched off this is the only endpoint that responds.
   getStatus: () => api.get('/fms/status'),
+
+  // ── Finance session (step-up) ──────────────────────────────────────────────
+  // Not a second login: the same password, re-proved, for a short-lived token
+  // that only the finance module accepts.
+  unlockFinance:   (password) => api.post('/fms/auth/unlock', { password }),
+  checkFinanceSession: ()     => api.get('/fms/auth/session'),
+  lockFinance:     ()         => api.post('/fms/auth/lock'),
+
+  // ── Access control (chairman and trustees only) ────────────────────────────
+  getAccessUsers:  ()               => api.get('/fms/access/users'),
+  getAccessRoles:  ()               => api.get('/fms/access/roles'),
+  setAccess:       (id, body)       => api.put(`/fms/access/users/${id}`, body),
+  revokeAccess:    (id)             => api.delete(`/fms/access/users/${id}`),
 
   // ── Dashboard (SCR-04..07) ─────────────────────────────────────────────────
   // getDashboard returns KPIs, cash position AND all five charts in one call.

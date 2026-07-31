@@ -14,6 +14,7 @@ const config = require('../config');
 const smsClient = require('../client/smsClient');
 const openapi = require('../docs/openapi');
 const { fmsErrorHandler, notFoundHandler } = require('../middleware/fmsErrorHandler');
+const requireFinanceSession = require('../middleware/requireFinanceSession');
 
 // The SMS's own JWT verifier. Reused as-is: the FMS does not reimplement
 // authentication, only authorization.
@@ -122,6 +123,19 @@ router.get('/docs', (req, res) => {
 // fmsAuthorize(moduleKey, action), which denies unless an active
 // fms_roleassignments row grants the required level.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Access control and the step-up session ──────────────────────────────────
+// Mounted FIRST, and deliberately outside requireFinanceSession for its two
+// open paths (/auth/unlock, /auth/session) — otherwise there would be no way to
+// obtain the session the rest of the module demands.
+router.use('/', protect, require('./access'));
+
+// ─── The second gate ─────────────────────────────────────────────────────────
+// Everything below requires a finance session on top of a valid SMS login. Ships
+// OFF (FMS_REQUIRE_SESSION unset) so that deploying this cannot lock a running
+// deployment out of its own books before anybody has been told the module now
+// asks for a password.
+router.use(requireFinanceSession);
 
 router.use('/financial-years', protect, require('./financialYear'));
 router.use('/accounts', protect, require('./accounts'));           // Chart of Accounts (P2.1)

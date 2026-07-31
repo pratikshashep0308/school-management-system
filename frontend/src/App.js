@@ -10,6 +10,11 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // when it is off or when they have no finance role.
 import { FmsProvider } from './context/FmsContext';
 import FmsGuard from './components/fms/FmsGuard';
+import { Outlet } from 'react-router-dom';
+
+// The finance module supplies its own chrome through FmsLayout, so this is a
+// bare outlet. Its only job is to be a route parent that is NOT <Layout />.
+const FmsShell = () => <Outlet />;
 import FmsDashboard from './pages/FMS/Dashboard';
 import FmsTrialBalance from './pages/FMS/TrialBalance';
 import FmsChartOfAccounts from './pages/FMS/ChartOfAccounts';
@@ -26,6 +31,7 @@ import FmsFinancialYears from './pages/FMS/FinancialYears';
 import FmsAuditTrail from './pages/FMS/AuditTrail';
 import FmsIngestConsole from './pages/FMS/IngestConsole';
 import FmsDiagnostics from './pages/FMS/Diagnostics';
+import FmsAccessControl from './pages/FMS/AccessControl';
 import FmsMappings from './pages/FMS/Mappings';
 import FmsPayments from './pages/FMS/Payments';
 import FmsPettyCash from './pages/FMS/PettyCash';
@@ -145,32 +151,50 @@ export default function App() {
         <Route path="/login" element={<Login />}   />
 
             {/* Protected — all authenticated roles */}
+
+            {/* ── Finance ──────────────────────────────────────────────────
+                Deliberately OUTSIDE <Layout />. The finance module opens in its
+                own window and renders no school-system chrome: no SMS sidebar,
+                no SMS header. Two reasons, and only one of them is cosmetic.
+
+                The real one is that the finance session lives in sessionStorage,
+                which is per-window. Closing the finance window ends the session
+                — the books lock the moment somebody shuts the window, without
+                anybody having to remember to lock them. Sharing a tab with the
+                school system would keep that session alive for as long as the
+                user stayed signed in to anything.
+
+                The cosmetic one is that two nested sidebars left the finance
+                screens about half the width they needed. */}
+            <Route path="/fms" element={<ProtectedRoute><FmsShell /></ProtectedRoute>}>
+              <Route index element={<FmsGuard><FmsDashboard /></FmsGuard>} />
+              <Route path="reports/trial-balance" element={<FmsGuard><FmsTrialBalance /></FmsGuard>} />
+              <Route path="accounts" element={<FmsGuard><FmsChartOfAccounts /></FmsGuard>} />
+              <Route path="approvals" element={<FmsGuard><FmsApprovalInbox /></FmsGuard>} />
+              <Route path="approvals/:id" element={<FmsGuard><FmsApprovalAction /></FmsGuard>} />
+              <Route path="ledger" element={<FmsGuard><FmsGeneralLedger /></FmsGuard>} />
+              <Route path="journal" element={<FmsGuard><FmsJournalVouchers /></FmsGuard>} />
+              <Route path="books" element={<FmsGuard><FmsCashBankBook /></FmsGuard>} />
+              <Route path="reports" element={<FmsGuard><FmsReports /></FmsGuard>} />
+              <Route path="reports/:report" element={<FmsGuard><FmsReports /></FmsGuard>} />
+              <Route path="banking/settlements" element={<FmsGuard><FmsSettlements /></FmsGuard>} />
+              <Route path="budgets" element={<FmsGuard><FmsBudgets /></FmsGuard>} />
+              <Route path="payments" element={<FmsGuard><FmsPayments /></FmsGuard>} />
+              <Route path="petty-cash" element={<FmsGuard><FmsPettyCash /></FmsGuard>} />
+              <Route path="banking/reconcile" element={<FmsGuard><FmsBankReconciliation /></FmsGuard>} />
+              <Route path="financial-years" element={<FmsGuard><FmsFinancialYears /></FmsGuard>} />
+              <Route path="audit" element={<FmsGuard><FmsAuditTrail /></FmsGuard>} />
+              <Route path="integrations" element={<FmsGuard><FmsIngestConsole /></FmsGuard>} />
+              <Route path="diagnostics" element={<FmsGuard><FmsDiagnostics /></FmsGuard>} />
+              <Route path="access" element={<FmsGuard><FmsAccessControl /></FmsGuard>} />
+              <Route path="settings/mappings" element={<FmsGuard><FmsMappings /></FmsGuard>} />
+            </Route>
+
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
 
               {/* Smart dashboard — renders based on role */}
               <Route path="dashboard" element={<SmartDashboard />} />
 
-              {/* ── FMS ───────────────────────────────────────────────────── */}
-              <Route path="fms" element={<FmsGuard><FmsDashboard /></FmsGuard>} />
-              <Route path="fms/reports/trial-balance" element={<FmsGuard><FmsTrialBalance /></FmsGuard>} />
-              <Route path="fms/accounts" element={<FmsGuard><FmsChartOfAccounts /></FmsGuard>} />
-              <Route path="fms/approvals" element={<FmsGuard><FmsApprovalInbox /></FmsGuard>} />
-              <Route path="fms/approvals/:id" element={<FmsGuard><FmsApprovalAction /></FmsGuard>} />
-              <Route path="fms/ledger" element={<FmsGuard><FmsGeneralLedger /></FmsGuard>} />
-              <Route path="fms/journal" element={<FmsGuard><FmsJournalVouchers /></FmsGuard>} />
-              <Route path="fms/books" element={<FmsGuard><FmsCashBankBook /></FmsGuard>} />
-              <Route path="fms/reports" element={<FmsGuard><FmsReports /></FmsGuard>} />
-              <Route path="fms/reports/:report" element={<FmsGuard><FmsReports /></FmsGuard>} />
-              <Route path="fms/banking/settlements" element={<FmsGuard><FmsSettlements /></FmsGuard>} />
-              <Route path="fms/budgets" element={<FmsGuard><FmsBudgets /></FmsGuard>} />
-              <Route path="fms/payments" element={<FmsGuard><FmsPayments /></FmsGuard>} />
-              <Route path="fms/petty-cash" element={<FmsGuard><FmsPettyCash /></FmsGuard>} />
-              <Route path="fms/banking/reconcile" element={<FmsGuard><FmsBankReconciliation /></FmsGuard>} />
-              <Route path="fms/financial-years" element={<FmsGuard><FmsFinancialYears /></FmsGuard>} />
-              <Route path="fms/audit" element={<FmsGuard><FmsAuditTrail /></FmsGuard>} />
-              <Route path="fms/integrations" element={<FmsGuard><FmsIngestConsole /></FmsGuard>} />
-              <Route path="fms/diagnostics" element={<FmsGuard><FmsDiagnostics /></FmsGuard>} />
-              <Route path="fms/settings/mappings" element={<FmsGuard><FmsMappings /></FmsGuard>} />
 
               {/* Profile — all roles */}
               <Route path="profile" element={<Profile />} />

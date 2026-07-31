@@ -10,8 +10,10 @@
 // This is architectural rather than cosmetic — a UI that ignores the toggle
 // breaks the guarantee the whole plugin design rests on.
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useFms } from '../../context/FmsContext';
+import fmsAPI, { getFinanceSession } from '../../utils/fmsAPI';
+import FinanceUnlock from './FinanceUnlock';
 
 const Panel = ({ title, children }) => (
   <div className="flex min-h-[60vh] items-center justify-center p-6">
@@ -24,6 +26,48 @@ const Panel = ({ title, children }) => (
 
 const FmsGuard = ({ children }) => {
   const { loading, enabled, hasRole, reason, error, refresh } = useFms();
+
+  // ── The step-up gate ──────────────────────────────────────────────────────
+  // Asked for as "a separate login for the FMS". Implemented as the same
+  // identity re-proved: no second password to remember, forget, or forget to
+  // disable when somebody leaves — but an unattended browser with a live
+  // school-system session still cannot open the books.
+  //
+  // `sessionRequired` stays null until the server has been asked. Rendering the
+  // prompt before that would flash a password box at people on deployments
+  // where the gate is switched off.
+  const [sessionRequired, setSessionRequired] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  const checkSession = useCallback(async () => {
+    if (!enabled) return;
+    try {
+      const res = await fmsAPI.checkFinanceSession();
+      const data = res?.data?.data ?? res?.data;
+      setSessionRequired(!data?.valid);
+      setSessionExpired(data?.reason === 'expired');
+    } catch (err) {
+      // A 401 carrying this code IS the answer, not a failure.
+      if (err?.response?.data?.error?.code === 'FMS_SESSION_REQUIRED') {
+        setSessionRequired(true);
+        setSessionExpired(err.response.data.error.reason === 'expired');
+      } else {
+        // The gate is switched off, or this is an older backend. Either way, do
+        // not block the module on a question nobody answered.
+        setSessionRequired(false);
+      }
+    }
+  }, [enabled]);
+
+  useEffect(() => { checkSession(); }, [checkSession]);
+
+  // A session expiring mid-use should not be discovered through a failed save.
+  // Re-check on tab focus — that is when somebody returns to a machine.
+  useEffect(() => {
+    const onFocus = () => { if (!getFinanceSession()) checkSession(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [checkSession]);
 
   if (loading) {
     return (
@@ -86,6 +130,19 @@ const FmsGuard = ({ children }) => {
           Try again
         </button>
       </Panel>
+    );
+  }
+
+  // ── The books are locked ──────────────────────────────────────────────────
+  // Last, deliberately: somebody should be told the module is switched off, or
+  // that they hold no finance role, BEFORE being asked for a password that
+  // would not help them anyway.
+  if (sessionRequired) {
+    return (
+      <FinanceUnlock
+        expired={sessionExpired}
+        onUnlocked={() => { setSessionRequired(false); setSessionExpired(false); refresh?.(); }}
+      />
     );
   }
 

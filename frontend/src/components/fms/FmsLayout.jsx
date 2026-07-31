@@ -13,6 +13,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useFms } from '../../context/FmsContext';
+import fmsAPI, { clearFinanceSession } from '../../utils/fmsAPI';
 
 /**
  * roles: which finance roles may see the item. Omitted means everyone with any
@@ -49,6 +50,7 @@ const NAV = [
   { to: '/fms/settings/mappings', label: 'Account Mappings', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/integrations', label: 'Data Import', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/diagnostics', label: 'Diagnostics', roles: ['chairman', 'trustee', 'principal', 'accountsManager', 'accountant', 'auditor'] },
+  { to: '/fms/access', label: 'Access Control', roles: ['chairman', 'trustee'] },
 ];
 
 // NOT YET BUILT — no page exists, so they are deliberately absent above:
@@ -61,14 +63,34 @@ const NAV = [
 const FmsLayout = ({ children, title, actions }) => {
   const { financialYear, fmsRole } = useFms();
 
+  // Standing alone in its own window, this layout has to supply what the school
+  // system's chrome used to: who you are, and a way out. The lock button
+  // matters most — somebody stepping away should be able to close the books
+  // without closing the window and losing what they were doing.
+  const lockAndClose = async () => {
+    try { await fmsAPI.lockFinance(); } catch { /* the audit note is best-effort */ }
+    clearFinanceSession();
+    window.location.reload();
+  };
+
   const visible = NAV.filter((n) => !n.roles || n.roles.includes(fmsRole));
 
   return (
     <div className="mod-blue flex min-h-screen bg-[var(--canvas)]">
       <aside className="w-56 shrink-0 border-r border-[var(--border)] bg-white">
         <div className="border-b border-[var(--border)] px-4 py-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--mod)]">
-            Finance
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--mod)]">
+              Finance
+            </div>
+            <button
+              type="button"
+              onClick={lockAndClose}
+              title="Close the books. You will need your password to reopen them."
+              className="rounded border border-[var(--border)] px-1.5 py-0.5 text-[10px] text-[var(--muted)]"
+            >
+              Lock
+            </button>
           </div>
           {financialYear && (
             <div className="mt-1 text-xs text-[var(--muted)]">{financialYear}</div>

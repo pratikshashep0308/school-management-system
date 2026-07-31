@@ -384,11 +384,37 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
           ) : (
             visibleItems.map(item => {
               const col = itemColor(item.path);
+
+              // ── Finance opens in its own window ──────────────────────────
+              // Not decoration. The finance session lives in sessionStorage,
+              // which is per-window: closing this window ends the session and
+              // locks the books, without anybody having to remember to. Sharing
+              // the school system's tab would keep finance open for as long as
+              // somebody stayed signed in to anything at all.
+              //
+              // A named window means clicking Finance twice focuses the window
+              // already open rather than opening a second one. No `noopener`:
+              // that would break the naming, and this is our own origin.
+              const openInOwnWindow = item.path === '/fms';
+
               return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                onClick={onClose}
+                onClick={(e) => {
+                  if (openInOwnWindow) {
+                    e.preventDefault();
+                    const w = window.open(
+                      '/fms', 'thefuturestepschool-finance',
+                      'width=1280,height=860,menubar=no,toolbar=no,location=no',
+                    );
+                    // Popup blocked — fall back to a normal navigation rather
+                    // than leaving the click doing nothing.
+                    if (!w) { window.location.href = '/fms'; return; }
+                    w.focus();
+                  }
+                  onClose?.();
+                }}
                 style={({ isActive }) => ({
                   display: 'flex', alignItems: 'center', gap: 11,
                   padding: '8px 10px', borderRadius: 11, marginBottom: 3,
@@ -408,6 +434,12 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   boxShadow: 'none',
                 }}>{item.icon}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>
+                {openInOwnWindow && (
+                  <span
+                    title="Opens in its own window"
+                    style={{ fontSize: 11, opacity: 0.5 }}
+                  >↗</span>
+                )}
               </NavLink>
               );
             })
