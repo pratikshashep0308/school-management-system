@@ -1,6 +1,6 @@
 // frontend/src/App.js
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -10,11 +10,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // when it is off or when they have no finance role.
 import { FmsProvider } from './context/FmsContext';
 import FmsGuard from './components/fms/FmsGuard';
-import { Outlet } from 'react-router-dom';
 
-// The finance module supplies its own chrome through FmsLayout, so this is a
-// bare outlet. Its only job is to be a route parent that is NOT <Layout />.
-const FmsShell = () => <Outlet />;
 import FmsDashboard from './pages/FMS/Dashboard';
 import FmsTrialBalance from './pages/FMS/TrialBalance';
 import FmsChartOfAccounts from './pages/FMS/ChartOfAccounts';
@@ -78,6 +74,14 @@ import CreateReport     from './pages/Reports/CreateReport';
 import ReportViewer     from './pages/Reports/ReportViewer';
 
 import Layout from './components/common/Layout';
+
+// The finance module supplies its own chrome through FmsLayout, so this is a
+// bare outlet. Its only job is to be a route parent that is NOT <Layout />.
+//
+// Declared here rather than up among the imports: a statement between import
+// statements trips the import/first lint rule for every import that follows,
+// which fails the production build.
+const FmsShell = () => <Outlet />;
 
 // ── ProtectedRoute: redirect to login if not authenticated ────────────────────
 function ProtectedRoute({ children }) {
