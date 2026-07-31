@@ -10,6 +10,7 @@ const express = require('express');
 const accessService = require('../services/access/accessService');
 const financeSession = require('../services/auth/financeSession');
 const fmsAuthorize = require('../middleware/fmsAuthorize');
+const { FmsRoleAssignment } = require('../models/core');
 const { ok, errors, validate, check } = require('../utils/apiResponse');
 
 const router = express.Router();
@@ -39,17 +40,46 @@ router.post('/auth/unlock', asyncHandler(async (req, res) => {
   return ok(res, session, { message: `Finance unlocked for ${financeSession.SESSION_MINUTES} minutes` });
 }));
 
-/** GET /api/fms/auth/session — is the current finance session still good? */
+/**
+ * GET /api/fms/auth/session
+ *
+ * Two questions in one call: is the finance session still good, and what
+ * finance role does the caller hold?
+ *
+ * The role belongs here rather than on a route of its own because the browser
+ * needs it at exactly the same moment and under exactly the same conditions —
+ * before any finance session exists, and without a permission check, since
+ * refusing to tell somebody their own role would leave the menu unable to draw
+ * itself.
+ *
+ * It was previously read from the notification-preferences endpoint, which does
+ * not return a role. `fmsRole` was therefore always null, and every role-gated
+ * menu entry was invisible to everybody — including a chairman with a perfectly
+ * good assignment. That is the bug this closes.
+ */
 router.get('/auth/session', asyncHandler(async (req, res) => {
   const header = req.get('x-fms-session') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : header;
   const result = financeSession.verify(token, req.user);
+
+  // The caller's OWN role only. No lookup of anybody else's.
+  const assignment = req.user?._id
+    ? await FmsRoleAssignment.findOne({
+      smsUserId: req.user._id,
+      school: req.user.school,
+      status: 'active',
+    }).select('financeRole multiBranch').lean()
+    : null;
 
   return ok(res, {
     valid: result.ok,
     reason: result.reason || null,
     expiresAt: result.ok ? new Date(result.claims.exp * 1000) : null,
     sessionMinutes: financeSession.SESSION_MINUTES,
+
+    hasRole: !!assignment,
+    fmsRole: assignment?.financeRole || null,
+    multiBranch: assignment?.multiBranch || false,
   });
 }));
 

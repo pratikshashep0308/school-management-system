@@ -84,9 +84,19 @@ export const FmsProvider = ({ children }) => {
       let reason = null;
 
       try {
-        const me = await fmsAPI.getNotificationPrefs();
-        hasRole = true;
-        fmsRole = me?.data?.fmsRole ?? data.fmsRole ?? null;
+        // Ask the endpoint that actually knows. This previously called the
+        // notification-preferences endpoint, which returns preferences and no
+        // role — so fmsRole was always null and every role-gated menu entry was
+        // hidden from everybody, including a chairman with a valid assignment.
+        //
+        // /auth/session answers both questions at once and needs no permission,
+        // which matters: refusing to tell somebody their own role would leave
+        // the menu unable to draw itself.
+        const me = await fmsAPI.checkFinanceSession();
+        const body = me?.data?.data ?? me?.data ?? {};
+        hasRole = body.hasRole === true;
+        fmsRole = body.fmsRole ?? null;
+        if (!hasRole) reason = 'noFinanceRole';
       } catch (err) {
         const status = err?.response?.status;
         const message = err?.response?.data?.error?.message || '';
