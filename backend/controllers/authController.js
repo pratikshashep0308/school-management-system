@@ -53,6 +53,49 @@ exports.login = async (req, res) => {
   }
 
   if (!user) {
+    // ── Parent by phone number ──────────────────────────────────────────────
+    // Most parents here have no email address, so their account carries a
+    // generated one they will never see or remember. The phone number is what
+    // they know, so it is what they type.
+    //
+    // Restricted to role 'parent' deliberately: staff and student accounts
+    // authenticate by email or admission number, and letting any account be
+    // reached by phone would widen the login surface for no benefit.
+    const digits = identifier.replace(/\D/g, '');
+    if (digits.length >= 10) {
+      const last10 = digits.slice(-10);
+      user = await User.findOne({
+        role: 'parent',
+        phone: new RegExp(`${last10}$`),
+      }).select('+password');
+    }
+  }
+
+  if (!user) {
+    // ── Parent by their child's admission number ────────────────────────────
+    // The fallback for a parent with neither email nor phone on record. The
+    // admission number is on every fee receipt, so it is the one identifier the
+    // family reliably has to hand.
+    try {
+      const Student = require('../models/Student');
+      const escape = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escape}$`, 'i');
+      const stu = await Student.findOne({
+        $or: [{ admissionNumber: regex }, { rollNumber: regex }],
+      }).select('parentId parent');
+      const pid = stu?.parentId || stu?.parent;
+      if (pid) {
+        const candidate = await User.findById(pid).select('+password');
+        // Only if it really is a parent account — never fall through to a staff
+        // user that happens to be linked.
+        if (candidate?.role === 'parent') user = candidate;
+      }
+    } catch (e) {
+      console.warn('[login] parent-by-admission lookup failed:', e.message);
+    }
+  }
+
+  if (!user) {
     // Treat the identifier as a possible admission/roll number (case-insensitive,
     // exact match) and resolve to the linked User account.
     try {

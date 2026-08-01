@@ -16,10 +16,33 @@ async function genAdmissionNo(school) {
 // Guarantees no duplicate user for the same email.
 // guardianName / guardianEmail / guardianPhone come from the admission form;
 // they are aliased from the matching parentName / parentEmail / parentPhone fields.
-async function findOrCreateParent({ parentEmail, parentName, parentPhone, studentName, school }) {
-  if (!parentEmail) return { parentUser: null, isNew: false };
+/**
+ * A login identifier for a parent who has no email address.
+ *
+ * Most parents at this school do not have one. Because findOrCreateParent
+ * returned early without it, NO parent account was ever created — which is why
+ * the parent portal has 213 provisionable students and zero actual logins.
+ *
+ * The generated address is never sent to; it exists because User.email is
+ * required and unique. What the parent actually types to log in is their phone
+ * number or the child's admission number — see authController.
+ */
+function generateParentEmail({ parentPhone, admissionNumber, school }) {
+  const digits = String(parentPhone || '').replace(/\D/g, '');
+  const base = digits.length >= 10
+    ? digits.slice(-10)
+    : String(admissionNumber || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '') || String(Date.now());
+  return `p.${base}@parent.local`;
+}
 
-  const email = parentEmail.trim().toLowerCase();
+async function findOrCreateParent({
+  parentEmail, parentName, parentPhone, studentName, school, admissionNumber,
+}) {
+  // A parent with no email still gets an account. Withholding one meant the
+  // family simply could not use the portal at all.
+  const email = (parentEmail || '').trim()
+    ? parentEmail.trim().toLowerCase()
+    : generateParentEmail({ parentPhone, admissionNumber, school });
 
   // 1. Check for an existing User with this email (any role)
   let parentUser = await User.findOne({ email });
@@ -34,6 +57,9 @@ async function findOrCreateParent({ parentEmail, parentName, parentPhone, studen
   parentUser = await User.create({
     name:     (parentName || `Parent of ${studentName}`).trim(),
     email,
+    // Stored deliberately: for a parent with no email, the phone number IS the
+    // login identifier. An account created without one can only be reached
+    // through the child's admission number.
     phone:    parentPhone ? parentPhone.trim() : '',
     password: 'Parent@123',
     role:     'parent',
@@ -160,6 +186,7 @@ exports.createStudent = async (req, res) => {
     parentPhone:  resolvedParentPhone,
     studentName:  name,
     school:       req.user.school,
+    admissionNumber,
   });
 
   // 4. Create Student document
@@ -282,6 +309,7 @@ exports.updateStudent = async (req, res) => {
       parentPhone:  req.body.parentPhone || req.body.guardianPhone || student.parentPhone,
       studentName:  studentUser?.name || 'Student',
       school:       req.user.school,
+      admissionNumber: student.admissionNumber,
     });
     if (parentUser) {
       req.body.parentId    = parentUser._id;
@@ -416,6 +444,135 @@ exports.resetParentPassword = async (req, res) => {
   res.json({ success: true, message: 'Parent password reset successfully' });
 };
 
+/**
+ * PUT /api/students/:id/parent-login
+ *
+ * Correct a parent's login details — the email they sign in with, their phone
+ * number, or their name.
+ *
+ * ─── WHY THIS EXISTS ────────────────────────────────────────────────────────
+ * Parent accounts are created automatically from whatever was typed on the
+ * admission form. Those details are frequently wrong: a mistyped email, a phone
+ * number belonging to a relative, or nothing at all — in which case the account
+ * carries a generated address the family will never guess.
+ *
+ * Without a way to correct it, the only remedy was editing the database by
+ * hand. This is that remedy, on a screen.
+ *
+ * Password is deliberately NOT settable here — resetParentPassword already does
+ * that, and one endpoint that changes both identity and credentials is a bigger
+ * target than two that each do one thing.
+ */
+exports.updateParentLogin = async (req, res) => {
+  const { email, phone, name } = req.body;
+
+  const student = await Student.findOne({ _id: req.params.id, school: req.user.school });
+  if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+  const parentUserId = student.parentId || student.parent;
+  if (!parentUserId) {
+    return res.status(404).json({ success: false, message: 'No parent account linked to this student' });
+  }
+
+  const parentUser = await User.findById(parentUserId);
+  if (!parentUser) {
+    return res.status(404).json({ success: false, message: 'The linked parent account no longer exists' });
+  }
+
+  // Guard: this endpoint must only ever touch parent accounts. A student record
+  // mistakenly linked to a staff user would otherwise let an admin rewrite that
+  // person's login from the student screen.
+  if (parentUser.role !== 'parent') {
+    return res.status(409).json({
+      success: false,
+      message: `That account is a '${parentUser.role}', not a parent. Refusing to change it here.`,
+    });
+  }
+
+  const updates = {};
+
+  if (email !== undefined) {
+    const next = String(email).trim().toLowerCase();
+    if (!next) {
+      return res.status(400).json({ success: false, message: 'Login email cannot be empty' });
+    }
+    if (!/^\S+@\S+\.\S+$/.test(next)) {
+      return res.status(400).json({ success: false, message: 'That is not a valid email address' });
+    }
+    // Taken by somebody else? Say so plainly rather than failing on the unique
+    // index with an error nobody can act on.
+    const clash = await User.findOne({ email: next, _id: { $ne: parentUser._id } }).select('_id role');
+    if (clash) {
+      return res.status(409).json({
+        success: false,
+        message: 'Another account already uses that email address',
+      });
+    }
+    updates.email = next;
+  }
+
+  if (phone !== undefined) {
+    const digits = String(phone).replace(/\D/g, '');
+    if (digits && digits.length < 10) {
+      return res.status(400).json({ success: false, message: 'Phone number looks too short' });
+    }
+    // Phone is a login identifier, so a duplicate would make two accounts
+    // reachable by the same number — and the first match would win, silently.
+    if (digits) {
+      const clash = await User.findOne({
+        role: 'parent',
+        phone: new RegExp(`${digits.slice(-10)}$`),
+        _id: { $ne: parentUser._id },
+      }).select('_id');
+      if (clash) {
+        return res.status(409).json({
+          success: false,
+          message: 'Another parent account already uses that phone number',
+        });
+      }
+    }
+    updates.phone = String(phone).trim();
+  }
+
+  if (name !== undefined && String(name).trim()) {
+    updates.name = String(name).trim();
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ success: false, message: 'Nothing to change' });
+  }
+
+  await User.findByIdAndUpdate(parentUser._id, updates);
+
+  // Keep the student record in step — parentEmail is one of the fields the
+  // portal resolves a parent's children by, so leaving it stale would break
+  // access for exactly the family whose login was just corrected.
+  const studentUpdates = {};
+  if (updates.email) studentUpdates.parentEmail = updates.email;
+  if (updates.phone) studentUpdates.parentPhone = updates.phone;
+  if (updates.name) studentUpdates.parentName = updates.name;
+  if (Object.keys(studentUpdates).length) {
+    await Student.findByIdAndUpdate(student._id, studentUpdates);
+  }
+
+  const fresh = await User.findById(parentUser._id).select('name email phone role isActive');
+
+  res.json({
+    success: true,
+    message: 'Parent login updated',
+    data: {
+      ...fresh.toObject(),
+      // What the parent can actually type at the login screen. The generated
+      // address is not among them, which is the point of showing this.
+      signInWith: [
+        !fresh.email.endsWith('@parent.local') ? fresh.email : null,
+        fresh.phone || null,
+        student.admissionNumber || null,
+      ].filter(Boolean),
+    },
+  });
+};
+
 // ── MY PROFILE (student role) ─────────────────────────────────────────────────
 exports.getMyProfile = async (req, res) => {
   const student = await Student.findOne({ user: req.user.id })
@@ -480,6 +637,7 @@ exports.linkParent = async (req, res) => {
     parentPhone: parentPhone || student.parentPhone,
     studentName: studentUser?.name || 'Student',
     school:      req.user.school,
+    admissionNumber: student.admissionNumber,
   });
 
   // Update student with canonical parentId and string fields

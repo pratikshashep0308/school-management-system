@@ -3,7 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const {
   getStudents, getStudent, createStudent, updateStudent, deleteStudent,
-  getMyProfile, getStudentStats, linkParent, resetStudentPassword, resetParentPassword, seedTestStudent,
+  getMyProfile, getStudentStats, linkParent, resetStudentPassword, resetParentPassword, updateParentLogin, seedTestStudent,
 } = require('../controllers/studentController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -97,6 +97,8 @@ router.put('/:id',  authorize('superAdmin','schoolAdmin'), updateStudent);
 router.delete('/:id', authorize('superAdmin','schoolAdmin'), deleteStudent);
 router.put('/:id/reset-password',         authorize('superAdmin','schoolAdmin'), resetStudentPassword);
 router.put('/:id/reset-parent-password',  authorize('superAdmin','schoolAdmin'), resetParentPassword);
+// Correct a parent's login details — mistyped email, wrong phone, or none at all.
+router.put('/:id/parent-login',           authorize('superAdmin','schoolAdmin'), updateParentLogin);
 router.post('/seed-test', authorize('superAdmin','schoolAdmin'), seedTestStudent);
 
 module.exports = router;
