@@ -131,29 +131,13 @@ exports.studentSelfOrAdmin = async (req, res, next) => {
 // ── ATTACH STUDENT DOC: auto-attach student to req for student/parent roles ───
 // Use on routes where req.studentDoc is needed but there is no :studentId param.
 exports.attachStudent = async (req, res, next) => {
-  try {
-    if (req.user.role === 'student') {
-      req.studentDoc = await Student.findOne({ user: req.user._id });
-    } else if (req.user.role === 'parent') {
-      // Primary lookup by parentId
-      let child = await Student.findOne({ parentId: req.user._id });
-
-      // Fallback + backfill
-      if (!child) {
-        child = await Student.findOne({
-          $or: [
-            { parent:      req.user._id },
-            { parentEmail: req.user.email, school: req.user.school },
-          ],
-        });
-        if (child) {
-          await Student.findByIdAndUpdate(child._id, { parentId: req.user._id, parent: req.user._id });
-        }
-      }
-      req.studentDoc = child;
-    }
-    next();
-  } catch {
-    next();
-  }
+  // Delegates to portalScope so parent -> child resolution lives in ONE place.
+  // This function previously had its own rules — parentId, then parent, then
+  // parentEmail — which differed from the ones homework used, and silently
+  // backfilled parentId as a side effect of a GET.
+  //
+  // It also swallowed every error and called next(), meaning a database failure
+  // produced an UNSCOPED request rather than a refused one.
+  const { attachOwnStudents } = require('./portalScope');
+  return attachOwnStudents(req, res, next);
 };

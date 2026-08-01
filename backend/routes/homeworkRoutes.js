@@ -30,11 +30,26 @@ router.get('/', authorize(...ALL), async (req, res) => {
       if (student?.class) filter.class = student.class;
     }
 
-    // Parents see their child's class homework
+    // Parents see the classes THEIR OWN children are in.
+    //
+    // This previously matched one child on parentEmail and set filter.class only
+    // if that lookup succeeded. When it did not — email changed, record missing,
+    // a typo — the filter stayed unset and the parent was shown every homework
+    // in the school. Failing open is the wrong direction for an access check.
+    //
+    // It also used findOne, so a parent with two children only ever saw one.
     if (req.user.role === 'parent') {
       const Student = require('../models/Student');
-      const child = await Student.findOne({ parentEmail: req.user.email, school: req.user.school });
-      if (child?.class) filter.class = child.class;
+      const ids = await resolveOwnStudents(req.user);
+      if (ids.length === 0) {
+        return res.json({ success: true, count: 0, data: [] });
+      }
+      const kids = await Student.find({ _id: { $in: ids } }).select('class').lean();
+      const classes = kids.map((k) => k.class).filter(Boolean);
+      if (classes.length === 0) {
+        return res.json({ success: true, count: 0, data: [] });
+      }
+      filter.class = { $in: classes };
     }
 
     const hw = await Homework.find(filter)
@@ -50,9 +65,11 @@ router.get('/', authorize(...ALL), async (req, res) => {
       const st = await Student.findOne({ user: req.user._id, school: req.user.school });
       myStudentId = st?._id;
     } else if (req.user.role === 'parent') {
-      const Student = require('../models/Student');
-      const child = await Student.findOne({ parentEmail: req.user.email, school: req.user.school });
-      myStudentId = child?._id;
+      // myStatus is per-student, so with several children this shows the first.
+      // Correct display for multiple children needs a student picker in the UI —
+      // out of scope here, and better than showing another family's homework.
+      const ids = await resolveOwnStudents(req.user);
+      myStudentId = ids[0] || null;
     }
 
     const data = hw.map(h => {

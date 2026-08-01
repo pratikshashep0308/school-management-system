@@ -1,4 +1,5 @@
 const express = require('express');
+const { requireOwnStudent } = require('../middleware/portalScope');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const BehaviouralNote = require('../models/BehaviouralNote');
@@ -107,7 +108,10 @@ router.get('/roster', authorize(...STAFF), async (req, res) => {
 // GET /api/behavioural-notes/:studentId
 //   ?date=YYYY-MM-DD  → that day's note only (defaults to today)
 //   ?history=1        → full history for the student (newest first)
-router.get('/:studentId', authorize(...STAFF, 'student', 'parent'), async (req, res) => {
+// requireOwnStudent is load-bearing. Without it this route filtered on the id in
+// the URL and nothing else — any parent could read any student's behaviour
+// notes, history included, by changing one value in the address bar.
+router.get('/:studentId', authorize(...STAFF, 'student', 'parent'), requireOwnStudent(), async (req, res) => {
   try {
     const filter = { student: req.params.studentId, school: req.user.school };
 
