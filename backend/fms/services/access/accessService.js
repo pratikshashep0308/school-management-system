@@ -79,7 +79,18 @@ async function listUsers(school) {
   const User = mongoose.model('User');
 
   const [users, assignments] = await Promise.all([
-    User.find({ school: oid(school) })
+    // STAFF ONLY. Students and parents are excluded — 213 of this school's 241
+    // users are children, and a picker that lists them all is not merely
+    // cluttered: it makes granting a student finance access a one-click
+    // mistake. Nobody in those two roles should ever appear here.
+    //
+    // Filtered on the SMS role rather than a hardcoded list of staff roles, so
+    // a new staff role added later shows up without anybody remembering to
+    // update this. Excluding is safer than enumerating.
+    User.find({
+      school: oid(school),
+      role: { $nin: ['student', 'parent'] },
+    })
       .select('_id name email role isActive')
       .sort({ name: 1 })
       .lean(),
@@ -148,8 +159,18 @@ async function assign(school, smsUserId, financeRole, { multiBranch = false } = 
 
   const User = mongoose.model('User');
   const user = await User.findOne({ _id: oid(smsUserId), school: oid(school) })
-    .select('_id name email isActive').lean();
+    .select('_id name email role isActive').lean();
   if (!user) throw errors.notFound('User');
+
+  // Defence in depth. listUsers no longer SHOWS students and parents, but a
+  // filtered list is presentation — the endpoint would still accept a student's
+  // id from a crafted request. Finance access for a child is not a mistake to
+  // guard against only in the UI.
+  if (['student', 'parent'].includes(user.role)) {
+    throw errors.conflict(
+      `${user.name} is a ${user.role} — finance access is for staff only.`
+    );
+  }
 
   if (user.isActive === false) {
     // Granting finance access to a deactivated account creates a dormant way in

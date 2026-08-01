@@ -208,6 +208,30 @@ async function main() {
   const leaked = sessionAudits.some((a) => JSON.stringify(a).includes(PASSWORD));
   ok('NO password appears anywhere in the audit trail', leaked === false);
 
+  // ───────────────────────────────────────────────────────────────────────────
+  console.log('\n8. Students and parents are not candidates for finance access');
+  // ───────────────────────────────────────────────────────────────────────────
+  // 213 of this school's 241 users are children. Listing them in the picker was
+  // not just clutter — it made granting a student finance access a one-click
+  // mistake, and the endpoint would have accepted it.
+  const pupil = await mkUser('A Student', 'pupil@test.in', 'student');
+  const guardian = await mkUser('A Parent', 'guardian@test.in', 'parent');
+
+  const staffList = await access.listUsers(school);
+  ok('the picker excludes students',
+    !staffList.some((u) => u.email === 'pupil@test.in'), JSON.stringify(staffList.map(u=>u.email)));
+  ok('and excludes parents',
+    !staffList.some((u) => u.email === 'guardian@test.in'));
+  ok('but still lists staff', staffList.some((u) => u.email === 'vijay@test.in'));
+
+  // Filtering the list is presentation. The endpoint must refuse too.
+  await throws('a STUDENT cannot be granted finance access',
+    () => access.assign(school, pupil._id, 'accountant', {}, req(chair)),
+    /staff only/i);
+  await throws('nor a parent',
+    () => access.assign(school, guardian._id, 'readOnly', {}, req(chair)),
+    /staff only/i);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) console.log('Failures:\n  - ' + failures.join('\n  - '));
 
