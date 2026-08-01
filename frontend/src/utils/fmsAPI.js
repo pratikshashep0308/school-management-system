@@ -335,6 +335,16 @@ const fmsAPI = {
   // Decides which account an expense posts to. The list is intentionally
   // unpaginated — a category master is tens of rows and every caller wants all
   // of them for a picker.
+  // ── Expense requests ───────────────────────────────────────────────────────
+  // The list IS paginated (25 a page) — pass `page` through rather than taking
+  // the first response as the whole set.
+  getExpenses:              (params = {}) => api.get('/fms/expenses', { params }),
+  getExpense:               (id)          => api.get(`/fms/expenses/${id}`),
+  createExpense:            (body)        => api.post('/fms/expenses', body),
+  updateExpense:            (id, body)    => api.patch(`/fms/expenses/${id}`, body),
+  submitExpense:            (id)          => api.post(`/fms/expenses/${id}/submit`),
+  cancelExpense:            (id, body)    => api.post(`/fms/expenses/${id}/cancel`, body),
+
   getExpenseCategories:     (params = {}) => api.get('/fms/expense-categories', { params }),
   getExpenseCategoryTree:   ()            => api.get('/fms/expense-categories/tree'),
   createExpenseCategory:    (body)        => api.post('/fms/expense-categories', body),

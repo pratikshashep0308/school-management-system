@@ -39,6 +39,7 @@ const NAV = [
   { to: '/fms/approvals', label: 'Approvals' },
   { to: '/fms/budgets', label: 'Budgets' },
   { to: '/fms/payments', label: 'Payments' },
+  { to: '/fms/expenses', label: 'Expenses' },
   { to: '/fms/petty-cash', label: 'Petty Cash' },
   // Banking has two screens and no index page; point at reconciliation, which
   // is the one people open. Settlements is reachable from within it.

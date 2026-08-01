@@ -29,6 +29,7 @@ import FmsIngestConsole from './pages/FMS/IngestConsole';
 import FmsDiagnostics from './pages/FMS/Diagnostics';
 import FmsAccessControl from './pages/FMS/AccessControl';
 import FmsExpenseCategories from './pages/FMS/ExpenseCategories';
+import FmsExpenses from './pages/FMS/Expenses';
 import FmsMappings from './pages/FMS/Mappings';
 import FmsPayments from './pages/FMS/Payments';
 import FmsPettyCash from './pages/FMS/PettyCash';
@@ -192,6 +193,7 @@ export default function App() {
               <Route path="integrations" element={<FmsGuard><FmsIngestConsole /></FmsGuard>} />
               <Route path="diagnostics" element={<FmsGuard><FmsDiagnostics /></FmsGuard>} />
               <Route path="access" element={<FmsGuard><FmsAccessControl /></FmsGuard>} />
+              <Route path="expenses" element={<FmsGuard><FmsExpenses /></FmsGuard>} />
               <Route path="expense-categories" element={<FmsGuard><FmsExpenseCategories /></FmsGuard>} />
               <Route path="settings/mappings" element={<FmsGuard><FmsMappings /></FmsGuard>} />
             </Route>
