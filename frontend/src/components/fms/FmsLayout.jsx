@@ -50,7 +50,14 @@ const NAV = [
   { to: '/fms/settings/mappings', label: 'Account Mappings', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/integrations', label: 'Data Import', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/diagnostics', label: 'Diagnostics', roles: ['chairman', 'trustee', 'principal', 'accountsManager', 'accountant', 'auditor'] },
-  { to: '/fms/expense-categories', label: 'Expense Categories', roles: ['accountsManager', 'accountant'] },
+  // Wider than the route permissions on purpose. The nav gate decides what is
+  // worth SHOWING; fmsAuthorize('expenses', ...) decides what may be DONE. A
+  // chairman who can read the chart of accounts should be able to see which
+  // account each expense category posts to — hiding a screen from somebody the
+  // server would happily serve is unhelpful, and they still get a clean 403 on
+  // any edit.
+  { to: '/fms/expense-categories', label: 'Expense Categories',
+    roles: ['chairman', 'trustee', 'principal', 'accountsManager', 'accountant'] },
   { to: '/fms/access', label: 'Access Control', roles: ['chairman', 'trustee'] },
 ];
 
