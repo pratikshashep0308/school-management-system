@@ -330,6 +330,17 @@ const fmsAPI = {
   // Fee type → income account. Required before fee ingest can run.
   // Which accounts can actually be fed, and which will read zero forever.
   getChartCoverage:     ()             => api.get('/fms/integrations/chart-coverage'),
+
+  // ── Expense category master ────────────────────────────────────────────────
+  // Decides which account an expense posts to. The list is intentionally
+  // unpaginated — a category master is tens of rows and every caller wants all
+  // of them for a picker.
+  getExpenseCategories:     (params = {}) => api.get('/fms/expense-categories', { params }),
+  getExpenseCategoryTree:   ()            => api.get('/fms/expense-categories/tree'),
+  createExpenseCategory:    (body)        => api.post('/fms/expense-categories', body),
+  updateExpenseCategory:    (id, body)    => api.put(`/fms/expense-categories/${id}`, body),
+  deactivateExpenseCategory:(id)          => api.delete(`/fms/expense-categories/${id}`),
+
   // Every integration check in one call.
   getDiagnostics:       ()             => api.get('/fms/integrations/diagnostics'),
 

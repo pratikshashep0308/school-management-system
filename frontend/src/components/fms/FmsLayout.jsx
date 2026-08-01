@@ -50,6 +50,7 @@ const NAV = [
   { to: '/fms/settings/mappings', label: 'Account Mappings', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/integrations', label: 'Data Import', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/diagnostics', label: 'Diagnostics', roles: ['chairman', 'trustee', 'principal', 'accountsManager', 'accountant', 'auditor'] },
+  { to: '/fms/expense-categories', label: 'Expense Categories', roles: ['accountsManager', 'accountant'] },
   { to: '/fms/access', label: 'Access Control', roles: ['chairman', 'trustee'] },
 ];
 

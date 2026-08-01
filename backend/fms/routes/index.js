@@ -137,6 +137,9 @@ router.use('/', protect, require('./access'));
 // asks for a password.
 router.use(requireFinanceSession);
 
+// Expense category master — decides which account an expense posts to.
+router.use('/expense-categories', protect, require('./expenseCategories'));
+
 router.use('/financial-years', protect, require('./financialYear'));
 router.use('/accounts', protect, require('./accounts'));           // Chart of Accounts (P2.1)
 router.use('/ledger',   protect, require('./ledger'));             // General Ledger, READ-ONLY (P2.2)
