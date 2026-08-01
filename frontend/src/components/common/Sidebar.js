@@ -71,7 +71,21 @@ const MENU_ITEMS = [
   // whether the page renders, based on the plugin being enabled AND the person
   // holding an FMS finance role, which lives in fms_roleassignments and is
   // separate from the SMS role named here.
-  { path: '/fms',           icon: '📒', label: 'Finance',       roles: ['superAdmin','schoolAdmin','accountant'] },
+  // ── Finance: visible to ALL STAFF, gated on the other side ────────────────
+  // Whether somebody may USE finance is decided by fms_roleassignments, not by
+  // their school-system role — that separation is what lets the module be
+  // switched off without leaving orphaned permissions behind.
+  //
+  // This list previously named three roles, so a cashier holding a perfectly
+  // good finance role could not see the link at all. The remedy is not to widen
+  // their SMS role — that grants unrelated fee and expense permissions and makes
+  // the SMS role a proxy for finance access.
+  //
+  // Instead the link is shown to every staff role and FmsGuard does the
+  // deciding: somebody without a finance role gets a clear "no finance access"
+  // screen. A menu item that explains itself beats one that silently is not
+  // there. Students and parents are excluded — they are never finance users.
+  { path: '/fms',           icon: '📒', label: 'Finance',       roles: ['superAdmin','schoolAdmin','teacher','accountant','librarian','transportManager'] },
   { path: '/library',       icon: '📚', label: 'Library',       roles: ['superAdmin','schoolAdmin','librarian'] },
   { path: '/transport',     icon: '🚌', label: 'Transport',     roles: ['superAdmin','schoolAdmin','transportManager'] },
   { path: '/homework',      icon: '📚', label: 'Homework',          roles: ['superAdmin','schoolAdmin','teacher','student','parent'] },
@@ -384,37 +398,11 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
           ) : (
             visibleItems.map(item => {
               const col = itemColor(item.path);
-
-              // ── Finance opens in its own window ──────────────────────────
-              // Not decoration. The finance session lives in sessionStorage,
-              // which is per-window: closing this window ends the session and
-              // locks the books, without anybody having to remember to. Sharing
-              // the school system's tab would keep finance open for as long as
-              // somebody stayed signed in to anything at all.
-              //
-              // A named window means clicking Finance twice focuses the window
-              // already open rather than opening a second one. No `noopener`:
-              // that would break the naming, and this is our own origin.
-              const openInOwnWindow = item.path === '/fms';
-
               return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                onClick={(e) => {
-                  if (openInOwnWindow) {
-                    e.preventDefault();
-                    const w = window.open(
-                      '/fms', 'thefuturestepschool-finance',
-                      'width=1280,height=860,menubar=no,toolbar=no,location=no',
-                    );
-                    // Popup blocked — fall back to a normal navigation rather
-                    // than leaving the click doing nothing.
-                    if (!w) { window.location.href = '/fms'; return; }
-                    w.focus();
-                  }
-                  onClose?.();
-                }}
+                onClick={onClose}
                 style={({ isActive }) => ({
                   display: 'flex', alignItems: 'center', gap: 11,
                   padding: '8px 10px', borderRadius: 11, marginBottom: 3,
@@ -434,12 +422,6 @@ export default function Sidebar({ isOpen, onClose, activePortalTab, onPortalTabC
                   boxShadow: 'none',
                 }}>{item.icon}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>
-                {openInOwnWindow && (
-                  <span
-                    title="Opens in its own window"
-                    style={{ fontSize: 11, opacity: 0.5 }}
-                  >↗</span>
-                )}
               </NavLink>
               );
             })
