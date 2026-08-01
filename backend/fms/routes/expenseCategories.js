@@ -103,7 +103,7 @@ router.put('/:id', fmsAuthorize('expenses', 'EDIT'), asyncHandler(async (req, re
  * categories point at it, and returns the blocking items by name so somebody
  * can act on the message rather than hunt for the reference.
  */
-router.delete('/:id', fmsAuthorize('expenses', 'ADMIN'), asyncHandler(async (req, res) => {
+router.delete('/:id', fmsAuthorize('expenses', 'DELETE'), asyncHandler(async (req, res) => {
   const doc = await categoryService.deactivate(req.fmsScope.school, req.params.id, req);
   return ok(res, doc, { message: `Category ${doc.code} deactivated` });
 }));
