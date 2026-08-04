@@ -71,7 +71,12 @@ const ApprovalInbox = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const items = data?.items || [];
+  // The ROUTE returns { success, count, pagination, role, data: [...] } — the
+  // service's internal { total, items } shape never reaches the browser.
+  // Reading `.items` off the unwrapped array found nothing, so a populated
+  // inbox rendered as "Nothing waiting for you". Both shapes are accepted here
+  // because the service form is what the tests exercise.
+  const items = Array.isArray(data) ? data : (data?.items || data?.data || []);
 
   return (
     <FmsLayout
