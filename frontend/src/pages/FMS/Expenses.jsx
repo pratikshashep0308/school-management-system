@@ -115,6 +115,14 @@ const Expenses = () => {
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // ── Attachments ───────────────────────────────────────────────────────────
+  // submit() refuses an expense with none: "at least one supporting document is
+  // required before submission". That rule is unconditional and hardcoded — a
+  // ₹100 pen needs a receipt photo like anything else. Whether that suits this
+  // school is a policy question, but the form must at least make it possible.
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [mastersError, setMastersError] = useState(null);
 
@@ -175,7 +183,29 @@ const Expenses = () => {
     }));
   };
 
-  const openNew = () => { setEditing(null); setForm(BLANK); setShowForm(true); };
+  const addFile = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await fmsAPI.uploadAttachment(file);
+      const d = res?.data?.data ?? res?.data;
+      if (!d?.url) throw new Error('Upload returned no URL');
+      setAttachments((list) => [...list, {
+        fileName: d.name || file.name,
+        url: d.url,
+        kind: 'bill',
+        mimeType: file.type,
+        sizeBytes: file.size,
+      }]);
+      toast.success(`${d.name || file.name} attached`);
+    } catch (err) {
+      toast.error(describeError(err), { duration: 9000 });
+    } finally { setUploading(false); }
+  };
+
+  const openNew = () => {
+    setEditing(null); setForm(BLANK); setAttachments([]); setShowForm(true);
+  };
 
   const openEdit = (row) => {
     setEditing(row);
@@ -191,6 +221,7 @@ const Expenses = () => {
       amount: row.totalAmount ? String(row.totalAmount / 100) : '',
       remarks: row.remarks || '',
     });
+    setAttachments(row.attachments || []);
     setShowForm(true);
   };
 
@@ -231,6 +262,7 @@ const Expenses = () => {
       baseAmount: paise,
       totalAmount: paise,
       remarks: form.remarks,
+      attachments,
     };
 
     setSaving(true);
@@ -242,7 +274,7 @@ const Expenses = () => {
         await fmsAPI.createExpense(payload);
         toast.success('Draft created — submit it when you are ready');
       }
-      setShowForm(false); setEditing(null); setForm(BLANK);
+      setShowForm(false); setEditing(null); setForm(BLANK); setAttachments([]);
       await load();
     } catch (err) {
       toast.error(describeError(err), { duration: 10000 });
@@ -378,6 +410,40 @@ const Expenses = () => {
               <input value={form.remarks} onChange={(e) => set('remarks', e.target.value)}
                 className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5 text-sm" />
             </div>
+          </div>
+
+          <div className="mt-4 rounded-md border border-[var(--border)] p-3">
+            <label className="block text-xs font-medium">
+              Supporting documents
+              <span className="ml-1 font-normal text-[var(--muted)]">
+                — at least one is required before this can be submitted
+              </span>
+            </label>
+
+            <input type="file" disabled={uploading}
+              onChange={(e) => { addFile(e.target.files?.[0]); e.target.value = ''; }}
+              className="mt-2 text-xs" />
+            {uploading && <span className="ml-2 text-xs text-[var(--muted)]">Uploading…</span>}
+
+            {attachments.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {attachments.map((a, i) => (
+                  <li key={a.url + i} className="flex items-center gap-2 text-xs">
+                    <a href={a.url} target="_blank" rel="noreferrer"
+                      className="text-[var(--mod)] underline">{a.fileName}</a>
+                    <button type="button"
+                      onClick={() => setAttachments((l) => l.filter((_, j) => j !== i))}
+                      className="text-[var(--danger)]">remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {attachments.length === 0 && (
+              <p className="mt-2 text-xs text-[var(--gold)]">
+                No document attached yet. The draft will save, but it cannot be submitted.
+              </p>
+            )}
           </div>
 
           <div className="mt-4 flex gap-2">

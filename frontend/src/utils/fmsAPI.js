@@ -138,6 +138,18 @@ const fmsAPI = {
   // Receipts are cancelled by reversal, never deleted.
   cancelIncome:      (id, body)    => api.post(`/fms/income/${id}/cancel`, body),
 
+  // Attachments go to the SCHOOL SYSTEM's upload route, not an FMS one — there
+  // is no FMS upload endpoint, and duplicating file storage for the sake of
+  // symmetry would mean two places to secure and two to back up.
+  // Returns { name, url }; the caller puts that into attachments[].
+  uploadAttachment: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/uploads/attachment', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   // ── Expenses (SCR-14/15/16/17) ─────────────────────────────────────────────
   // NOTE: the list IS paginated (25 a page). Pass `page` through — treating the
   // first response as the whole set is how a screen silently shows 25 of 300.
