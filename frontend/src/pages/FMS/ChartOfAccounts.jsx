@@ -22,6 +22,7 @@
 // them.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 
 import fmsAPI from '../../utils/fmsAPI';
 import FmsLayout from '../../components/fms/FmsLayout';
@@ -311,6 +312,18 @@ const ChartOfAccounts = () => {
   const [expanded, setExpanded] = useState({});
   const [mode, setMode] = useState('view');
 
+  // ── Adding an account ─────────────────────────────────────────────────────
+  // Until now the only way to create one was the standard-chart seeder, which
+  // creates the 42 template accounts and nothing else. A school that wants
+  // '5501 Electricity & Water' had no route to it at all — the endpoint existed,
+  // the form did not.
+  const [showAdd, setShowAdd] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newAcct, setNewAcct] = useState({
+    accountCode: '', accountName: '', accountGroup: '',
+    isPostable: true, isCashAccount: false, isBankAccount: false,
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -388,6 +401,39 @@ const ChartOfAccounts = () => {
     );
   }
 
+  const createAccount = async () => {
+    const { accountCode, accountName, accountGroup } = newAcct;
+    if (!accountCode || !accountName || !accountGroup) {
+      toast.error('Code, name and group are all required');
+      return;
+    }
+    setAdding(true);
+    try {
+      await fmsAPI.createAccount({
+        ...newAcct,
+        accountCode: accountCode.trim(),
+        accountName: accountName.trim(),
+      });
+      toast.success(`${accountCode} created`);
+      setShowAdd(false);
+      setNewAcct({
+        accountCode: '', accountName: '', accountGroup: '',
+        isPostable: true, isCashAccount: false, isBankAccount: false,
+      });
+      await load();
+    } catch (err) {
+      // The server names the real problem — a duplicate code, a group from
+      // another school, a code failing the character rule. Showing its message
+      // rather than a generic one is the difference between a fix and a guess.
+      const e = err?.response?.data?.error;
+      const details = e?.details && typeof e.details === 'object'
+        ? Object.entries(e.details).map(([f, why]) => `${f}: ${why}`).join(' · ')
+        : null;
+      toast.error(details ? `${e.message} — ${details}` : (e?.message || err.message),
+        { duration: 10000 });
+    } finally { setAdding(false); }
+  };
+
   return (
     <FmsLayout
       title="Chart of Accounts"
@@ -411,6 +457,73 @@ const ChartOfAccounts = () => {
         )
       }
     >
+      {accounts.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <button type="button" onClick={() => setShowAdd((v) => !v)}
+            className="rounded-md bg-[var(--mod)] px-3 py-1.5 text-sm font-medium text-white">
+            {showAdd ? 'Cancel' : 'Add an account'}
+          </button>
+        </div>
+      )}
+
+      {showAdd && (
+        <div className="mb-4 rounded-lg border border-[var(--border)] bg-white p-5">
+          <h2 className="text-sm font-semibold">New account</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            The code cannot be changed once the account has postings against it, so choose
+            it deliberately. Group decides where it appears on reports.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-[var(--muted)]">Code</label>
+              <input value={newAcct.accountCode}
+                onChange={(e) => setNewAcct((a) => ({ ...a, accountCode: e.target.value }))}
+                placeholder="5501"
+                className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-[var(--muted)]">Name</label>
+              <input value={newAcct.accountName}
+                onChange={(e) => setNewAcct((a) => ({ ...a, accountName: e.target.value }))}
+                placeholder="Electricity & Water"
+                className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5 text-sm" />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs text-[var(--muted)]">Group</label>
+              <select value={newAcct.accountGroup}
+                onChange={(e) => setNewAcct((a) => ({ ...a, accountGroup: e.target.value }))}
+                className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5 text-sm">
+                <option value="">Choose a group…</option>
+                {(groups || []).map((g) => (
+                  <option key={g._id} value={g._id}>
+                    {g.groupCode} — {g.groupName} ({g.accountType})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={newAcct.isCashAccount}
+                onChange={(e) => setNewAcct((a) => ({ ...a, isCashAccount: e.target.checked }))} />
+              This is a cash account
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={newAcct.isBankAccount}
+                onChange={(e) => setNewAcct((a) => ({ ...a, isBankAccount: e.target.checked }))} />
+              This is a bank account
+            </label>
+          </div>
+
+          <div className="mt-4">
+            <button type="button" onClick={createAccount} disabled={adding}
+              className="rounded-md bg-[var(--mod)] px-3 py-1.5 text-sm text-white disabled:opacity-40">
+              {adding ? 'Creating…' : 'Create account'}
+            </button>
+          </div>
+        </div>
+      )}
       {error && <ErrorBanner error={error} onRetry={load} className="mb-4" />}
 
       <CoverageNotice />
