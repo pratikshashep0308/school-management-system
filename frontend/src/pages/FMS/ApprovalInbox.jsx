@@ -48,6 +48,151 @@ const AgeBadge = ({ days }) => {
   );
 };
 
+
+/**
+ * What this person has already decided.
+ *
+ * Sits below the inbox rather than on a screen of its own. The inbox empties as
+ * things are actioned, so without this an approver's own record disappears the
+ * moment they give it — and "did I approve that?" is asked more often than
+ * "what is pending?".
+ *
+ * Defaults to the signed-in person's OWN actions. The school-wide view is one
+ * checkbox away, but it is not what somebody opening this screen usually wants.
+ */
+const MyApprovalHistory = () => {
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [mineOnly, setMineOnly] = useState(true);
+  const [me, setMe] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    fmsAPI.checkFinanceSession()
+      .then((r) => {
+        const d = r?.data?.data ?? r?.data;
+        setMe(d?.userId || d?.id || null);
+      })
+      .catch(() => setMe(null));
+  }, []);
+
+  const load = useCallback(async () => {
+    // Waiting for `me` matters: firing without it would fetch the whole
+    // school's log and then filter — showing other people's actions for a
+    // moment before correcting itself.
+    if (mineOnly && me === null) return;
+    setLoading(true); setError(null);
+    try {
+      const res = await fmsAPI.getApprovalLog({
+        page: 1,
+        limit: expanded ? 50 : 5,
+        actor: mineOnly && me ? me : undefined,
+      });
+      const body = res?.data ?? {};
+      setRows(body.data || []);
+      setTotal(body.pagination?.total ?? (body.data || []).length);
+    } catch (err) {
+      setError(err);
+    } finally { setLoading(false); }
+  }, [mineOnly, me, expanded]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const TONE = {
+    verify: 'var(--info)', approve: 'var(--sage)',
+    reject: 'var(--danger)', return: 'var(--gold)',
+  };
+
+  return (
+    <div className="mt-8 rounded-lg border border-[var(--border)] bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">
+            {mineOnly ? 'What you have decided' : 'What everybody has decided'}
+          </h2>
+          <p className="mt-0.5 text-xs text-[var(--muted)]">
+            These entries are the audit record of each action and are never edited.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={!mineOnly} disabled={!me}
+            onChange={(e) => setMineOnly(!e.target.checked)} />
+          Show everybody
+        </label>
+      </div>
+
+      {error && <ErrorBanner error={error} onRetry={load} className="mt-3" />}
+
+      {loading && rows.length === 0 && (
+        <p className="mt-3 text-xs text-[var(--muted)]">Loading…</p>
+      )}
+
+      {!loading && rows.length === 0 && !error && (
+        <p className="mt-3 text-sm text-[var(--muted)]">
+          {mineOnly
+            ? 'You have not approved anything yet.'
+            : 'Nothing has been approved yet.'}
+        </p>
+      )}
+
+      {rows.length > 0 && (
+        <>
+          <table className="mt-3 w-full text-left text-sm">
+            <thead className="text-xs text-[var(--muted)]">
+              <tr className="border-b border-[var(--border)]">
+                <th className="py-2 pr-3 font-medium">When</th>
+                <th className="py-2 pr-3 font-medium">Expense</th>
+                <th className="py-2 pr-3 font-medium">Step</th>
+                <th className="py-2 pr-3 font-medium">Action</th>
+                {!mineOnly && <th className="py-2 pr-3 font-medium">By</th>}
+                <th className="py-2 pr-3 text-right font-medium">Amount</th>
+                <th className="py-2 font-medium">Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r._id} className="border-b border-[var(--border)] last:border-0">
+                  <td className="py-2 pr-3 text-xs">
+                    {r.actedAt ? new Date(r.actedAt).toLocaleString('en-IN') : '—'}
+                  </td>
+                  <td className="py-2 pr-3 font-mono text-xs">{r.expenseNumber || '—'}</td>
+                  <td className="py-2 pr-3 text-xs capitalize">{r.step}</td>
+                  <td className="py-2 pr-3 text-xs font-medium"
+                    style={{ color: TONE[r.action] || 'var(--muted)' }}>
+                    {r.action}
+                  </td>
+                  {!mineOnly && (
+                    <td className="py-2 pr-3 text-xs">
+                      {r.actorName || r.actorEmail || '—'}
+                    </td>
+                  )}
+                  <td className="py-2 pr-3 text-right">
+                    {/* The amount AT THE TIME of the action — an expense edited
+                        afterwards must not rewrite what was signed off. */}
+                    <Money paise={r.amountAtAction ?? r.totalAmount ?? 0} />
+                  </td>
+                  <td className="py-2 text-xs italic text-[var(--muted)]">
+                    {r.comment || ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {total > rows.length && !expanded && (
+            <button type="button" onClick={() => setExpanded(true)}
+              className="mt-3 rounded border border-[var(--border)] px-2 py-1 text-xs">
+              Show more ({total} in total)
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 const ApprovalInbox = () => {
   const navigate = useNavigate();
   const { fmsRole } = useFms();
@@ -154,6 +299,8 @@ const ApprovalInbox = () => {
           </p>
         </>
       )}
+
+      <MyApprovalHistory />
     </FmsLayout>
   );
 };
