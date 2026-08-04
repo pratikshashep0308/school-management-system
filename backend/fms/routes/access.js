@@ -77,6 +77,11 @@ router.get('/auth/session', asyncHandler(async (req, res) => {
     expiresAt: result.ok ? new Date(result.claims.exp * 1000) : null,
     sessionMinutes: financeSession.SESSION_MINUTES,
 
+    // The caller's own id. Screens that filter "only what I did" need it, and
+    // asking a separate endpoint for something this call already knows would be
+    // an extra round trip for one field.
+    userId: req.user?._id || null,
+
     hasRole: !!assignment,
     fmsRole: assignment?.financeRole || null,
     multiBranch: assignment?.multiBranch || false,

@@ -64,7 +64,8 @@ const MyApprovalHistory = () => {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [mineOnly, setMineOnly] = useState(true);
-  const [me, setMe] = useState(null);
+  // undefined = not looked up yet · null = looked up, not available · string = id
+  const [me, setMe] = useState(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(false);
@@ -73,16 +74,27 @@ const MyApprovalHistory = () => {
     fmsAPI.checkFinanceSession()
       .then((r) => {
         const d = r?.data?.data ?? r?.data;
-        setMe(d?.userId || d?.id || null);
+        setMe(d?.userId || null);
       })
+      // Resolve to null on failure rather than leaving it undefined — the guard
+      // below waits for a lookup to COMPLETE, not to succeed. Leaving it unset
+      // left the section reading "Loading…" indefinitely.
       .catch(() => setMe(null));
   }, []);
 
   const load = useCallback(async () => {
-    // Waiting for `me` matters: firing without it would fetch the whole
-    // school's log and then filter — showing other people's actions for a
-    // moment before correcting itself.
-    if (mineOnly && me === null) return;
+    // Wait for the lookup to COMPLETE, not to succeed. Firing early would show
+    // the whole school's log for a moment before correcting itself; waiting on
+    // success meant waiting forever when the id was unavailable.
+    if (me === undefined) return;
+
+    // Looked up and there is no id — the personal filter cannot be applied, so
+    // say so rather than silently showing everybody's actions under a heading
+    // that claims they are yours.
+    if (mineOnly && me === null) {
+      setRows([]); setTotal(0); setLoading(false);
+      return;
+    }
     setLoading(true); setError(null);
     try {
       const res = await fmsAPI.getApprovalLog({
@@ -129,7 +141,14 @@ const MyApprovalHistory = () => {
         <p className="mt-3 text-xs text-[var(--muted)]">Loading…</p>
       )}
 
-      {!loading && rows.length === 0 && !error && (
+      {!loading && rows.length === 0 && !error && mineOnly && me === null && (
+        <p className="mt-3 text-sm text-[var(--gold)]">
+          Could not tell which actions are yours. Tick “Show everybody” to see the
+          full record.
+        </p>
+      )}
+
+      {!loading && rows.length === 0 && !error && !(mineOnly && me === null) && (
         <p className="mt-3 text-sm text-[var(--muted)]">
           {mineOnly
             ? 'You have not approved anything yet.'
