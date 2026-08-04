@@ -51,6 +51,24 @@ const STATUS_TONE = {
   cancelled: 'var(--muted)',
 };
 
+
+/**
+ * The useful half of a server error.
+ *
+ * `validate()` returns WHICH field failed and why, in error.details — but the
+ * top-level message is just "Validation failed". Showing only the message sent
+ * somebody to a server log to find out a date was in the wrong format, which is
+ * a poor trade for one line of code.
+ */
+const describeError = (err) => {
+  const e = err?.response?.data?.error;
+  if (!e) return err?.message || 'Something went wrong';
+  const details = e.details && typeof e.details === 'object'
+    ? Object.entries(e.details).map(([field, why]) => `${field}: ${why}`).join(' · ')
+    : null;
+  return details ? `${e.message} — ${details}` : (e.message || err.message);
+};
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 const BLANK = {
@@ -78,6 +96,7 @@ const Expenses = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [mastersError, setMastersError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -108,7 +127,12 @@ const Expenses = () => {
         setCategories((c?.data?.data ?? c?.data) || []);
         const acc = (a?.data?.data ?? a?.data) || [];
         setAccounts(acc.filter((x) => x.isPostable !== false));
-      } catch { /* the form degrades to manual entry; the list still works */ }
+      } catch (err) {
+        // Previously swallowed. An empty dropdown then looked identical to a
+        // failed request, and somebody reasonably concluded there were no
+        // categories when the fetch had actually been refused.
+        setMastersError(describeError(err));
+      }
     })();
   }, []);
 
@@ -165,8 +189,15 @@ const Expenses = () => {
       toast.error('Amounts cannot be finer than one paisa'); return;
     }
 
+    // Normalise to YYYY-MM-DD. A date input can hand back a locale-formatted
+    // string, and check.date rejects anything Date.parse cannot read.
+    const iso = (() => {
+      const d = new Date(form.requestDate);
+      return Number.isNaN(d.getTime()) ? form.requestDate : d.toISOString().slice(0, 10);
+    })();
+
     const payload = {
-      requestDate: form.requestDate,
+      requestDate: iso,
       category: form.category,
       categoryRef: form.categoryRef || undefined,
       purpose: form.purpose,
@@ -190,7 +221,7 @@ const Expenses = () => {
       setShowForm(false); setEditing(null); setForm(BLANK);
       await load();
     } catch (err) {
-      toast.error(err?.response?.data?.error?.message || err.message, { duration: 8000 });
+      toast.error(describeError(err), { duration: 10000 });
     } finally { setSaving(false); }
   };
 
@@ -204,7 +235,7 @@ const Expenses = () => {
       warnings.forEach((w) => toast(w, { icon: '⚠️', duration: 7000 }));
       await load();
     } catch (err) {
-      toast.error(err?.response?.data?.error?.message || err.message, { duration: 8000 });
+      toast.error(describeError(err), { duration: 10000 });
     }
   };
 
@@ -258,7 +289,12 @@ const Expenses = () => {
                   <option key={c._id} value={c._id}>{c.code} — {c.name}</option>
                 ))}
               </select>
-              {categories.length === 0 && (
+              {mastersError && (
+                <p className="mt-1 text-xs text-[var(--danger)]">
+                  Could not load categories — {mastersError}
+                </p>
+              )}
+              {!mastersError && categories.length === 0 && (
                 <p className="mt-1 text-xs text-[var(--gold)]">
                   No categories defined yet. Add them under Expense Categories, or type the
                   account below by hand.
