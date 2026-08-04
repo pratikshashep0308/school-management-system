@@ -27,6 +27,16 @@ import Money from '../../components/fms/Money';
 const PAYMENT_MODES = ['cash', 'cheque', 'neft', 'rtgs', 'upi', 'dd'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
+// Free text on the model — `department.ref` is reserved for a master that does
+// not exist yet (fms_departments, marked P4.x). Offered as a datalist so the
+// common cases are one click and anything else can still be typed: a dropdown
+// would block a department nobody anticipated, and a bare text box invites
+// three spellings of the same word.
+const DEPARTMENTS = [
+  'Administration', 'Academics', 'Transport', 'Library',
+  'Sports', 'Maintenance', 'Examination', 'Hostel',
+];
+
 // Only the statuses somebody filtering a list actually wants. The model has
 // eleven; offering all of them makes the useful four hard to find.
 const FILTERS = [
@@ -84,6 +94,7 @@ const BLANK = {
   requestDate: today(),
   category: '',
   categoryRef: '',
+  department: '',
   purpose: '',
   budgetHead: '',
   paymentMode: 'cash',
@@ -172,6 +183,7 @@ const Expenses = () => {
       requestDate: (row.requestDate || '').slice(0, 10) || today(),
       category: row.category || '',
       categoryRef: String(row.categoryRef || ''),
+      department: row.department?.name || '',
       purpose: row.purpose || '',
       budgetHead: String(row.budgetHead || ''),
       paymentMode: row.paymentMode || 'cash',
@@ -184,8 +196,8 @@ const Expenses = () => {
 
   const save = async () => {
     const rupees = Number(form.amount);
-    if (!form.category || !form.purpose || !form.budgetHead) {
-      toast.error('Category, purpose and account are all required'); return;
+    if (!form.category || !form.purpose || !form.budgetHead || !form.department) {
+      toast.error('Department, category, purpose and account are all required'); return;
     }
     if (!Number.isFinite(rupees) || rupees <= 0) {
       toast.error('Enter an amount'); return;
@@ -207,6 +219,9 @@ const Expenses = () => {
 
     const payload = {
       requestDate: iso,
+      // The model wants {name, ref}. ref stays null until a department master
+      // exists; the name is what reports and approval routing read today.
+      department: { name: form.department.trim() },
       category: form.category,
       categoryRef: form.categoryRef || undefined,
       purpose: form.purpose,
@@ -323,6 +338,17 @@ const Expenses = () => {
                   <option key={a._id} value={a._id}>{a.accountCode} — {a.accountName}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-xs text-[var(--muted)]">Department</label>
+              <input list="fms-departments" value={form.department}
+                onChange={(e) => set('department', e.target.value)}
+                placeholder="Administration"
+                className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5 text-sm" />
+              <datalist id="fms-departments">
+                {DEPARTMENTS.map((d) => <option key={d} value={d} />)}
+              </datalist>
             </div>
 
             <div className="col-span-2">
