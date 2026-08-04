@@ -43,6 +43,7 @@ const NAV = [
   { to: '/fms/petty-cash', label: 'Petty Cash' },
   // Banking has two screens and no index page; point at reconciliation, which
   // is the one people open. Settlements is reachable from within it.
+  { to: '/fms/bank-accounts', label: 'Bank Accounts' },
   { to: '/fms/banking/reconcile', label: 'Bank Reconciliation' },
   { to: '/fms/banking/settlements', label: 'Settlements' },
   { to: '/fms/reports', label: 'Reports' },
