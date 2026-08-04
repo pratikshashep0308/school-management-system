@@ -32,7 +32,8 @@ const Payments = () => {
   const [emptyReason, setEmptyReason] = useState(null);
 
   const [paying, setPaying] = useState(null);        // the expense being paid
-  const [form, setForm] = useState({ paymentMode: 'neft', reference: '', bankAccount: '', remarks: '' });
+  const [form, setForm] = useState({ paymentMode: 'neft', reference: '', bankAccount: '', creditAccount: '', remarks: '' });
+  const [cashAccounts, setCashAccounts] = useState([]);
   const [banks, setBanks] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -58,6 +59,15 @@ const Payments = () => {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
+    // Cash heads, for the picker below. A school with both a cash box and a
+    // petty cash float has two, and the payment must say which.
+    fmsAPI.getAccounts({ limit: 500 })
+      .then((r) => {
+        const all = r?.data?.data ?? r?.data ?? [];
+        setCashAccounts(all.filter((a) => a.isCashAccount && a.isPostable !== false));
+      })
+      .catch(() => setCashAccounts([]));
+
     fmsAPI.getBankAccounts({ limit: 200 })
       .then((r) => setBanks(r?.data?.data ?? r?.data ?? []))
       .catch(() => setBanks([]));   // a missing bank list must not break the page
@@ -66,7 +76,7 @@ const Payments = () => {
   const openPay = (row) => {
     setPaying(row);
     setActionError(null);
-    setForm({ paymentMode: 'neft', reference: '', bankAccount: '', remarks: '' });
+    setForm({ paymentMode: 'neft', reference: '', bankAccount: '', creditAccount: '', remarks: '' });
   };
 
   const submitPayment = async () => {
@@ -77,6 +87,10 @@ const Payments = () => {
         paymentMode: form.paymentMode,
         referenceNumber: form.reference || undefined,
         bankAccount: form.bankAccount || undefined,
+        // Named explicitly when more than one account could fund the payment.
+        // This school has both 1101 Cash in Hand and 1102 Petty Cash, and the
+        // server rightly refuses to guess which one paid.
+        creditAccount: form.creditAccount || undefined,
         remarks: form.remarks || undefined,
       });
       setPaying(null);
@@ -195,7 +209,26 @@ const Payments = () => {
                 </select>
               </label>
 
-              {/* Cash leaves no bank trail, so no bank account is asked for. */}
+              {/* Cash leaves no BANK trail — but it still leaves the school from a
+                  specific cash head, and there is more than one. */}
+              {cash && cashAccounts.length > 1 && (
+                <label className="block text-sm">
+                  <span className="text-[var(--muted)]">Paid from</span>
+                  <select
+                    value={form.creditAccount}
+                    onChange={(e) => setForm({ ...form, creditAccount: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-[var(--border)] px-2 py-1.5"
+                  >
+                    <option value="">Select a cash account…</option>
+                    {cashAccounts.map((a) => (
+                      <option key={a._id} value={a._id}>
+                        {a.accountCode} — {a.accountName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
               {!cash && (
                 <label className="block text-sm">
                   <span className="text-[var(--muted)]">Paid from</span>
