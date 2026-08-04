@@ -31,6 +31,7 @@ import FmsAccessControl from './pages/FMS/AccessControl';
 import FmsExpenseCategories from './pages/FMS/ExpenseCategories';
 import FmsExpenses from './pages/FMS/Expenses';
 import FmsBankAccounts from './pages/FMS/BankAccounts';
+import FmsApprovalHistory from './pages/FMS/ApprovalHistory';
 import FmsMappings from './pages/FMS/Mappings';
 import FmsPayments from './pages/FMS/Payments';
 import FmsPettyCash from './pages/FMS/PettyCash';
@@ -177,6 +178,7 @@ export default function App() {
               <Route index element={<FmsGuard><FmsDashboard /></FmsGuard>} />
               <Route path="reports/trial-balance" element={<FmsGuard><FmsTrialBalance /></FmsGuard>} />
               <Route path="accounts" element={<FmsGuard><FmsChartOfAccounts /></FmsGuard>} />
+              <Route path="approvals/history" element={<FmsGuard><FmsApprovalHistory /></FmsGuard>} />
               <Route path="approvals" element={<FmsGuard><FmsApprovalInbox /></FmsGuard>} />
               <Route path="approvals/:id" element={<FmsGuard><FmsApprovalAction /></FmsGuard>} />
               <Route path="ledger" element={<FmsGuard><FmsGeneralLedger /></FmsGuard>} />

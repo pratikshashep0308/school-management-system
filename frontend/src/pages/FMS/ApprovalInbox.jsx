@@ -73,39 +73,7 @@ const ApprovalInbox = () => {
 
   // The ROUTE returns { success, count, pagination, role, data: [...] } — the
   // service's internal { total, items } shape never reaches the browser.
-  // Reading `.items` off the unwrapped array found nothing, so a populated
-  // inbox rendered as "Nothing waiting for you". Both shapes are accepted here
-  // because the service form is what the tests exercise.
   const items = Array.isArray(data) ? data : (data?.items || data?.data || []);
-
-  // ── Approval history ──────────────────────────────────────────────────────
-  // The row says what is waiting; it did not say what had already happened. An
-  // approver at the final step could not see who verified it, when, or what
-  // they wrote — which is precisely the context somebody needs before signing
-  // off on spending.
-  //
-  // Loaded per row, on expand, rather than fetched for the whole list: most
-  // rows are never opened, and the endpoint is one call per expense.
-  const [openId, setOpenId] = useState(null);
-  const [histories, setHistories] = useState({});
-  const [loadingHistory, setLoadingHistory] = useState(null);
-
-  const toggleHistory = async (id) => {
-    if (openId === id) { setOpenId(null); return; }
-    setOpenId(id);
-    if (histories[id]) return;
-
-    setLoadingHistory(id);
-    try {
-      const res = await fmsAPI.getApprovalHistory(id);
-      setHistories((h) => ({ ...h, [id]: res?.data?.data ?? res?.data ?? null }));
-    } catch (err) {
-      setHistories((h) => ({
-        ...h,
-        [id]: { error: err?.response?.data?.error?.message || err.message },
-      }));
-    } finally { setLoadingHistory(null); }
-  };
 
   return (
     <FmsLayout
@@ -148,12 +116,11 @@ const ApprovalInbox = () => {
                   <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Amount</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Waiting on</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Age</th>
-                  <th className="px-4 py-2.5" />
                 </tr>
               </thead>
 
               <tbody>
-                {items.map((e) => [
+                {items.map((e) => (
                   <tr
                     key={e._id}
                     onClick={() => navigate(`/fms/approvals/${e._id}`)}
@@ -174,76 +141,8 @@ const ApprovalInbox = () => {
                     <td className="px-4 py-3">
                       <AgeBadge days={ageInDays(e.requestDate || e.createdAt)} />
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      {/* stopPropagation: the row navigates to the action screen,
-                          and expanding history should not take you off the list. */}
-                      <button
-                        type="button"
-                        onClick={(ev) => { ev.stopPropagation(); toggleHistory(e._id); }}
-                        className="rounded border border-[var(--border)] px-2 py-0.5 text-xs"
-                      >
-                        {openId === e._id ? 'Hide' : 'History'}
-                      </button>
-                    </td>
-                  </tr>,
-                  openId === e._id && (
-                    <tr key={`${e._id}-history`} className="border-b border-[var(--border)]">
-                      <td colSpan={7} className="bg-[var(--canvas)] px-4 py-3">
-                        {loadingHistory === e._id && (
-                          <p className="text-xs text-[var(--muted)]">Loading…</p>
-                        )}
-
-                        {histories[e._id]?.error && (
-                          <p className="text-xs text-[var(--danger)]">
-                            {histories[e._id].error}
-                          </p>
-                        )}
-
-                        {histories[e._id] && !histories[e._id].error && (
-                          <>
-                            {(histories[e._id].approvals || []).length === 0 && (
-                              <p className="text-xs text-[var(--muted)]">
-                                Nothing yet — this is the first step in the chain.
-                              </p>
-                            )}
-
-                            {(histories[e._id].approvals || []).map((a) => (
-                              <div key={a._id} className="flex flex-wrap gap-x-3 py-1 text-xs">
-                                <span className="font-medium capitalize">{a.step}</span>
-                                <span
-                                  style={{
-                                    color: a.action === 'reject'
-                                      ? 'var(--danger)'
-                                      : a.action === 'return'
-                                        ? 'var(--gold)'
-                                        : 'var(--sage)',
-                                  }}
-                                >
-                                  {a.action}d
-                                </span>
-                                <span className="text-[var(--muted)]">
-                                  by {a.actorEmail || a.actorName || 'unknown'}
-                                </span>
-                                <span className="text-[var(--muted)]">
-                                  {a.actedAt ? new Date(a.actedAt).toLocaleString('en-IN') : ''}
-                                </span>
-                                {a.comment && <span className="italic">“{a.comment}”</span>}
-                              </div>
-                            ))}
-
-                            {/* What is still to come, so the approver knows whether
-                                theirs is the last signature or one of several. */}
-                            {histories[e._id].position?.remaining?.length > 0 && (
-                              <p className="mt-2 text-xs text-[var(--muted)]">
-                                Still to come: {histories[e._id].position.remaining.join(' → ')}
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ),
-                ]).flat().filter(Boolean)}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

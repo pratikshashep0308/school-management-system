@@ -37,6 +37,7 @@ const NAV = [
   { to: '/fms/journal', label: 'Journal Vouchers' },
   { to: '/fms/books', label: 'Cash & Bank Book' },
   { to: '/fms/approvals', label: 'Approvals' },
+  { to: '/fms/approvals/history', label: 'Approval History' },
   { to: '/fms/budgets', label: 'Budgets' },
   { to: '/fms/payments', label: 'Payments' },
   { to: '/fms/expenses', label: 'Expenses' },
