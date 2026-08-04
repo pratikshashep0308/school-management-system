@@ -63,10 +63,19 @@ const STATUS_TONE = {
 const describeError = (err) => {
   const e = err?.response?.data?.error;
   if (!e) return err?.message || 'Something went wrong';
-  const details = e.details && typeof e.details === 'object'
-    ? Object.entries(e.details).map(([field, why]) => `${field}: ${why}`).join(' · ')
-    : null;
-  return details ? `${e.message} — ${details}` : (e.message || err.message);
+
+  // validate() throws errors.validation(message, fields), which wraps the map
+  // as details.fields — one level deeper than a naive read expects. Getting
+  // that wrong produced "[object Object]", which is worse than the generic
+  // message it was meant to improve on.
+  const map = e.details?.fields || e.details;
+  if (!map || typeof map !== 'object') return e.message || err.message;
+
+  const parts = Object.entries(map)
+    .filter(([, why]) => typeof why === 'string')
+    .map(([field, why]) => `${field} ${why}`);
+
+  return parts.length ? `${e.message} — ${parts.join(' · ')}` : (e.message || err.message);
 };
 
 const today = () => new Date().toISOString().slice(0, 10);

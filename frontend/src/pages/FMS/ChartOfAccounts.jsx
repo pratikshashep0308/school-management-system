@@ -426,8 +426,11 @@ const ChartOfAccounts = () => {
       // another school, a code failing the character rule. Showing its message
       // rather than a generic one is the difference between a fix and a guess.
       const e = err?.response?.data?.error;
-      const details = e?.details && typeof e.details === 'object'
-        ? Object.entries(e.details).map(([f, why]) => `${f}: ${why}`).join(' · ')
+      // details.fields, not details — validate() nests the map one level down.
+      const map = e?.details?.fields || e?.details;
+      const details = map && typeof map === 'object'
+        ? Object.entries(map).filter(([, w]) => typeof w === 'string')
+          .map(([f, why]) => `${f} ${why}`).join(' · ')
         : null;
       toast.error(details ? `${e.message} — ${details}` : (e?.message || err.message),
         { duration: 10000 });
