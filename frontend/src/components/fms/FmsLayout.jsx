@@ -10,7 +10,7 @@
 // Uses the existing --mod / --mod-soft accent convention from index.css rather
 // than introducing new colours.
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useFms } from '../../context/FmsContext';
 import fmsAPI, { clearFinanceSession } from '../../utils/fmsAPI';
@@ -83,6 +83,30 @@ const FmsLayout = ({ children, title, actions }) => {
     window.location.reload();
   };
 
+  // ── Pending approvals badge ───────────────────────────────────────────────
+  // Polled rather than fetched once: an approver leaves this open all day, and
+  // a badge that was accurate at breakfast is worse than none. Two minutes is
+  // frequent enough to be useful and light enough not to matter.
+  const [pending, setPending] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const fetchCount = () => {
+      fmsAPI.getPendingApprovalCount()
+        .then((r) => {
+          if (!alive) return;
+          const d = r?.data?.data ?? r?.data;
+          setPending(d?.pending ?? 0);
+        })
+        // Silently ignored. A failed count must never break the navigation —
+        // the badge is an aid, not the thing somebody came here for.
+        .catch(() => {});
+    };
+    fetchCount();
+    const t = setInterval(fetchCount, 120000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+
   const visible = NAV.filter((n) => !n.roles || n.roles.includes(fmsRole));
 
   return (
@@ -121,7 +145,17 @@ const FmsLayout = ({ children, title, actions }) => {
                 }`
               }
             >
-              {n.label}
+              <span className="flex items-center justify-between">
+                <span>{n.label}</span>
+                {n.to === '/fms/approvals' && pending > 0 && (
+                  <span
+                    title={`${pending} awaiting your action`}
+                    className="ml-2 rounded-full bg-[var(--danger)] px-1.5 text-[10px] font-semibold leading-4 text-white"
+                  >
+                    {pending}
+                  </span>
+                )}
+              </span>
             </NavLink>
           ))}
         </nav>

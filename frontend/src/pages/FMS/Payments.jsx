@@ -146,6 +146,7 @@ const Payments = () => {
                 <th className="px-3 py-2 text-right">Amount</th>
                 {tab === 'paid' && <th className="px-3 py-2">Paid on</th>}
                 {tab === 'paid' && <th className="px-3 py-2">Mode</th>}
+                {tab === 'paid' && <th className="px-3 py-2">Paid by</th>}
                 {tab === 'queue' && <th className="px-3 py-2" />}
               </tr>
             </thead>
@@ -167,6 +168,9 @@ const Payments = () => {
                     </td>
                   )}
                   {tab === 'paid' && <td className="px-3 py-2">{r.paymentMode || '—'}</td>}
+                  {tab === 'paid' && (
+                    <td className="px-3 py-2">{r.paidByName || r.paidByEmail || '—'}</td>
+                  )}
                   {tab === 'queue' && (
                     <td className="px-3 py-2 text-right">
                       <button

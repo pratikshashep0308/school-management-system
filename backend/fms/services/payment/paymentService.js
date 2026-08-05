@@ -238,6 +238,7 @@ async function pay(school, expenseId, payload, req) {
   claim.voucher = result.voucher._id;
   claim.paymentStatus = 'paid';
   claim.paidBy = req?.user?._id;
+  claim.paidByName = req?.user?.name;
   claim.paidAt = new Date();
   await claim.save();
 

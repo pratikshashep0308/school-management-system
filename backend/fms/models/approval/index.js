@@ -71,6 +71,11 @@ const ExpenseApprovalSchema = new mongoose.Schema({
 
   actor: { type: ObjectId, required: true },
   actorEmail: { type: String },
+  // Denormalised deliberately, following requestedByName on the expense. An
+  // approval record must still say WHO approved even if that user is later
+  // deleted — a database refresh from production removed three finance users
+  // on 4 Aug 2026, and any history keyed on the id alone would have gone blank.
+  actorName: { type: String },
   actorRole: { type: String },
 
   fromStatus: { type: String, required: true },

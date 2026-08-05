@@ -71,6 +71,7 @@ const PaymentVoucherSchema = new mongoose.Schema({
   reversalVoucher: { type: ObjectId, default: null },
 
   paidBy: { type: ObjectId },
+  paidByName: { type: String },      // denormalised; survives user deletion
   paidAt: { type: Date },
 
   failedBy: { type: ObjectId },

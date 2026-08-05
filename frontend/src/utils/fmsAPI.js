@@ -166,6 +166,9 @@ const fmsAPI = {
   // ── Approvals (SCR-18/19) ──────────────────────────────────────────────────
   // The backend enforces thresholds, step order and separation of duties.
   // Call these and render the response — including a 403 with its reason.
+  // Drives the sidebar badge. Reuses the inbox resolution server-side, so the
+  // number can never disagree with the list it points at.
+  getPendingApprovalCount: ()            => api.get('/fms/approvals/pending-count'),
   getApprovalInbox:    (params = {})     => api.get('/fms/approvals/inbox', { params }),
   getApprovalHistory:  (expenseId)       => api.get(`/fms/approvals/history/${expenseId}`),
   getApprovalPosition: (expenseId)       => api.get(`/fms/approvals/position/${expenseId}`),

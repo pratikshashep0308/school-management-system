@@ -16,6 +16,24 @@ const {
 } = require('../utils/apiResponse');
 
 /** GET /api/fms/approvals/inbox — what is waiting on ME (SCR-18). */
+/**
+ * GET /api/fms/approvals/pending-count
+ *
+ * How many requests are waiting for THIS person. Drives the badge in the
+ * sidebar, which is polled — so it returns a number and nothing else rather
+ * than making the caller fetch and count a page of expense documents.
+ *
+ * Uses the same inbox resolution, so the badge can never disagree with the
+ * list it points at. A count computed a second way would eventually drift, and
+ * a badge showing three when the screen shows none is worse than no badge.
+ */
+router.get('/pending-count', fmsAuthorize('approvals', 'VIEW'), asyncHandler(async (req, res) => {
+  const result = await svc.inbox(req.fmsScope.school, req.fmsRole, req.user._id, {
+    skip: 0, limit: 1,
+  });
+  return res.status(200).json({ success: true, data: { pending: result.total } });
+}));
+
 router.get('/inbox', fmsAuthorize('approvals', 'VIEW'), asyncHandler(async (req, res) => {
   const { page, limit, skip } = parsePagination(req.query, {
     allowedSort: ['requestDate'], defaultSort: 'requestDate',

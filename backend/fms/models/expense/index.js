@@ -54,6 +54,9 @@ const WorkflowStepSchema = new mongoose.Schema({
   action: { type: String, required: true },
   actor: { type: ObjectId, required: true },
   actorEmail: { type: String },
+  // See the note on fms_expenseapprovals.actorName — the record must survive
+  // the user being deleted.
+  actorName: { type: String },
   actorRole: { type: String },
   comment: { type: String },
   fromStatus: { type: String },
@@ -85,17 +88,6 @@ const ExpenseRequestSchema = new mongoose.Schema({
 
   // ── What ─────────────────────────────────────────────────────────────────
   category: { type: String, required: true },
-
-  // Reference to fms_expensecategories. A FLAT field, not `category.ref` —
-  // `category` above is a required String carrying live data, and converting it
-  // to a {name, ref} object like `department` and `vendor` would fail to cast
-  // on every existing request.
-  //
-  // Optional, and it does NOT replace budgetHead below. The category supplies a
-  // DEFAULT for budgetHead when one is picked; budgetHead remains the field the
-  // posting actually reads. Two fields claiming to decide the account is how
-  // classification drifts — this one pre-fills, the other decides.
-  categoryRef: { type: ObjectId, default: null },
   subCategory: { type: String },
   purpose: { type: String, required: true },
   remarks: { type: String },
@@ -118,27 +110,6 @@ const ExpenseRequestSchema = new mongoose.Schema({
   totalAmount: { type: Number, required: true, min: 1 },
 
   paymentMode: { type: String, enum: PAYMENT_MODE, required: true },
-
-  // ── Who is being paid ────────────────────────────────────────────────────
-  // `vendor` above covers the vendor case. This exists for the one it cannot:
-  // a teacher who buys materials and claims the money back. Recording that as a
-  // vendor corrupts the vendor ledger and misstates the accounts (P3.1).
-  payeeType: { type: String, enum: ['vendor', 'employee', 'other'], default: 'vendor' },
-  payee: { type: ObjectId, default: null },     // fms_vendors._id or an SMS teacher _id
-  payeeName: { type: String },
-
-  // ── Cost centre ──────────────────────────────────────────────────────────
-  // `costCenter` already exists on the journal and core models, so the ledger
-  // can carry it. It was simply never on the request, which meant an expense
-  // could not be attributed at the point it was raised.
-  costCentre: { type: String, default: null },
-
-  // ── TDS ──────────────────────────────────────────────────────────────────
-  // GST is already fully modelled above (gstRate, cgst, sgst, igst, gstAmount).
-  // TDS was genuinely absent. Posting is Dr expense (gross), Cr payment (net),
-  // Cr 2103 TDS Payable — and the voucher balances or it does not post.
-  tdsSection: { type: String, default: null },   // '194C', '194J', …
-  tdsAmount: { type: Number, default: 0 },       // integer paise
   dueDate: { type: Date },
   priority: { type: String, enum: PRIORITY, default: 'normal' },
 
