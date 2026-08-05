@@ -27,11 +27,6 @@ const LIST_FIELDS =
   '_id expenseNumber requestDate department vendor category purpose ' +
   'budgetHeadCode budgetHeadName baseAmount gstAmount totalAmount paymentMode ' +
   'priority dueDate expenseStatus budgetCheck requestedBy requestedByName ' +
-  // `workflow` carries who acted at each stage. Included so the list can show
-  // an "Approved by" column without a second request per row — the array is a
-  // handful of small subdocuments, and the alternative is N+1 lookups to answer
-  // a question every row asks.
-  'workflow ' +
   'submittedAt createdAt';
 
 /** GET /api/fms/expenses — list with a period total. */
@@ -89,8 +84,13 @@ router.get('/', fmsAuthorize('expenses', 'VIEW'), asyncHandler(async (req, res) 
     ];
   }
 
+  // `workflow` is deliberately NOT in LIST_FIELDS — it grows with every action,
+  // and shipping full arrays for 25 rows to display one name would be wasteful.
+  // Fetched separately below, and reduced to the single field the list needs.
   const [items, total, agg] = await Promise.all([
-    FmsExpenseRequest.find(filter).select(LIST_FIELDS).sort(sort).skip(skip).limit(limit).lean(),
+    FmsExpenseRequest.find(filter)
+      .select(LIST_FIELDS + ' workflow.action workflow.actorName workflow.actorEmail workflow.at')
+      .sort(sort).skip(skip).limit(limit).lean(),
     FmsExpenseRequest.countDocuments(filter),
     FmsExpenseRequest.aggregate([
       { $match: { ...filter, expenseStatus: { $nin: ['rejected', 'cancelled'] } } },
@@ -98,9 +98,28 @@ router.get('/', fmsAuthorize('expenses', 'VIEW'), asyncHandler(async (req, res) 
     ]),
   ]);
 
+  // Derive the approver server-side and drop the workflow before it goes out.
+  //
+  // The LAST approval is the signature that released the expense — earlier
+  // steps (accounts verification, an intermediate tier) are on the detail
+  // screen. Showing them all in a list column would make the row unreadable
+  // for the common case of one approver.
+  const rows = items.map((e) => {
+    const approvals = (e.workflow || [])
+      .filter((w) => String(w.action || '').startsWith('approve'));
+    const last = approvals[approvals.length - 1];
+    const { workflow, ...rest } = e;
+    return {
+      ...rest,
+      approvedByName: last?.actorName || last?.actorEmail || null,
+      approvedAt: last?.at || null,
+      approvalCount: approvals.length,
+    };
+  });
+
   return res.status(200).json({
     success: true,
-    count: items.length,
+    count: rows.length,
     pagination: {
       page, limit, total,
       pages: Math.ceil(total / limit),
@@ -112,7 +131,7 @@ router.get('/', fmsAuthorize('expenses', 'VIEW'), asyncHandler(async (req, res) 
       liveAmount: agg[0]?.total || 0,
       note: 'Totals exclude rejected and cancelled requests',
     },
-    data: items,
+    data: rows,
   });
 }));
 
