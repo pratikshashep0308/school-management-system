@@ -490,6 +490,8 @@ const Expenses = () => {
                 <th className="py-2 pr-3 font-medium">Purpose</th>
                 <th className="py-2 pr-3 font-medium">Account</th>
                 <th className="py-2 pr-3 font-medium">Amount</th>
+                <th className="py-2 pr-3 font-medium">Raised by</th>
+                <th className="py-2 pr-3 font-medium">Approved by</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
                 <th className="py-2" />
               </tr>

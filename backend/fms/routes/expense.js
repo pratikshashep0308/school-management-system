@@ -27,6 +27,11 @@ const LIST_FIELDS =
   '_id expenseNumber requestDate department vendor category purpose ' +
   'budgetHeadCode budgetHeadName baseAmount gstAmount totalAmount paymentMode ' +
   'priority dueDate expenseStatus budgetCheck requestedBy requestedByName ' +
+  // `workflow` carries who acted at each stage. Included so the list can show
+  // an "Approved by" column without a second request per row — the array is a
+  // handful of small subdocuments, and the alternative is N+1 lookups to answer
+  // a question every row asks.
+  'workflow ' +
   'submittedAt createdAt';
 
 /** GET /api/fms/expenses — list with a period total. */
