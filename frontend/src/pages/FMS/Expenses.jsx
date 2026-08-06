@@ -513,15 +513,13 @@ const Expenses = () => {
                   <td className="py-2.5 pr-3"><Money paise={r.totalAmount} /></td>
                   <td className="py-2.5 pr-3 text-xs">{r.requestedByName || '—'}</td>
                   <td className="py-2.5 pr-3 text-xs">
-                    {/* The LAST approval in the chain — the signature that
-                        released it. Earlier steps are on the detail screen;
-                        listing them all here would make the row unreadable. */}
-                    {(() => {
-                      const done = (r.workflow || [])
-                        .filter((w) => String(w.action || '').startsWith('approve'));
-                      const last = done[done.length - 1];
-                      return last?.actorName || last?.actorEmail || '—';
-                    })()}
+                    {/* Derived by the server. `workflow` is not in the list
+                        projection — it grows with every action, and shipping
+                        whole arrays to display one name would be wasteful. */}
+                    {r.approvedByName || '—'}
+                    {r.approvalCount > 1 && (
+                      <span className="ml-1 text-[var(--muted)]">+{r.approvalCount - 1}</span>
+                    )}
                   </td>
                   <td className="py-2.5 pr-3 text-xs"
                     style={{ color: STATUS_TONE[r.expenseStatus] || 'var(--muted)' }}>
