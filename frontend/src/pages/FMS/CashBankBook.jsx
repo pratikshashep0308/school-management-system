@@ -233,7 +233,7 @@ const CashBankBook = () => {
                 <thead>
                   <tr className="border-b border-[var(--border)] bg-[var(--canvas)]">
                     <th className="px-4 py-2.5 text-left text-xs uppercase text-[var(--muted)]">Date</th>
-                    <th className="px-4 py-2.5 text-left text-xs uppercase text-[var(--muted)]">Particulars</th>
+                    <th className="px-4 py-2.5 text-left text-xs uppercase text-[var(--muted)]">Movements</th>
                     <th className="px-4 py-2.5 text-right text-xs uppercase text-[var(--muted)]">Receipts</th>
                     <th className="px-4 py-2.5 text-right text-xs uppercase text-[var(--muted)]">Payments</th>
                     <th className="px-4 py-2.5 text-right text-xs uppercase text-[var(--muted)]">Balance</th>
@@ -245,11 +245,29 @@ const CashBankBook = () => {
                       <td className="whitespace-nowrap px-4 py-2 text-xs">
                         {d.date ? new Date(d.date).toLocaleDateString('en-IN') : '—'}
                       </td>
-                      <td className="px-4 py-2">{d.narration || d.particulars || '—'}</td>
-                      <td className="px-4 py-2 text-right"><Money paise={d.receipts ?? d.debit} /></td>
-                      <td className="px-4 py-2 text-right"><Money paise={d.payments ?? d.credit} /></td>
-                      <td className="px-4 py-2 text-right text-[var(--muted)]">
-                        <Money paise={d.balance ?? d.runningBalance} />
+                      <td className="px-4 py-2 text-xs">
+                        {/* Each row is a DAY, not a transaction — the endpoint
+                            returns a per-day summary with a count, not the
+                            individual entries. So there is no narration to
+                            show; how many movements made up the day is the
+                            honest thing to say instead.
+
+                            A per-transaction cash book would be more useful and
+                            is a different endpoint. Inventing a narration here
+                            would mean showing one entry's description against a
+                            day that may contain several. */}
+                        {d.entries > 0
+                          ? `${d.entries} ${d.entries === 1 ? 'entry' : 'entries'}`
+                          : <span className="text-[var(--muted)]">no movement</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right"><Money paise={d.receipts ?? 0} /></td>
+                      <td className="px-4 py-2 text-right"><Money paise={d.payments ?? 0} /></td>
+                      <td className="px-4 py-2 text-right font-medium">
+                        {/* closingBalance — NOT `balance`, which does not exist
+                            on the response. Reading a field that was never sent
+                            rendered every row as a dash, which looked like a
+                            missing figure rather than a wrong field name. */}
+                        <Money paise={d.closingBalance ?? 0} />
                       </td>
                     </tr>
                   ))}
