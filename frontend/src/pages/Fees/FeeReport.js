@@ -252,15 +252,46 @@ export default function FeeReport() {
   }, []);
 
   // Load students
+  //
+  // ─── PAGE THROUGH, DO NOT TAKE THE FIRST PAGE ─────────────────────────────
+  // /fees/students defaults to 50 rows per page. This asked once and used
+  // whatever came back, so the screen showed the first 50 of 169 and labelled
+  // it "50 of 50" — every figure on the page, including the collection totals,
+  // was a quarter of the truth.
+  //
+  // The response carries `pages`, so the loop is bounded by what the server
+  // reports rather than by guessing when to stop. The cap is a safety net
+  // against a malformed response, not an expected limit.
   const loadStudents = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {};
-      if (classId) params.classId = classId;
-      if (statusFilter) params.status = statusFilter;
-      const fn = feeAPI.getStudentsFees || feeAPI.getStudents || feeAPI.getStudents;
-      const r = await fn(params);
-      setStudents(r.data.data || []);
+      const base = {};
+      if (classId) base.classId = classId;
+      if (statusFilter) base.status = statusFilter;
+
+      const fn = feeAPI.getStudentsFees || feeAPI.getStudents;
+      const PAGE = 100;
+      const MAX_PAGES = 50;
+
+      const first = await fn({ ...base, page: 1, limit: PAGE });
+      const rows = first.data.data || [];
+      const pages = Math.min(Number(first.data.pages) || 1, MAX_PAGES);
+
+      // Remaining pages in parallel — four sequential round trips to draw one
+      // table is a visible wait on a slow connection.
+      if (pages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            fn({ ...base, page: i + 2, limit: PAGE }).then((r) => r.data.data || []))
+        );
+        rest.forEach((chunk) => rows.push(...chunk));
+      }
+
+      setStudents(rows);
+
+      if ((Number(first.data.pages) || 1) > MAX_PAGES) {
+        toast.error('This list is unusually long and has been truncated — narrow it by class.');
+      }
     } catch { toast.error('Failed to load'); }
     finally { setLoading(false); }
   }, [classId, statusFilter]);
