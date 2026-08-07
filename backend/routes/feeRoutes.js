@@ -3,6 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const ctrl = require('../controllers/feeController');
+const categoryReport = require('../controllers/feeCategoryReportController');
 // analytics is added as ctrl.getAnalytics
 
 router.use(protect);
@@ -15,15 +16,18 @@ const STAFF = ['superAdmin', 'schoolAdmin', 'accountant', 'teacher'];
 // Dashboard
 router.get('/dashboard',      authorize(...ADMIN), ctrl.getDashboard);
 router.get('/recent-payments', authorize(...ADMIN), ctrl.getRecentPayments);
-// Read-only view of the FeePayment collection. Exists so the third fee store can
-// be reconciled against the other two — nothing else reaches it.
-router.get('/payments-ledger', authorize(...ADMIN), ctrl.getPaymentsLedger);
 router.get('/analytics',      authorize(...ADMIN), ctrl.getAnalytics);   // ← NEW: school-wide analytics
 
 // Summary & analytics (existing — kept)
 router.get('/summary',        authorize(...ADMIN), ctrl.getOverallSummary);
 router.get('/class-summary',  authorize(...ADMIN), ctrl.getClassSummary);
 router.get('/students',       authorize(...ADMIN), ctrl.getStudentsFees);
+
+// Category-wise report: one row per student with expected/paid/pending for each
+// fee type. Separate from /students, which powers the existing report and
+// several other screens — reshaping that would put this work in the path of
+// every caller, including ones that only need a total.
+router.get('/category-report', authorize(...ADMIN), categoryReport.getCategoryReport);
 
 // Export
 router.get('/export',         authorize(...ADMIN), ctrl.exportFees);

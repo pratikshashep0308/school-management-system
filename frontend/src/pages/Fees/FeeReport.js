@@ -367,6 +367,159 @@ export default function FeeReport() {
     </body></html>`;
   };
 
+
+  /**
+   * Category-wise PDF — one row per student, every fee category in the same
+   * report.
+   *
+   * Separate from exportPDF() rather than replacing it: the existing summary
+   * report is what most people want most of the time, and a nine-column-wide
+   * landscape sheet is not an improvement when you only need a total.
+   *
+   * Fetches its own data. The list on screen carries totals only; category
+   * figures need assignments joined to receipt breakdowns, which is what
+   * /fees/category-report does.
+   */
+  const exportCategoryPDF = async () => {
+    const w = window.open('', '_blank');
+    if (!w) { toast.error('Please allow pop-ups'); return; }
+    w.document.write('<p style="font-family:system-ui;padding:24px">Preparing the report…</p>');
+
+    try {
+      const params = {};
+      if (classId) params.classId = classId;
+      if (statusFilter) params.status = statusFilter;
+
+      const res = await feeAPI.getCategoryReport(params);
+      const d = res?.data?.data ?? res?.data;
+      const { columns = [], rows = [], totals = {}, byCategory = {} } = d || {};
+
+      if (rows.length === 0) {
+        w.document.body.innerHTML = '<p style="font-family:system-ui;padding:24px">No students matched these filters.</p>';
+        return;
+      }
+
+      const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const money = (n) => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+      const cls = classId ? (classes.find(c => c._id === classId)?.name || 'Class') : 'All Classes';
+
+      // Three sub-columns per category plus four fixed and three overall. Past
+      // roughly six categories A4 landscape stops being readable, so the page
+      // steps up to A3 rather than shrinking the type to fit.
+      const wide = columns.length > 4;
+      const anyUnallocated = totals.unallocated > 0;
+      const overpaidRows = rows.filter(r => (r.overpaid || []).length > 0);
+
+      const html = `<html><head><title>Fee Report — ${esc(cls)}</title><style>
+        @page { size: ${wide ? 'A3' : 'A4'} landscape; margin: 10mm; }
+        body { font-family: system-ui, Arial, sans-serif; color:#111827; margin:0; }
+        h1 { font-size:17px; color:#0B1F4A; margin:0 0 2px; }
+        .sub { color:#6B7280; font-size:11px; margin-bottom:12px; }
+        .kpis { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+        .kpi { border:1px solid #E5E7EB; border-radius:6px; padding:6px 12px; font-size:10px; }
+        .kpi b { display:block; font-size:14px; color:#0B1F4A; }
+        table { width:100%; border-collapse:collapse; font-size:9px; }
+        th { background:#0B1F4A; color:#fff; padding:4px 5px; text-align:left; font-weight:600; }
+        th.grp { text-align:center; border-left:2px solid #fff; }
+        td { padding:3px 5px; border-bottom:1px solid #F3F4F6; }
+        td.n { text-align:right; font-variant-numeric:tabular-nums; }
+        tr:nth-child(even) td { background:#F9FAFB; }
+        tfoot td { font-weight:700; border-top:2px solid #0B1F4A; background:#EEF2FF !important; }
+        /* Headers repeat on every printed page — a continuation sheet of bare
+           numbers is unreadable. */
+        thead { display:table-header-group; }
+        tr { break-inside:avoid; }
+        .note { margin-top:10px; font-size:9px; color:#6B7280; line-height:1.5; }
+        .warn { color:#B45309; }
+      </style></head><body>
+        <h1>Fee Report — ${esc(cls)}</h1>
+        <div class="sub">The Future Step School · Academic Year 2026–27 ·
+          ${new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })} ·
+          ${rows.length} student${rows.length === 1 ? '' : 's'}</div>
+
+        <div class="kpis">
+          <div class="kpi">Expected<b>${money(totals.expected)}</b></div>
+          <div class="kpi">Collected<b>${money(totals.paid)}</b></div>
+          <div class="kpi">Pending<b>${money(totals.pending)}</b></div>
+          <div class="kpi">Collection<b>${totals.collectionRate}%</b></div>
+          ${columns.map(c => `<div class="kpi">${esc(c)}<b>${money(byCategory[c]?.paid)}</b>
+            <span style="color:#6B7280">of ${money(byCategory[c]?.expected)}</span></div>`).join('')}
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2">#</th>
+              <th rowspan="2">Roll No</th>
+              <th rowspan="2">Student</th>
+              <th rowspan="2">Class</th>
+              ${columns.map(c => `<th class="grp" colspan="3">${esc(c).toUpperCase()}</th>`).join('')}
+              ${anyUnallocated ? '<th class="grp" rowspan="2">Unallocated</th>' : ''}
+              <th class="grp" colspan="3">OVERALL</th>
+              <th rowspan="2">Status</th>
+            </tr>
+            <tr>
+              ${columns.map(() => '<th>Total</th><th>Paid</th><th>Pending</th>').join('')}
+              <th>Total</th><th>Paid</th><th>Pending</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r, i) => `<tr>
+              <td>${i + 1}</td>
+              <td>${esc(r.rollNumber)}</td>
+              <td>${esc(r.name)}</td>
+              <td>${esc(r.className)}</td>
+              ${columns.map(c => {
+                const k = r.categories[c] || { expected:0, paid:0, pending:0 };
+                const flag = (r.overpaid || []).includes(c) ? ' class="n warn"' : ' class="n"';
+                return `<td class="n">${money(k.expected)}</td><td${flag}>${money(k.paid)}</td><td class="n">${money(k.pending)}</td>`;
+              }).join('')}
+              ${anyUnallocated ? `<td class="n">${r.unallocated ? money(r.unallocated) : '—'}</td>` : ''}
+              <td class="n">${money(r.total.expected)}</td>
+              <td class="n">${money(r.total.paid)}</td>
+              <td class="n">${money(r.total.pending)}</td>
+              <td>${esc(r.status)}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4">GRAND TOTAL — ${rows.length} student${rows.length === 1 ? '' : 's'}</td>
+              ${columns.map(c => {
+                const k = byCategory[c] || { expected:0, paid:0, pending:0 };
+                return `<td class="n">${money(k.expected)}</td><td class="n">${money(k.paid)}</td><td class="n">${money(k.pending)}</td>`;
+              }).join('')}
+              ${anyUnallocated ? `<td class="n">${money(totals.unallocated)}</td>` : ''}
+              <td class="n">${money(totals.expected)}</td>
+              <td class="n">${money(totals.paid)}</td>
+              <td class="n">${money(totals.pending)}</td>
+              <td>${totals.collectionRate}%</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="note">
+          Expected comes from fee assignments; paid comes from the category breakdown
+          recorded on each receipt.
+          ${anyUnallocated ? `<br><span class="warn">${money(totals.unallocated)} was paid without a category breakdown.</span>
+            It is included in Overall Paid but not attributed to any category — deliberately
+            not spread across them, since no such split was recorded.` : ''}
+          ${overpaidRows.length > 0 ? `<br><span class="warn">${overpaidRows.length} student(s) show more paid than assigned in a
+            category (marked in amber).</span> Usually a payment against something never formally assigned — worth checking.` : ''}
+        </div>
+      </body></html>`;
+
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 600);
+    } catch (err) {
+      w.document.body.innerHTML = '<p style="font-family:system-ui;padding:24px;color:#B91C1C">'
+        + 'Could not build the report: ' + String(err?.response?.data?.message || err.message) + '</p>';
+      toast.error('Could not build the category report');
+    }
+  };
+
   const exportPDF = () => {
     const w = window.open('','_blank');
     if(!w){ toast.error('Please allow pop-ups'); return; }
@@ -401,6 +554,8 @@ export default function FeeReport() {
           <p className="text-sm text-muted mt-0.5">School-wide fee collection overview and student-wise details</p>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          <button onClick={exportCategoryPDF} title="Full report with School Fee, Bus Fee and Stationery per student"
+            style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#0B1F4A', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📋 Category PDF</button>
           <button onClick={exportPDF} title="Open printable report → Save as PDF"
             style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#DC2626', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📄 PDF</button>
           <button onClick={exportPDF} title="Print report"

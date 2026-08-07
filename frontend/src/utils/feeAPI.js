@@ -47,6 +47,8 @@ const feeAPI = {
   payAssignment:     (id, data)   => api.post(`/fees/assignments/${id}/pay`, data),
   generateTransportFees: (data)   => api.post('/fees/generate-transport', data),
   getStudentsFees:   (params={})  => api.get('/fees/students', { params }),
+  // Category-wise report: expected from assignments, paid from receipt breakdowns.
+  getCategoryReport: (params = {}) => api.get('/fees/category-report', { params }),
 
   // ── Export ────────────────────────────────────────────────────────────────
   export: (params={}) => api.get('/fees/export', { params, responseType: 'blob' }),
