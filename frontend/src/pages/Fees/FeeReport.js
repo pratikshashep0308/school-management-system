@@ -314,27 +314,40 @@ export default function FeeReport() {
 
   const escCsv = (v) => { const t=String(v??''); return /[",\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t; };
 
-  const exportExcel = () => {
-    const rows = rowsForExport();
-    const summary = [
+  const exportExcel = async () => {
+    const d = await fetchCategoryData();
+    if (d === null) return;
+    const { top, sub, body, grand } = flattenCategory(d);
+    const { totals } = d;
+
+    const meta = [
       ['Fee Report', reportTitle()],
       ['Generated', new Date().toLocaleString('en-IN')],
-      ['Total Expected', Math.round(schoolTotal)],
-      ['Total Collected', Math.round(schoolCollected)],
-      ['Total Pending', Math.round(schoolTotal - schoolCollected)],
-      ['Collection Rate', collRate + '%'],
+      ['Students', d.rows.length],
+      ['Total Expected', Math.round(totals.expected)],
+      ['Total Collected', Math.round(totals.paid)],
+      ['Total Pending', Math.round(totals.pending)],
+      ['Collection Rate', totals.collectionRate + '%'],
       [],
     ];
+
+    // Amounts go out as plain numbers, not "₹9,400" — a spreadsheet cannot sum
+    // a formatted string, and summing is why somebody opens the CSV.
     const lines = [
-      ...summary.map(r=>r.map(escCsv).join(',')),
-      COLS.map(escCsv).join(','),
-      ...rows.map(r=>r.map(escCsv).join(',')),
+      ...meta.map((r) => r.map(escCsv).join(',')),
+      top.map(escCsv).join(','),
+      sub.map(escCsv).join(','),
+      ...body.map((r) => r.map(escCsv).join(',')),
+      grand.map(escCsv).join(','),
     ];
-    const blob = new Blob(['\ufeff'+lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href=url; a.download=`${reportTitle().replace(/[^\w]+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+    const a2 = document.createElement('a');
+    a2.href = url;
+    a2.download = `${reportTitle().replace(/[^\w]+/g, '_')}_category.csv`;
+    a2.click();
+    URL.revokeObjectURL(url);
     toast.success('Excel (CSV) downloaded');
   };
 
@@ -380,19 +393,85 @@ export default function FeeReport() {
    * figures need assignments joined to receipt breakdowns, which is what
    * /fees/category-report does.
    */
+
+  /**
+   * The category report, fetched once and shaped for whichever export asked.
+   *
+   * All four exports now show the same figures — the only difference is the
+   * format. Building the category logic separately in each would guarantee they
+   * drift apart, and a CSV that disagrees with the PDF is worse than not having
+   * the CSV.
+   *
+   * Returns null and shows the reason if it fails, so callers can stop rather
+   * than emitting an empty file.
+   */
+  const fetchCategoryData = async () => {
+    try {
+      const params = {};
+      if (classId) params.classId = classId;
+      if (statusFilter) params.status = statusFilter;
+      const res = await feeAPI.getCategoryReport(params);
+      const d = res?.data?.data ?? res?.data;
+      if (!d || !Array.isArray(d.rows)) throw new Error('Unexpected response');
+      return d;
+    } catch (err) {
+      toast.error('Could not load the category report: '
+        + String(err?.response?.data?.message || err.message));
+      return null;
+    }
+  };
+
+  /**
+   * Flatten to header + rows for the text formats (CSV, Markdown).
+   *
+   * Two header lines, because a single line cannot express "School Fee" spanning
+   * three sub-columns. CSV readers and Markdown both cope with that; a merged
+   * cell would not survive either.
+   */
+  const flattenCategory = (d) => {
+    const { columns = [], rows = [], totals = {} } = d;
+    const anyUnalloc = totals.unallocated > 0;
+
+    const top = ['', '', '', ''];
+    const sub = ['#', 'Roll No', 'Student', 'Class'];
+    columns.forEach((c) => { top.push(c, '', ''); sub.push('Total', 'Paid', 'Pending'); });
+    if (anyUnalloc) { top.push('Unallocated'); sub.push(''); }
+    top.push('Overall', '', ''); sub.push('Total', 'Paid', 'Pending');
+    top.push(''); sub.push('Status');
+
+    const body = rows.map((r, i) => {
+      const line = [i + 1, r.rollNumber, r.name, r.className];
+      columns.forEach((c) => {
+        const k = r.categories[c] || { expected: 0, paid: 0, pending: 0 };
+        line.push(k.expected, k.paid, k.pending);
+      });
+      if (anyUnalloc) line.push(r.unallocated || 0);
+      line.push(r.total.expected, r.total.paid, r.total.pending, r.status);
+      return line;
+    });
+
+    // Grand total as a row, so it survives into a spreadsheet rather than being
+    // a footer somebody has to retype.
+    const grand = ['', '', `GRAND TOTAL — ${rows.length} students`, ''];
+    columns.forEach((c) => {
+      const k = d.byCategory[c] || { expected: 0, paid: 0, pending: 0 };
+      grand.push(k.expected, k.paid, k.pending);
+    });
+    if (anyUnalloc) grand.push(totals.unallocated);
+    grand.push(totals.expected, totals.paid, totals.pending, totals.collectionRate + '%');
+
+    return { top, sub, body, grand, anyUnalloc };
+  };
+
   const exportCategoryPDF = async () => {
     const w = window.open('', '_blank');
     if (!w) { toast.error('Please allow pop-ups'); return; }
     w.document.write('<p style="font-family:system-ui;padding:24px">Preparing the report…</p>');
 
     try {
-      const params = {};
-      if (classId) params.classId = classId;
-      if (statusFilter) params.status = statusFilter;
-
-      const res = await feeAPI.getCategoryReport(params);
-      const d = res?.data?.data ?? res?.data;
-      const { columns = [], rows = [], totals = {}, byCategory = {} } = d || {};
+      const d = await fetchCategoryData();
+      if (d === null) { w.close(); return; }
+      const { columns = [], rows = [], totals = {}, byCategory = {} } = d;
 
       if (rows.length === 0) {
         w.document.body.innerHTML = '<p style="font-family:system-ui;padding:24px">No students matched these filters.</p>';
@@ -527,21 +606,53 @@ export default function FeeReport() {
     setTimeout(()=>w.print(), 400);
   };
 
-  const exportMarkdown = () => {
-    const rows = rowsForExport();
+  const exportMarkdown = async () => {
+    const d = await fetchCategoryData();
+    if (d === null) return;
+    const { body, grand, anyUnalloc } = flattenCategory(d);
+    const { columns, totals } = d;
+
     let md = `# ${reportTitle()}\n\n`;
     md += `**Generated:** ${new Date().toLocaleString('en-IN')}\n\n`;
-    md += `- Total Expected: ₹${Math.round(schoolTotal).toLocaleString('en-IN')}\n`;
-    md += `- Total Collected: ₹${Math.round(schoolCollected).toLocaleString('en-IN')}\n`;
-    md += `- Total Pending: ₹${Math.round(schoolTotal-schoolCollected).toLocaleString('en-IN')}\n`;
-    md += `- Collection Rate: ${collRate}%\n\n`;
-    md += `| ${COLS.join(' | ')} |\n| ${COLS.map(()=>'---').join(' | ')} |\n`;
-    md += rows.map(r=>`| ${r.join(' | ')} |`).join('\n');
-    const blob = new Blob([md], { type:'text/markdown;charset=utf-8;' });
+    md += `- Students: ${d.rows.length}\n`;
+    md += `- Total Expected: ₹${Math.round(totals.expected).toLocaleString('en-IN')}\n`;
+    md += `- Total Collected: ₹${Math.round(totals.paid).toLocaleString('en-IN')}\n`;
+    md += `- Total Pending: ₹${Math.round(totals.pending).toLocaleString('en-IN')}\n`;
+    md += `- Collection Rate: ${totals.collectionRate}%\n\n`;
+
+    md += `## By category\n\n| Category | Expected | Collected | Pending |\n|---|---|---|---|\n`;
+    columns.forEach((c2) => {
+      const k = d.byCategory[c2] || {};
+      md += `| ${c2} | ₹${Math.round(k.expected || 0).toLocaleString('en-IN')} `
+          + `| ₹${Math.round(k.paid || 0).toLocaleString('en-IN')} `
+          + `| ₹${Math.round(k.pending || 0).toLocaleString('en-IN')} |\n`;
+    });
+
+    md += `\n## Students\n\n`;
+
+    // Markdown cannot span columns, so the category name folds into each
+    // sub-header — "School Fee Paid" rather than a group row that would not render.
+    const header = ['#', 'Roll No', 'Student', 'Class'];
+    columns.forEach((c2) => header.push(`${c2} Total`, `${c2} Paid`, `${c2} Pending`));
+    if (anyUnalloc) header.push('Unallocated');
+    header.push('Overall Total', 'Overall Paid', 'Overall Pending', 'Status');
+
+    md += `| ${header.join(' | ')} |\n| ${header.map(() => '---').join(' | ')} |\n`;
+    md += body.map((r) => `| ${r.join(' | ')} |`).join('\n');
+    md += `\n| ${grand.join(' | ')} |\n`;
+
+    if (totals.unallocated > 0) {
+      md += `\n> ₹${Math.round(totals.unallocated).toLocaleString('en-IN')} was paid without a `
+          + `category breakdown. It is included in Overall Paid but not attributed to any category.\n`;
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=`${reportTitle().replace(/[^\w]+/g,'_')}.md`;
-    a.click(); URL.revokeObjectURL(url);
+    const a3 = document.createElement('a');
+    a3.href = url;
+    a3.download = `${reportTitle().replace(/[^\w]+/g, '_')}_category.md`;
+    a3.click();
+    URL.revokeObjectURL(url);
     toast.success('Markdown downloaded');
   };
 
@@ -554,11 +665,9 @@ export default function FeeReport() {
           <p className="text-sm text-muted mt-0.5">School-wide fee collection overview and student-wise details</p>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={exportCategoryPDF} title="Full report with School Fee, Bus Fee and Stationery per student"
-            style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#0B1F4A', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📋 Category PDF</button>
-          <button onClick={exportPDF} title="Open printable report → Save as PDF"
+          <button onClick={exportCategoryPDF} title="Full report — School Fee, Bus Fee and Stationery per student → Save as PDF"
             style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#DC2626', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📄 PDF</button>
-          <button onClick={exportPDF} title="Print report"
+          <button onClick={exportCategoryPDF} title="Print the full category report"
             style={{ padding:'8px 14px', borderRadius:9, border:'1.5px solid #0B1F4A', background:'#fff', color:'#0B1F4A', fontSize:12, fontWeight:700, cursor:'pointer' }}>🖨️ Print</button>
           <button onClick={exportExcel} title="Download as Excel (CSV)"
             style={{ padding:'8px 14px', borderRadius:9, border:'none', background:'#16A34A', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>📊 Excel</button>
