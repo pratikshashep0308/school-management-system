@@ -187,6 +187,12 @@ export default function FeeReport() {
   const [students,    setStudents]    = useState([]);
   const [classId,     setClassId]     = useState('');
   const [statusFilter,setStatusFilter]= useState('');
+
+  // Which fee type the exports cover. '' = all of them, which is the default and
+  // the common case — the consolidated report is what most people want. Narrowing
+  // to one type is for chasing a specific arrear, e.g. bus fee.
+  const [feeTypeFilter, setFeeTypeFilter] = useState('');
+  const [feeTypeOptions, setFeeTypeOptions] = useState([]);
   const [search,      setSearch]      = useState('');
   const [sortBy,      setSortBy]      = useState('name'); // name | paid | pending | roll
   const [activeView,  setActiveView]  = useState('all'); // all | defaulters | paid | partial
@@ -260,6 +266,20 @@ export default function FeeReport() {
   }, [classId, statusFilter]);
 
   useEffect(() => { loadStudents(); }, [loadStudents]);
+
+  // Fee types for the filter, loaded once on mount rather than waiting for the
+  // first report — a dropdown that is empty until you have already generated
+  // something is not much of a filter.
+  useEffect(() => {
+    feeAPI.getFeeTypes?.()
+      .then((r) => {
+        const list = r?.data?.data ?? r?.data ?? [];
+        setFeeTypeOptions(list.map((t) => t.name).filter(Boolean));
+      })
+      // Silently ignored: the options repopulate from the report itself, so a
+      // failure here degrades to "All Fee Types" rather than breaking the page.
+      .catch(() => {});
+  }, []);
 
   // Compute school totals from students
   const schoolTotal     = students.reduce((s,st)=>s+(st.totalFees||0),0);
@@ -413,6 +433,54 @@ export default function FeeReport() {
       const res = await feeAPI.getCategoryReport(params);
       const d = res?.data?.data ?? res?.data;
       if (!d || !Array.isArray(d.rows)) throw new Error('Unexpected response');
+
+      // Remember the categories this school actually uses, so the dropdown
+      // reflects the data rather than a hardcoded list. Populated from the first
+      // report generated; a school that adds a fee type sees it next time.
+      if (Array.isArray(d.columns) && d.columns.length > 0) setFeeTypeOptions(d.columns);
+
+      // Narrow to one category if asked. Done here rather than server-side so a
+      // single fetch can serve either view, and so the totals below are always
+      // computed from the same rows the table shows.
+      if (feeTypeFilter && d.columns.includes(feeTypeFilter)) {
+        const only = feeTypeFilter;
+        const rows = d.rows.map((r) => {
+          const k = r.categories[only] || { expected: 0, paid: 0, pending: 0 };
+          let status;
+          if (k.expected === 0) status = 'NOT APPLICABLE';
+          else if (k.paid <= 0) status = 'PENDING';
+          else if (k.pending <= 0) status = 'PAID';
+          else status = 'PARTIAL';
+          return {
+            ...r,
+            categories: { [only]: k },
+            // Unallocated is deliberately dropped: money with no category
+            // breakdown cannot be claimed by a single-category report.
+            unallocated: 0,
+            total: { expected: k.expected, paid: k.paid, pending: k.pending },
+            status,
+          };
+        });
+        const cat = d.byCategory[only] || { expected: 0, paid: 0, pending: 0 };
+        return {
+          ...d,
+          columns: [only],
+          rows,
+          byCategory: { [only]: cat },
+          totals: {
+            ...d.totals,
+            expected: cat.expected,
+            paid: cat.paid,
+            pending: cat.pending,
+            unallocated: 0,
+            students: rows.length,
+            collectionRate: cat.expected > 0
+              ? Math.round((cat.paid / cat.expected) * 1000) / 10 : 0,
+          },
+          filteredTo: only,
+        };
+      }
+
       return d;
     } catch (err) {
       toast.error('Could not load the category report: '
@@ -511,7 +579,7 @@ export default function FeeReport() {
         .note { margin-top:10px; font-size:9px; color:#6B7280; line-height:1.5; }
         .warn { color:#B45309; }
       </style></head><body>
-        <h1>Fee Report — ${esc(cls)}</h1>
+        <h1>Fee Report — ${esc(cls)}${d.filteredTo ? ' — ' + esc(d.filteredTo) + ' only' : ''}</h1>
         <div class="sub">The Future Step School · Academic Year 2026–27 ·
           ${new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })} ·
           ${rows.length} student${rows.length === 1 ? '' : 's'}</div>
@@ -803,6 +871,12 @@ export default function FeeReport() {
           <option value="paid">Paid</option>
           <option value="partial">Partial</option>
           <option value="not_paid">Unpaid</option>
+        </select>
+
+        {/* Fee type — narrows every export to one category */}
+        <select value={feeTypeFilter} onChange={e=>setFeeTypeFilter(e.target.value)} style={SEL}>
+          <option value="">All Fee Types</option>
+          {feeTypeOptions.map(t => <option key={t} value={t}>{t} only</option>)}
         </select>
 
         {/* Sort */}
