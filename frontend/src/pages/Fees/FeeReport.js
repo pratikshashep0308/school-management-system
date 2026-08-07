@@ -298,17 +298,24 @@ export default function FeeReport() {
 
   useEffect(() => { loadStudents(); }, [loadStudents]);
 
-  // Fee types for the filter, loaded once on mount rather than waiting for the
-  // first report — a dropdown that is empty until you have already generated
-  // something is not much of a filter.
+  // Fee types for the filter.
+  //
+  // Taken from the CATEGORY REPORT, not from /fees/types. The master list holds
+  // every type the school has ever defined — 13 of them — while only three are
+  // actually assigned to anybody. Offering "Library Fee only" when no student
+  // has a library fee produces an empty report and a puzzled reader.
+  //
+  // So the dropdown is populated from the same endpoint that fills the report,
+  // which returns only the types with an assignment or a payment against them.
+  // Loaded once on mount so the filter is usable before anything is generated.
   useEffect(() => {
-    feeAPI.getFeeTypes?.()
+    feeAPI.getCategoryReport({})
       .then((r) => {
-        const list = r?.data?.data ?? r?.data ?? [];
-        setFeeTypeOptions(list.map((t) => t.name).filter(Boolean));
+        const d = r?.data?.data ?? r?.data;
+        if (Array.isArray(d?.columns)) setFeeTypeOptions(d.columns);
       })
-      // Silently ignored: the options repopulate from the report itself, so a
-      // failure here degrades to "All Fee Types" rather than breaking the page.
+      // Silently ignored: the options repopulate whenever a report is generated,
+      // so a failure here degrades to "All Fee Types" rather than breaking the page.
       .catch(() => {});
   }, []);
 
