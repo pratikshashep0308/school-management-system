@@ -7,6 +7,11 @@ import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 import PhoneInput from '../components/ui/PhoneInput';
 
+// Height of the fixed app header. Modals open BELOW it rather than over it —
+// a full-viewport overlay with a 92vh panel covered the header and sidebar,
+// so opening an employee hid the navigation needed to get back.
+const HEADER_H = 72;
+
 const ROLES = ['Teacher','Principal','Vice Principal','Accountant','Librarian','Transport Manager','Admin Staff','Peon','Security'];
 const GENDERS = ['Male','Female','Other'];
 const BLOOD_GROUPS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
@@ -384,9 +389,9 @@ function ViewModal({ t, onClose, onEdit, isAdmin }) {
   const docsWithFiles = sortedDocs.filter(d => Array.isArray(d?.files) && d.files.length > 0);
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}
+    <div style={{ position:'fixed', top:HEADER_H, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:1000, padding:'24px 16px', overflowY:'auto' }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:760, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:760, maxHeight:`calc(100vh - ${HEADER_H}px - 48px)`, overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
 
         {/* Sticky header */}
         <div style={{ position:'sticky', top:0, zIndex:1, background:'#0B1F4A', padding:'20px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -523,9 +528,9 @@ function EditModal({ open, onClose, onSave, initial }) {
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}
+    <div style={{ position:'fixed', top:HEADER_H, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:1000, padding:'24px 16px', overflowY:'auto' }}
       onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:980, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:980, maxHeight:`calc(100vh - ${HEADER_H}px - 48px)`, overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
         {/* Header */}
         <div style={{ background:'#0B1F4A', padding:'18px 24px', borderRadius:'16px 16px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div>
