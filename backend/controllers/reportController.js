@@ -26,25 +26,32 @@ const MODULE_META = {
     label: 'Admissions',
     collection: 'admissions',
     fields: [
-      { key: 'applicantName',   label: 'Applicant',        type: 'string' },
-      { key: 'classApplied',    label: 'Class Applied For', type: 'string' },
-      { key: 'gender',          label: 'Gender',           type: 'string' },
-      { key: 'dobFmt',          label: 'Date of Birth',    type: 'date' },
-      { key: 'parentName',      label: 'Parent Name',      type: 'string' },
-      { key: 'parentPhone',     label: 'Parent Phone',     type: 'string' },
-      { key: 'status',          label: 'Status',           type: 'string' },
-      { key: 'appliedOnFmt',    label: 'Applied On',       type: 'date' },
-      { key: 'regFeeAmount',    label: 'Registration Fee', type: 'number' },
-      { key: 'regFeePaid',      label: 'Reg Fee Paid',     type: 'string' },
+      { key: 'applicantName',     label: 'Student',        type: 'string' },
+      { key: 'applicationNumber', label: 'Application No.', type: 'string' },
+      { key: 'className',         label: 'Class',          type: 'string' },
+      { key: 'gender',            label: 'Gender',         type: 'string' },
+      { key: 'category',          label: 'Category',       type: 'string' },
+      { key: 'academicYear',      label: 'Academic Year',  type: 'string' },
+      { key: 'parentName',        label: 'Parent',         type: 'string' },
+      { key: 'parentPhone',       label: 'Parent Phone',   type: 'string' },
+      { key: 'admittedOn',        label: 'Admitted On',    type: 'string' },
+      { key: 'source',            label: 'Source',         type: 'string' },
+      { key: 'siblingCount',      label: 'Siblings',       type: 'number' },
+      { key: 'regFeePaid',        label: 'Reg Fee Paid',   type: 'string' },
+      { key: 'status',            label: 'Status',         type: 'string' },
     ],
+    // `academicYear` and `category` are NOT offered as filters: they are set on
+    // 119 and 90 of 221 records respectively, so filtering on either would
+    // silently drop half the school. They appear as columns instead, where an
+    // empty value is visibly empty.
     filters: [
-      { key: 'status',   label: 'Status', type: 'select', options: ['pending','approved','rejected','enrolled'] },
-      { key: 'gender',   label: 'Gender', type: 'select', options: ['male','female','other'] },
-      { key: 'dateFrom', label: 'Applied From', type: 'date' },
-      { key: 'dateTo',   label: 'Applied To',   type: 'date' },
+      { key: 'gender', label: 'Gender', type: 'select', options: ['male','female','other'] },
+      { key: 'source', label: 'Source', type: 'select', options: ['walk_in','referral','online','advertisement','other'] },
+      { key: 'dateFrom', label: 'Created From', type: 'date' },
+      { key: 'dateTo',   label: 'Created To',   type: 'date' },
     ],
-    groupBy: ['status','gender','classApplied'],
-    sortBy:  ['appliedOnFmt','applicantName'],
+    groupBy: ['class','gender','category','source','academicYear','month','status'],
+    sortBy:  ['admittedOn','applicantName','className'],
   },
   homework: {
     label: 'Homework',
@@ -406,19 +413,56 @@ exports.getPredefined = async (req, res) => {
 
   const ALL = [
     {
-      id: 'admissions-pipeline', module: 'admissions', category: 'Admissions',
-      name: 'Admissions — By Status',
-      description: 'Enquiries, approvals and enrolments at a glance',
-      fields: ['applicantName','classApplied','parentPhone','status','appliedOnFmt'],
-      filters: {}, groupBy: 'status', sortBy: { field: 'appliedOnFmt', order: -1 },
+      id: 'admissions-by-class', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Class',
+      description: 'How many students were admitted into each class',
+      fields: ['applicantName','applicationNumber','className','gender','admittedOn'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'className', order: 1 },
       chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
     },
     {
+      id: 'admissions-register', module: 'admissions', category: 'Admissions',
+      name: 'Admissions Register',
+      description: 'Every admission with parent contact and date — the full list',
+      fields: ['applicantName','applicationNumber','className','gender','parentName','parentPhone','admittedOn'],
+      filters: {}, groupBy: '', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'admissions-by-month', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Month',
+      description: 'When students joined, month by month',
+      fields: ['applicantName','className','admittedOn'],
+      filters: {}, groupBy: 'month', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      // Category is recorded on 90 of 221. The gap is the point of the report —
+      // government returns need this, and a blank is a record to go back and
+      // complete rather than a number to quietly omit.
+      id: 'admissions-by-category', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Category',
+      description: 'Social category breakdown for statutory returns; blanks show what is missing',
+      fields: ['applicantName','className','category','gender'],
+      filters: {}, groupBy: 'category', sortBy: { field: 'applicantName', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'admissions-by-source', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — How They Found Us',
+      description: 'Walk-in, referral, online — where admissions come from',
+      fields: ['applicantName','className','source','admittedOn'],
+      filters: {}, groupBy: 'source', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      // registrationFee is {paid:false} with no amount on these records, so the
+      // report lists WHO rather than HOW MUCH.
       id: 'admissions-reg-fee-unpaid', module: 'admissions', category: 'Admissions',
       name: 'Admissions — Registration Fee Unpaid',
-      description: 'Applicants whose registration fee has not been received',
-      fields: ['applicantName','classApplied','parentPhone','regFeeAmount','appliedOnFmt'],
-      filters: {}, groupBy: '', sortBy: { field: 'appliedOnFmt', order: -1 },
+      description: 'Admissions with no registration fee recorded as received',
+      fields: ['applicantName','applicationNumber','className','parentName','parentPhone','admittedOn'],
+      filters: {}, groupBy: '', sortBy: { field: 'admittedOn', order: -1 },
       chartConfig: { enabled: false },
     },
     {

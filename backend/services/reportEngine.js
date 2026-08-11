@@ -545,34 +545,64 @@ function feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId) {
   return { model: FeeAssignment, pipeline };
 }
 
-// ─── Admissions — enquiry through to enrolment ────────────────────────────────
+// ─── Admissions ───────────────────────────────────────────────────────────────
+//
+// Written against the real records (checked 11 Aug 2026, 221 documents), not the
+// schema. Three things the schema does not tell you:
+//
+//   · `applyingForClass` holds an ObjectId, so the class name needs a lookup.
+//     Printing the raw id would put a 24-character hex string in the report.
+//   · `registrationFee` is `{paid:false}` — there is no `amount`. A column for
+//     it would be blank on every row.
+//   · `academicYear` is set on 119 of 221 and `category` on 90. Filtering on
+//     either silently hides half the school, so neither is offered as a filter;
+//     both are shown as columns where a blank is visibly a blank.
+//
+// Every record is currently `enrolled`. The admissions workflow is not being
+// used as a pipeline — records are created once a student is already admitted —
+// so reports here describe WHO ENROLLED rather than tracking applications.
 function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
   const Admission = require('../models/Admission');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'createdAt' }, schoolId),
+    { $lookup: { from: 'classes', localField: 'applyingForClass', foreignField: '_id', as: '_class' } },
+    { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
     {
       $addFields: {
-        applicantName: { $trim: { input: { $concat: [
-          { $ifNull: ['$firstName', ''] }, ' ', { $ifNull: ['$lastName', ''] },
-        ] } } },
-        appliedOnFmt: { $dateToString: { format: '%d/%m/%Y', date: '$createdAt' } },
-        dobFmt:       { $dateToString: { format: '%d/%m/%Y', date: '$dateOfBirth' } },
-        // A registration fee may be recorded but unpaid; the flag is what the
-        // office chases, so it is surfaced rather than left inside the subdocument.
-        regFeeAmount: '$registrationFee.amount',
-        regFeePaid:   { $cond: [{ $eq: ['$registrationFee.paid', true] }, 'Yes', 'No'] },
+        // studentName is populated on all 221; firstName/lastName are too, but
+        // the full name is what the office recognises.
+        applicantName: '$studentName',
+        className: {
+          $trim: { input: { $concat: [
+            { $ifNull: ['$_class.name', ''] }, ' ', { $ifNull: ['$_class.section', ''] },
+          ] } },
+        },
+        admittedOn: '$dateOfAdmission',
+        // dateOfAdmission is stored as a "YYYY-MM-DD" STRING, not a Date, so it
+        // is sliced rather than passed to $dateToString — which would fail.
+        admittedMonth: { $substr: [{ $ifNull: ['$dateOfAdmission', ''] }, 0, 7] },
+        regFeePaid: { $cond: [{ $eq: ['$registrationFee.paid', true] }, 'Yes', 'No'] },
+        siblingCount: { $size: { $ifNull: ['$siblings', []] } },
       },
     },
   ];
 
   if (groupBy && groupBy !== 'none') {
-    const gMap = { status: '$status', gender: '$gender', classApplied: '$classApplied' };
+    const gMap = {
+      class:        '$className',
+      gender:       '$gender',
+      category:     '$category',
+      source:       '$source',
+      academicYear: '$academicYear',
+      month:        '$admittedMonth',
+      status:       '$status',
+    };
     pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
     pipeline.push({ $sort: { _id: 1 } });
   } else {
     const proj = buildProject(fields);
     if (proj) pipeline.push(proj);
-    pipeline.push({ $sort: { [sortBy?.field || 'createdAt']: sortBy?.order || -1 } });
+    pipeline.push({ $sort: { [sortBy?.field || 'dateOfAdmission']: sortBy?.order || -1 } });
   }
 
   return { model: Admission, pipeline };
