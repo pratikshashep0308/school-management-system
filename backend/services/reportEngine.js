@@ -5,12 +5,16 @@
 const mongoose = require('mongoose');
 const Student  = require('../models/Student');
 
-// Modules registered 11 Aug 2026. Pulled from models/index rather than their own
-// files because Assignment and Notification are defined there; the rest are
-// taken the same way for consistency.
-const {
-  Admission, Homework, Assignment, Expense, Meeting, BehaviouralNote, FeeAssignment,
-} = require('../models/index');
+// Models for the modules registered 11 Aug 2026.
+//
+// Resolved INSIDE each pipeline via getModels()/require, matching what the
+// existing pipelines do — they call getModels() at call time rather than
+// requiring at the top of the file, so Mongoose has registered everything by
+// then. Two conventions in one file would invite the next person to guess.
+//
+// Note only Assignment and Notification live in models/index.js; the rest have
+// their own files. Destructuring all of them from index returned `undefined`
+// for five models and every new report failed on its first query.
 const Teacher  = require('../models/Teacher');
 const User     = require('../models/User');
 
@@ -491,6 +495,7 @@ exports.buildPipeline = function(config) {
 // /fees/category-report derives paid from the receipt breakdowns instead, and is
 // the one to use for collection figures.
 function feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const FeeAssignment = require('../models/FeeAssignment');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'dueDate' }, schoolId),
     { $lookup: { from: 'students', localField: 'student', foreignField: '_id', as: '_student' } },
@@ -542,6 +547,7 @@ function feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId) {
 
 // ─── Admissions — enquiry through to enrolment ────────────────────────────────
 function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const Admission = require('../models/Admission');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'createdAt' }, schoolId),
     {
@@ -574,6 +580,7 @@ function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
 
 // ─── Homework — joins class, subject, teacher ─────────────────────────────────
 function homeworkPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const Homework = require('../models/Homework');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'dueDate' }, schoolId),
     { $lookup: { from: 'classes',  localField: 'class',   foreignField: '_id', as: '_class' } },
@@ -611,6 +618,7 @@ function homeworkPipeline(filters, fields, groupBy, sortBy, schoolId) {
 
 // ─── Assignments ──────────────────────────────────────────────────────────────
 function assignmentPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const { Assignment } = getModels();
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'dueDate' }, schoolId),
     { $lookup: { from: 'classes',  localField: 'class',   foreignField: '_id', as: '_class' } },
@@ -648,6 +656,7 @@ function assignmentPipeline(filters, fields, groupBy, sortBy, schoolId) {
 // fms_-prefixed books and is a removable plugin; querying it from here would
 // couple the two and break these reports whenever the plugin is switched off.
 function expensePipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const Expense = require('../models/Expense');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'date' }, schoolId),
     { $lookup: { from: 'expensecategories', localField: 'category', foreignField: '_id', as: '_cat' } },
@@ -684,6 +693,7 @@ function expensePipeline(filters, fields, groupBy, sortBy, schoolId) {
 
 // ─── Meetings ─────────────────────────────────────────────────────────────────
 function meetingPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const Meeting = require('../models/Meeting');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'startsAt' }, schoolId),
     {
@@ -717,6 +727,7 @@ function meetingPipeline(filters, fields, groupBy, sortBy, schoolId) {
 
 // ─── Behaviour notes ──────────────────────────────────────────────────────────
 function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const BehaviouralNote = require('../models/BehaviouralNote');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'date' }, schoolId),
     { $lookup: { from: 'students', localField: 'student', foreignField: '_id', as: '_student' } },
