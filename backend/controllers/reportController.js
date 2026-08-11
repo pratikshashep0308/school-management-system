@@ -472,7 +472,7 @@ exports.getPredefined = async (req, res) => {
       // `routeState` opens the page already showing the right view. Landing on
       // the default tab would mean the card promised something the page did not
       // immediately deliver.
-      external: true, route: '/fees', routeState: { section: 'studentwise' },
+      external: true, route: '/reports/fees',
       fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
       chartConfig: { enabled: false },
     },
@@ -480,6 +480,8 @@ exports.getPredefined = async (req, res) => {
       id: 'fees-class-summary', module: 'fees', category: 'Fees',
       name: 'Fee Report — Class-wise Summary',
       description: 'Expected, collected and pending for every class, with collection rate',
+      // Still the Fees page: a per-CLASS summary is a different query from the
+      // per-student report, and duplicating it here would be a second source.
       external: true, route: '/fees', routeState: { section: 'classwise' },
       fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
       chartConfig: { enabled: false },

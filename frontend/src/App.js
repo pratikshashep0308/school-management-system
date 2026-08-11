@@ -31,6 +31,7 @@ import FmsAccessControl from './pages/FMS/AccessControl';
 import FmsExpenseCategories from './pages/FMS/ExpenseCategories';
 import FmsExpenses from './pages/FMS/Expenses';
 import FmsBankAccounts from './pages/FMS/BankAccounts';
+import FeeCategoryReport from './pages/Reports/FeeCategoryReport';
 import FmsMappings from './pages/FMS/Mappings';
 import FmsPayments from './pages/FMS/Payments';
 import FmsPettyCash from './pages/FMS/PettyCash';
@@ -237,6 +238,9 @@ export default function App() {
               <Route path="reports"          element={<ReportRoute><ReportsDashboard /></ReportRoute>} />
               <Route path="reports/create"   element={<ReportRoute><CreateReport /></ReportRoute>} />
               <Route path="reports/run"      element={<ReportRoute><ReportViewer /></ReportRoute>} />
+              {/* Wrapped in ReportRoute like its siblings — a report that
+                  skipped the permission gate would be a hole in the hub. */}
+              <Route path="reports/fees"     element={<ReportRoute><FeeCategoryReport /></ReportRoute>} />
               <Route path="reports/edit/:id" element={<ReportRoute><CreateReport /></ReportRoute>} />
 
             </Route>

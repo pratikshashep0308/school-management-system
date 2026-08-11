@@ -308,7 +308,7 @@ export default function ReportsDashboard() {
                   {/* External reports have no field list — "0 fields" would be
                       misleading, so they say where they go instead. */}
                   <span style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: '2px 8px', borderRadius: 10, border: '1px solid #E5E7EB' }}>
-                    {r.external ? 'opens fee report' : `${r.fields?.length || 0} fields`}
+                    {r.external ? (String(r.route).startsWith('/reports') ? 'full report' : 'opens fee page') : `${r.fields?.length || 0} fields`}
                   </span>
                   {r.groupBy && (
                     <span style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: '2px 8px', borderRadius: 10, border: '1px solid #E5E7EB' }}>
