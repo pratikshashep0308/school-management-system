@@ -516,45 +516,17 @@ exports.getPredefined = async (req, res) => {
       filters: { status: 'active' }, groupBy: 'gender', sortBy: { field: 'gender', order: 1 },
       chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
     },
-    {
-      id: 'fees-collected-month', module: 'fees', category: 'Fees',
-      name: 'Fee Collection — This Month',
-      description: 'All payments collected in the current month',
-      fields: ['studentName','admissionNumber','className','amount','paidOnFmt','method','receiptNumber'],
-      filters: { status: 'paid', dateFrom: monthStart, dateTo: monthEnd },
-      groupBy: '', sortBy: { field: 'paidOnFmt', order: -1 },
-      chartConfig: { enabled: false },
-    },
-    {
-      id: 'fees-pending', module: 'fees', category: 'Fees',
-      name: 'Pending Fees — All Classes',
-      description: 'Students with outstanding fee payments',
-      fields: ['studentName','admissionNumber','className','amount','status','month'],
-      filters: { status: 'pending' }, groupBy: 'class', sortBy: { field: 'amount', order: -1 },
-      chartConfig: { enabled: true, type: 'doughnut', xAxis: '_id', yAxis: 'totalAmount' },
-    },
-    {
-      id: 'fees-overdue', module: 'fees', category: 'Fees',
-      name: 'Overdue Fees',
-      description: 'Fee payments past due date',
-      fields: ['studentName','admissionNumber','className','amount','status','month'],
-      filters: { status: 'overdue' }, groupBy: '', sortBy: { field: 'amount', order: -1 },
-      chartConfig: { enabled: false },
-    },
-    {
-      id: 'fee-assignments-summary', module: 'fee_assignments', category: 'Fees',
-      name: 'Fee Assignment Summary',
-      description: 'All fee assignments with discount, installment and status details',
-      fields: ['studentName','className','feeTypeName','finalAmount','paidAmount','pendingAmount','status','dueDateFmt'],
-      filters: {}, groupBy: 'none', sortBy: { field: 'pendingAmount', order: -1 },
-    },
-    {
-      id: 'fee-overdue-assignments', module: 'fee_assignments', category: 'Fees',
-      name: 'Overdue Fee Assignments',
-      description: 'Students with overdue fee payments',
-      fields: ['studentName','className','feeTypeName','finalAmount','pendingAmount','dueDateFmt'],
-      filters: { status: 'overdue' }, groupBy: 'none', sortBy: { field: 'dueDateFmt', order: 1 },
-    },
+    // The five engine-run fee reports that stood here were removed 11 Aug 2026.
+    //
+    // The Fees section now offers the three views of the real Fee Report page
+    // instead — consolidated, class-wise and whole-school. Those show the
+    // category breakdown (School Fee / Stationery / Bus Fee, each with total,
+    // paid and pending) that this engine cannot express: it renders flat rows
+    // from one pipeline, and the category figures come from joining assignments
+    // to receipt breakdowns.
+    //
+    // The `fees` and `fee_assignments` modules stay registered, so the Report
+    // Builder can still query them ad hoc. Only the ready-made cards are gone.
     {
       id: 'attendance-today', module: 'attendance', category: 'Attendance',
       name: "Today's Attendance",
