@@ -32,6 +32,8 @@ const CATEGORY_COLORS = {
   Students: '#3B82F6', Fees: '#10B981', Attendance: '#F97316',
   Exams: '#8B5CF6', Library: '#06B6D4', Transport: '#F59E0B',
   Teachers: '#EC4899', Classes: '#6366F1',
+  Admissions: '#0EA5E9', Homework: '#84CC16', Assignments: '#14B8A6',
+  Expenses: '#EF4444', Meetings: '#A855F7', Behaviour: '#F43F5E',
 };
 
 
@@ -45,6 +47,13 @@ export default function ReportsDashboard() {
   const [searching,  setSearching]  = useState(false);
   const [searchResult, setSearchResult] = useState(null);
   const [activeCategory, setActiveCategory] = useState('All');
+
+  // Which module sections are expanded. Collapsed by default: with 15 modules,
+  // showing every report at once is the same wall of cards as a flat list, just
+  // with headings. Several can be open at a time so two modules can be compared.
+  const [openSections, setOpenSections] = useState({});
+  const toggleSection = (cat) =>
+    setOpenSections((o) => ({ ...o, [cat]: !o[cat] }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,7 +96,6 @@ export default function ReportsDashboard() {
   const fmtRs  = n  => (n !== undefined && n !== null) ? `₹${Number(n).toLocaleString('en-IN')}` : '—';
   const fmtPct = n  => (n !== undefined && n !== null) ? `${n}%` : '—';
 
-  const categories = ['All', ...new Set(predefined.map(r => r.category))];
 
   // Global search over the report list.
   //
@@ -104,6 +112,20 @@ export default function ReportsDashboard() {
   const filtered = predefined
     .filter(r => activeCategory === 'All' || r.category === activeCategory)
     .filter(matchesSearch);
+
+  // One entry per module, in the order the server returned them, so a school
+  // that adds a module sees it appear without anybody reordering a list here.
+  const sections = [];
+  filtered.forEach((r) => {
+    let sec = sections.find((x) => x.category === r.category);
+    if (!sec) { sec = { category: r.category, reports: [] }; sections.push(sec); }
+    sec.reports.push(r);
+  });
+
+  // Searching expands everything that matched — hiding results behind a closed
+  // header would make the search look broken. Named `isFiltering` because
+  // `searching` is already the smart-search loading flag.
+  const isFiltering = q !== '';
 
   return (
     <div style={{ padding: '24px', maxWidth: 1280, margin: '0 auto' }}>
@@ -211,26 +233,45 @@ export default function ReportsDashboard() {
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0 }}>⚡ Quick Reports</h2>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                style={{
-                  background: activeCategory === cat ? '#1D4ED8' : 'transparent',
-                  color: activeCategory === cat ? '#fff' : '#6B7280',
-                  border: `1px solid ${activeCategory === cat ? '#1D4ED8' : '#E5E7EB'}`,
-                  borderRadius: 20, padding: '4px 14px', fontSize: 12,
-                  fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                {cat}
-              </button>
-            ))}
+          <div style={{ fontSize: 12, color: '#6B7280' }}>
+            {sections.length} module{sections.length === 1 ? '' : 's'} · {filtered.length} report{filtered.length === 1 ? '' : 's'}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px,1fr))', gap: 14 }}>
-          {filtered.map(r => {
+        {sections.length === 0 && (
+          <div style={{ padding: '28px 0', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+            No reports match that search.
+          </div>
+        )}
+
+        {sections.map(sec => {
+          const secColor = CATEGORY_COLORS[sec.category] || '#6B7280';
+          const isOpen = isFiltering || openSections[sec.category];
+          return (
+        <div key={sec.category} style={{ marginBottom: 12 }}>
+          <div
+            onClick={() => toggleSection(sec.category)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+              background: '#fff', border: '1.5px solid #F3F4F6', borderRadius: 12,
+              padding: '12px 16px', userSelect: 'none',
+              borderLeft: `4px solid ${secColor}`,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = secColor; e.currentTarget.style.borderLeftColor = secColor; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#F3F4F6'; e.currentTarget.style.borderLeftColor = secColor; }}
+          >
+            <span style={{ fontSize: 12, color: '#9CA3AF', width: 10 }}>{isOpen ? '▾' : '▸'}</span>
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#111827', flex: 1 }}>{sec.category}</span>
+            <span style={{
+              fontSize: 11, fontWeight: 700, color: secColor,
+              background: `${secColor}12`, padding: '3px 10px', borderRadius: 20,
+            }}>
+              {sec.reports.length}
+            </span>
+          </div>
+
+          {isOpen && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px,1fr))', gap: 14, marginTop: 12, marginBottom: 20 }}>
+          {sec.reports.map(r => {
             const catColor = CATEGORY_COLORS[r.category] || '#6B7280';
             return (
               <div
@@ -277,6 +318,10 @@ export default function ReportsDashboard() {
             );
           })}
         </div>
+          )}
+        </div>
+          );
+        })}
       </div>
 
       {/* Saved Reports */}
