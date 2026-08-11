@@ -88,7 +88,22 @@ export default function ReportsDashboard() {
   const fmtPct = n  => (n !== undefined && n !== null) ? `${n}%` : '—';
 
   const categories = ['All', ...new Set(predefined.map(r => r.category))];
-  const filtered   = activeCategory === 'All' ? predefined : predefined.filter(r => r.category === activeCategory);
+
+  // Global search over the report list.
+  //
+  // Reuses `searchQ`, which already drives the smart search — that one needs a
+  // button press and asks the server to interpret a question. Typing now filters
+  // the cards live as well, so the same box answers "show me fee reports"
+  // immediately and "students who joined last term" on demand.
+  //
+  // Matches name, description, module and category: somebody looking for "bus"
+  // should find the transport reports without knowing how they were filed.
+  const q = (searchQ || '').trim().toLowerCase();
+  const matchesSearch = (r) => q === '' || [r.name, r.description, r.module, r.category]
+    .filter(Boolean).some((v) => String(v).toLowerCase().includes(q));
+  const filtered = predefined
+    .filter(r => activeCategory === 'All' || r.category === activeCategory)
+    .filter(matchesSearch);
 
   return (
     <div style={{ padding: '24px', maxWidth: 1280, margin: '0 auto' }}>
@@ -220,7 +235,14 @@ export default function ReportsDashboard() {
             return (
               <div
                 key={r.id}
-                onClick={() => navigate('/reports/run', { state: { config: r } })}
+                onClick={() => {
+                  // Some entries are not run by this engine — they point at a
+                  // report that already lives elsewhere. The consolidated fee
+                  // report is one: rebuilding its logic here would give the
+                  // school two fee reports that could disagree.
+                  if (r.external && r.route) navigate(r.route);
+                  else navigate('/reports/run', { state: { config: r } });
+                }}
                 style={{
                   background: '#fff', border: '1.5px solid #F3F4F6',
                   borderRadius: 12, padding: '16px 18px', cursor: 'pointer',

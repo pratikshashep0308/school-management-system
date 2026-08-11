@@ -4,18 +4,154 @@ const { buildPipeline, getDashboardSummary, smartSearch } = require('../services
 
 // ── Role → allowed modules ────────────────────────────────────────────────────
 const ROLE_MODULES = {
-  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library'],
-  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library'],
-  teacher:          ['students','classes','attendance','exams'],
-  accountant:       ['students','fees','fee_assignments'],
+  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour'],
+  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour'],
+  // Teachers get their own teaching artefacts and behaviour notes. Not
+  // admissions or expenses — those are office matters, and a report is a way of
+  // reading data as much as any screen is.
+  teacher:          ['students','classes','attendance','exams','homework','assignments','behaviour','meetings'],
+  accountant:       ['students','fees','fee_assignments','expenses','admissions'],
   librarian:        ['students','library'],
   transportManager: ['students','transport'],
-  parent:           ['attendance','fees','exams'],
-  student:          ['attendance','fees','exams'],
+  // Parents and students see what concerns them. Behaviour notes are excluded
+  // deliberately: a note is written for staff, and a child reading a "concern"
+  // logged about them is a conversation for a teacher to have, not a report.
+  parent:           ['attendance','fees','exams','homework','assignments'],
+  student:          ['attendance','fees','exams','homework','assignments'],
 };
 
 // Complete field definitions for each module — these drive the builder UI
 const MODULE_META = {
+  admissions: {
+    label: 'Admissions',
+    collection: 'admissions',
+    fields: [
+      { key: 'applicantName',   label: 'Applicant',        type: 'string' },
+      { key: 'classApplied',    label: 'Class Applied For', type: 'string' },
+      { key: 'gender',          label: 'Gender',           type: 'string' },
+      { key: 'dobFmt',          label: 'Date of Birth',    type: 'date' },
+      { key: 'parentName',      label: 'Parent Name',      type: 'string' },
+      { key: 'parentPhone',     label: 'Parent Phone',     type: 'string' },
+      { key: 'status',          label: 'Status',           type: 'string' },
+      { key: 'appliedOnFmt',    label: 'Applied On',       type: 'date' },
+      { key: 'regFeeAmount',    label: 'Registration Fee', type: 'number' },
+      { key: 'regFeePaid',      label: 'Reg Fee Paid',     type: 'string' },
+    ],
+    filters: [
+      { key: 'status',   label: 'Status', type: 'select', options: ['pending','approved','rejected','enrolled'] },
+      { key: 'gender',   label: 'Gender', type: 'select', options: ['male','female','other'] },
+      { key: 'dateFrom', label: 'Applied From', type: 'date' },
+      { key: 'dateTo',   label: 'Applied To',   type: 'date' },
+    ],
+    groupBy: ['status','gender','classApplied'],
+    sortBy:  ['appliedOnFmt','applicantName'],
+  },
+  homework: {
+    label: 'Homework',
+    collection: 'homeworks',
+    fields: [
+      { key: 'title',           label: 'Title',       type: 'string' },
+      { key: 'className',       label: 'Class',       type: 'string' },
+      { key: 'section',         label: 'Section',     type: 'string' },
+      { key: 'subjectName',     label: 'Subject',     type: 'string' },
+      { key: 'teacherName',     label: 'Set By',      type: 'string' },
+      { key: 'dueDateFmt',      label: 'Due Date',    type: 'date' },
+      { key: 'status',          label: 'Status',      type: 'string' },
+      { key: 'attachmentCount', label: 'Attachments', type: 'number' },
+    ],
+    filters: [
+      { key: 'classId',  label: 'Class',  type: 'classSelect' },
+      { key: 'status',   label: 'Status', type: 'select', options: ['pending','completed'] },
+      { key: 'dateFrom', label: 'Due From', type: 'date' },
+      { key: 'dateTo',   label: 'Due To',   type: 'date' },
+    ],
+    groupBy: ['class','subject','teacher','status'],
+    sortBy:  ['dueDateFmt','className'],
+  },
+  assignments: {
+    label: 'Assignments',
+    collection: 'assignments',
+    fields: [
+      { key: 'title',           label: 'Title',       type: 'string' },
+      { key: 'className',       label: 'Class',       type: 'string' },
+      { key: 'section',         label: 'Section',     type: 'string' },
+      { key: 'subjectName',     label: 'Subject',     type: 'string' },
+      { key: 'dueDateFmt',      label: 'Due Date',    type: 'date' },
+      { key: 'totalMarks',      label: 'Total Marks', type: 'number' },
+      { key: 'submissionCount', label: 'Submissions', type: 'number' },
+      { key: 'status',          label: 'Status',      type: 'string' },
+    ],
+    filters: [
+      { key: 'classId',  label: 'Class',  type: 'classSelect' },
+      { key: 'dateFrom', label: 'Due From', type: 'date' },
+      { key: 'dateTo',   label: 'Due To',   type: 'date' },
+    ],
+    groupBy: ['class','subject','status'],
+    sortBy:  ['dueDateFmt','className'],
+  },
+  expenses: {
+    label: 'Expenses',
+    collection: 'expenses',
+    fields: [
+      { key: 'description',   label: 'Description',    type: 'string' },
+      { key: 'categoryName',  label: 'Category',       type: 'string' },
+      { key: 'amount',        label: 'Amount',         type: 'number' },
+      { key: 'dateFmt',       label: 'Date',           type: 'date' },
+      { key: 'paymentMethod', label: 'Payment Method', type: 'string' },
+      { key: 'recurringLbl',  label: 'Recurring',      type: 'string' },
+      { key: 'vendor',        label: 'Vendor',         type: 'string' },
+    ],
+    filters: [
+      { key: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['cash','cheque','bank','upi','card'] },
+      { key: 'dateFrom',      label: 'From', type: 'date' },
+      { key: 'dateTo',        label: 'To',   type: 'date' },
+    ],
+    groupBy: ['category','paymentMethod'],
+    sortBy:  ['dateFmt','amount'],
+  },
+  meetings: {
+    label: 'Meetings',
+    collection: 'meetings',
+    fields: [
+      { key: 'title',         label: 'Title',     type: 'string' },
+      { key: 'type',          label: 'Type',      type: 'string' },
+      { key: 'startsAtFmt',   label: 'Starts',    type: 'date' },
+      { key: 'durationMins',  label: 'Duration',  type: 'number' },
+      { key: 'location',      label: 'Location',  type: 'string' },
+      { key: 'status',        label: 'Status',    type: 'string' },
+      { key: 'inviteeCount',  label: 'Invited',   type: 'number' },
+      { key: 'acceptedCount', label: 'Accepted',  type: 'number' },
+    ],
+    filters: [
+      { key: 'status',   label: 'Status', type: 'select', options: ['scheduled','completed','cancelled'] },
+      { key: 'dateFrom', label: 'From', type: 'date' },
+      { key: 'dateTo',   label: 'To',   type: 'date' },
+    ],
+    groupBy: ['type','status'],
+    sortBy:  ['startsAtFmt','title'],
+  },
+  behaviour: {
+    label: 'Behaviour Notes',
+    collection: 'behaviouralnotes',
+    fields: [
+      { key: 'studentName',     label: 'Student',      type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.', type: 'string' },
+      { key: 'className',       label: 'Class',        type: 'string' },
+      { key: 'section',         label: 'Section',      type: 'string' },
+      { key: 'kind',            label: 'Kind',         type: 'string' },
+      { key: 'note',            label: 'Note',         type: 'string' },
+      { key: 'recordedByName',  label: 'Recorded By',  type: 'string' },
+      { key: 'dateFmt',         label: 'Date',         type: 'date' },
+    ],
+    filters: [
+      { key: 'kind',     label: 'Kind',  type: 'select', options: ['general','positive','concern'] },
+      { key: 'classId',  label: 'Class', type: 'classSelect' },
+      { key: 'dateFrom', label: 'From',  type: 'date' },
+      { key: 'dateTo',   label: 'To',    type: 'date' },
+    ],
+    groupBy: ['kind','class','student'],
+    sortBy:  ['dateFmt','studentName'],
+  },
   students: {
     label: 'Students',
     collection: 'students',
@@ -269,6 +405,74 @@ exports.getPredefined = async (req, res) => {
   const dayEnd     = new Date(today.setHours(23,59,59,999)).toISOString();
 
   const ALL = [
+    {
+      id: 'admissions-pipeline', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Status',
+      description: 'Enquiries, approvals and enrolments at a glance',
+      fields: ['applicantName','classApplied','parentPhone','status','appliedOnFmt'],
+      filters: {}, groupBy: 'status', sortBy: { field: 'appliedOnFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'admissions-reg-fee-unpaid', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — Registration Fee Unpaid',
+      description: 'Applicants whose registration fee has not been received',
+      fields: ['applicantName','classApplied','parentPhone','regFeeAmount','appliedOnFmt'],
+      filters: {}, groupBy: '', sortBy: { field: 'appliedOnFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'homework-by-class', module: 'homework', category: 'Homework',
+      name: 'Homework — By Class',
+      description: 'How much homework each class has been set',
+      fields: ['title','className','subjectName','teacherName','dueDateFmt','status'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'dueDateFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'assignments-due', module: 'assignments', category: 'Assignments',
+      name: 'Assignments — Submissions',
+      description: 'Assignments with how many students have handed in',
+      fields: ['title','className','subjectName','dueDateFmt','totalMarks','submissionCount'],
+      filters: {}, groupBy: '', sortBy: { field: 'dueDateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'expenses-by-category', module: 'expenses', category: 'Expenses',
+      name: 'Expenses — By Category',
+      description: 'What the school spends, grouped by category',
+      fields: ['description','categoryName','amount','dateFmt','paymentMethod'],
+      filters: {}, groupBy: 'category', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'total' },
+    },
+    {
+      id: 'behaviour-concerns', module: 'behaviour', category: 'Behaviour',
+      name: 'Behaviour — Concerns Raised',
+      description: 'Notes logged as a concern, most recent first',
+      fields: ['studentName','className','kind','note','recordedByName','dateFmt'],
+      filters: { kind: 'concern' }, groupBy: '', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'meetings-upcoming', module: 'meetings', category: 'Meetings',
+      name: 'Meetings — Schedule & Attendance',
+      description: 'Meetings with invited and accepted counts',
+      fields: ['title','type','startsAtFmt','location','inviteeCount','acceptedCount','status'],
+      filters: {}, groupBy: '', sortBy: { field: 'startsAtFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      // Not a report this engine runs — it links to the consolidated fee report
+      // that already exists at /fees/category-report, which joins assignments to
+      // receipt breakdowns. Rebuilding that logic here would give the school two
+      // fee reports that could disagree, which is worse than one.
+      id: 'fees-category-consolidated', module: 'fees', category: 'Fees',
+      name: 'Fee Report — All Categories (Consolidated)',
+      description: 'School Fee, Bus Fee and Stationery per student — total, paid and pending',
+      external: true, route: '/fees',
+      fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
+      chartConfig: { enabled: false },
+    },
     {
       id: 'students-all-active', module: 'students', category: 'Students',
       name: 'All Active Students',

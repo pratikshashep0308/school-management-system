@@ -4,6 +4,13 @@
 
 const mongoose = require('mongoose');
 const Student  = require('../models/Student');
+
+// Modules registered 11 Aug 2026. Pulled from models/index rather than their own
+// files because Assignment and Notification are defined there; the rest are
+// taken the same way for consistency.
+const {
+  Admission, Homework, Assignment, Expense, Meeting, BehaviouralNote, FeeAssignment,
+} = require('../models/index');
 const Teacher  = require('../models/Teacher');
 const User     = require('../models/User');
 
@@ -459,9 +466,291 @@ exports.buildPipeline = function(config) {
     case 'transport':  return transportPipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'library':        return libraryPipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'fee_assignments': return feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'admissions':  return admissionPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'homework':    return homeworkPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'assignments': return assignmentPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'expenses':    return expensePipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'meetings':    return meetingPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'behaviour':   return behaviourPipeline(filters, fields, groupBy, sortBy, schoolId);
     default:               throw new Error(`Unknown module: ${module}`);
   }
 };
+
+
+
+// ─── Fee assignments — what each student was charged, per fee type ────────────
+//
+// This module was registered and dispatched but the function was never written:
+// running it threw "feeAssignmentsPipeline is not defined". Found 11 Aug 2026 by
+// a check that every dispatch case resolves to a real function.
+//
+// NOTE on `paidAmount`: the field exists on the schema and is ZERO on every
+// record — payments are written to StudentFee.paymentHistory and never posted
+// back here. It is included because it is part of the model, but a report using
+// it will show nothing collected. The consolidated fee report at
+// /fees/category-report derives paid from the receipt breakdowns instead, and is
+// the one to use for collection figures.
+function feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'dueDate' }, schoolId),
+    { $lookup: { from: 'students', localField: 'student', foreignField: '_id', as: '_student' } },
+    { $unwind: { path: '$_student', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: '_student.user', foreignField: '_id', as: '_suser' } },
+    { $unwind: { path: '$_suser', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'classes', localField: 'class', foreignField: '_id', as: '_class' } },
+    { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'feetypes', localField: 'feeType', foreignField: '_id', as: '_ft' } },
+    { $unwind: { path: '$_ft', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        studentName:     '$_suser.name',
+        admissionNumber: '$_student.admissionNumber',
+        className:       '$_class.name',
+        section:         '$_class.section',
+        feeTypeName:     '$_ft.name',
+        feeCategory:     '$_ft.category',
+        dueDateFmt:      { $dateToString: { format: '%d/%m/%Y', date: '$dueDate' } },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = {
+      class:    '$className',
+      feeType:  '$feeTypeName',
+      category: '$feeCategory',
+      status:   '$status',
+    };
+    pipeline.push({
+      $group: {
+        _id:      gMap[groupBy] || `$${groupBy}`,
+        count:    { $sum: 1 },
+        expected: { $sum: '$finalAmount' },
+        paid:     { $sum: '$paidAmount' },
+        pending:  { $sum: '$pendingAmount' },
+      },
+    });
+    pipeline.push({ $sort: { expected: -1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'dueDate']: sortBy?.order || -1 } });
+  }
+
+  return { model: FeeAssignment, pipeline };
+}
+
+// ─── Admissions — enquiry through to enrolment ────────────────────────────────
+function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'createdAt' }, schoolId),
+    {
+      $addFields: {
+        applicantName: { $trim: { input: { $concat: [
+          { $ifNull: ['$firstName', ''] }, ' ', { $ifNull: ['$lastName', ''] },
+        ] } } },
+        appliedOnFmt: { $dateToString: { format: '%d/%m/%Y', date: '$createdAt' } },
+        dobFmt:       { $dateToString: { format: '%d/%m/%Y', date: '$dateOfBirth' } },
+        // A registration fee may be recorded but unpaid; the flag is what the
+        // office chases, so it is surfaced rather than left inside the subdocument.
+        regFeeAmount: '$registrationFee.amount',
+        regFeePaid:   { $cond: [{ $eq: ['$registrationFee.paid', true] }, 'Yes', 'No'] },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = { status: '$status', gender: '$gender', classApplied: '$classApplied' };
+    pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
+    pipeline.push({ $sort: { _id: 1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'createdAt']: sortBy?.order || -1 } });
+  }
+
+  return { model: Admission, pipeline };
+}
+
+// ─── Homework — joins class, subject, teacher ─────────────────────────────────
+function homeworkPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'dueDate' }, schoolId),
+    { $lookup: { from: 'classes',  localField: 'class',   foreignField: '_id', as: '_class' } },
+    { $unwind: { path: '$_class',  preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: '_subject' } },
+    { $unwind: { path: '$_subject', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'teachers', localField: 'teacher', foreignField: '_id', as: '_teacher' } },
+    { $unwind: { path: '$_teacher', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: '_teacher.user', foreignField: '_id', as: '_tuser' } },
+    { $unwind: { path: '$_tuser', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        className:   '$_class.name',
+        section:     '$_class.section',
+        subjectName: '$_subject.name',
+        teacherName: '$_tuser.name',
+        dueDateFmt:  { $dateToString: { format: '%d/%m/%Y', date: '$dueDate' } },
+        attachmentCount: { $size: { $ifNull: ['$attachments', []] } },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = { class: '$className', subject: '$subjectName', teacher: '$teacherName', status: '$status' };
+    pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
+    pipeline.push({ $sort: { _id: 1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'dueDate']: sortBy?.order || -1 } });
+  }
+
+  return { model: Homework, pipeline };
+}
+
+// ─── Assignments ──────────────────────────────────────────────────────────────
+function assignmentPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'dueDate' }, schoolId),
+    { $lookup: { from: 'classes',  localField: 'class',   foreignField: '_id', as: '_class' } },
+    { $unwind: { path: '$_class',  preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: '_subject' } },
+    { $unwind: { path: '$_subject', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        className:   '$_class.name',
+        section:     '$_class.section',
+        subjectName: '$_subject.name',
+        dueDateFmt:  { $dateToString: { format: '%d/%m/%Y', date: '$dueDate' } },
+        // How many have handed in — the number a teacher chasing submissions
+        // actually wants, rather than the list itself.
+        submissionCount: { $size: { $ifNull: ['$submissions', []] } },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = { class: '$className', subject: '$subjectName', status: '$status' };
+    pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
+    pipeline.push({ $sort: { _id: 1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'dueDate']: sortBy?.order || -1 } });
+  }
+
+  return { model: Assignment, pipeline };
+}
+
+// ─── Expenses (SMS module, NOT the finance plugin) ────────────────────────────
+// Deliberately reads the SMS `expenses` collection only. The FMS keeps its own
+// fms_-prefixed books and is a removable plugin; querying it from here would
+// couple the two and break these reports whenever the plugin is switched off.
+function expensePipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'date' }, schoolId),
+    { $lookup: { from: 'expensecategories', localField: 'category', foreignField: '_id', as: '_cat' } },
+    { $unwind: { path: '$_cat', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        categoryName: '$_cat.name',
+        dateFmt:      { $dateToString: { format: '%d/%m/%Y', date: '$date' } },
+        recurringLbl: { $cond: [{ $eq: ['$isRecurring', true] }, '$recurringType', 'One-off'] },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = { category: '$categoryName', paymentMethod: '$paymentMethod' };
+    pipeline.push({
+      $group: {
+        _id: gMap[groupBy] || `$${groupBy}`,
+        count: { $sum: 1 },
+        // Expense reports are about money, so the group carries a total. A count
+        // alone answers "how many" when the question is always "how much".
+        total: { $sum: '$amount' },
+      },
+    });
+    pipeline.push({ $sort: { total: -1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'date']: sortBy?.order || -1 } });
+  }
+
+  return { model: Expense, pipeline };
+}
+
+// ─── Meetings ─────────────────────────────────────────────────────────────────
+function meetingPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'startsAt' }, schoolId),
+    {
+      $addFields: {
+        startsAtFmt: { $dateToString: { format: '%d/%m/%Y %H:%M', date: '$startsAt' } },
+        inviteeCount: { $size: { $ifNull: ['$invitees', []] } },
+        // Acceptances rather than invitations — a meeting with twenty invitees
+        // and two acceptances is a different fact from one with twenty of each.
+        acceptedCount: {
+          $size: { $filter: {
+            input: { $ifNull: ['$invitees', []] },
+            cond: { $eq: ['$$this.rsvp', 'accepted'] },
+          } },
+        },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = { type: '$type', status: '$status' };
+    pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
+    pipeline.push({ $sort: { _id: 1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'startsAt']: sortBy?.order || -1 } });
+  }
+
+  return { model: Meeting, pipeline };
+}
+
+// ─── Behaviour notes ──────────────────────────────────────────────────────────
+function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'date' }, schoolId),
+    { $lookup: { from: 'students', localField: 'student', foreignField: '_id', as: '_student' } },
+    { $unwind: { path: '$_student', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: '_student.user', foreignField: '_id', as: '_suser' } },
+    { $unwind: { path: '$_suser', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'classes', localField: '_student.class', foreignField: '_id', as: '_class' } },
+    { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: 'recordedBy', foreignField: '_id', as: '_by' } },
+    { $unwind: { path: '$_by', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        studentName:     '$_suser.name',
+        admissionNumber: '$_student.admissionNumber',
+        className:       '$_class.name',
+        section:         '$_class.section',
+        recordedByName:  '$_by.name',
+        dateFmt:         { $dateToString: { format: '%d/%m/%Y', date: '$date' } },
+      },
+    },
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = { kind: '$kind', class: '$className', student: '$studentName' };
+    pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
+    pipeline.push({ $sort: { count: -1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'date']: sortBy?.order || -1 } });
+  }
+
+  return { model: BehaviouralNote, pipeline };
+}
 
 // ─── Dashboard summary ────────────────────────────────────────────────────────
 exports.getDashboardSummary = async (schoolId) => {
