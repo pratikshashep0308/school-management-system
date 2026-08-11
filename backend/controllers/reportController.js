@@ -469,7 +469,26 @@ exports.getPredefined = async (req, res) => {
       id: 'fees-category-consolidated', module: 'fees', category: 'Fees',
       name: 'Fee Report — All Categories (Consolidated)',
       description: 'School Fee, Bus Fee and Stationery per student — total, paid and pending',
-      external: true, route: '/fees',
+      // `routeState` opens the page already showing the right view. Landing on
+      // the default tab would mean the card promised something the page did not
+      // immediately deliver.
+      external: true, route: '/fees', routeState: { section: 'studentwise' },
+      fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'fees-class-summary', module: 'fees', category: 'Fees',
+      name: 'Fee Report — Class-wise Summary',
+      description: 'Expected, collected and pending for every class, with collection rate',
+      external: true, route: '/fees', routeState: { section: 'classwise' },
+      fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'fees-school-overview', module: 'fees', category: 'Fees',
+      name: 'Fee Report — Whole School',
+      description: 'School-wide collection overview with progress by class',
+      external: true, route: '/fees', routeState: { section: 'school' },
       fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
       chartConfig: { enabled: false },
     },

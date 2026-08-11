@@ -3,6 +3,7 @@
 // Features: filters, search, status breakdown, history, defaulters, export
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import feeAPI from '../../utils/feeAPI';
 import { classAPI } from '../../utils/api';
@@ -191,12 +192,16 @@ export default function FeeReport() {
   // Which fee type the exports cover. '' = all of them, which is the default and
   // the common case — the consolidated report is what most people want. Narrowing
   // to one type is for chasing a specific arrear, e.g. bus fee.
-  const [feeTypeFilter, setFeeTypeFilter] = useState('');
+  // Opened from the Reports Centre, the page should already be showing the view
+  // that was asked for. Landing on the default and making somebody click a tab
+  // means the report card promised something the page did not deliver.
+  const routeState = useLocation().state || {};
+  const [feeTypeFilter, setFeeTypeFilter] = useState(routeState.feeType || '');
   const [feeTypeOptions, setFeeTypeOptions] = useState([]);
   const [search,      setSearch]      = useState('');
   const [sortBy,      setSortBy]      = useState('name'); // name | paid | pending | roll
   const [activeView,  setActiveView]  = useState('all'); // all | defaulters | paid | partial
-  const [section,     setSection]     = useState('school'); // school | classwise | studentwise
+  const [section,     setSection]     = useState(routeState.section || 'school'); // school | classwise | studentwise
   const [panelStudent,setPanelStudent]= useState(null);
   const [summary,     setSummary]     = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());

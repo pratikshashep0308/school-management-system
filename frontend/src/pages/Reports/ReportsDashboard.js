@@ -281,7 +281,7 @@ export default function ReportsDashboard() {
                   // report that already lives elsewhere. The consolidated fee
                   // report is one: rebuilding its logic here would give the
                   // school two fee reports that could disagree.
-                  if (r.external && r.route) navigate(r.route);
+                  if (r.external && r.route) navigate(r.route, { state: r.routeState || {} });
                   else navigate('/reports/run', { state: { config: r } });
                 }}
                 style={{
@@ -305,8 +305,10 @@ export default function ReportsDashboard() {
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', marginBottom: 6 }}>{r.name}</div>
                 <div style={{ fontSize: 12, color: '#9CA3AF', lineHeight: 1.4 }}>{r.description}</div>
                 <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+                  {/* External reports have no field list — "0 fields" would be
+                      misleading, so they say where they go instead. */}
                   <span style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: '2px 8px', borderRadius: 10, border: '1px solid #E5E7EB' }}>
-                    {r.fields?.length} fields
+                    {r.external ? 'opens fee report' : `${r.fields?.length || 0} fields`}
                   </span>
                   {r.groupBy && (
                     <span style={{ fontSize: 10, color: '#6B7280', background: '#F9FAFB', padding: '2px 8px', borderRadius: 10, border: '1px solid #E5E7EB' }}>
