@@ -469,31 +469,24 @@ exports.getPredefined = async (req, res) => {
       id: 'fees-category-consolidated', module: 'fees', category: 'Fees',
       name: 'Fee Report — All Categories (Consolidated)',
       description: 'School Fee, Bus Fee and Stationery per student — total, paid and pending',
-      // `routeState` opens the page already showing the right view. Landing on
-      // the default tab would mean the card promised something the page did not
-      // immediately deliver.
+      // Rendered by /reports/fees inside the hub, not handed off to the Fees
+      // module. `external` only means the report engine does not run it — the
+      // category figures come from joining fee assignments to the breakdown on
+      // each receipt, a shape the generic pipeline cannot express.
       external: true, route: '/reports/fees',
       fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
       chartConfig: { enabled: false },
     },
-    {
-      id: 'fees-class-summary', module: 'fees', category: 'Fees',
-      name: 'Fee Report — Class-wise Summary',
-      description: 'Expected, collected and pending for every class, with collection rate',
-      // Still the Fees page: a per-CLASS summary is a different query from the
-      // per-student report, and duplicating it here would be a second source.
-      external: true, route: '/fees', routeState: { section: 'classwise' },
-      fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
-      chartConfig: { enabled: false },
-    },
-    {
-      id: 'fees-school-overview', module: 'fees', category: 'Fees',
-      name: 'Fee Report — Whole School',
-      description: 'School-wide collection overview with progress by class',
-      external: true, route: '/fees', routeState: { section: 'school' },
-      fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
-      chartConfig: { enabled: false },
-    },
+    // The class-wise and whole-school fee cards were removed 11 Aug 2026.
+    //
+    // They handed off to the Fees module rather than rendering here, which is
+    // the wrong behaviour for a reporting hub — clicking a report should give
+    // you a report. Unlike the consolidated view, those two have no endpoint of
+    // their own: they are computed inside FeeReport.js from the student list it
+    // already holds. Bringing them into Reports means aggregating the same
+    // category data by class here, which is worth doing if they are wanted back.
+    //
+    // Both views remain available on the Fees page itself.
     {
       id: 'students-all-active', module: 'students', category: 'Students',
       name: 'All Active Students',
