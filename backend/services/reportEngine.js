@@ -783,12 +783,24 @@ function meetingPipeline(filters, fields, groupBy, sortBy, schoolId) {
 }
 
 // ─── Behaviour notes ──────────────────────────────────────────────────────────
+//
+// Written against the real records (checked 12 Aug 2026). The schema and the
+// data disagree in three places:
+//
+//   · the field is `category`, not `kind`
+//   · there is no `recordedBy` — it is `createdBy`, and `createdByName` is
+//     already stored alongside it, so no join is needed to show who wrote it
+//   · `date` is a real Date, so it formats normally
+//
+// Only 2 notes exist and neither has a category set. These reports are
+// therefore nearly empty — correctly so. The module is barely in use, and a
+// report showing that plainly is more useful than one padded to look busy.
 function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
   const BehaviouralNote = require('../models/BehaviouralNote');
 
-  // A behaviour note has no class of its own — the class comes from the student
-  // it is about. buildMatch would put `class` on the note itself and match
-  // nothing, so the filter is held back and applied after the student join.
+  // A note has no class of its own — the class comes from the student it is
+  // about. buildMatch would put `class` on the note itself and match nothing,
+  // so the filter is held back and applied after the student join.
   const { class: _c, classId: wantedClass, ...rest } = filters || {};
 
   const pipeline = [
@@ -799,24 +811,31 @@ function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
     { $unwind: { path: '$_suser', preserveNullAndEmptyArrays: true } },
     { $lookup: { from: 'classes', localField: '_student.class', foreignField: '_id', as: '_class' } },
     { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
-    { $lookup: { from: 'users', localField: 'recordedBy', foreignField: '_id', as: '_by' } },
-    { $unwind: { path: '$_by', preserveNullAndEmptyArrays: true } },
     {
       $addFields: {
         studentName:     '$_suser.name',
         admissionNumber: '$_student.admissionNumber',
         className:       '$_class.name',
         section:         '$_class.section',
-        recordedByName:  '$_by.name',
+        // createdByName is denormalised on the record already — no join, and it
+        // survives the author being removed from the system.
+        recordedByName:  { $ifNull: ['$createdByName', '—'] },
+        // Neither note has one. Left as a visible blank rather than defaulted
+        // to "general", which would invent a classification nobody made.
+        categoryLabel:   { $ifNull: ['$category', '(uncategorised)'] },
         dateFmt:         { $dateToString: { format: '%d/%m/%Y', date: '$date' } },
       },
     },
-    // Applied here, once the student's class is available on the document.
     ...(wantedClass ? [{ $match: { '_student.class': toId(wantedClass) } }] : []),
   ];
 
   if (groupBy && groupBy !== 'none') {
-    const gMap = { kind: '$kind', class: '$className', student: '$studentName' };
+    const gMap = {
+      category: '$categoryLabel',
+      class:    '$className',
+      student:  '$studentName',
+      recordedBy: '$recordedByName',
+    };
     pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
     pipeline.push({ $sort: { count: -1 } });
   } else {
