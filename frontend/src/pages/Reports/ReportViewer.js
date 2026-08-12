@@ -114,9 +114,26 @@ export default function ReportViewer() {
     }
   };
 
+  // `_id` is normally a Mongo internal and hidden. But in a GROUPED report it is
+  // the group itself — the class name, the month, the category — and dropping it
+  // left a table of bare counts with nothing to say what each count was of.
+  const isGrouped = Boolean(config?.groupBy) && config.groupBy !== 'none';
+
   const cols = data.length
-    ? Object.keys(data[0]).filter(k => !['_id','__v'].includes(k))
+    ? Object.keys(data[0]).filter(k => (k === '_id' ? isGrouped : k !== '__v'))
     : [];
+
+  // Grouped reports read better with the group first.
+  if (isGrouped && cols.includes('_id')) {
+    cols.splice(cols.indexOf('_id'), 1);
+    cols.unshift('_id');
+  }
+
+  // …and "_id" is a poor column heading for something the reader thinks of as
+  // the class or the month.
+  const headingFor = (k) => (k === '_id' && isGrouped
+    ? String(config.groupBy).replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
+    : k);
 
   // Column totals for numeric fields
   const totals = {};
@@ -245,7 +262,7 @@ export default function ReportViewer() {
                     <th style={{ ...TH, width: 44, color: '#94A3B8' }}>#</th>
                     {cols.map(c => (
                       <th key={c} style={{ ...TH, color: '#E2E8F0' }}>
-                        {c.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}
+                        {headingFor(c).replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}
                       </th>
                     ))}
                   </tr>
@@ -254,7 +271,7 @@ export default function ReportViewer() {
                   {data.map((row, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 ? '#F8FAFC' : '#fff' }}>
                       <td style={{ ...TD, color: '#CBD5E1', fontSize: 11 }}>{i + 1}</td>
-                      {cols.map(c => <td key={c} style={TD}><CellValue v={row[c]} col={c} /></td>)}
+                      {cols.map(c => <td key={c} style={TD}><CellValue v={c === '_id' && (row[c] === null || row[c] === '') ? '(none)' : row[c]} col={c} /></td>)}
                     </tr>
                   ))}
                 </tbody>

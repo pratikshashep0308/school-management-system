@@ -565,7 +565,21 @@ function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
   const Admission = require('../models/Admission');
   const pipeline = [
     buildMatch({ ...filters, _dateField: 'createdAt' }, schoolId),
-    { $lookup: { from: 'classes', localField: 'applyingForClass', foreignField: '_id', as: '_class' } },
+    // applyingForClass is stored as a STRING, not an ObjectId — $lookup cannot
+    // match it against classes._id and every record comes back with no class,
+    // collapsing the whole report into one "(no class)" row. Converted first.
+    //
+    // $convert with onError/onNull rather than $toObjectId: a malformed value
+    // should leave that one record unmatched, not abort the aggregation and
+    // take the entire report with it.
+    {
+      $addFields: {
+        _classId: {
+          $convert: { input: '$applyingForClass', to: 'objectId', onError: null, onNull: null },
+        },
+      },
+    },
+    { $lookup: { from: 'classes', localField: '_classId', foreignField: '_id', as: '_class' } },
     { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
     {
       $addFields: {
@@ -573,9 +587,12 @@ function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
         // the full name is what the office recognises.
         applicantName: '$studentName',
         className: {
-          $trim: { input: { $concat: [
-            { $ifNull: ['$_class.name', ''] }, ' ', { $ifNull: ['$_class.section', ''] },
-          ] } },
+          $ifNull: [
+            { $trim: { input: { $concat: [
+              { $ifNull: ['$_class.name', ''] }, ' ', { $ifNull: ['$_class.section', ''] },
+            ] } } },
+            'Unassigned',
+          ],
         },
         admittedOn: '$dateOfAdmission',
         // dateOfAdmission is stored as a "YYYY-MM-DD" STRING, not a Date, so it
