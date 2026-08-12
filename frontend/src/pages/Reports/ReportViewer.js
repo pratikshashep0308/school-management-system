@@ -128,8 +128,22 @@ export default function ReportViewer() {
       .catch(() => setClassList([]));
   }, []);
 
+  // A grouped report's `_id` is the group — usually a label worth showing, like
+  // the class name or the month. Sometimes it is the raw ObjectId the pipeline
+  // grouped on, as attendance does with `$student`, and a column of 24-character
+  // hex strings is noise next to the name that sits beside it.
+  //
+  // Detected by shape rather than by module, so it holds for any report that
+  // groups on an id — including ones not written yet. Only suppressed when the
+  // row carries a readable field: with nothing else to identify the group, an
+  // ugly id beats no identifier at all.
+  const idLooksLikeObjectId = isGrouped
+    && data.length > 0
+    && /^[a-f0-9]{24}$/i.test(String(data[0]._id ?? ''))
+    && Object.keys(data[0]).some(k => /name|title|label/i.test(k));
+
   const cols = data.length
-    ? Object.keys(data[0]).filter(k => (k === '_id' ? isGrouped : k !== '__v'))
+    ? Object.keys(data[0]).filter(k => (k === '_id' ? (isGrouped && !idLooksLikeObjectId) : k !== '__v'))
     : [];
 
   // Grouped reports read better with the group first.
