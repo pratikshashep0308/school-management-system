@@ -563,8 +563,18 @@ function feeAssignmentsPipeline(filters, fields, groupBy, sortBy, schoolId) {
 // so reports here describe WHO ENROLLED rather than tracking applications.
 function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
   const Admission = require('../models/Admission');
+  // The class filter needs handling here, not by buildMatch.
+  //
+  // buildMatch maps classId onto `match.class` as an ObjectId. Admissions has
+  // no `class` field — it has `applyingForClass` — and stores it as a STRING.
+  // Left alone, filtering by class matched zero records and the report came
+  // back empty with no indication why.
+  const { class: _c, classId: wantedClass, ...rest } = filters || {};
+
   const pipeline = [
-    buildMatch({ ...filters, _dateField: 'createdAt' }, schoolId),
+    buildMatch({ ...rest, _dateField: 'createdAt' }, schoolId),
+    // Compared as a string, because that is how the value is stored.
+    ...(wantedClass ? [{ $match: { applyingForClass: String(wantedClass) } }] : []),
     // applyingForClass is stored as a STRING, not an ObjectId — $lookup cannot
     // match it against classes._id and every record comes back with no class,
     // collapsing the whole report into one "(no class)" row. Converted first.
@@ -775,8 +785,14 @@ function meetingPipeline(filters, fields, groupBy, sortBy, schoolId) {
 // ─── Behaviour notes ──────────────────────────────────────────────────────────
 function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
   const BehaviouralNote = require('../models/BehaviouralNote');
+
+  // A behaviour note has no class of its own — the class comes from the student
+  // it is about. buildMatch would put `class` on the note itself and match
+  // nothing, so the filter is held back and applied after the student join.
+  const { class: _c, classId: wantedClass, ...rest } = filters || {};
+
   const pipeline = [
-    buildMatch({ ...filters, _dateField: 'date' }, schoolId),
+    buildMatch({ ...rest, _dateField: 'date' }, schoolId),
     { $lookup: { from: 'students', localField: 'student', foreignField: '_id', as: '_student' } },
     { $unwind: { path: '$_student', preserveNullAndEmptyArrays: true } },
     { $lookup: { from: 'users', localField: '_student.user', foreignField: '_id', as: '_suser' } },
@@ -795,6 +811,8 @@ function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
         dateFmt:         { $dateToString: { format: '%d/%m/%Y', date: '$date' } },
       },
     },
+    // Applied here, once the student's class is available on the document.
+    ...(wantedClass ? [{ $match: { '_student.class': toId(wantedClass) } }] : []),
   ];
 
   if (groupBy && groupBy !== 'none') {
