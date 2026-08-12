@@ -476,6 +476,7 @@ exports.buildPipeline = function(config) {
     case 'expenses':    return expensePipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'meetings':    return meetingPipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'behaviour':   return behaviourPipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'teacher_attendance': return teacherAttendancePipeline(filters, fields, groupBy, sortBy, schoolId);
     default:               throw new Error(`Unknown module: ${module}`);
   }
 };
@@ -869,6 +870,83 @@ function behaviourPipeline(filters, fields, groupBy, sortBy, schoolId) {
   }
 
   return { model: BehaviouralNote, pipeline };
+}
+
+// ─── Teacher attendance ───────────────────────────────────────────────────────
+//
+// Checked against the real records (12 Aug 2026): 236 rows, 7 Jul – 5 Aug,
+// `present` 231 and `leave` 5. `teacher` and `school` are proper ObjectIds.
+//
+// There is NO checkIn/checkOut. In/out times were specified but never built, so
+// this reports presence, not hours. A "hours worked" column would be invented.
+//
+// Kept as its own module rather than folded into `teachers`: attendance is one
+// row per teacher per day, teachers is one row per person, and forcing them
+// into one query gives the wrong shape for both.
+function teacherAttendancePipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const { TeacherAttendance } = getModels();
+
+  const pipeline = [
+    buildMatch({ ...filters, _dateField: 'date' }, schoolId),
+    { $lookup: { from: 'teachers', localField: 'teacher', foreignField: '_id', as: '_t' } },
+    { $unwind: { path: '$_t', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: '_t.user', foreignField: '_id', as: '_tu' } },
+    { $unwind: { path: '$_tu', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: 'markedBy', foreignField: '_id', as: '_by' } },
+    { $unwind: { path: '$_by', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        teacherName: '$_tu.name',
+        employeeId:  '$_t.employeeId',
+        designation: '$_t.designation',
+        dateFmt:     { $dateToString: { format: '%d/%m/%Y', date: '$date' } },
+        month:       { $dateToString: { format: '%Y-%m', date: '$date' } },
+        markedByName: { $ifNull: ['$_by.name', '—'] },
+      },
+    },
+  ];
+
+  if (groupBy === 'teacher') {
+    // Per-teacher summary: days present against days recorded. The percentage is
+    // of days a record EXISTS, not of working days in the period — a teacher
+    // with no record on a day is absent from the data, which is a different
+    // thing from being absent from school, and the report must not conflate them.
+    pipeline.push({
+      $group: {
+        _id:         '$teacher',
+        teacherName: { $first: '$teacherName' },
+        employeeId:  { $first: '$employeeId' },
+        designation: { $first: '$designation' },
+        daysRecorded: { $sum: 1 },
+        present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } },
+        leave:   { $sum: { $cond: [{ $eq: ['$status', 'leave'] }, 1, 0] } },
+        absent:  { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
+        late:    { $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] } },
+      },
+    });
+    pipeline.push({
+      $addFields: {
+        percentage: {
+          $cond: [
+            { $gt: ['$daysRecorded', 0] },
+            { $round: [{ $multiply: [{ $divide: ['$present', '$daysRecorded'] }, 100] }, 1] },
+            0,
+          ],
+        },
+      },
+    });
+    pipeline.push({ $sort: { percentage: 1 } });
+  } else if (groupBy && groupBy !== 'none') {
+    const gMap = { status: '$status', month: '$month', designation: '$designation', date: '$dateFmt' };
+    pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
+    pipeline.push({ $sort: { _id: 1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'date']: sortBy?.order || -1 } });
+  }
+
+  return { model: TeacherAttendance, pipeline };
 }
 
 // ─── Dashboard summary ────────────────────────────────────────────────────────

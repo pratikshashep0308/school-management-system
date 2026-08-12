@@ -4,8 +4,8 @@ const { buildPipeline, getDashboardSummary, smartSearch } = require('../services
 
 // ── Role → allowed modules ────────────────────────────────────────────────────
 const ROLE_MODULES = {
-  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour'],
-  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour'],
+  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance'],
+  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance'],
   // Teachers get their own teaching artefacts and behaviour notes. Not
   // admissions or expenses — those are office matters, and a report is a way of
   // reading data as much as any screen is.
@@ -197,6 +197,29 @@ const MODULE_META = {
     ],
     groupBy: ['class','gender','status','category','grade'],
     sortBy:  ['name','admissionDateFmt','grade'],
+  },
+  teacher_attendance: {
+    label: 'Staff Attendance',
+    collection: 'teacherattendances',
+    fields: [
+      { key: 'teacherName',  label: 'Staff Member', type: 'string' },
+      { key: 'employeeId',   label: 'Employee ID',  type: 'string' },
+      { key: 'designation',  label: 'Designation',  type: 'string' },
+      { key: 'dateFmt',      label: 'Date',         type: 'date' },
+      { key: 'status',       label: 'Status',       type: 'string' },
+      { key: 'remarks',      label: 'Remarks',      type: 'string' },
+      { key: 'markedByName', label: 'Marked By',    type: 'string' },
+    ],
+    // Only present/leave appear in the data, but absent and late are offered —
+    // they are valid statuses that simply have not been used yet, and a filter
+    // that returns nothing is a fair answer to "was anyone absent?".
+    filters: [
+      { key: 'status',   label: 'Status', type: 'select', options: ['present','absent','leave','late'] },
+      { key: 'dateFrom', label: 'From',   type: 'date' },
+      { key: 'dateTo',   label: 'To',     type: 'date' },
+    ],
+    groupBy: ['teacher','status','month','designation','date'],
+    sortBy:  ['dateFmt','teacherName'],
   },
   teachers: {
     label: 'Teachers',
@@ -470,6 +493,38 @@ exports.getPredefined = async (req, res) => {
       fields: ['applicantName','applicationNumber','className','parentName','parentPhone','admittedOn'],
       filters: {}, groupBy: '', sortBy: { field: 'admittedOn', order: -1 },
       chartConfig: { enabled: false },
+    },
+    {
+      id: 'staff-attendance-summary', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — Summary',
+      description: 'Days present against days recorded, per staff member',
+      fields: ['teacherName','employeeId','designation','dateFmt','status'],
+      filters: {}, groupBy: 'teacher', sortBy: { field: 'teacherName', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: 'teacherName', yAxis: 'percentage' },
+    },
+    {
+      id: 'staff-attendance-register', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — Daily Register',
+      description: 'Every attendance record, most recent first',
+      fields: ['teacherName','designation','dateFmt','status','remarks','markedByName'],
+      filters: {}, groupBy: '', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'staff-attendance-leave', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — Leave Taken',
+      description: 'Days recorded as leave, with the reason where one was given',
+      fields: ['teacherName','designation','dateFmt','remarks','markedByName'],
+      filters: { status: 'leave' }, groupBy: '', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'staff-attendance-monthly', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — By Month',
+      description: 'How many attendance records exist each month',
+      fields: ['teacherName','dateFmt','status'],
+      filters: {}, groupBy: 'month', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
     },
     {
       id: 'homework-log', module: 'homework', category: 'Homework',
