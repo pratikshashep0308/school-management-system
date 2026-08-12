@@ -635,7 +635,16 @@ function admissionPipeline(filters, fields, groupBy, sortBy, schoolId) {
   return { model: Admission, pipeline };
 }
 
-// ─── Homework — joins class, subject, teacher ─────────────────────────────────
+// ─── Homework ─────────────────────────────────────────────────────────────────
+//
+// Checked against the real records (12 Aug 2026, 170 documents):
+//
+//   · `class` and `subject` are proper ObjectIds — the joins resolve
+//   · `teacher` is set on 1 of 170. The join was removed: a "Set By" column
+//     blank on 169 rows tells the reader nothing except that the field exists.
+//   · `status` is genuinely used — 156 active, 14 completed
+//   · `assignedDate` sits alongside `dueDate`, so "when was it set" and "when is
+//     it due" are separate questions the reports can both answer
 function homeworkPipeline(filters, fields, groupBy, sortBy, schoolId) {
   const Homework = require('../models/Homework');
   const pipeline = [
@@ -644,24 +653,39 @@ function homeworkPipeline(filters, fields, groupBy, sortBy, schoolId) {
     { $unwind: { path: '$_class',  preserveNullAndEmptyArrays: true } },
     { $lookup: { from: 'subjects', localField: 'subject', foreignField: '_id', as: '_subject' } },
     { $unwind: { path: '$_subject', preserveNullAndEmptyArrays: true } },
-    { $lookup: { from: 'teachers', localField: 'teacher', foreignField: '_id', as: '_teacher' } },
-    { $unwind: { path: '$_teacher', preserveNullAndEmptyArrays: true } },
-    { $lookup: { from: 'users', localField: '_teacher.user', foreignField: '_id', as: '_tuser' } },
-    { $unwind: { path: '$_tuser', preserveNullAndEmptyArrays: true } },
     {
       $addFields: {
         className:   '$_class.name',
         section:     '$_class.section',
-        subjectName: '$_subject.name',
-        teacherName: '$_tuser.name',
-        dueDateFmt:  { $dateToString: { format: '%d/%m/%Y', date: '$dueDate' } },
+        subjectName: { $ifNull: ['$_subject.name', '(no subject)'] },
+        dueDateFmt:      { $dateToString: { format: '%d/%m/%Y', date: '$dueDate' } },
+        assignedDateFmt: { $dateToString: { format: '%d/%m/%Y', date: '$assignedDate' } },
+        // Grouping by month answers "how much homework is being set" over time.
+        assignedMonth:   { $dateToString: { format: '%Y-%m', date: '$assignedDate' } },
         attachmentCount: { $size: { $ifNull: ['$attachments', []] } },
+        // Still active and past its due date. Computed rather than stored, so it
+        // is right whenever the report is run rather than whenever it was saved.
+        isOverdue: {
+          $cond: [
+            { $and: [
+              { $eq: ['$status', 'active'] },
+              { $lt: ['$dueDate', new Date()] },
+            ] },
+            'Yes', 'No',
+          ],
+        },
       },
     },
   ];
 
   if (groupBy && groupBy !== 'none') {
-    const gMap = { class: '$className', subject: '$subjectName', teacher: '$teacherName', status: '$status' };
+    const gMap = {
+      class:   '$className',
+      subject: '$subjectName',
+      status:  '$status',
+      month:   '$assignedMonth',
+      overdue: '$isOverdue',
+    };
     pipeline.push({ $group: { _id: gMap[groupBy] || `$${groupBy}`, count: { $sum: 1 } } });
     pipeline.push({ $sort: { _id: 1 } });
   } else {
