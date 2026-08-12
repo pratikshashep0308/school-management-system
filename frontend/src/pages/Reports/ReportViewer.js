@@ -1,7 +1,7 @@
 // frontend/src/pages/Reports/ReportViewer.js
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { reportAPI } from '../../utils/api';
+import { reportAPI, classAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
 
 const CHART_COLORS = ['#3B82F6','#10B981','#F97316','#8B5CF6','#EF4444','#06B6D4','#F59E0B','#EC4899','#6366F1','#14B8A6'];
@@ -24,6 +24,7 @@ export default function ReportViewer() {
   const [rfFrom,   setRfFrom]   = useState('');
   const [rfTo,     setRfTo]     = useState('');
   const [rfClass,  setRfClass]  = useState('');
+  const [classList, setClassList] = useState([]);
   const [rfStatus, setRfStatus] = useState('');
   const [rfLimit,  setRfLimit]  = useState(500);
 
@@ -119,6 +120,14 @@ export default function ReportViewer() {
   // left a table of bare counts with nothing to say what each count was of.
   const isGrouped = Boolean(config?.groupBy) && config.groupBy !== 'none';
 
+  // Classes for the filter dropdown. Loaded once; a failure leaves the list
+  // empty and the filter simply offers "All classes", which is harmless.
+  useEffect(() => {
+    classAPI.getAll?.()
+      .then((r) => setClassList(r?.data?.data ?? r?.data ?? []))
+      .catch(() => setClassList([]));
+  }, []);
+
   const cols = data.length
     ? Object.keys(data[0]).filter(k => (k === '_id' ? isGrouped : k !== '__v'))
     : [];
@@ -200,7 +209,6 @@ export default function ReportViewer() {
           { label: 'From',   type: 'date',   val: rfFrom,   set: setRfFrom },
           { label: 'To',     type: 'date',   val: rfTo,     set: setRfTo   },
           { label: 'Status', type: 'text',   val: rfStatus, set: setRfStatus, placeholder: 'e.g. paid, absent' },
-          { label: 'Class ID', type: 'text', val: rfClass,  set: setRfClass,  placeholder: 'MongoDB ObjectId' },
         ].map(({ label, type, val, set, placeholder }) => (
           <div key={label}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 4, textTransform: 'uppercase' }}>{label}</div>
@@ -208,6 +216,22 @@ export default function ReportViewer() {
               style={{ padding: '7px 10px', border: '1px solid #D1D5DB', borderRadius: 7, fontSize: 13, width: type === 'text' ? 180 : 140, color: '#111827' }} />
           </div>
         ))}
+        {/* Class — a dropdown, not an id box. Asking somebody to paste a
+            24-character hex string is a developer field that reached a user
+            screen; nobody in the office can answer it. */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 4, textTransform: 'uppercase' }}>Class</div>
+          <select value={rfClass} onChange={e => setRfClass(e.target.value)}
+            style={{ padding: '7px 10px', border: '1px solid #D1D5DB', borderRadius: 7, fontSize: 13, minWidth: 150 }}>
+            <option value="">All classes</option>
+            {classList.map(c => (
+              <option key={c._id} value={c._id}>
+                {c.name}{c.section ? ` ${c.section}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginBottom: 4, textTransform: 'uppercase' }}>Rows</div>
           <select value={rfLimit} onChange={e => setRfLimit(Number(e.target.value))}
