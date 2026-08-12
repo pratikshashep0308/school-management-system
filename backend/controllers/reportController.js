@@ -747,7 +747,7 @@ exports.getPredefined = async (req, res) => {
       name: 'All Teaching Staff',
       description: 'Complete teacher directory with subjects',
       fields: ['name','email','phone','designation','qualification','experience','subjectNames','joiningDateFmt'],
-      filters: { isActive: 'true' }, groupBy: '', sortBy: { field: 'name', order: 1 },
+      filters: { isActive: true }, groupBy: '', sortBy: { field: 'name', order: 1 },
       chartConfig: { enabled: false },
     },
   ];

@@ -49,6 +49,16 @@ function buildMatch(filters = {}, schoolId) {
     if (['class','classId'].includes(k)) { match.class = toId(v); continue; }
     if (k === 'studentId')               { match.student = toId(v); continue; }
     if (k === 'examId')                  { match.exam    = toId(v); continue; }
+
+    // Booleans arrive as the STRINGS "true"/"false" — from a saved report
+    // config, or from a query string, where everything is text. Mongo compares
+    // strictly, so "true" never matches a stored boolean true and the report
+    // returns nothing while looking perfectly valid.
+    //
+    // Found 12 Aug 2026: the "All Teaching Staff" report carried
+    // `isActive: 'true'` and had therefore never returned a single row.
+    if (v === 'true' || v === 'false') { match[k] = (v === 'true'); continue; }
+
     match[k] = v;
   }
 
