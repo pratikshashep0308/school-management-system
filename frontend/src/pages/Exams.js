@@ -464,7 +464,6 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
   const [classF,    setClassF]    = useState(initialClass);
   const [typeF,     setTypeF]     = useState('');
   const [search,    setSearch]    = useState('');
-  const [exporting, setExporting] = useState(false);
 
   const rows = exams
     .filter(e => e.date)
@@ -473,38 +472,97 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
     .filter(e => !search || e.name?.toLowerCase().includes(search.toLowerCase()) || e.subject?.name?.toLowerCase().includes(search.toLowerCase()))
     .sort((a,b) => new Date(a.date) - new Date(b.date));
 
-  const exportPDF = async () => {
-    setExporting(true);
-    try {
-      if (!window.jspdf || !window.jspdf.jsPDF.prototype.autoTable) {
-        await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
-        await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
-      }
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
-      doc.setFontSize(16); doc.setFont(undefined,'bold'); doc.text('Exam Timetable',14,16);
-      doc.setFontSize(10); doc.setFont(undefined,'normal'); doc.setTextColor(100);
-      doc.text(`The Future Step School  ·  ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}`,14,23);
-      doc.setTextColor(0);
-      doc.autoTable({
-        startY:28,
-        head:[['Date','Day','Subject','Exam Name','Class','Type','Time','Total','Pass','Status']],
-        body:rows.map(e=>{
-          const d=new Date(e.date); const diff=Math.ceil((d-new Date())/86400000);
-          const past=d<new Date()&&d.toDateString()!==new Date().toDateString();
-          return [d.getDate()+' '+d.toLocaleString('default',{month:'short'})+' '+d.getFullYear(),d.toLocaleString('default',{weekday:'short'}),e.subject?.name||'—',e.name,`${e.class?.name||''} ${e.class?.section||''}`.trim(),e.examType,e.startTime?(e.startTime+(e.endTime?` – ${e.endTime}`:'')):'—',e.totalMarks,e.passingMarks,past?'Done':diff===0?'Today':diff<=3?`In ${diff}d (Urgent)`:`In ${diff}d`];
-        }),
-        styles:{fontSize:9,cellPadding:3},
-        headStyles:{fillColor:[11,31,74],textColor:255,fontStyle:'bold'},
-        alternateRowStyles:{fillColor:[248,250,252]},
-        didParseCell:(data)=>{ if(data.section==='body'&&data.column.index===9){ const v=data.cell.text[0]||''; if(v==='Done') data.cell.styles.textColor=[107,114,128]; else if(v==='Today') data.cell.styles.textColor=[146,64,14]; else if(v.includes('Urgent')) data.cell.styles.textColor=[220,38,38]; else data.cell.styles.textColor=[22,163,74]; } },
-      });
-      const pages=doc.internal.getNumberOfPages();
-      for(let i=1;i<=pages;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150); doc.text(`Page ${i} of ${pages}  ·  The Future Step School`,14,doc.internal.pageSize.height-8); }
-      doc.save(`exam-timetable-${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('PDF downloaded!');
-    } catch(err){ console.error(err); toast.error('PDF export failed'); }
-    finally { setExporting(false); }
+  // Exam timetable PDF.
+  //
+  // ─── WHY THIS PRINTS RATHER THAN USING jsPDF ────────────────────────────────
+  // The previous version fetched jsPDF and its autoTable plugin from a CDN at
+  // the moment of the click. That fails in several ways, and did:
+  //
+  //   · staging is served over HTTP while the scripts are HTTPS — a mixed
+  //     content situation no amount of JavaScript can resolve
+  //   · if the plugin loads but jsPDF has not finished registering, the guard
+  //     passes and doc.autoTable() does not exist
+  //   · either way doc.save() had already begun writing, producing the
+  //     "file is not valid" a partial PDF gives
+  //
+  // Every other export in this system prints generated HTML instead — the fee
+  // report, the category report. The browser's own engine handles pagination
+  // and page numbers, there is nothing to download first, and the result is
+  // laid out properly rather than as autoTable's default grid.
+  const exportPDF = () => {
+    if (!rows.length) { toast.error('Nothing to print'); return; }
+
+    const w = window.open('', '_blank');
+    if (!w) { toast.error('Please allow pop-ups to print'); return; }
+
+    const esc = (v) => String(v ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cls = classF
+      ? (classes.find(c => c._id === classF)?.name || 'Class')
+      : 'All Classes';
+
+    // Chronological, so the printed sheet reads as a schedule rather than as
+    // whatever order the filter happened to produce.
+    const sorted = [...rows].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const body = sorted.map(e => {
+      const d = new Date(e.date);
+      const past = d < today && d.toDateString() !== today.toDateString();
+      const isToday = d.toDateString() === today.toDateString();
+      return `<tr class="${past ? 'past' : ''}${isToday ? ' today' : ''}">
+        <td>${d.getDate()} ${esc(d.toLocaleString('en-IN', { month: 'short' }))}</td>
+        <td>${esc(d.toLocaleString('en-IN', { weekday: 'short' }))}</td>
+        <td class="b">${esc(e.subject?.name || e.name)}</td>
+        <td>${esc(`${e.class?.name || ''} ${e.class?.section || ''}`.trim() || '—')}</td>
+        <td class="cap">${esc(e.examType || '')}</td>
+        <td>${esc(e.startTime || '—')}${e.endTime ? ` – ${esc(e.endTime)}` : ''}</td>
+        <td class="n">${e.totalMarks ?? '—'}</td>
+        <td class="n">${e.passingMarks ?? '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<html><head><title>Exam Timetable — ${esc(cls)}</title><style>
+      @page { size: A4 portrait; margin: 12mm; }
+      body { font-family: system-ui, Arial, sans-serif; color:#111827; margin:0; }
+      h1 { font-size:18px; color:#0B1F4A; margin:0 0 2px; }
+      .sub { color:#6B7280; font-size:11px; margin-bottom:14px; }
+      table { width:100%; border-collapse:collapse; font-size:11px; }
+      th { background:#0B1F4A; color:#fff; padding:7px 8px; text-align:left; font-weight:600; font-size:10px;
+           text-transform:uppercase; letter-spacing:0.4px; }
+      td { padding:6px 8px; border-bottom:1px solid #F3F4F6; }
+      td.b { font-weight:700; }
+      td.n { text-align:right; }
+      td.cap { text-transform:capitalize; }
+      tr.past td { color:#9CA3AF; }
+      tr.today td { background:#FFFBEB; font-weight:600; }
+      tr:nth-child(even):not(.today) td { background:#F9FAFB; }
+      /* Headers repeat on every page and a row never splits across one — a
+         continuation sheet starting mid-row is unreadable. */
+      thead { display:table-header-group; }
+      tr { break-inside:avoid; }
+      .foot { margin-top:12px; font-size:9px; color:#9CA3AF; }
+    </style></head><body>
+      <h1>Exam Timetable</h1>
+      <div class="sub">The Future Step School · ${esc(cls)} ·
+        ${esc(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }))} ·
+        ${sorted.length} paper${sorted.length === 1 ? '' : 's'}</div>
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Day</th><th>Subject</th><th>Class</th>
+          <th>Type</th><th>Time</th><th>Total</th><th>Pass</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div class="foot">Today's papers are highlighted; past papers are greyed.</div>
+    </body></html>`;
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 400);
   };
 
   const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
@@ -538,8 +596,10 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
               + Add Exam
             </button>
           )}
-          <button onClick={exportPDF} disabled={exporting||!rows.length} style={{ padding:'7px 16px', borderRadius:8, fontSize:12, fontWeight:700, background:exporting||!rows.length?'#F3F4F6':'#DC2626', color:exporting||!rows.length?'#9CA3AF':'#fff', border:'none', cursor:exporting||!rows.length?'not-allowed':'pointer' }}>
-            {exporting ? '⏳' : '⬇'} Download PDF
+          {/* No longer async — there is nothing to download before printing, so
+              the spinner state went with the CDN fetch it was waiting on. */}
+          <button onClick={exportPDF} disabled={!rows.length} style={{ padding:'7px 16px', borderRadius:8, fontSize:12, fontWeight:700, background:!rows.length?'#F3F4F6':'#DC2626', color:!rows.length?'#9CA3AF':'#fff', border:'none', cursor:!rows.length?'not-allowed':'pointer' }}>
+            🖨 Print / Save as PDF
           </button>
         </div>
       </div>
