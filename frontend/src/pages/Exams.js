@@ -244,9 +244,11 @@ function RecentExams({ exams }) {
 // Session bands. An exam day is not a school day of eight periods — papers run
 // in long sittings, so three bands cover it without inventing structure.
 const EXAM_SESSIONS = [
-  { key: 'morning',   label: 'Morning',   time: 'before 12:00' },
-  { key: 'midday',    label: 'Midday',    time: '12:00 – 15:00' },
-  { key: 'afternoon', label: 'Afternoon', time: 'after 15:00' },
+  // defaultTime pre-fills the form when adding from an empty cell, so the paper
+  // lands in the session that was clicked rather than wherever the form defaults.
+  { key: 'morning',   label: 'Morning',   time: 'before 12:00',  defaultTime: '09:00' },
+  { key: 'midday',    label: 'Midday',    time: '12:00 – 15:00', defaultTime: '12:30' },
+  { key: 'afternoon', label: 'Afternoon', time: 'after 15:00',   defaultTime: '15:30' },
 ];
 
 const sessionOf = (startTime) => {
@@ -269,7 +271,7 @@ const sessionOf = (startTime) => {
 // class. Two dimensions across the top (date AND class) would need a nested
 // header and would be unreadable past three classes; the filter already exists
 // and answers the same question one class at a time.
-function ExamGridView({ rows, classes, classF, canEdit, onEdit, onDelete }) {
+function ExamGridView({ rows, classes, classF, canEdit, onEdit, onDelete, onAdd }) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
   // Columns: every date that has an exam, chronological.
@@ -354,10 +356,30 @@ function ExamGridView({ rows, classes, classF, canEdit, onEdit, onDelete }) {
                       background: isToday ? '#FFFBEB' : isPast ? '#FAFAFA' : 'transparent',
                     }}>
                       {!items.length ? (
-                        <div style={{
-                          minHeight: 58, display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', color: '#D1D5DB', fontSize: 10,
-                        }}>—</div>
+                        /* An empty slot is where a paper GOES, so it offers to
+                           add one rather than showing a dash. Only for those who
+                           can edit — a dead "+" is worse than a plain blank. */
+                        canEdit ? (
+                          <div
+                            onClick={() => onAdd && onAdd({ date: d, startTime: sn.defaultTime })}
+                            title="Add an exam here"
+                            style={{
+                              minHeight: 58, display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', cursor: 'pointer',
+                              border: '1px dashed #E5E7EB', borderRadius: 8, color: '#D1D5DB',
+                              fontSize: 16, transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#93C5FD'; ev.currentTarget.style.color = '#3B82F6'; ev.currentTarget.style.background = '#F0F7FF'; }}
+                            onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.color = '#D1D5DB'; ev.currentTarget.style.background = 'transparent'; }}
+                          >
+                            +
+                          </div>
+                        ) : (
+                          <div style={{
+                            minHeight: 58, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', color: '#D1D5DB', fontSize: 10,
+                          }}>—</div>
+                        )
                       ) : items.map(e => {
                         const tc = TYPE_COLORS[e.examType] || TYPE_COLORS.unit;
                         return (
@@ -413,9 +435,23 @@ function ExamGridView({ rows, classes, classF, canEdit, onEdit, onDelete }) {
         </table>
       </div>
 
+      {/* Legend — which colour is which exam type. The cards are colour-coded
+          and a reader should not have to open one to learn the code. */}
+      <div style={{ padding: '10px 14px', borderTop: '0.5px solid #E5E7EB', display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center' }}>
+        {[...new Set(rows.map(e => e.examType).filter(Boolean))].map(t => {
+          const tc = TYPE_COLORS[t] || TYPE_COLORS.unit;
+          return (
+            <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#4B5563' }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: tc.color, display: 'inline-block' }} />
+              <span style={{ textTransform: 'capitalize' }}>{t}</span>
+            </span>
+          );
+        })}
+      </div>
+
       <div style={{ padding: '8px 14px', fontSize: 10.5, color: '#9CA3AF', borderTop: '0.5px solid #E5E7EB' }}>
-        Showing {classLabel}. Papers are placed by their start time — morning before noon,
-        midday to 3pm, afternoon after.
+        Showing {classLabel}. Papers sit in the session their start time falls in —
+        morning before noon, midday to 3pm, afternoon after.
       </div>
     </div>
   );
@@ -511,7 +547,7 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
       {!rows.length ? (
         <EmptyState icon="🗓" title="No exams found" subtitle="Create exams with dates to see the timetable"/>
       ) : view === 'grid' ? (
-        <ExamGridView rows={rows} classes={classes} classF={classF} canEdit={canEdit} onEdit={onEdit} onDelete={onDelete}/>
+        <ExamGridView rows={rows} classes={classes} classF={classF} canEdit={canEdit} onEdit={onEdit} onDelete={onDelete} onAdd={onAdd}/>
       ) : (
         <div className="card" style={{ padding:0, overflow:'hidden' }}>
           <div style={{ overflowX:'auto' }}>
@@ -595,7 +631,19 @@ export default function Exams() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openAdd  = () => { setForm(FORM_EMPTY); setModal(true); };
+  // Accepts a prefill so clicking "+" in an empty grid cell opens the form on
+  // that date and session. Without it the click would open a blank form and the
+  // cell you chose would be forgotten — worse than no "+" at all, because it
+  // looks like it did something.
+  const openAdd  = (prefill) => {
+    setForm({
+      ...FORM_EMPTY,
+      ...(prefill?.date ? { date: new Date(prefill.date).toISOString().slice(0, 10) } : {}),
+      ...(prefill?.startTime ? { startTime: prefill.startTime } : {}),
+      ...(initialClass ? { class: initialClass } : {}),
+    });
+    setModal(true);
+  };
   const openEdit = (exam) => {
     setForm({ _id:exam._id, name:exam.name||'', class:exam.class?._id||exam.class||'', subject:exam.subject?._id||exam.subject||'', examType:exam.examType||'unit', date:exam.date?exam.date.split('T')[0]:'', startTime:exam.startTime||'', endTime:exam.endTime||'', totalMarks:exam.totalMarks||100, passingMarks:exam.passingMarks||35, instructions:exam.instructions||'' });
     setModal(true);
