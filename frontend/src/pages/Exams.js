@@ -241,124 +241,181 @@ function RecentExams({ exams }) {
 
 // ── Exam grid: dates as rows, classes as columns ──────────────────────────────
 // Mirrors the main Timetable module's layout so the two feel consistent.
+// Session bands. An exam day is not a school day of eight periods — papers run
+// in long sittings, so three bands cover it without inventing structure.
+const EXAM_SESSIONS = [
+  { key: 'morning',   label: 'Morning',   time: 'before 12:00' },
+  { key: 'midday',    label: 'Midday',    time: '12:00 – 15:00' },
+  { key: 'afternoon', label: 'Afternoon', time: 'after 15:00' },
+];
+
+const sessionOf = (startTime) => {
+  if (!startTime) return 'morning';
+  const h = parseInt(String(startTime).split(':')[0], 10);
+  if (Number.isNaN(h)) return 'morning';
+  if (h < 12) return 'morning';
+  if (h < 15) return 'midday';
+  return 'afternoon';
+};
+
+// Exam schedule grid — DATES ACROSS, SESSIONS DOWN.
+//
+// This was the other way round: one row per date, one column per class, so a
+// second paper on the same day had no obvious place to go even though the cell
+// could hold it. Turning it matches the Timetable module, where the thing that
+// repeats runs down the side and the thing that advances runs across the top.
+//
+// Class is handled by the FILTER above the grid rather than by a column per
+// class. Two dimensions across the top (date AND class) would need a nested
+// header and would be unreadable past three classes; the filter already exists
+// and answers the same question one class at a time.
 function ExamGridView({ rows, classes, classF, canEdit, onEdit, onDelete }) {
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
 
-  // Columns: the filtered class, or every class that actually has an exam
-  const usedClassIds = [...new Set(rows.map(e => e.class?._id).filter(Boolean))];
-  const cols = classF
-    ? classes.filter(c => c._id === classF)
-    : classes.filter(c => usedClassIds.includes(c._id));
-
-  // Rows: one per distinct exam date, chronological
+  // Columns: every date that has an exam, chronological.
   const dateKeys = [...new Set(rows.map(e => new Date(e.date).toDateString()))]
     .sort((a, b) => new Date(a) - new Date(b));
 
-  // Look up exams by date + class
-  const cellFor = (dateStr, classId) =>
-    rows.filter(e => new Date(e.date).toDateString() === dateStr && e.class?._id === classId);
+  // date + session -> the papers in it
+  const cellFor = (dateStr, session) =>
+    rows.filter(e =>
+      new Date(e.date).toDateString() === dateStr && sessionOf(e.startTime) === session);
 
-  if (!cols.length) {
-    return <EmptyState icon="🗓" title="No classes to show" subtitle="Exams need a class assigned to appear in the grid"/>;
+  // Only render session rows that hold something, so a school running mornings
+  // only does not get two permanently empty bands.
+  const usedSessions = EXAM_SESSIONS.filter(sn =>
+    dateKeys.some(dk => cellFor(dk, sn.key).length > 0));
+  const sessions = usedSessions.length ? usedSessions : [EXAM_SESSIONS[0]];
+
+  if (!dateKeys.length) {
+    return <EmptyState icon="🗓" title="Nothing scheduled yet"
+      subtitle="Add an exam and it appears here, on its date" />;
   }
 
+  const classLabel = classF
+    ? (classes.find(c => c._id === classF)?.name || 'Selected class')
+    : 'All classes';
+
   return (
-    <div className="card" style={{ padding:0, overflow:'hidden' }}>
-      <div style={{ overflowX:'auto' }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', minWidth:640 }}>
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
           <thead>
-            <tr style={{ background:'#0B1F4A' }}>
-              <th style={{ padding:'12px 14px', textAlign:'center', color:'#94afd4', fontSize:10,
-                fontWeight:700, textTransform:'uppercase', width:96,
-                borderRight:'1px solid rgba(255,255,255,0.08)' }}>
-                Date
+            <tr style={{ background: '#0B1F4A' }}>
+              <th style={{
+                padding: '12px 14px', textAlign: 'center', color: '#94afd4', fontSize: 10,
+                fontWeight: 700, textTransform: 'uppercase', width: 110,
+                borderRight: '1px solid rgba(255,255,255,0.08)',
+              }}>
+                Session
               </th>
-              {cols.map(c => (
-                <th key={c._id} style={{ padding:'12px 10px', textAlign:'center', fontSize:11,
-                  fontWeight:700, color:'#E2E8F0', minWidth:150,
-                  borderRight:'1px solid rgba(255,255,255,0.08)' }}>
-                  {c.name} {c.section || ''}
-                </th>
-              ))}
+              {dateKeys.map(dk => {
+                const d = new Date(dk);
+                const isToday = d.toDateString() === today.toDateString();
+                return (
+                  <th key={dk} style={{
+                    padding: '10px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700,
+                    color: isToday ? '#FFD700' : '#E2E8F0', minWidth: 150,
+                    borderRight: '1px solid rgba(255,255,255,0.08)',
+                    borderTop: isToday ? '2px solid #FFD700' : 'none',
+                    background: isToday ? '#162D6A' : '#0B1F4A',
+                  }}>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 9, opacity: 0.75, textTransform: 'uppercase' }}>
+                      {d.toLocaleDateString('en-IN', { month: 'short' })} · {d.toLocaleDateString('en-IN', { weekday: 'short' })}
+                    </div>
+                    {isToday && <div style={{ fontSize: 7.5, color: '#FFD700', fontWeight: 700, marginTop: 2 }}>TODAY</div>}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
-          <tbody>
-            {dateKeys.map(dk => {
-              const d = new Date(dk);
-              const isToday = d.toDateString() === today.toDateString();
-              const isPast  = d < today && !isToday;
-              return (
-                <tr key={dk} style={{ borderBottom:'0.5px solid #E5E7EB' }}>
-                  {/* Date column */}
-                  <td style={{ padding:'10px 6px', textAlign:'center', background:'#0B1F4A',
-                    borderRight:'0.5px solid rgba(255,255,255,0.08)', verticalAlign:'middle' }}>
-                    <div style={{ fontSize:16, fontWeight:800,
-                      color: isToday ? '#FFD700' : '#fff' }}>
-                      {d.getDate()}
-                    </div>
-                    <div style={{ fontSize:9, color:'rgba(255,255,255,0.55)', textTransform:'uppercase' }}>
-                      {d.toLocaleDateString('en-IN',{ month:'short' })}
-                    </div>
-                    <div style={{ fontSize:9, color:'rgba(255,255,255,0.45)' }}>
-                      {d.toLocaleDateString('en-IN',{ weekday:'short' })}
-                    </div>
-                    {isToday && <div style={{ fontSize:7.5, color:'#FFD700', fontWeight:700, marginTop:2 }}>TODAY</div>}
-                  </td>
 
-                  {/* One cell per class */}
-                  {cols.map(c => {
-                    const items = cellFor(dk, c._id);
-                    return (
-                      <td key={c._id} style={{
-                        borderRight:'0.5px solid #E5E7EB', verticalAlign:'top', padding:6,
-                        background: isToday ? '#FFFBEB' : isPast ? '#FAFAFA' : 'transparent',
-                        minHeight:70,
-                      }}>
-                        {!items.length ? (
-                          <div style={{ minHeight:58, display:'flex', alignItems:'center',
-                            justifyContent:'center', color:'#D1D5DB', fontSize:10 }}>—</div>
-                        ) : items.map(e => {
-                          const tc = TYPE_COLORS[e.examType] || TYPE_COLORS.unit;
-                          return (
-                            <div key={e._id}
-                              onClick={() => canEdit && onEdit(e)}
-                              title={canEdit ? 'Click to edit' : ''}
-                              style={{
-                                background:'#fff', border:`1px solid ${tc.bg}`,
-                                borderLeft:`3px solid ${tc.color}`, borderRadius:8,
-                                padding:'7px 9px', marginBottom:5,
-                                cursor: canEdit ? 'pointer' : 'default',
-                                opacity: isPast ? 0.65 : 1,
-                              }}>
-                              <div style={{ fontSize:12, fontWeight:700, color:'#111827',
-                                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                                {e.subject?.name || e.name}
-                              </div>
-                              {(e.startTime || e.endTime) && (
-                                <div style={{ fontSize:10, color:'#6B7280', marginTop:2 }}>
-                                  🕐 {e.startTime || '—'}{e.endTime ? ` – ${e.endTime}` : ''}
-                                </div>
-                              )}
-                              <div style={{ display:'flex', gap:5, marginTop:4, flexWrap:'wrap', alignItems:'center' }}>
-                                <span style={{ fontSize:9, fontWeight:700, padding:'1px 7px',
-                                  borderRadius:999, background:tc.bg, color:tc.color, textTransform:'capitalize' }}>
-                                  {e.examType}
-                                </span>
-                                {e.totalMarks ? (
-                                  <span style={{ fontSize:9.5, color:'#9CA3AF' }}>{e.totalMarks} marks</span>
-                                ) : null}
-                              </div>
+          <tbody>
+            {sessions.map(sn => (
+              <tr key={sn.key} style={{ borderBottom: '0.5px solid #E5E7EB' }}>
+                <td style={{
+                  padding: '10px 8px', textAlign: 'center', background: '#0B1F4A',
+                  borderRight: '0.5px solid rgba(255,255,255,0.08)', verticalAlign: 'middle',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{sn.label}</div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>{sn.time}</div>
+                </td>
+
+                {dateKeys.map(dk => {
+                  const d = new Date(dk);
+                  const isToday = d.toDateString() === today.toDateString();
+                  const isPast = d < today && !isToday;
+                  const items = cellFor(dk, sn.key);
+
+                  return (
+                    <td key={dk} style={{
+                      borderRight: '0.5px solid #E5E7EB', verticalAlign: 'top', padding: 6,
+                      background: isToday ? '#FFFBEB' : isPast ? '#FAFAFA' : 'transparent',
+                    }}>
+                      {!items.length ? (
+                        <div style={{
+                          minHeight: 58, display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', color: '#D1D5DB', fontSize: 10,
+                        }}>—</div>
+                      ) : items.map(e => {
+                        const tc = TYPE_COLORS[e.examType] || TYPE_COLORS.unit;
+                        return (
+                          <div key={e._id}
+                            onClick={() => canEdit && onEdit(e)}
+                            title={canEdit ? 'Click to edit' : ''}
+                            style={{
+                              background: '#fff', border: `1px solid ${tc.bg}`,
+                              borderLeft: `3px solid ${tc.color}`, borderRadius: 8,
+                              padding: '7px 9px', marginBottom: 5,
+                              cursor: canEdit ? 'pointer' : 'default',
+                              opacity: isPast ? 0.65 : 1,
+                            }}>
+                            <div style={{
+                              fontSize: 12, fontWeight: 700, color: '#111827',
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                            }}>
+                              {e.subject?.name || e.name}
                             </div>
-                          );
-                        })}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+                            {/* The class is named on the card, because with the
+                                filter set to "all" two classes can share a cell
+                                and the column no longer says which is which. */}
+                            {!classF && e.class?.name && (
+                              <div style={{ fontSize: 10, color: '#4B5563', marginTop: 2, fontWeight: 600 }}>
+                                {e.class.name} {e.class.section || ''}
+                              </div>
+                            )}
+                            {(e.startTime || e.endTime) && (
+                              <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>
+                                🕐 {e.startTime || '—'}{e.endTime ? ` – ${e.endTime}` : ''}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 5, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <span style={{
+                                fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
+                                background: tc.bg, color: tc.color, textTransform: 'capitalize',
+                              }}>
+                                {e.examType}
+                              </span>
+                              {e.totalMarks ? (
+                                <span style={{ fontSize: 9.5, color: '#9CA3AF' }}>{e.totalMarks} marks</span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ padding: '8px 14px', fontSize: 10.5, color: '#9CA3AF', borderTop: '0.5px solid #E5E7EB' }}>
+        Showing {classLabel}. Papers are placed by their start time — morning before noon,
+        midday to 3pm, afternoon after.
       </div>
     </div>
   );
