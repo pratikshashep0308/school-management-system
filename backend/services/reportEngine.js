@@ -487,6 +487,7 @@ exports.buildPipeline = function(config) {
     case 'meetings':    return meetingPipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'behaviour':   return behaviourPipeline(filters, fields, groupBy, sortBy, schoolId);
     case 'teacher_attendance': return teacherAttendancePipeline(filters, fields, groupBy, sortBy, schoolId);
+    case 'exam_marks':  return examMarksPipeline(filters, fields, groupBy, sortBy, schoolId);
     default:               throw new Error(`Unknown module: ${module}`);
   }
 };
@@ -957,6 +958,109 @@ function teacherAttendancePipeline(filters, fields, groupBy, sortBy, schoolId) {
   }
 
   return { model: TeacherAttendance, pipeline };
+}
+
+// ─── Exam marks (the advanced exam module) ────────────────────────────────────
+//
+// SEPARATE from `exams` above, which reads the legacy `results` collection.
+// That collection holds 0 documents; the advanced module writes to `exammarks`.
+// Repointing the old report would silently change what anything relying on the
+// legacy shape receives, so both exist and the report names say which is which.
+//
+// Written against the real schemas (13 Aug 2026). Note there are currently ZERO
+// marks — the module is configured but no exam has been run. These reports are
+// correct and will be empty until one is.
+function examMarksPipeline(filters, fields, groupBy, sortBy, schoolId) {
+  const { ExamMark } = require('../models/examModels');
+
+  // Class comes from the exam subject, not the mark, so it is held back and
+  // applied after the join rather than letting buildMatch put it on the mark.
+  const { class: _c, classId: wantedClass, ...rest } = filters || {};
+
+  const pipeline = [
+    buildMatch({ ...rest, _dateField: 'createdAt' }, schoolId),
+    { $lookup: { from: 'students', localField: 'student', foreignField: '_id', as: '_student' } },
+    { $unwind: { path: '$_student', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'users', localField: '_student.user', foreignField: '_id', as: '_suser' } },
+    { $unwind: { path: '$_suser', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'examsubjects', localField: 'examSubject', foreignField: '_id', as: '_es' } },
+    { $unwind: { path: '$_es', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'subjects', localField: '_es.subject', foreignField: '_id', as: '_subject' } },
+    { $unwind: { path: '$_subject', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'classes', localField: '_es.class', foreignField: '_id', as: '_class' } },
+    { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: 'examgroups', localField: 'examGroup', foreignField: '_id', as: '_eg' } },
+    { $unwind: { path: '$_eg', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        studentName:     '$_suser.name',
+        admissionNumber: '$_student.admissionNumber',
+        className:       '$_class.name',
+        section:         '$_class.section',
+        subjectName:     '$_subject.name',
+        examName:        '$_eg.name',
+        academicYear:    { $ifNull: ['$_eg.academicYear', '(not set)'] },
+        isRetestLabel:   { $cond: [{ $eq: ['$_eg.isRetest', true] }, 'Re-test', 'Original'] },
+        resultLabel: {
+          $cond: [
+            { $eq: ['$isAbsent', true] }, 'Absent',
+            { $cond: [{ $eq: ['$isPass', true] }, 'Pass', 'Fail'] },
+          ],
+        },
+        // Visible without opening the record — a corrected mark is one somebody
+        // may want to ask about.
+        correctionCount: { $size: { $ifNull: ['$corrections', []] } },
+      },
+    },
+    ...(wantedClass ? [{ $match: { '_es.class': toId(wantedClass) } }] : []),
+  ];
+
+  if (groupBy && groupBy !== 'none') {
+    const gMap = {
+      class: '$className', subject: '$subjectName', exam: '$examName',
+      grade: '$grade', result: '$resultLabel', academicYear: '$academicYear',
+      student: '$studentName',
+    };
+
+    pipeline.push({
+      $group: {
+        _id: gMap[groupBy] || `$${groupBy}`,
+        count: { $sum: 1 },
+        // Absentees are excluded from the average: scoring nothing because you
+        // were not there is not a performance figure, and including it drags
+        // every class average toward a number nobody earned.
+        averagePercentage: {
+          $avg: { $cond: [{ $eq: ['$isAbsent', true] }, '$$REMOVE', '$percentage'] },
+        },
+        highest: { $max: { $cond: [{ $eq: ['$isAbsent', true] }, '$$REMOVE', '$percentage'] } },
+        lowest:  { $min: { $cond: [{ $eq: ['$isAbsent', true] }, '$$REMOVE', '$percentage'] } },
+        passed:  { $sum: { $cond: [{ $eq: ['$isPass', true] }, 1, 0] } },
+        absent:  { $sum: { $cond: [{ $eq: ['$isAbsent', true] }, 1, 0] } },
+      },
+    });
+    pipeline.push({
+      $addFields: {
+        averagePercentage: { $round: [{ $ifNull: ['$averagePercentage', 0] }, 1] },
+        // Pass rate is of those who SAT the paper, not of everyone enrolled.
+        passPercentage: {
+          $cond: [
+            { $gt: [{ $subtract: ['$count', '$absent'] }, 0] },
+            { $round: [{ $multiply: [
+              { $divide: ['$passed', { $subtract: ['$count', '$absent'] }] }, 100,
+            ] }, 1] },
+            0,
+          ],
+        },
+      },
+    });
+    pipeline.push({ $sort: { _id: 1 } });
+  } else {
+    const proj = buildProject(fields);
+    if (proj) pipeline.push(proj);
+    pipeline.push({ $sort: { [sortBy?.field || 'percentage']: sortBy?.order || -1 } });
+  }
+
+  return { model: ExamMark, pipeline };
 }
 
 // ─── Dashboard summary ────────────────────────────────────────────────────────

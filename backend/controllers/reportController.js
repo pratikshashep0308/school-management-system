@@ -4,20 +4,20 @@ const { buildPipeline, getDashboardSummary, smartSearch } = require('../services
 
 // ── Role → allowed modules ────────────────────────────────────────────────────
 const ROLE_MODULES = {
-  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance'],
-  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance'],
+  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance','exam_marks'],
+  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance','exam_marks'],
   // Teachers get their own teaching artefacts and behaviour notes. Not
   // admissions or expenses — those are office matters, and a report is a way of
   // reading data as much as any screen is.
-  teacher:          ['students','classes','attendance','exams','homework','assignments','behaviour','meetings'],
+  teacher:          ['students','classes','attendance','exams','exam_marks','homework','assignments','behaviour','meetings'],
   accountant:       ['students','fees','fee_assignments','expenses','admissions'],
   librarian:        ['students','library'],
   transportManager: ['students','transport'],
   // Parents and students see what concerns them. Behaviour notes are excluded
   // deliberately: a note is written for staff, and a child reading a "concern"
   // logged about them is a conversation for a teacher to have, not a report.
-  parent:           ['attendance','fees','exams','homework','assignments'],
-  student:          ['attendance','fees','exams','homework','assignments'],
+  parent:           ['attendance','fees','exams','exam_marks','homework','assignments'],
+  student:          ['attendance','fees','exams','exam_marks','homework','assignments'],
 };
 
 // Complete field definitions for each module — these drive the builder UI
@@ -340,6 +340,34 @@ const MODULE_META = {
     groupBy: ['student','class','date','status'],
     sortBy:  ['dateFmt','studentName','status'],
   },
+  exam_marks: {
+    label: 'Exam Results',
+    collection: 'exammarks',
+    fields: [
+      { key: 'studentName',     label: 'Student',       type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.', type: 'string' },
+      { key: 'className',       label: 'Class',         type: 'string' },
+      { key: 'section',         label: 'Section',       type: 'string' },
+      { key: 'examName',        label: 'Exam',          type: 'string' },
+      { key: 'academicYear',    label: 'Academic Year', type: 'string' },
+      { key: 'subjectName',     label: 'Subject',       type: 'string' },
+      { key: 'obtained',        label: 'Obtained',      type: 'number' },
+      { key: 'maxMarks',        label: 'Max Marks',     type: 'number' },
+      { key: 'percentage',      label: 'Percentage',    type: 'number' },
+      { key: 'grade',           label: 'Grade',         type: 'string' },
+      { key: 'resultLabel',     label: 'Result',        type: 'string' },
+      { key: 'isRetestLabel',   label: 'Attempt',       type: 'string' },
+      { key: 'remarks',         label: 'Remarks',       type: 'string' },
+      { key: 'correctionCount', label: 'Corrections',   type: 'number' },
+    ],
+    filters: [
+      { key: 'classId', label: 'Class',  type: 'classSelect' },
+      { key: 'grade',   label: 'Grade',  type: 'text' },
+      { key: 'status',  label: 'Status', type: 'select', options: ['draft','published'] },
+    ],
+    groupBy: ['class','subject','exam','grade','result','academicYear','student'],
+    sortBy:  ['percentage','studentName','subjectName'],
+  },
   exams: {
     label: 'Exams & Results',
     collection: 'results',
@@ -493,6 +521,72 @@ exports.getPredefined = async (req, res) => {
       fields: ['applicantName','applicationNumber','className','parentName','parentPhone','admittedOn'],
       filters: {}, groupBy: '', sortBy: { field: 'admittedOn', order: -1 },
       chartConfig: { enabled: false },
+    },
+    {
+      id: 'exam-results-all', module: 'exam_marks', category: 'Exam Results',
+      name: 'Exam Results — All Marks',
+      description: 'Every mark recorded, with grade and pass or fail',
+      fields: ['studentName','className','examName','subjectName','obtained','maxMarks','percentage','grade','resultLabel'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exam-class-result', module: 'exam_marks', category: 'Exam Results',
+      name: 'Class Result Summary',
+      description: 'Average, highest, lowest and pass rate for each class',
+      fields: ['className','subjectName','percentage','grade'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'averagePercentage' },
+    },
+    {
+      id: 'exam-subject-result', module: 'exam_marks', category: 'Exam Results',
+      name: 'Subject Performance',
+      description: 'How each subject performed — average, spread and pass rate',
+      fields: ['subjectName','className','percentage','grade'],
+      filters: {}, groupBy: 'subject', sortBy: { field: 'subjectName', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'averagePercentage' },
+    },
+    {
+      id: 'exam-grade-distribution', module: 'exam_marks', category: 'Exam Results',
+      name: 'Grade Distribution',
+      description: 'How many students achieved each grade',
+      fields: ['studentName','className','subjectName','grade'],
+      filters: {}, groupBy: 'grade', sortBy: { field: 'grade', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'exam-pass-fail', module: 'exam_marks', category: 'Exam Results',
+      name: 'Pass / Fail Report',
+      description: 'Passes, failures and absences across the school',
+      fields: ['studentName','className','subjectName','percentage','resultLabel'],
+      filters: {}, groupBy: 'result', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'exam-top-performers', module: 'exam_marks', category: 'Exam Results',
+      name: 'Top Performers',
+      description: 'Highest percentages first — the merit list',
+      fields: ['studentName','className','examName','subjectName','percentage','grade'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      // Not a shaming list: these are the students a teacher would want to know
+      // about, which is why it sits beside the merit list rather than replacing it.
+      id: 'exam-low-performers', module: 'exam_marks', category: 'Exam Results',
+      name: 'Students Needing Support',
+      description: 'Lowest percentages first, to identify who needs help',
+      fields: ['studentName','className','examName','subjectName','percentage','grade','resultLabel'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exam-by-year', module: 'exam_marks', category: 'Exam Results',
+      name: 'Results by Academic Year',
+      description: 'Performance compared across years',
+      fields: ['studentName','academicYear','examName','percentage'],
+      filters: {}, groupBy: 'academicYear', sortBy: { field: 'academicYear', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'averagePercentage' },
     },
     {
       id: 'staff-attendance-summary', module: 'teacher_attendance', category: 'Staff Attendance',

@@ -108,6 +108,18 @@ const ExamGroupSchema = new mongoose.Schema({
     enum: ['draft', 'scheduled', 'ongoing', 'completed', 'published'],
     default: 'draft',
   },
+
+  // ── Re-test / supplementary ───────────────────────────────────────────────
+  // A re-test is its own ExamGroup pointing back at the one it replaces, not a
+  // flag on the original. That keeps both sets of marks: the first attempt is
+  // what happened, the re-sit is what happened next, and a school that needs to
+  // show either can. Overwriting the original would destroy the record of the
+  // failure the re-test exists to address.
+  isRetest:      { type: Boolean, default: false },
+  retestOf:      { type: mongoose.Schema.Types.ObjectId, ref: 'ExamGroup', default: null },
+  // Which result carries forward to the report card. 'best' is the common
+  // policy; 'latest' suits schools where a re-sit simply supersedes.
+  retestPolicy:  { type: String, enum: ['best', 'latest', 'original'], default: 'best' },
   resultsPublishedAt: { type: Date },
   resultsPublishedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
@@ -149,6 +161,30 @@ const ExamMarkSchema = new mongoose.Schema({
 
   enteredBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   enteredAt:  { type: Date },
+
+  // ── Correction history ────────────────────────────────────────────────────
+  // Marks change: a misread script, a re-total, an appeal upheld. Once results
+  // are published a change is a CORRECTION, and a correction with no record of
+  // what it replaced is indistinguishable from tampering.
+  //
+  // Append-only. Entries are never edited or removed, and the name is stored
+  // alongside the id so the history still reads correctly after somebody leaves.
+  corrections: [{
+    at:          { type: Date, default: Date.now },
+    by:          { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    byName:      { type: String },
+    // What it was, so the previous figure survives the change.
+    fromObtained: { type: Number },
+    toObtained:   { type: Number },
+    fromGrade:    { type: String },
+    toGrade:      { type: String },
+    // Required by the service, not the schema, so existing rows stay valid.
+    reason:       { type: String },
+    // Was this changed after publication? A pre-publication edit is ordinary
+    // work; a post-publication one is the kind an auditor asks about.
+    afterPublish: { type: Boolean, default: false },
+  }],
+
   school:     { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
 }, { timestamps: true });
 ExamMarkSchema.index({ examSubject: 1, student: 1 }, { unique: true });

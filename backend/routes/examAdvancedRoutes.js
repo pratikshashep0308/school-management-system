@@ -11,6 +11,8 @@ const svc = require('../services/examService');
 
 router.use(protect);
 
+const resultService = require('../services/examResultService');
+
 const ADMIN = ['superAdmin', 'schoolAdmin'];
 const STAFF = ['superAdmin', 'schoolAdmin', 'teacher'];
 
@@ -371,6 +373,113 @@ router.put('/groups/:id/publish', authorize(...ADMIN), async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════ DASHBOARD ══════
+// ─── Result history ───────────────────────────────────────────────────────────
+//
+// Every result a student has, across academic years, with a per-year trend.
+//
+// A student or parent sees PUBLISHED results only, and only their own — an
+// unpublished mark is one the school has not released, and a portal that leaks
+// it defeats the purpose of the publish step.
+router.get('/students/:studentId/history', async (req, res) => {
+  try {
+    const staff = ['superAdmin', 'schoolAdmin', 'teacher'].includes(req.user.role);
+
+    if (!staff) {
+      // Parents may see their own children; students only themselves. Anything
+      // else is somebody reading another family's results.
+      const { resolveOwnStudents } = require('../middleware/portalScope');
+      const own = await resolveOwnStudents(req.user);
+      const allowed = (own || []).map((s) => String(s._id));
+      if (!allowed.includes(String(req.params.studentId))) {
+        return res.status(404).json({ success: false, message: 'Not found' });
+      }
+    }
+
+    const data = await resultService.studentHistory(
+      req.user.school, req.params.studentId, { includeUnpublished: staff }
+    );
+    res.json({ success: true, data });
+  } catch (e) {
+    res.status(e.status || 500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── Mark correction ──────────────────────────────────────────────────────────
+//
+// Admin only, and a reason is required. Correcting a published mark is a
+// different act from entering one, and the previous value is kept.
+router.put('/marks/:id/correct', authorize(...ADMIN), async (req, res) => {
+  try {
+    const mark = await resultService.correctMark(req.user.school, req.params.id, {
+      obtained: req.body.obtained,
+      grade: req.body.grade,
+      reason: req.body.reason,
+      user: req.user,
+    });
+    res.json({ success: true, data: mark, message: 'Mark corrected' });
+  } catch (e) {
+    res.status(e.status || 500).json({ success: false, message: e.message });
+  }
+});
+
+// The correction trail for one mark. Read-only: these entries are evidence, and
+// nothing here edits or removes them.
+router.get('/marks/:id/corrections', authorize(...STAFF), async (req, res) => {
+  try {
+    const { ExamMark } = require('../models/examModels');
+    const mark = await ExamMark.findOne({ _id: req.params.id, school: req.user.school })
+      .select('corrections obtained grade').lean();
+    if (!mark) return res.status(404).json({ success: false, message: 'Mark not found' });
+    res.json({ success: true, data: mark.corrections || [], current: { obtained: mark.obtained, grade: mark.grade } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ─── Re-test ──────────────────────────────────────────────────────────────────
+//
+// Creates a NEW exam group pointing back at the original, rather than reopening
+// it. Both attempts survive: the first is what happened, the re-sit is what
+// happened next. Overwriting would destroy the record of the failure the
+// re-test exists to address.
+router.post('/groups/:id/retest', authorize(...ADMIN), async (req, res) => {
+  try {
+    const { ExamGroup } = require('../models/examModels');
+    const original = await ExamGroup.findOne({ _id: req.params.id, school: req.user.school }).lean();
+    if (!original) return res.status(404).json({ success: false, message: 'Exam not found' });
+
+    if (original.isRetest) {
+      return res.status(400).json({
+        success: false,
+        message: 'This is already a re-test. Create the re-test from the original exam.',
+      });
+    }
+
+    const { _id, createdAt, updatedAt, __v, resultsPublishedAt, resultsPublishedBy, ...rest } = original;
+
+    const retest = await ExamGroup.create({
+      ...rest,
+      name: req.body.name || `${original.name} — Re-test`,
+      startDate: req.body.startDate || null,
+      endDate: req.body.endDate || null,
+      status: 'draft',
+      isRetest: true,
+      retestOf: original._id,
+      retestPolicy: req.body.retestPolicy || 'best',
+      createdBy: req.user._id,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: retest,
+      message: 'Re-test created. Add the subjects to be re-sat — it starts empty rather than '
+             + 'copying every subject, since a re-test is usually for a few.',
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 router.get('/dashboard', async (req, res) => {
   try {
     const school = req.user.school;
