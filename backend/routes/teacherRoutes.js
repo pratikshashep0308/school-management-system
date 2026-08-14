@@ -1,0 +1,275 @@
+// backend/routes/teacherRoutes.js
+const express = require('express');
+const router  = express.Router();
+const { protect, authorize } = require('../middleware/auth');
+const Teacher = require('../models/Teacher');
+const User    = require('../models/User');
+const { TeacherAttendance, AttendanceSubmission } = require('../models/index');
+
+router.use(protect);
+
+// ── Employee / teacher attendance: save (upsert) ──────────────────────────────
+// Body: { date, records: [{ teacherId, status }] }
+// Placed BEFORE '/:id' so '/attendance' isn't treated as a teacher id.
+router.post('/attendance', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const { date, records } = req.body;
+    if (!date || !Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ success: false, message: 'date and records are required' });
+    }
+
+    // Every employee must be explicitly marked — no silent defaults.
+    const unmarked = records.filter(r => !r.status);
+    if (unmarked.length) {
+      return res.status(400).json({
+        success: false,
+        message: `Please mark attendance for all employees. ${unmarked.length} still unmarked.`,
+      });
+    }
+
+    const day = new Date(date);
+    day.setHours(0, 0, 0, 0);
+
+    const APPROVERS = ['superAdmin', 'schoolAdmin'];
+    const isApprover = APPROVERS.includes(req.user.role);
+
+    // Find/create the submission record for this day
+    let sub = await AttendanceSubmission.findOne({ scope: 'employee', date: day, school: req.user.school });
+    if (!sub) sub = await AttendanceSubmission.create({ scope: 'employee', date: day, school: req.user.school, status: 'draft', auditLog: [] });
+
+    if (sub.status === 'approved' && !isApprover) {
+      return res.status(403).json({
+        success: false,
+        message: 'This attendance has been approved and can no longer be edited. Please contact an administrator.',
+      });
+    }
+
+    const isEdit = sub.status !== 'draft';
+
+    // Snapshot previous statuses for the audit diff
+    let previous = [];
+    if (isEdit) {
+      const existing = await TeacherAttendance.find({
+        date: day, school: req.user.school,
+        teacher: { $in: records.map(r => r.teacherId) },
+      }).populate({ path: 'teacher', populate: { path: 'user', select: 'name' } }).lean();
+      previous = existing.map(r => ({
+        key: String(r.teacher?._id || r.teacher),
+        name: r.teacher?.user?.name || 'Employee',
+        status: r.status,
+      }));
+    }
+
+    const ops = records.map(r => ({
+      updateOne: {
+        filter: { teacher: r.teacherId, date: day, school: req.user.school },
+        update: {
+          $set: {
+            teacher:  r.teacherId,
+            date:     day,
+            status:   r.status,
+            remarks:  r.remarks || '',
+            markedBy: req.user._id,
+            school:   req.user.school,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    await TeacherAttendance.bulkWrite(ops);
+
+    // ── Update submission state + append audit entry ────────────────────────
+    const nameById = new Map(previous.map(p => [p.key, p.name]));
+    const changes = [];
+    if (isEdit) {
+      const prevMap = new Map(previous.map(p => [p.key, p.status]));
+      records.forEach(r => {
+        const before = prevMap.get(String(r.teacherId));
+        if (before && before !== r.status) {
+          changes.push({ name: nameById.get(String(r.teacherId)) || 'Employee', from: before, to: r.status });
+        }
+      });
+    }
+
+    if (isEdit) {
+      sub.status       = isApprover ? 'approved' : 'pending_approval';
+      sub.lastEditedBy = req.user._id;
+      sub.lastEditedAt = new Date();
+      if (isApprover) { sub.approvedBy = req.user._id; sub.approvedAt = new Date(); }
+    } else {
+      sub.status      = 'submitted';
+      sub.submittedBy = req.user._id;
+      sub.submittedAt = new Date();
+    }
+    sub.auditLog.push({
+      action: isEdit ? 'edited' : 'submitted',
+      user: req.user._id, userName: req.user.name, userRole: req.user.role,
+      at: new Date(), changes,
+    });
+    await sub.save();
+
+    res.json({ success: true, message: 'Employee attendance saved', count: records.length, status: sub.status });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Employee / teacher attendance: fetch for a date ───────────────────────────
+router.get('/attendance', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const { date } = req.query;
+    const filter = { school: req.user.school };
+    if (date) {
+      const day = new Date(date);
+      day.setHours(0, 0, 0, 0);
+      filter.date = day;
+    }
+    const records = await TeacherAttendance.find(filter)
+      .populate({ path: 'teacher', populate: { path: 'user', select: 'name' } });
+    res.json({ success: true, count: records.length, data: records });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── My profile (teacher role) ─────────────────────────────────────────────────
+router.get('/my-profile', async (req, res) => {
+  try {
+    const teacher = await Teacher.findOne({ user: req.user.id })
+      .populate('user', 'name email phone profileImage')
+      .populate('subjects', 'name code')
+      .populate('classes',  'name grade section');
+    // Don't 404 — teacher may exist as user but profile not set up yet
+    res.json({ success: true, data: teacher || null });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Get all teachers ──────────────────────────────────────────────────────────
+router.get('/', authorize('superAdmin', 'schoolAdmin', 'teacher'), async (req, res) => {
+  try {
+    const teachers = await Teacher.find({ school: req.user.school, isActive: true })
+      .populate('user',     'name email phone profileImage')
+      .populate('subjects', 'name code')
+      .populate('classes',  'name grade section');
+    res.json({ success: true, count: teachers.length, data: teachers });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Get single teacher ────────────────────────────────────────────────────────
+router.get('/:id', async (req, res) => {
+  try {
+    const teacher = await Teacher.findById(req.params.id)
+      .populate('user',           'name email phone')
+      .populate('subjects',       'name code')
+      .populate('classes',        'name grade section')
+      .populate('classTeacherOf', 'name grade section');
+    if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+    res.json({ success: true, data: teacher });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Create teacher ────────────────────────────────────────────────────────────
+router.post('/', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
+  try {
+    const { name, email, phone, employeeId, password, ...rest } = req.body;
+
+    if (!name?.trim())  return res.status(400).json({ success: false, message: 'Name is required' });
+    if (!email?.trim()) return res.status(400).json({ success: false, message: 'Email is required' });
+
+    // Check email uniqueness
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) return res.status(400).json({ success: false, message: 'Email already registered' });
+
+    // Auto-generate employee ID if not provided
+    const count = await Teacher.countDocuments({ school: req.user.school });
+    const empId = employeeId?.trim() || `EMP-${new Date().getFullYear()}-${String(count + 1).padStart(3, '0')}`;
+
+    // Create user account
+    const user = await User.create({
+      name:     name.trim(),
+      email:    email.toLowerCase().trim(),
+      phone:    phone || '',
+      password: password || 'Teacher@123',
+      role:     'teacher',
+      school:   req.user.school,
+    });
+
+    // Create teacher profile — `...rest` carries any HR fields the form sends
+    // (qualification, designation, salary, bankName, documents, etc.) without
+    // forcing this route to know about every one. Anything unknown to the
+    // schema is still stored because the model is strict:false.
+    // Coerce experience to a number if present.
+    if (rest.experience !== undefined) {
+      rest.experience = rest.experience === '' ? 0 : Number(rest.experience);
+    }
+    if (rest.salary !== undefined && rest.salary !== '') {
+      rest.salary = Number(rest.salary);
+    }
+
+    const teacher = await Teacher.create({
+      ...rest,
+      user:       user._id,
+      employeeId: empId,
+      school:     req.user.school,
+    });
+
+    await teacher.populate('user', 'name email phone');
+    res.status(201).json({ success: true, data: teacher });
+
+  } catch (err) {
+    // If teacher creation fails after user was created, clean up the user
+    console.error('Create teacher error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Update teacher ────────────────────────────────────────────────────────────
+router.put('/:id', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
+  try {
+    const teacher = await Teacher.findOneAndUpdate(
+      { _id: req.params.id, school: req.user.school },
+      { $set: req.body },
+      { new: true, runValidators: true }
+    ).populate('user', 'name email phone');
+
+    if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+
+    // Also update user name/email/phone if provided
+    if (req.body.name || req.body.email || req.body.phone) {
+      await User.findByIdAndUpdate(teacher.user, {
+        ...(req.body.name  && { name:  req.body.name.trim()  }),
+        ...(req.body.email && { email: req.body.email.toLowerCase().trim() }),
+        ...(req.body.phone && { phone: req.body.phone }),
+      });
+    }
+
+    res.json({ success: true, data: teacher });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Deactivate teacher ────────────────────────────────────────────────────────
+router.delete('/:id', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
+  try {
+    const teacher = await Teacher.findOneAndUpdate(
+      { _id: req.params.id, school: req.user.school },
+      { isActive: false },
+      { new: true }
+    );
+    if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
+    await User.findByIdAndUpdate(teacher.user, { isActive: false });
+    res.json({ success: true, message: 'Teacher deactivated' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+module.exports = router;

@@ -1,0 +1,467 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS  ·  The Future Step School — white-first premium SaaS system
+   Bright white surfaces + the five logo colors (red / orange / green / blue /
+   purple) used as strategic accents. Blue is the default brand accent; each
+   module can opt into its own hue via the --mod-* variables below.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── The Future Step School logo palette (sampled from the wordmark) ── */
+  --logo-red:    #d21f1f;
+  --logo-orange: #e06a00;
+  --logo-green:  #128a4a;
+  --logo-blue:   #0f6cbd;
+  --logo-sky:    #1499d6;
+  --logo-purple: #6a2c9c;
+
+  /* Brand accent — logo blue (bright, trustworthy, high-contrast on white) */
+  --accent:        #0f6cbd;
+  --accent-hover:  #0b5596;
+  --accent-soft:   #eaf3fb;   /* tinted fill for soft buttons / selected rows */
+  --accent-ring:   rgba(15, 108, 189, 0.20);
+
+  /* Per-module accent — pages set --mod / --mod-soft on a wrapper to re-tint
+     cards, headers and active states without touching component code. */
+  --mod:      var(--accent);
+  --mod-soft: var(--accent-soft);
+
+  /* Status hues (aligned to the logo family, tuned for contrast) */
+  --sage:   #128a4a;   --sage-soft:  #e8f4ec;   /* success = logo green */
+  --gold:   #e06a00;   --gold-soft:  #fdf0e3;   /* warning = logo orange */
+  --danger: #d21f1f;   --danger-soft:#fcecec;   /* danger  = logo red */
+  --info:   #0f6cbd;   --info-soft:  #eaf3fb;   /* info    = logo blue */
+  --purple: #6a2c9c;   --purple-soft:#f2ebf8;   /* accent  = logo purple */
+
+  /* Neutrals — WHITE-first surfaces */
+  --paper:    #ffffff;   /* cards / rows / panels */
+  --canvas:   #ffffff;   /* app background — pure white */
+  --warm:     #f7f8fa;   /* striped rows / subtle sections (barely-there grey) */
+  --border:   #ebedf0;   /* hairline borders */
+  --border-strong: #dcdfe4;
+  --sidebar-bg: #f6f5f2; /* warm off-white — clean, softly separated from the white content */
+  --sidebar-border: #e3e1dc; /* slightly stronger edge so the off-white panel reads as its own surface */
+
+  /* Text ramp — cool neutral greys on white */
+  --ink:    #14181f;   /* headings — near-black */
+  --slate:  #3f4550;   /* body text */
+  --muted:  #7a828f;   /* secondary / captions */
+  --nav-item: #14181f; /* sidebar menu labels — near-black, crisp on the grey sidebar */
+
+  /* Elevation — soft, neutral shadows (bright & airy, never heavy) */
+  --shadow-sm: 0 1px 2px rgba(20,24,31,0.04), 0 1px 3px rgba(20,24,31,0.06);
+  --shadow-md: 0 2px 8px rgba(20,24,31,0.06), 0 8px 24px rgba(20,24,31,0.06);
+  --shadow-lg: 0 8px 28px rgba(20,24,31,0.09), 0 20px 56px rgba(20,24,31,0.10);
+
+  /* Legacy variable names kept for existing components that read them */
+  --color-ink:    var(--ink);
+  --color-paper:  var(--paper);
+  --color-warm:   var(--warm);
+  --color-border: var(--border);
+  --color-muted:  var(--muted);
+  --color-slate:  var(--slate);
+}
+
+.dark {
+  --logo-red:    #f26b6b;
+  --logo-orange: #f0995a;
+  --logo-green:  #4bbd7f;
+  --logo-blue:   #4a9be8;
+  --logo-sky:    #56c0ea;
+  --logo-purple: #b184dd;
+
+  --accent:        #4a9be8;
+  --accent-hover:  #6cb0f0;
+  --accent-soft:   rgba(74,155,232,0.15);
+  --accent-ring:   rgba(74,155,232,0.30);
+
+  --mod:      var(--accent);
+  --mod-soft: var(--accent-soft);
+
+  --sage:   #4bbd7f;   --sage-soft:  rgba(75,189,127,0.15);
+  --gold:   #f0995a;   --gold-soft:  rgba(240,153,90,0.15);
+  --danger: #f26b6b;   --danger-soft:rgba(242,107,107,0.15);
+  --info:   #4a9be8;   --info-soft:  rgba(74,155,232,0.15);
+  --purple: #b184dd;   --purple-soft:rgba(177,132,221,0.15);
+
+  /* Dark surfaces — layered so cards clearly separate from the canvas.
+     canvas (darkest) < warm < paper (lightest card). Softer, less muddy. */
+  --paper:    #262d3b;   /* cards / rows — clearly lifted above canvas */
+  --canvas:   #0e1219;   /* app background — deep, so cards pop */
+  --warm:     #191e28;   /* striped rows / subtle sections */
+  --border:   #313a4a;
+  --border-strong: #3f4a5c;
+  --sidebar-bg: #161c26; /* slightly lifted from canvas so the dark sidebar reads as its own panel */
+  --sidebar-border: #2b3341;
+
+  /* Primary text pure white; supporting text bright for readability */
+  --ink:    #f5f7fa;
+  --slate:  #c8cfda;
+  --muted:  #8b94a3;
+  --nav-item: #c8cfda;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.30);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.35);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.45);
+
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-warm: var(--warm);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-slate: var(--slate);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PER-MODULE ACCENTS
+   Add one of these classes to a page's top wrapper (or a card) to re-tint its
+   accent to a logo color. Everything reading var(--mod)/var(--mod-soft) — soft
+   buttons, active tabs, card top-borders, icon chips — picks it up automatically.
+   ══════════════════════════════════════════════════════════════════════════ */
+.mod-blue   { --mod: var(--logo-blue);   --mod-soft: #eaf3fb; }
+.mod-green  { --mod: var(--logo-green);  --mod-soft: #e8f4ec; }
+.mod-orange { --mod: var(--logo-orange); --mod-soft: #fdf0e3; }
+.mod-red    { --mod: var(--logo-red);    --mod-soft: #fcecec; }
+.mod-purple { --mod: var(--logo-purple); --mod-soft: #f2ebf8; }
+.mod-sky    { --mod: var(--logo-sky);    --mod-soft: #e6f5fc; }
+.dark .mod-blue   { --mod-soft: rgba(74,155,232,0.15); }
+.dark .mod-green  { --mod-soft: rgba(75,189,127,0.15); }
+.dark .mod-orange { --mod-soft: rgba(240,153,90,0.15); }
+.dark .mod-red    { --mod-soft: rgba(242,107,107,0.15); }
+.dark .mod-purple { --mod-soft: rgba(177,132,221,0.15); }
+.dark .mod-sky    { --mod-soft: rgba(86,192,234,0.15); }
+
+/* A card with a subtle colored top accent (≈8% color, 92% white). */
+.accent-card { position: relative; overflow: hidden; }
+.accent-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--mod); opacity: 0.9;
+}
+/* A card with a colored left rail instead. */
+.accent-card-left { border-left: 3px solid var(--mod); }
+
+@layer base {
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--canvas);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .dark body, body.dark {
+    background-color: var(--canvas);
+    color: var(--ink);
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: padding-box; }
+
+  ::selection { background: var(--accent-ring); color: var(--ink); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+}
+
+@layer components {
+  /* ══ BUTTONS ══ consistent height, rounded, smooth, with loading/disabled ══ */
+  .btn-primary {
+    background-color: var(--accent);
+    color: #ffffff;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: background-color .18s ease, transform .12s ease, box-shadow .18s ease, opacity .18s ease;
+  }
+  .btn-primary:hover { background-color: var(--accent-hover); box-shadow: var(--shadow-md); }
+  .btn-primary:active { transform: translateY(0.5px) scale(0.985); }
+  .btn-primary:disabled, .btn-primary[disabled] { opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }
+
+  .btn-secondary {
+    background-color: var(--paper);
+    color: var(--slate);
+    border: 1px solid var(--border);
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: border-color .18s ease, background-color .18s ease, transform .12s ease, color .18s ease;
+  }
+  .btn-secondary:hover { border-color: var(--border-strong); background-color: var(--warm); }
+  .btn-secondary:active { transform: translateY(0.5px) scale(0.985); }
+  .btn-secondary:disabled, .btn-secondary[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+  .btn-danger {
+    background-color: var(--danger-soft);
+    color: var(--danger);
+    border: 1px solid transparent;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color .18s ease, transform .12s ease;
+  }
+  .btn-danger:hover { background-color: var(--danger); color: #fff; }
+  .btn-danger:active { transform: translateY(0.5px) scale(0.985); }
+
+  /* ══ CARDS ══ elevated warm surfaces with a quiet hover lift ══ */
+  .card {
+    background-color: var(--paper);
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+  }
+  .card-hover:hover, .card.card-hover:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+  }
+
+  /* ══ FORMS ══ roomier inputs, accent focus ring, clear labels ══ */
+  .form-input {
+    width: 100%;
+    padding: 0.6875rem 0.9375rem;
+    border: 1.5px solid var(--border);
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--paper);
+    color: var(--ink);
+    outline: none;
+    transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+  }
+  .form-input::placeholder { color: var(--muted); }
+  .form-input:hover { border-color: var(--border-strong); }
+  .form-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+  }
+
+  .form-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 0.4375rem;
+  }
+
+  /* ══ STATUS BADGES ══ */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
+  }
+
+  /* ══ LAYOUT HELPERS ══ */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .table-th {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CARD — cover inline-styled + class usages consistently in dark mode
+   ══════════════════════════════════════════════════════════════════════════ */
+.dark .card {
+  background-color: var(--paper) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLES — rounded, sticky header, subtle zebra + hover, both themes
+   ══════════════════════════════════════════════════════════════════════════ */
+table thead tr { background-color: var(--warm); }
+table thead th {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+table tbody tr { transition: background-color .14s ease; }
+
+.dark table thead tr { background-color: var(--warm) !important; }
+.dark table tbody tr { background-color: var(--paper) !important; border-color: var(--border) !important; }
+.dark table tbody tr:nth-child(even) { background-color: var(--warm) !important; }
+.dark table tbody tr:hover { background-color: rgba(232,115,79,0.10) !important; }
+
+/* Dark mode: force readable text inside tables even when cells hardcode
+   near-black (#0B1F4A / #111827 / #374151) or grey (#6B7280 / #9CA3AF)
+   colors inline. Inline styles beat plain selectors, so these use
+   `.dark table … !important` to win. Keeps colored status pills intact by
+   only retargeting the muted/dark greys, via a broad cell rule + a lighter
+   tone for secondary columns. */
+.dark table th { color: var(--muted) !important; }
+.dark table td { color: var(--slate) !important; }
+.dark table td[style*="0B1F4A"],
+.dark table td[style*="111827"],
+.dark table td[style*="1a3a6b"],
+.dark table td b, .dark table td strong { color: var(--ink) !important; }
+.dark table td[style*="6B7280"],
+.dark table td[style*="9CA3AF"],
+.dark table td[style*="4B5563"] { color: var(--muted) !important; }
+
+/* Dark mode: neutralize inline row backgrounds (#fff / #FAFAFA / #F9FAFB /
+   #FEF9F5) that hardcoded light rows would otherwise show through. */
+.dark table tr[style*="#fff"],
+.dark table tr[style*="#FFF"],
+.dark table tr[style*="#FAFAFA"],
+.dark table tr[style*="#fafafa"],
+.dark table tr[style*="#F9FAFB"],
+.dark table tr[style*="#FEF9F5"] { background-color: var(--paper) !important; }
+.dark table thead tr[style*="#F9FAFB"],
+.dark table thead tr[style*="#f9fafb"] { background-color: var(--warm) !important; }
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: var(--paper) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: var(--muted) !important; }
+
+/* Theme-aware student/data rows (kept from original, retuned to tokens) */
+.student-row              { background: var(--paper); transition: background-color .14s ease; }
+.student-row:nth-child(even) { background: var(--warm); }
+.student-row:hover        { background: var(--accent-soft) !important; }
+.dark .student-row:hover  { background: rgba(232,115,79,0.12) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS — subtle, <300ms. fadeIn stays transform-free (see note below).
+   NOTE: fadeIn is applied to <main>; a lingering transform would create a
+   containing block that traps position:fixed children (the student drawer),
+   clipping them to <main>. Opacity-only keeps the effect without the trap.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════
+   DARK MODE — global readability rescue
+   Many pages hardcode dark text colors inline (#374151, #111827, #0B1F4A …)
+   or use `text-ink`, which stay dark and vanish on the dark background.
+   These overrides flip them to readable light tones without editing the JSX.
+   Inline styles beat plain selectors, so hardcoded-color rules use attribute
+   selectors + !important to win.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* text-ink is near-black by design → must flip in dark mode */
+.dark .text-ink { color: var(--ink) !important; }
+.dark .text-slate { color: var(--slate) !important; }
+
+/* Headings should always read as primary text in dark mode */
+.dark h1, .dark h2, .dark h3, .dark h4,
+.dark .font-display { color: var(--ink) !important; }
+
+/* Inline hardcoded DARK text colors → light primary text.
+   Covers the common near-black / navy / slate greys used across pages. */
+.dark [style*="#374151"], .dark [style*="#111827"], .dark [style*="#0B1F4A"],
+.dark [style*="#1F2937"], .dark [style*="#1f2937"], .dark [style*="#0f172a"],
+.dark [style*="#0f0e17"], .dark [style*="#1e293b"], .dark [style*="#334155"],
+.dark [style*="#1a3a6b"], .dark [style*="#0f0e"], .dark [style*="color:#111"],
+.dark [style*="color: #111"], .dark [style*="color:#222"], .dark [style*="color:#333"],
+.dark [style*="color: #333"] { color: var(--slate) !important; }
+
+/* Bolder/heading-ish dark inline colors → brightest primary text */
+.dark h1[style*="#"], .dark h2[style*="#"], .dark h3[style*="#"],
+.dark [style*="#0B1F4A"][style*="700"], .dark [style*="#111827"][style*="700"],
+.dark [style*="#0B1F4A"][style*="800"], .dark [style*="#111827"][style*="bold"] {
+  color: var(--ink) !important;
+}
+
+/* Inline muted greys → themed muted (keeps hierarchy, stays legible) */
+.dark [style*="#6B7280"], .dark [style*="#6b7280"], .dark [style*="#9CA3AF"],
+.dark [style*="#9ca3af"], .dark [style*="#64748b"], .dark [style*="#4B5563"],
+.dark [style*="#94a3b8"], .dark [style*="#71717a"] { color: var(--muted) !important; }
+
+/* GUARD: if an element sets its OWN white/light background inline, it's a
+   self-contained light card — leave its dark text dark so it stays readable
+   on that light surface (prevents light-on-light from the rules above). */
+.dark [style*="#fff"][style*="#374151"], .dark [style*="#fff"][style*="#111827"],
+.dark [style*="#fff"][style*="#0B1F4A"], .dark [style*="#ffffff"][style*="#374151"],
+.dark [style*="#ffffff"][style*="#111827"], .dark [style*="#ffffff"][style*="#0B1F4A"],
+.dark [style*="#FFF"][style*="#111827"], .dark [style*="#FFFFFF"][style*="#111827"] {
+  color: #1f2937 !important;
+}
+
+@keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideIn  { from { opacity: 0; transform: translateX(-12px);} to { opacity: 1; transform: translateX(0); } }
+@keyframes scaleIn  { from { opacity: 0; transform: scale(0.97);      } to { opacity: 1; transform: scale(1);    } }
+@keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes shimmer  { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+
+.animate-fade-in  { animation: fadeIn  0.28s ease forwards; }
+.animate-slide-in { animation: slideIn 0.28s cubic-bezier(0.4,0,0.2,1) forwards; }
+.animate-scale-in { animation: scaleIn 0.22s cubic-bezier(0.34,1.4,0.64,1) forwards; }
+
+/* ── Skeleton loader ── elegant shimmer to replace bare spinners ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--warm) 25%, var(--border) 37%, var(--warm) 63%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hide-mobile { display: none !important; }
+  h1 { font-size: 1.25rem !important; }
+  h2 { font-size: 1.1rem !important; }
+  .page-content { padding: 12px !important; }
+  .tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

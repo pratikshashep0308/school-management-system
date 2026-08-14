@@ -1,0 +1,442 @@
+const mongoose = require('mongoose');
+
+require('./School');    // ensure School schema is registered
+require('./Timetable'); // ← NEW: standalone Timetable model (replaces old TimetableSchema)
+
+// ── CLASS ──
+const ClassSchema = new mongoose.Schema({
+  name: { type: String, required: true }, // e.g. "Class X"
+  grade: { type: Number, default: 0 }, // e.g. 10
+  section: { type: String, default: 'A' }, // e.g. "A"
+  classTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
+  subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
+  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
+  capacity: { type: Number, default: 40 },
+  room: String,
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+ClassSchema.index({ name: 1, section: 1, school: 1 }, { unique: true, sparse: true });
+
+// ── SUBJECT ──
+const SubjectSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  code: { type: String, unique: true, sparse: true },
+  description: String,
+  type: { type: String, enum: ['theory', 'practical', 'both'], default: 'theory' },
+  classes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── ATTENDANCE ──
+const AttendanceSchema = new mongoose.Schema({
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+  class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+  date: { type: Date, required: true },
+  // No default: attendance must be explicitly marked for every student.
+  status: { type: String, enum: ['present', 'absent', 'late', 'excused'], required: true },
+  markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  remarks: String,
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── ATTENDANCE SUBMISSION ──
+// One record per class per day. Tracks the submit → edit → approve lifecycle
+// and keeps an append-only audit trail of every action.
+const AttendanceAuditEntrySchema = new mongoose.Schema({
+  action:    { type: String, enum: ['submitted', 'edited', 'approved', 'rejected'], required: true },
+  user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName:  { type: String },   // denormalized so history survives user renames
+  userRole:  { type: String },
+  at:        { type: Date, default: Date.now },
+  note:      { type: String, default: '' },
+  // What actually changed, for edits: [{ name, from, to }]
+  changes:   [{ name: String, from: String, to: String }],
+}, { _id: false });
+
+const AttendanceSubmissionSchema = new mongoose.Schema({
+  scope:  { type: String, enum: ['student', 'employee'], required: true },
+  class:  { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },  // student scope only
+  date:   { type: Date, required: true },
+  status: {
+    type: String,
+    enum: ['draft', 'submitted', 'pending_approval', 'approved'],
+    default: 'draft',
+  },
+  submittedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  submittedAt:   { type: Date },
+  lastEditedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  lastEditedAt:  { type: Date },
+  approvedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  approvedAt:    { type: Date },
+  auditLog:      [AttendanceAuditEntrySchema],
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+}, { timestamps: true });
+AttendanceSubmissionSchema.index({ scope: 1, class: 1, date: 1, school: 1 }, { unique: true });
+
+// ── TEACHER / EMPLOYEE ATTENDANCE ──
+const TeacherAttendanceSchema = new mongoose.Schema({
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
+  date:    { type: Date, required: true },
+  status:  { type: String, enum: ['present', 'absent', 'leave'], required: true },
+  markedBy:{ type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  remarks: String,
+  school:  { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt:{ type: Date, default: Date.now },
+});
+// One record per teacher per day per school
+TeacherAttendanceSchema.index({ teacher: 1, date: 1, school: 1 }, { unique: true });
+AttendanceSchema.index({ student: 1, date: 1 }, { unique: true });
+
+// ── EXAM ──
+const ExamSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
+  date: Date,
+  startTime: String,
+  endTime: String,
+  totalMarks: { type: Number, default: 100 },
+  passingMarks: { type: Number, default: 35 },
+  examType: { type: String, enum: ['unit', 'midterm', 'final', 'practical', 'assignment'], default: 'unit' },
+  instructions: String,
+  isPublished: { type: Boolean, default: false },
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── RESULT ──
+const ResultSchema = new mongoose.Schema({
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+  exam: { type: mongoose.Schema.Types.ObjectId, ref: 'Exam', required: true },
+  marksObtained: { type: Number, required: true },
+  grade: String,         // Auto-calculated
+  percentage: Number,    // Auto-calculated
+  remarks: String,
+  isAbsent: { type: Boolean, default: false },
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  enteredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Auto-calculate grade and percentage before saving
+ResultSchema.pre('save', async function(next) {
+  const Exam = mongoose.model('Exam');
+  const exam = await Exam.findById(this.exam);
+  if (exam) {
+    this.percentage = Math.round((this.marksObtained / exam.totalMarks) * 100);
+    if (this.percentage >= 90)      this.grade = 'A+';
+    else if (this.percentage >= 80) this.grade = 'A';
+    else if (this.percentage >= 70) this.grade = 'B+';
+    else if (this.percentage >= 60) this.grade = 'B';
+    else if (this.percentage >= 50) this.grade = 'C';
+    else if (this.percentage >= 35) this.grade = 'D';
+    else                            this.grade = 'F';
+  }
+  next();
+});
+
+// ── FEE STRUCTURE ──
+const FeeStructureSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+  amount: { type: Number, required: true },
+  frequency: { type: String, enum: ['monthly', 'quarterly', 'annually', 'one-time'], default: 'monthly' },
+  dueDay: { type: Number, default: 10 },
+  lateFee: { type: Number, default: 200 },
+  description: String,
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── FEE PAYMENT ──
+const FeePaymentSchema = new mongoose.Schema({
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+  feeStructure: { type: mongoose.Schema.Types.ObjectId, ref: 'FeeStructure' },
+  amount: { type: Number, required: true },
+  paidOn: { type: Date, default: Date.now },
+  method: { type: String, enum: ['cash', 'online', 'cheque', 'bank', 'upi'], default: 'cash' },
+  transactionId: String,
+  receiptNumber: { type: String, unique: true },
+  status: { type: String, enum: ['paid', 'pending', 'overdue', 'partial'], default: 'paid' },
+  month: String,
+  year: Number,
+  remarks: String,
+  collectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── FEE EDIT REQUEST ──
+// Money changes are never applied silently. When an admin edits a submitted
+// payment, the original stays untouched and a pending request is created here.
+// Another admin/HM approves it, and only then is the payment updated.
+const FeeEditRequestSchema = new mongoose.Schema({
+  payment:       { type: mongoose.Schema.Types.ObjectId, ref: 'FeePayment', required: true },
+  receiptNumber: { type: String },
+  student:       { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  // Field-level diff: [{ field, from, to }]
+  changes: [{
+    field: String,
+    from:  mongoose.Schema.Types.Mixed,
+    to:    mongoose.Schema.Types.Mixed,
+  }],
+  reason:      { type: String, default: '' },
+  status:      { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  requestedByName: { type: String },
+  requestedAt: { type: Date, default: Date.now },
+  reviewedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedByName: { type: String },
+  reviewedAt:  { type: Date },
+  reviewNote:  { type: String, default: '' },
+  school:      { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+}, { timestamps: true });
+FeeEditRequestSchema.index({ school: 1, status: 1, requestedAt: -1 });
+
+// ── STUDENT FEE LEDGER ──
+const StudentFeeSchema = new mongoose.Schema({
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, unique: true },
+  class:   { type: mongoose.Schema.Types.ObjectId, ref: 'Class',   required: true },
+  school:  { type: mongoose.Schema.Types.ObjectId, ref: 'School',  required: true },
+  section: { type: String },
+
+  totalFees:     { type: Number, default: 0 },
+  paidAmount:    { type: Number, default: 0 },
+  pendingAmount: { type: Number, default: 0 },
+
+  paymentStatus: {
+    type: String,
+    enum: ['not_paid', 'partial', 'paid'],
+    default: 'not_paid'
+  },
+
+  paymentHistory: [{
+    amount:        { type: Number, required: true },
+    paidOn:        { type: Date, default: Date.now },
+    method:        { type: String, enum: ['cash', 'online', 'cheque', 'bank', 'upi'], default: 'cash' },
+    transactionId: { type: String },
+    receiptNumber: { type: String },
+    month:         { type: String },
+    year:          { type: Number },
+    remarks:       { type: String },
+    collectedBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    feeStructure:  { type: mongoose.Schema.Types.ObjectId, ref: 'FeeStructure' },
+    // ── Receipt-rendering fields (for printable image-2-style receipts) ──
+    periodLabel:    { type: String },                                    // e.g. "Half Yearly"
+    periodMonths:   { type: Number },                                    // 6 or 12
+    periodCovered:  { type: String },                                    // "May 2026 – October 2026"
+    items: [{                                                            // line-by-line breakdown
+      label:    { type: String },
+      perMonth: { type: Number },
+      total:    { type: Number },
+      payingNow: { type: Number },                                       // amount paid for this line in this transaction
+    }],
+    subtotal:       { type: Number },
+    discountPct:    { type: Number },
+    discountAmt:    { type: Number },
+    totalAmount:    { type: Number },
+    balanceAfter:   { type: Number },
+    paidBeforeThis: { type: Number },                                    // ledger paidAmount BEFORE this payment, for receipt clarity
+    parentName:     { type: String },
+  }],
+
+  updatedAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
+});
+
+StudentFeeSchema.pre('save', function(next) {
+  this.paidAmount    = this.paymentHistory.reduce((sum, p) => sum + p.amount, 0);
+  this.pendingAmount = Math.max(0, this.totalFees - this.paidAmount);
+
+  if (this.paidAmount <= 0)                   this.paymentStatus = 'not_paid';
+  else if (this.paidAmount >= this.totalFees)  this.paymentStatus = 'paid';
+  else                                         this.paymentStatus = 'partial';
+
+  this.updatedAt = new Date();
+  next();
+});
+
+// ── ASSIGNMENT ──
+const AssignmentSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  description: String,
+  class: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+  subject: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
+  // Who actually created this (teacher OR admin). When an admin creates an
+  // assignment, `teacher` is only a fallback ref and does NOT reflect the author.
+  createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  createdByName: { type: String },
+  dueDate: { type: Date, required: true },
+  attachments: [{ name: String, url: String }],
+  totalMarks: { type: Number, default: 10 },
+  submissions: [{
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    submittedAt: Date,
+    fileUrl: String,
+    marksObtained: Number,
+    feedback: String,
+    status: { type: String, enum: ['submitted', 'late', 'graded'], default: 'submitted' }
+  }],
+  // Per-student completion status set by teacher/admin
+  studentStatuses: [{
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    status:  { type: String, enum: ['completed','not_completed','not_applicable'], default: 'not_completed' },
+    updatedAt: { type: Date, default: Date.now },
+  }],
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── BOOK ──
+const BookSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  author: String,
+  isbn: { type: String, unique: true },
+  category: String,
+  publisher: String,
+  publishYear: Number,
+  totalCopies: { type: Number, default: 1 },
+  availableCopies: { type: Number, default: 1 },
+  location: String,
+  coverImage: String,
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── BOOK ISSUE ──
+const BookIssueSchema = new mongoose.Schema({
+  book: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  issuedDate: { type: Date, default: Date.now },
+  dueDate: { type: Date, required: true },
+  returnedDate: Date,
+  lateFee: { type: Number, default: 0 },
+  status: { type: String, enum: ['issued', 'returned', 'overdue'], default: 'issued' },
+  issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── TRANSPORT ──
+const TransportSchema = new mongoose.Schema({
+  routeName: { type: String, required: true },
+  routeNumber: String,
+  vehicleNumber: String,
+  vehicleType: { type: String, enum: ['bus', 'van', 'minibus'], default: 'bus' },
+  capacity: Number,
+  driver: {
+    name: String,
+    phone: String,
+    licenseNumber: String
+  },
+  conductor: {
+    name: String,
+    phone: String
+  },
+  stops: [{ name: String, time: String, order: Number }],
+  departureTime: String,
+  arrivalTime: String,
+  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
+  isActive: { type: Boolean, default: true },
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── NOTIFICATION ──
+const NotificationSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['announcement', 'reminder', 'alert', 'event'], default: 'announcement' },
+  priority: { type: String, enum: ['normal', 'high', 'urgent'], default: 'normal' },
+  audience: { type: String, enum: ['all', 'students', 'teachers', 'parents', 'staff'], default: 'all' },
+  targetClass: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  isEmailSent: { type: Boolean, default: false },
+  isSMSSent: { type: Boolean, default: false },
+  school: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+
+  // ── Action tracking (alerts) ──
+  // Lets staff record what was done about an alert. Once 'resolved', the alert
+  // is hidden from the dashboard but stays visible in the Notifications module.
+  actionStatus: {
+    type: String,
+    enum: ['pending', 'resolved', 'in_progress', 'no_action_required'],
+    default: 'pending',
+  },
+  actionDetails: { type: String, default: '' },
+  actionBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  actionByName:  { type: String },   // stored alongside the id so history survives renames
+  actionAt:      { type: Date },
+  // Append-only record of every change made to the action fields
+  actionLog: [{
+    _id:      false,
+    status:   String,
+    details:  String,
+    user:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    userName: String,
+    userRole: String,
+    at:       { type: Date, default: Date.now },
+  }],
+
+  createdAt: { type: Date, default: Date.now }
+});
+
+// ── EXPORTS ───────────────────────────────────────────────────────────────────
+module.exports.Class        = mongoose.model('Class',        ClassSchema);
+module.exports.Subject      = mongoose.model('Subject',      SubjectSchema);
+module.exports.Attendance   = mongoose.model('Attendance',   AttendanceSchema);
+module.exports.TeacherAttendance = mongoose.model('TeacherAttendance', TeacherAttendanceSchema);
+module.exports.AttendanceSubmission = mongoose.models.AttendanceSubmission || mongoose.model('AttendanceSubmission', AttendanceSubmissionSchema);
+module.exports.Exam         = mongoose.model('Exam',         ExamSchema);
+module.exports.Result       = mongoose.model('Result',       ResultSchema);
+module.exports.FeeStructure = mongoose.model('FeeStructure', FeeStructureSchema);
+module.exports.FeePayment   = mongoose.model('FeePayment',   FeePaymentSchema);
+module.exports.FeeEditRequest = mongoose.models.FeeEditRequest || mongoose.model('FeeEditRequest', FeeEditRequestSchema);
+module.exports.StudentFee   = mongoose.model('StudentFee',   StudentFeeSchema);
+// NOTE: Timetable is no longer exported from here — import directly:
+//   const Timetable = require('./Timetable');
+module.exports.Assignment   = mongoose.model('Assignment',   AssignmentSchema);
+module.exports.Book         = mongoose.model('Book',         BookSchema);
+module.exports.BookIssue    = mongoose.model('BookIssue',    BookIssueSchema);
+module.exports.Transport    = mongoose.model('Transport',    TransportSchema);
+module.exports.Notification = mongoose.model('Notification', NotificationSchema);
+
+// ── VEHICLE ──
+const VehicleSchema = new mongoose.Schema({
+  registrationNo: { type: String, required: true, uppercase: true },
+  type:           { type: String, enum: ['bus','van','minibus','auto'], default: 'bus' },
+  capacity:       { type: Number, default: 40 },
+  driverName:     String,
+  driverPhone:    String,
+  assignedRoute:  { type: mongoose.Schema.Types.ObjectId, ref: 'Transport' },
+  status:         { type: String, enum: ['active','maintenance','inactive'], default: 'active' },
+  school:         { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  createdAt:      { type: Date, default: Date.now },
+});
+VehicleSchema.index({ school: 1, registrationNo: 1 }, { unique: true });
+
+// ── TRANSPORT FEE ──
+const TransportFeeSchema2 = new mongoose.Schema({
+  studentName:  { type: String, required: true },
+  studentId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+  routeId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Transport' },
+  routeName:    String,
+  amount:       { type: Number, required: true },
+  month:        { type: Number, required: true },
+  year:         { type: Number, required: true },
+  status:       { type: String, enum: ['pending','paid','partial'], default: 'pending' },
+  dueDate:      Date,
+  paidDate:     Date,
+  school:       { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+  createdAt:    { type: Date, default: Date.now },
+});
+
+module.exports.Vehicle       = mongoose.models.Vehicle       || mongoose.model('Vehicle',       VehicleSchema);
+module.exports.TransportFee2 = mongoose.models.TransportFee2 || mongoose.model('TransportFee2', TransportFeeSchema2);

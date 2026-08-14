@@ -1,0 +1,1115 @@
+// backend/controllers/reportController.js
+const Report  = require('../models/Report');
+const { buildPipeline, getDashboardSummary, smartSearch } = require('../services/reportEngine');
+
+// ── Role → allowed modules ────────────────────────────────────────────────────
+const ROLE_MODULES = {
+  superAdmin:       ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance','exam_marks'],
+  schoolAdmin:      ['students','teachers','classes','fees','fee_assignments','attendance','exams','transport','library','admissions','homework','assignments','expenses','meetings','behaviour','teacher_attendance','exam_marks'],
+  // Teachers get their own teaching artefacts and behaviour notes. Not
+  // admissions or expenses — those are office matters, and a report is a way of
+  // reading data as much as any screen is.
+  teacher:          ['students','classes','attendance','exams','exam_marks','homework','assignments','behaviour','meetings'],
+  accountant:       ['students','fees','fee_assignments','expenses','admissions'],
+  librarian:        ['students','library'],
+  transportManager: ['students','transport'],
+  // Parents and students see what concerns them. Behaviour notes are excluded
+  // deliberately: a note is written for staff, and a child reading a "concern"
+  // logged about them is a conversation for a teacher to have, not a report.
+  parent:           ['attendance','fees','exams','exam_marks','homework','assignments'],
+  student:          ['attendance','fees','exams','exam_marks','homework','assignments'],
+};
+
+// Complete field definitions for each module — these drive the builder UI
+const MODULE_META = {
+  admissions: {
+    label: 'Admissions',
+    collection: 'admissions',
+    fields: [
+      { key: 'applicantName',     label: 'Student',        type: 'string' },
+      { key: 'applicationNumber', label: 'Application No.', type: 'string' },
+      { key: 'className',         label: 'Class',          type: 'string' },
+      { key: 'gender',            label: 'Gender',         type: 'string' },
+      { key: 'category',          label: 'Category',       type: 'string' },
+      { key: 'academicYear',      label: 'Academic Year',  type: 'string' },
+      { key: 'parentName',        label: 'Parent',         type: 'string' },
+      { key: 'parentPhone',       label: 'Parent Phone',   type: 'string' },
+      { key: 'admittedOn',        label: 'Admitted On',    type: 'string' },
+      { key: 'source',            label: 'Source',         type: 'string' },
+      { key: 'siblingCount',      label: 'Siblings',       type: 'number' },
+      { key: 'regFeePaid',        label: 'Reg Fee Paid',   type: 'string' },
+      { key: 'status',            label: 'Status',         type: 'string' },
+    ],
+    // `academicYear` and `category` are NOT offered as filters: they are set on
+    // 119 and 90 of 221 records respectively, so filtering on either would
+    // silently drop half the school. They appear as columns instead, where an
+    // empty value is visibly empty.
+    filters: [
+      { key: 'gender', label: 'Gender', type: 'select', options: ['male','female','other'] },
+      { key: 'source', label: 'Source', type: 'select', options: ['walk_in','referral','online','advertisement','other'] },
+      { key: 'dateFrom', label: 'Created From', type: 'date' },
+      { key: 'dateTo',   label: 'Created To',   type: 'date' },
+    ],
+    groupBy: ['class','gender','category','source','academicYear','month','status'],
+    sortBy:  ['admittedOn','applicantName','className'],
+  },
+  homework: {
+    label: 'Homework',
+    collection: 'homeworks',
+    fields: [
+      { key: 'title',           label: 'Title',       type: 'string' },
+      { key: 'className',       label: 'Class',       type: 'string' },
+      { key: 'section',         label: 'Section',     type: 'string' },
+      { key: 'subjectName',     label: 'Subject',     type: 'string' },
+      { key: 'description',     label: 'Description', type: 'string' },
+      { key: 'assignedDateFmt', label: 'Set On',      type: 'date' },
+      { key: 'dueDateFmt',      label: 'Due Date',    type: 'date' },
+      { key: 'status',          label: 'Status',      type: 'string' },
+      { key: 'isOverdue',       label: 'Overdue',     type: 'string' },
+      { key: 'attachmentCount', label: 'Attachments', type: 'number' },
+    ],
+    // No `teacher` filter or column: the field is set on 1 of 170 records, so a
+    // column would be blank on every row but one and a filter would find nothing.
+    filters: [
+      { key: 'classId',  label: 'Class',  type: 'classSelect' },
+      { key: 'status',   label: 'Status', type: 'select', options: ['active','completed'] },
+      { key: 'dateFrom', label: 'Due From', type: 'date' },
+      { key: 'dateTo',   label: 'Due To',   type: 'date' },
+    ],
+    groupBy: ['class','subject','status','month','overdue'],
+    sortBy:  ['dueDateFmt','assignedDateFmt','className'],
+  },
+  assignments: {
+    label: 'Assignments',
+    collection: 'assignments',
+    fields: [
+      { key: 'title',           label: 'Title',       type: 'string' },
+      { key: 'className',       label: 'Class',       type: 'string' },
+      { key: 'section',         label: 'Section',     type: 'string' },
+      { key: 'subjectName',     label: 'Subject',     type: 'string' },
+      { key: 'dueDateFmt',      label: 'Due Date',    type: 'date' },
+      { key: 'totalMarks',      label: 'Total Marks', type: 'number' },
+      { key: 'submissionCount', label: 'Submissions', type: 'number' },
+      { key: 'status',          label: 'Status',      type: 'string' },
+    ],
+    filters: [
+      { key: 'classId',  label: 'Class',  type: 'classSelect' },
+      { key: 'dateFrom', label: 'Due From', type: 'date' },
+      { key: 'dateTo',   label: 'Due To',   type: 'date' },
+    ],
+    groupBy: ['class','subject','status'],
+    sortBy:  ['dueDateFmt','className'],
+  },
+  expenses: {
+    label: 'Expenses',
+    collection: 'expenses',
+    fields: [
+      { key: 'description',   label: 'Description',    type: 'string' },
+      { key: 'categoryName',  label: 'Category',       type: 'string' },
+      { key: 'amount',        label: 'Amount',         type: 'number' },
+      { key: 'dateFmt',       label: 'Date',           type: 'date' },
+      { key: 'paymentMethod', label: 'Payment Method', type: 'string' },
+      { key: 'recurringLbl',  label: 'Recurring',      type: 'string' },
+      { key: 'vendor',        label: 'Vendor',         type: 'string' },
+    ],
+    filters: [
+      { key: 'paymentMethod', label: 'Payment Method', type: 'select', options: ['cash','cheque','bank','upi','card'] },
+      { key: 'dateFrom',      label: 'From', type: 'date' },
+      { key: 'dateTo',        label: 'To',   type: 'date' },
+    ],
+    groupBy: ['category','paymentMethod'],
+    sortBy:  ['dateFmt','amount'],
+  },
+  meetings: {
+    label: 'Meetings',
+    collection: 'meetings',
+    fields: [
+      { key: 'title',         label: 'Title',     type: 'string' },
+      { key: 'type',          label: 'Type',      type: 'string' },
+      { key: 'startsAtFmt',   label: 'Starts',    type: 'date' },
+      { key: 'durationMins',  label: 'Duration',  type: 'number' },
+      { key: 'location',      label: 'Location',  type: 'string' },
+      { key: 'status',        label: 'Status',    type: 'string' },
+      { key: 'inviteeCount',  label: 'Invited',   type: 'number' },
+      { key: 'acceptedCount', label: 'Accepted',  type: 'number' },
+    ],
+    filters: [
+      { key: 'status',   label: 'Status', type: 'select', options: ['scheduled','completed','cancelled'] },
+      { key: 'dateFrom', label: 'From', type: 'date' },
+      { key: 'dateTo',   label: 'To',   type: 'date' },
+    ],
+    groupBy: ['type','status'],
+    sortBy:  ['startsAtFmt','title'],
+  },
+  behaviour: {
+    label: 'Behaviour Notes',
+    collection: 'behaviouralnotes',
+    fields: [
+      { key: 'studentName',     label: 'Student',       type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.', type: 'string' },
+      { key: 'className',       label: 'Class',         type: 'string' },
+      { key: 'section',         label: 'Section',       type: 'string' },
+      { key: 'categoryLabel',   label: 'Category',      type: 'string' },
+      { key: 'note',            label: 'Note',          type: 'string' },
+      { key: 'recordedByName',  label: 'Recorded By',   type: 'string' },
+      { key: 'dateFmt',         label: 'Date',          type: 'date' },
+    ],
+    // No category options are listed: the field is free text and neither
+    // existing note has one set. A dropdown of guessed values would offer
+    // filters that match nothing.
+    filters: [
+      { key: 'classId',  label: 'Class', type: 'classSelect' },
+      { key: 'dateFrom', label: 'From',  type: 'date' },
+      { key: 'dateTo',   label: 'To',    type: 'date' },
+    ],
+    groupBy: ['category','class','student','recordedBy'],
+    sortBy:  ['dateFmt','studentName','className'],
+  },
+  students: {
+    label: 'Students',
+    collection: 'students',
+    fields: [
+      { key: 'name',             label: 'Full Name',        type: 'string' },
+      { key: 'admissionNumber',  label: 'Admission No.',    type: 'string' },
+      { key: 'email',            label: 'Email',            type: 'string' },
+      { key: 'phone',            label: 'Phone',            type: 'string' },
+      { key: 'className',        label: 'Class',            type: 'string' },
+      { key: 'grade',            label: 'Grade',            type: 'number' },
+      { key: 'section',          label: 'Section',          type: 'string' },
+      { key: 'gender',           label: 'Gender',           type: 'string' },
+      { key: 'status',           label: 'Status',           type: 'string' },
+      { key: 'admissionDateFmt', label: 'Admission Date',   type: 'date' },
+      { key: 'dobFmt',           label: 'Date of Birth',    type: 'date' },
+      { key: 'bloodGroup',       label: 'Blood Group',      type: 'string' },
+      { key: 'category',         label: 'Category',         type: 'string' },
+      { key: 'parentName',       label: 'Parent Name',      type: 'string' },
+      { key: 'parentPhone',      label: 'Parent Phone',     type: 'string' },
+      { key: 'parentEmail',      label: 'Parent Email',     type: 'string' },
+    ],
+    filters: [
+      { key: 'gender',   label: 'Gender',  type: 'select', options: ['male','female','other'] },
+      { key: 'status',   label: 'Status',  type: 'select', options: ['active','inactive','alumni'] },
+      { key: 'category', label: 'Category',type: 'select', options: ['General','OBC','SC','ST','Other'] },
+      { key: 'classId',  label: 'Class',   type: 'classSelect' },
+      { key: 'section',  label: 'Section', type: 'text' },
+      { key: 'dateFrom', label: 'Admission From', type: 'date' },
+      { key: 'dateTo',   label: 'Admission To',   type: 'date' },
+    ],
+    groupBy: ['class','gender','status','category','grade'],
+    sortBy:  ['name','admissionDateFmt','grade'],
+  },
+  teacher_attendance: {
+    label: 'Staff Attendance',
+    collection: 'teacherattendances',
+    fields: [
+      { key: 'teacherName',  label: 'Staff Member', type: 'string' },
+      { key: 'employeeId',   label: 'Employee ID',  type: 'string' },
+      { key: 'designation',  label: 'Designation',  type: 'string' },
+      { key: 'dateFmt',      label: 'Date',         type: 'date' },
+      { key: 'status',       label: 'Status',       type: 'string' },
+      { key: 'remarks',      label: 'Remarks',      type: 'string' },
+      { key: 'markedByName', label: 'Marked By',    type: 'string' },
+    ],
+    // Only present/leave appear in the data, but absent and late are offered —
+    // they are valid statuses that simply have not been used yet, and a filter
+    // that returns nothing is a fair answer to "was anyone absent?".
+    filters: [
+      { key: 'status',   label: 'Status', type: 'select', options: ['present','absent','leave','late'] },
+      { key: 'dateFrom', label: 'From',   type: 'date' },
+      { key: 'dateTo',   label: 'To',     type: 'date' },
+    ],
+    groupBy: ['teacher','status','month','designation','date'],
+    sortBy:  ['dateFmt','teacherName'],
+  },
+  teachers: {
+    label: 'Teachers',
+    collection: 'teachers',
+    fields: [
+      { key: 'name',           label: 'Full Name',        type: 'string' },
+      { key: 'email',          label: 'Email',            type: 'string' },
+      { key: 'phone',          label: 'Phone',            type: 'string' },
+      { key: 'employeeId',     label: 'Employee ID',      type: 'string' },
+      { key: 'designation',    label: 'Designation',      type: 'string' },
+      { key: 'qualification',  label: 'Qualification',    type: 'string' },
+      { key: 'experience',     label: 'Experience (yrs)', type: 'number' },
+      { key: 'salary',         label: 'Salary (₹)',       type: 'number' },
+      { key: 'subjectNames',   label: 'Subjects',         type: 'array' },
+      { key: 'classNames',     label: 'Classes',          type: 'array' },
+      { key: 'joiningDateFmt', label: 'Joining Date',     type: 'date' },
+      { key: 'isActive',       label: 'Active',           type: 'boolean' },
+    ],
+    filters: [
+      { key: 'isActive',  label: 'Active',       type: 'select', options: ['true','false'] },
+      { key: 'dateFrom',  label: 'Joining From', type: 'date' },
+      { key: 'dateTo',    label: 'Joining To',   type: 'date' },
+    ],
+    groupBy: ['designation','isActive'],
+    sortBy:  ['name','experience','joiningDateFmt'],
+  },
+  classes: {
+    label: 'Classes',
+    collection: 'classes',
+    fields: [
+      { key: 'name',             label: 'Class Name',      type: 'string' },
+      { key: 'grade',            label: 'Grade',           type: 'number' },
+      { key: 'section',          label: 'Section',         type: 'string' },
+      { key: 'room',             label: 'Room',            type: 'string' },
+      { key: 'capacity',         label: 'Capacity',        type: 'number' },
+      { key: 'studentCount',     label: 'Student Count',   type: 'number' },
+      { key: 'subjectCount',     label: 'Subject Count',   type: 'number' },
+      { key: 'classTeacherName', label: 'Class Teacher',   type: 'string' },
+    ],
+    filters: [
+      { key: 'grade', label: 'Grade', type: 'number' },
+    ],
+    groupBy: ['grade'],
+    sortBy:  ['grade','section','studentCount'],
+  },
+  fees: {
+    label: 'Fee Collection',
+    collection: 'feepayments',
+    fields: [
+      { key: 'studentName',     label: 'Student Name',     type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.',    type: 'string' },
+      { key: 'className',       label: 'Class',            type: 'string' },
+      { key: 'grade',           label: 'Grade',            type: 'number' },
+      { key: 'amount',          label: 'Amount (₹)',       type: 'currency' },
+      { key: 'paidOnFmt',       label: 'Paid On',          type: 'date' },
+      { key: 'method',          label: 'Payment Method',   type: 'string' },
+      { key: 'receiptNumber',   label: 'Receipt No.',      type: 'string' },
+      { key: 'month',           label: 'Month',            type: 'string' },
+      { key: 'status',          label: 'Status',           type: 'string' },
+      { key: 'transactionId',   label: 'Transaction ID',   type: 'string' },
+      { key: 'remarks',         label: 'Remarks',          type: 'string' },
+    ],
+    filters: [
+      { key: 'status',  label: 'Status', type: 'select', options: ['paid','pending','overdue','partial'] },
+      { key: 'method',  label: 'Method', type: 'select', options: ['cash','online','cheque','bank','upi'] },
+      { key: 'classId', label: 'Class',  type: 'classSelect' },
+      { key: 'dateFrom',label: 'Paid From', type: 'date' },
+      { key: 'dateTo',  label: 'Paid To',   type: 'date' },
+    ],
+    groupBy: ['class','status','method','month'],
+    sortBy:  ['paidOnFmt','amount','studentName'],
+  },
+  fee_assignments: {
+    label: 'Fee Assignments',
+    collection: 'feeassignments',
+    fields: [
+      { key: 'studentName',     label: 'Student Name',    type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.',   type: 'string' },
+      { key: 'className',       label: 'Class',           type: 'string' },
+      { key: 'feeTypeName',     label: 'Fee Type',        type: 'string' },
+      { key: 'feeCategory',     label: 'Category',        type: 'string' },
+      { key: 'baseAmount',      label: 'Base Amount (₹)', type: 'currency' },
+      { key: 'discountPct',     label: 'Discount %',      type: 'number' },
+      { key: 'finalAmount',     label: 'Final Amount (₹)',type: 'currency' },
+      { key: 'paidAmount',      label: 'Paid (₹)',        type: 'currency' },
+      { key: 'pendingAmount',   label: 'Pending (₹)',     type: 'currency' },
+      { key: 'status',          label: 'Status',          type: 'string' },
+      { key: 'dueDateFmt',      label: 'Due Date',        type: 'date' },
+      { key: 'discountReason',  label: 'Discount Reason', type: 'string' },
+      { key: 'hasInstallments', label: 'Installments',    type: 'boolean' },
+    ],
+    filters: [
+      { key: 'status',    label: 'Status',    type: 'select', options: ['pending','partial','paid','overdue','waived'] },
+      { key: 'classId',   label: 'Class',     type: 'classSelect' },
+      { key: 'dateFrom',  label: 'Due From',  type: 'date' },
+      { key: 'dateTo',    label: 'Due To',    type: 'date' },
+    ],
+    groupBy: ['class','status','feeType','category'],
+    sortBy:  ['finalAmount','pendingAmount','dueDateFmt','studentName'],
+  },
+  attendance: {
+    label: 'Attendance',
+    collection: 'attendances',
+    fields: [
+      { key: 'studentName',     label: 'Student Name',   type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.',  type: 'string' },
+      { key: 'className',       label: 'Class',          type: 'string' },
+      { key: 'dateFmt',         label: 'Date',           type: 'date' },
+      { key: 'status',          label: 'Status',         type: 'string' },
+      { key: 'remarks',         label: 'Remarks',        type: 'string' },
+    ],
+    filters: [
+      { key: 'status',  label: 'Status', type: 'select', options: ['present','absent','late','excused'] },
+      { key: 'classId', label: 'Class',  type: 'classSelect' },
+      { key: 'dateFrom',label: 'Date From', type: 'date' },
+      { key: 'dateTo',  label: 'Date To',   type: 'date' },
+    ],
+    groupBy: ['student','class','date','status'],
+    sortBy:  ['dateFmt','studentName','status'],
+  },
+  exam_marks: {
+    label: 'Exam Results',
+    collection: 'exammarks',
+    fields: [
+      { key: 'studentName',     label: 'Student',       type: 'string' },
+      { key: 'admissionNumber', label: 'Admission No.', type: 'string' },
+      { key: 'className',       label: 'Class',         type: 'string' },
+      { key: 'section',         label: 'Section',       type: 'string' },
+      { key: 'examName',        label: 'Exam',          type: 'string' },
+      { key: 'academicYear',    label: 'Academic Year', type: 'string' },
+      { key: 'subjectName',     label: 'Subject',       type: 'string' },
+      { key: 'obtained',        label: 'Obtained',      type: 'number' },
+      { key: 'maxMarks',        label: 'Max Marks',     type: 'number' },
+      { key: 'percentage',      label: 'Percentage',    type: 'number' },
+      { key: 'grade',           label: 'Grade',         type: 'string' },
+      { key: 'resultLabel',     label: 'Result',        type: 'string' },
+      { key: 'isRetestLabel',   label: 'Attempt',       type: 'string' },
+      { key: 'remarks',         label: 'Remarks',       type: 'string' },
+      { key: 'correctionCount', label: 'Corrections',   type: 'number' },
+    ],
+    filters: [
+      { key: 'classId', label: 'Class',  type: 'classSelect' },
+      { key: 'grade',   label: 'Grade',  type: 'text' },
+      { key: 'status',  label: 'Status', type: 'select', options: ['draft','published'] },
+    ],
+    groupBy: ['class','subject','exam','grade','result','academicYear','student'],
+    sortBy:  ['percentage','studentName','subjectName'],
+  },
+  exams: {
+    label: 'Exams & Results',
+    collection: 'results',
+    fields: [
+      { key: 'studentName',  label: 'Student Name',    type: 'string' },
+      { key: 'examName',     label: 'Exam Name',       type: 'string' },
+      { key: 'examType',     label: 'Exam Type',       type: 'string' },
+      { key: 'subjectName',  label: 'Subject',         type: 'string' },
+      { key: 'className',    label: 'Class',           type: 'string' },
+      { key: 'marksObtained',label: 'Marks Obtained',  type: 'number' },
+      { key: 'totalMarks',   label: 'Total Marks',     type: 'number' },
+      { key: 'percentage',   label: 'Percentage (%)',  type: 'number' },
+      { key: 'grade',        label: 'Grade',           type: 'string' },
+      { key: 'passed',       label: 'Passed',          type: 'boolean' },
+      { key: 'isAbsent',     label: 'Absent',          type: 'boolean' },
+    ],
+    filters: [
+      { key: 'classId', label: 'Class',     type: 'classSelect' },
+      { key: 'dateFrom',label: 'From Date', type: 'date' },
+      { key: 'dateTo',  label: 'To Date',   type: 'date' },
+    ],
+    groupBy: ['examType','className'],
+    sortBy:  ['percentage','marksObtained','studentName'],
+  },
+  transport: {
+    label: 'Transport',
+    collection: 'students',
+    fields: [
+      { key: 'studentName',   label: 'Student Name',  type: 'string' },
+      { key: 'admissionNumber',label: 'Admission No.', type: 'string' },
+      { key: 'className',     label: 'Class',         type: 'string' },
+      { key: 'grade',         label: 'Grade',         type: 'number' },
+      { key: 'routeName',     label: 'Route Name',    type: 'string' },
+      { key: 'vehicleNumber', label: 'Vehicle No.',   type: 'string' },
+      { key: 'parentName',    label: 'Parent Name',   type: 'string' },
+      { key: 'parentPhone',   label: 'Parent Phone',  type: 'string' },
+    ],
+    filters: [
+      { key: 'classId', label: 'Class', type: 'classSelect' },
+    ],
+    groupBy: ['route','grade'],
+    sortBy:  ['studentName','routeName'],
+  },
+  library: {
+    label: 'Library',
+    collection: 'bookissues',
+    fields: [
+      { key: 'bookTitle',      label: 'Book Title',    type: 'string' },
+      { key: 'bookAuthor',     label: 'Author',        type: 'string' },
+      { key: 'bookCategory',   label: 'Category',      type: 'string' },
+      { key: 'studentName',    label: 'Student Name',  type: 'string' },
+      { key: 'admissionNumber',label: 'Admission No.', type: 'string' },
+      { key: 'issuedFmt',      label: 'Issue Date',    type: 'date' },
+      { key: 'dueFmt',         label: 'Due Date',      type: 'date' },
+      { key: 'returnedFmt',    label: 'Return Date',   type: 'date' },
+      { key: 'status',         label: 'Status',        type: 'string' },
+      { key: 'lateFee',        label: 'Late Fee (₹)',  type: 'currency' },
+      { key: 'overdueDays',    label: 'Overdue Days',  type: 'number' },
+    ],
+    filters: [
+      { key: 'status',  label: 'Status', type: 'select', options: ['issued','returned','overdue'] },
+      { key: 'dateFrom',label: 'Issue From', type: 'date' },
+      { key: 'dateTo',  label: 'Issue To',   type: 'date' },
+    ],
+    groupBy: ['status','book'],
+    sortBy:  ['issuedFmt','dueFmt','studentName'],
+  },
+};
+
+function getAllowedMeta(role) {
+  const allowed = ROLE_MODULES[role] || [];
+  const result = {};
+  allowed.forEach(m => { if (MODULE_META[m]) result[m] = MODULE_META[m]; });
+  return result;
+}
+
+function canAccess(role, module) {
+  return (ROLE_MODULES[role] || []).includes(module);
+}
+
+// ── GET /api/reports/meta ─────────────────────────────────────────────────────
+exports.getMeta = async (req, res) => {
+  const meta = getAllowedMeta(req.user.role);
+  res.json({ success: true, data: meta });
+};
+
+// ── GET /api/reports/dashboard ────────────────────────────────────────────────
+exports.getDashboard = async (req, res) => {
+  const data = await getDashboardSummary(req.user.school);
+  res.json({ success: true, data });
+};
+
+// ── GET /api/reports/predefined ───────────────────────────────────────────────
+exports.getPredefined = async (req, res) => {
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+  const monthEnd   = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59).toISOString();
+  const dayStart   = new Date(today.setHours(0,0,0,0)).toISOString();
+  const dayEnd     = new Date(today.setHours(23,59,59,999)).toISOString();
+
+  const ALL = [
+    {
+      id: 'admissions-by-class', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Class',
+      description: 'How many students were admitted into each class',
+      fields: ['applicantName','applicationNumber','className','gender','admittedOn'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'admissions-register', module: 'admissions', category: 'Admissions',
+      name: 'Admissions Register',
+      description: 'Every admission with parent contact and date — the full list',
+      fields: ['applicantName','applicationNumber','className','gender','parentName','parentPhone','admittedOn'],
+      filters: {}, groupBy: '', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'admissions-by-month', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Month',
+      description: 'When students joined, month by month',
+      fields: ['applicantName','className','admittedOn'],
+      filters: {}, groupBy: 'month', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      // Category is recorded on 90 of 221. The gap is the point of the report —
+      // government returns need this, and a blank is a record to go back and
+      // complete rather than a number to quietly omit.
+      id: 'admissions-by-category', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — By Category',
+      description: 'Social category breakdown for statutory returns; blanks show what is missing',
+      fields: ['applicantName','className','category','gender'],
+      filters: {}, groupBy: 'category', sortBy: { field: 'applicantName', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'admissions-by-source', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — How They Found Us',
+      description: 'Walk-in, referral, online — where admissions come from',
+      fields: ['applicantName','className','source','admittedOn'],
+      filters: {}, groupBy: 'source', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      // registrationFee is {paid:false} with no amount on these records, so the
+      // report lists WHO rather than HOW MUCH.
+      id: 'admissions-reg-fee-unpaid', module: 'admissions', category: 'Admissions',
+      name: 'Admissions — Registration Fee Unpaid',
+      description: 'Admissions with no registration fee recorded as received',
+      fields: ['applicantName','applicationNumber','className','parentName','parentPhone','admittedOn'],
+      filters: {}, groupBy: '', sortBy: { field: 'admittedOn', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exam-results-all', module: 'exam_marks', category: 'Exam Results',
+      name: 'Exam Results — All Marks',
+      description: 'Every mark recorded, with grade and pass or fail',
+      fields: ['studentName','className','examName','subjectName','obtained','maxMarks','percentage','grade','resultLabel'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exam-class-result', module: 'exam_marks', category: 'Exam Results',
+      name: 'Class Result Summary',
+      description: 'Average, highest, lowest and pass rate for each class',
+      fields: ['className','subjectName','percentage','grade'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'averagePercentage' },
+    },
+    {
+      id: 'exam-subject-result', module: 'exam_marks', category: 'Exam Results',
+      name: 'Subject Performance',
+      description: 'How each subject performed — average, spread and pass rate',
+      fields: ['subjectName','className','percentage','grade'],
+      filters: {}, groupBy: 'subject', sortBy: { field: 'subjectName', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'averagePercentage' },
+    },
+    {
+      id: 'exam-grade-distribution', module: 'exam_marks', category: 'Exam Results',
+      name: 'Grade Distribution',
+      description: 'How many students achieved each grade',
+      fields: ['studentName','className','subjectName','grade'],
+      filters: {}, groupBy: 'grade', sortBy: { field: 'grade', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'exam-pass-fail', module: 'exam_marks', category: 'Exam Results',
+      name: 'Pass / Fail Report',
+      description: 'Passes, failures and absences across the school',
+      fields: ['studentName','className','subjectName','percentage','resultLabel'],
+      filters: {}, groupBy: 'result', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'exam-top-performers', module: 'exam_marks', category: 'Exam Results',
+      name: 'Top Performers',
+      description: 'Highest percentages first — the merit list',
+      fields: ['studentName','className','examName','subjectName','percentage','grade'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      // Not a shaming list: these are the students a teacher would want to know
+      // about, which is why it sits beside the merit list rather than replacing it.
+      id: 'exam-low-performers', module: 'exam_marks', category: 'Exam Results',
+      name: 'Students Needing Support',
+      description: 'Lowest percentages first, to identify who needs help',
+      fields: ['studentName','className','examName','subjectName','percentage','grade','resultLabel'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exam-by-year', module: 'exam_marks', category: 'Exam Results',
+      name: 'Results by Academic Year',
+      description: 'Performance compared across years',
+      fields: ['studentName','academicYear','examName','percentage'],
+      filters: {}, groupBy: 'academicYear', sortBy: { field: 'academicYear', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'averagePercentage' },
+    },
+    {
+      id: 'staff-attendance-summary', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — Summary',
+      description: 'Days present against days recorded, per staff member',
+      fields: ['teacherName','employeeId','designation','dateFmt','status'],
+      filters: {}, groupBy: 'teacher', sortBy: { field: 'teacherName', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: 'teacherName', yAxis: 'percentage' },
+    },
+    {
+      id: 'staff-attendance-register', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — Daily Register',
+      description: 'Every attendance record, most recent first',
+      fields: ['teacherName','designation','dateFmt','status','remarks','markedByName'],
+      filters: {}, groupBy: '', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'staff-attendance-leave', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — Leave Taken',
+      description: 'Days recorded as leave, with the reason where one was given',
+      fields: ['teacherName','designation','dateFmt','remarks','markedByName'],
+      filters: { status: 'leave' }, groupBy: '', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'staff-attendance-monthly', module: 'teacher_attendance', category: 'Staff Attendance',
+      name: 'Staff Attendance — By Month',
+      description: 'How many attendance records exist each month',
+      fields: ['teacherName','dateFmt','status'],
+      filters: {}, groupBy: 'month', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'homework-log', module: 'homework', category: 'Homework',
+      name: 'Homework — Full List',
+      description: 'Every piece of homework with class, subject and due date',
+      fields: ['title','className','subjectName','assignedDateFmt','dueDateFmt','status'],
+      filters: {}, groupBy: '', sortBy: { field: 'dueDateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'homework-overdue', module: 'homework', category: 'Homework',
+      name: 'Homework — Still Active, Past Due',
+      description: 'Homework not marked complete after its due date',
+      fields: ['title','className','subjectName','dueDateFmt','isOverdue'],
+      filters: { status: 'active' }, groupBy: '', sortBy: { field: 'dueDateFmt', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'homework-by-class', module: 'homework', category: 'Homework',
+      name: 'Homework — By Class',
+      description: 'How much homework each class has been set',
+      fields: ['title','className','subjectName','dueDateFmt','status'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'homework-by-subject', module: 'homework', category: 'Homework',
+      name: 'Homework — By Subject',
+      description: 'Which subjects set the most homework',
+      fields: ['title','subjectName','className','dueDateFmt'],
+      filters: {}, groupBy: 'subject', sortBy: { field: 'subjectName', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'homework-by-month', module: 'homework', category: 'Homework',
+      name: 'Homework — Set By Month',
+      description: 'How much homework is being set, month by month',
+      fields: ['title','className','assignedDateFmt'],
+      filters: {}, groupBy: 'month', sortBy: { field: 'assignedDateFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'assignments-due', module: 'assignments', category: 'Assignments',
+      name: 'Assignments — Submissions',
+      description: 'Assignments with how many students have handed in',
+      fields: ['title','className','subjectName','dueDateFmt','totalMarks','submissionCount'],
+      filters: {}, groupBy: '', sortBy: { field: 'dueDateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'expenses-by-category', module: 'expenses', category: 'Expenses',
+      name: 'Expenses — By Category',
+      description: 'What the school spends, grouped by category',
+      fields: ['description','categoryName','amount','dateFmt','paymentMethod'],
+      filters: {}, groupBy: 'category', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'total' },
+    },
+    {
+      id: 'behaviour-log', module: 'behaviour', category: 'Behaviour',
+      name: 'Behaviour Log',
+      description: 'Every note recorded, most recent first',
+      fields: ['studentName','className','categoryLabel','note','recordedByName','dateFmt'],
+      filters: {}, groupBy: '', sortBy: { field: 'dateFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'behaviour-by-student', module: 'behaviour', category: 'Behaviour',
+      name: 'Behaviour — Notes Per Student',
+      description: 'Which students have notes against them, and how many',
+      fields: ['studentName','className','categoryLabel','dateFmt'],
+      filters: {}, groupBy: 'student', sortBy: { field: 'studentName', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'behaviour-by-class', module: 'behaviour', category: 'Behaviour',
+      name: 'Behaviour — By Class',
+      description: 'Where notes are being recorded across the school',
+      fields: ['studentName','className','categoryLabel','dateFmt'],
+      filters: {}, groupBy: 'class', sortBy: { field: 'className', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'meetings-upcoming', module: 'meetings', category: 'Meetings',
+      name: 'Meetings — Schedule & Attendance',
+      description: 'Meetings with invited and accepted counts',
+      fields: ['title','type','startsAtFmt','location','inviteeCount','acceptedCount','status'],
+      filters: {}, groupBy: '', sortBy: { field: 'startsAtFmt', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      // Not a report this engine runs — it links to the consolidated fee report
+      // that already exists at /fees/category-report, which joins assignments to
+      // receipt breakdowns. Rebuilding that logic here would give the school two
+      // fee reports that could disagree, which is worse than one.
+      id: 'fees-category-consolidated', module: 'fees', category: 'Fees',
+      name: 'Fee Report — All Categories (Consolidated)',
+      description: 'School Fee, Bus Fee and Stationery per student — total, paid and pending',
+      // Rendered by /reports/fees inside the hub, not handed off to the Fees
+      // module. `external` only means the report engine does not run it — the
+      // category figures come from joining fee assignments to the breakdown on
+      // each receipt, a shape the generic pipeline cannot express.
+      external: true, route: '/reports/fees',
+      fields: [], filters: {}, groupBy: '', sortBy: { field: 'name', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    // The class-wise and whole-school fee cards were removed 11 Aug 2026.
+    //
+    // They handed off to the Fees module rather than rendering here, which is
+    // the wrong behaviour for a reporting hub — clicking a report should give
+    // you a report. Unlike the consolidated view, those two have no endpoint of
+    // their own: they are computed inside FeeReport.js from the student list it
+    // already holds. Bringing them into Reports means aggregating the same
+    // category data by class here, which is worth doing if they are wanted back.
+    //
+    // Both views remain available on the Fees page itself.
+    {
+      id: 'students-all-active', module: 'students', category: 'Students',
+      name: 'All Active Students',
+      description: 'Complete list of enrolled students with contact info',
+      fields: ['name','admissionNumber','className','grade','section','gender','parentPhone','status'],
+      filters: { status: 'active' }, groupBy: '', sortBy: { field: 'name', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'students-class-wise', module: 'students', category: 'Students',
+      name: 'Students — Class Wise Count',
+      description: 'Number of students in each class',
+      fields: ['name','className','grade','gender'],
+      filters: { status: 'active' }, groupBy: 'class', sortBy: { field: 'grade', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'students-gender-wise', module: 'students', category: 'Students',
+      name: 'Students — Gender Distribution',
+      description: 'Male vs female student breakdown',
+      fields: ['name','gender','className'],
+      filters: { status: 'active' }, groupBy: 'gender', sortBy: { field: 'gender', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    // The five engine-run fee reports that stood here were removed 11 Aug 2026.
+    //
+    // The Fees section now offers the three views of the real Fee Report page
+    // instead — consolidated, class-wise and whole-school. Those show the
+    // category breakdown (School Fee / Stationery / Bus Fee, each with total,
+    // paid and pending) that this engine cannot express: it renders flat rows
+    // from one pipeline, and the category figures come from joining assignments
+    // to receipt breakdowns.
+    //
+    // The `fees` and `fee_assignments` modules stay registered, so the Report
+    // Builder can still query them ad hoc. Only the ready-made cards are gone.
+    {
+      id: 'attendance-today', module: 'attendance', category: 'Attendance',
+      name: "Today's Attendance",
+      description: "All attendance records for today",
+      fields: ['studentName','className','dateFmt','status'],
+      filters: { dateFrom: dayStart, dateTo: dayEnd },
+      groupBy: 'class', sortBy: { field: 'status', order: 1 },
+      chartConfig: { enabled: true, type: 'pie', xAxis: '_id', yAxis: 'count' },
+    },
+    {
+      id: 'attendance-student-monthly', module: 'attendance', category: 'Attendance',
+      name: 'Attendance — Student Wise (This Month)',
+      description: 'Attendance percentage for each student this month',
+      fields: ['studentName','className','total','present','absent','late','percentage'],
+      filters: { dateFrom: monthStart, dateTo: monthEnd },
+      groupBy: 'student', sortBy: { field: 'percentage', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: 'studentName', yAxis: 'percentage' },
+    },
+    {
+      id: 'attendance-low', module: 'attendance', category: 'Attendance',
+      name: 'Low Attendance Alert (< 75%)',
+      description: 'Students with attendance below 75% this month',
+      fields: ['studentName','className','total','present','absent','percentage'],
+      filters: { dateFrom: monthStart, dateTo: monthEnd },
+      groupBy: 'student', sortBy: { field: 'percentage', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exams-results', module: 'exams', category: 'Exams',
+      name: 'Exam Results — All',
+      description: 'All student results with marks and grade',
+      fields: ['studentName','examName','examType','subjectName','className','marksObtained','totalMarks','percentage','grade','passed'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'exams-top-students', module: 'exams', category: 'Exams',
+      name: 'Top Performing Students',
+      description: 'Students ranked by marks obtained (highest first)',
+      fields: ['studentName','examName','className','marksObtained','totalMarks','percentage','grade'],
+      filters: {}, groupBy: '', sortBy: { field: 'percentage', order: -1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: 'studentName', yAxis: 'percentage' },
+    },
+    {
+      id: 'library-active', module: 'library', category: 'Library',
+      name: 'Active Book Issues',
+      description: 'All books currently issued and not returned',
+      fields: ['bookTitle','bookAuthor','studentName','issuedFmt','dueFmt','status','overdueDays'],
+      filters: { status: 'issued' }, groupBy: '', sortBy: { field: 'dueFmt', order: 1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'library-overdue', module: 'library', category: 'Library',
+      name: 'Overdue Books',
+      description: 'Books that are past their return date',
+      fields: ['bookTitle','bookAuthor','studentName','dueFmt','status','lateFee','overdueDays'],
+      filters: { status: 'overdue' }, groupBy: '', sortBy: { field: 'overdueDays', order: -1 },
+      chartConfig: { enabled: false },
+    },
+    {
+      id: 'transport-route-wise', module: 'transport', category: 'Transport',
+      name: 'Transport — Route Wise Students',
+      description: 'Students grouped by transport route',
+      fields: ['studentName','className','routeName','vehicleNumber','parentPhone'],
+      filters: {}, groupBy: 'route', sortBy: { field: 'routeName', order: 1 },
+      chartConfig: { enabled: true, type: 'bar', xAxis: 'routeName', yAxis: 'count' },
+    },
+    {
+      id: 'teachers-all', module: 'teachers', category: 'Teachers',
+      name: 'All Teaching Staff',
+      description: 'Complete teacher directory with subjects',
+      fields: ['name','email','phone','designation','qualification','experience','subjectNames','joiningDateFmt'],
+      filters: { isActive: true }, groupBy: '', sortBy: { field: 'name', order: 1 },
+      chartConfig: { enabled: false },
+    },
+  ];
+
+  const allowed = ROLE_MODULES[req.user.role] || [];
+  res.json({ success: true, data: ALL.filter(r => allowed.includes(r.module)) });
+};
+
+// ── GET /api/reports/templates ────────────────────────────────────────────────
+exports.getTemplates = async (req, res) => {
+  const templates = await Report.find({ school: req.user.school, isTemplate: true })
+    .populate('createdBy', 'name')
+    .sort({ name: 1 });
+  res.json({ success: true, data: templates });
+};
+
+// ── POST /api/reports/run ─────────────────────────────────────────────────────
+exports.runReport = async (req, res) => {
+  let cfg;
+
+  if (req.body.reportId) {
+    const saved = await Report.findOne({ _id: req.body.reportId, school: req.user.school });
+    if (!saved) return res.status(404).json({ success: false, message: 'Saved report not found' });
+    cfg = {
+      module:  saved.module,
+      fields:  saved.fields,
+      filters: { ...saved.filters, ...(req.body.filters || {}) },
+      groupBy: saved.groupBy,
+      sortBy:  saved.sortBy,
+    };
+  } else {
+    cfg = {
+      module:  req.body.module,
+      fields:  req.body.fields  || [],
+      filters: req.body.filters || {},
+      groupBy: req.body.groupBy || '',
+      sortBy:  req.body.sortBy  || { field: 'createdAt', order: -1 },
+    };
+  }
+
+  if (!cfg.module) return res.status(400).json({ success: false, message: 'module is required' });
+
+  if (!canAccess(req.user.role, cfg.module)) {
+    return res.status(403).json({ success: false, message: `Your role cannot access '${cfg.module}' reports` });
+  }
+
+  const { model, pipeline } = buildPipeline({ ...cfg, schoolId: req.user.school });
+  const limit = Math.min(parseInt(req.body.limit) || 500, 2000);
+  pipeline.push({ $limit: limit });
+
+  const data = await model.aggregate(pipeline).allowDiskUse(true);
+
+  res.json({
+    success: true,
+    module:  cfg.module,
+    count:   data.length,
+    groupBy: cfg.groupBy,
+    data,
+  });
+};
+
+// ── POST /api/reports/smart-search ───────────────────────────────────────────
+exports.smartSearchReport = async (req, res) => {
+  const { query } = req.body;
+  if (!query) return res.status(400).json({ success: false, message: 'query is required' });
+
+  const parsed = smartSearch(query);
+
+  if (!parsed.module) {
+    return res.json({
+      success: true,
+      interpreted: parsed,
+      message: 'Could not determine module from query. Please specify module manually.',
+      data: [],
+      count: 0,
+    });
+  }
+
+  if (!canAccess(req.user.role, parsed.module)) {
+    return res.status(403).json({ success: false, message: `Your role cannot access '${parsed.module}' reports` });
+  }
+
+  const meta = MODULE_META[parsed.module];
+  const fields = meta ? meta.fields.map(f => f.key) : [];
+
+  const { model, pipeline } = buildPipeline({
+    module:   parsed.module,
+    fields,
+    filters:  parsed.filters,
+    groupBy:  parsed.groupBy,
+    sortBy:   { field: 'createdAt', order: -1 },
+    schoolId: req.user.school,
+  });
+  pipeline.push({ $limit: 200 });
+
+  const data = await model.aggregate(pipeline).allowDiskUse(true);
+
+  res.json({
+    success: true,
+    interpreted: parsed,
+    query,
+    module:  parsed.module,
+    count:   data.length,
+    groupBy: parsed.groupBy,
+    data,
+  });
+};
+
+// ── CRUD ──────────────────────────────────────────────────────────────────────
+exports.getReports = async (req, res) => {
+  const filter = { school: req.user.school };
+  if (req.query.module)     filter.module     = req.query.module;
+  if (req.query.isTemplate) filter.isTemplate = req.query.isTemplate === 'true';
+  if (!['superAdmin','schoolAdmin'].includes(req.user.role)) {
+    filter.$or = [{ createdBy: req.user._id }, { isTemplate: true }];
+  }
+  const reports = await Report.find(filter).populate('createdBy','name email').sort({ updatedAt: -1 });
+  res.json({ success: true, count: reports.length, data: reports });
+};
+
+exports.getReport = async (req, res) => {
+  const report = await Report.findOne({ _id: req.params.id, school: req.user.school })
+    .populate('createdBy','name')
+    .populate('downloadHistory.exportedBy','name');
+  if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+  res.json({ success: true, data: report });
+};
+
+exports.createReport = async (req, res) => {
+  const { name, description, module, fields, filters, groupBy, sortBy, chartConfig, isTemplate, scheduleFrequency } = req.body;
+  if (!canAccess(req.user.role, module)) {
+    return res.status(403).json({ success: false, message: `Cannot create ${module} reports` });
+  }
+  const report = await Report.create({
+    name, description, module, fields, filters, groupBy, sortBy,
+    chartConfig, isTemplate, scheduleFrequency,
+    createdBy: req.user._id,
+    school:    req.user.school,
+  });
+  res.status(201).json({ success: true, data: report });
+};
+
+exports.updateReport = async (req, res) => {
+  const report = await Report.findOne({ _id: req.params.id, school: req.user.school });
+  if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+  const isOwner = report.createdBy.toString() === req.user._id.toString();
+  if (!isOwner && !['superAdmin','schoolAdmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'You can only edit your own reports' });
+  }
+  ['name','description','fields','filters','groupBy','sortBy','chartConfig','isTemplate','scheduleFrequency'].forEach(k => {
+    if (req.body[k] !== undefined) report[k] = req.body[k];
+  });
+  await report.save();
+  res.json({ success: true, data: report });
+};
+
+exports.deleteReport = async (req, res) => {
+  const report = await Report.findOne({ _id: req.params.id, school: req.user.school });
+  if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+  const isOwner = report.createdBy.toString() === req.user._id.toString();
+  if (!isOwner && !['superAdmin','schoolAdmin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'You can only delete your own reports' });
+  }
+  await report.deleteOne();
+  res.json({ success: true, message: 'Report deleted' });
+};
+
+// ── POST /api/reports/export ──────────────────────────────────────────────────
+exports.exportReport = async (req, res) => {
+  const { format, reportId, module: mod, fields, filters, groupBy, sortBy } = req.body;
+  if (!['pdf','xlsx','csv'].includes(format)) {
+    return res.status(400).json({ success: false, message: 'format must be pdf, xlsx, or csv' });
+  }
+
+  let cfg, reportDoc;
+  if (reportId) {
+    reportDoc = await Report.findOne({ _id: reportId, school: req.user.school });
+    if (!reportDoc) return res.status(404).json({ success: false, message: 'Report not found' });
+    cfg = { module: reportDoc.module, fields: reportDoc.fields, filters: { ...reportDoc.filters, ...(filters || {}) }, groupBy: reportDoc.groupBy, sortBy: reportDoc.sortBy };
+  } else {
+    cfg = { module: mod, fields: fields || [], filters: filters || {}, groupBy: groupBy || '', sortBy };
+  }
+
+  if (!canAccess(req.user.role, cfg.module)) {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  const { model, pipeline } = buildPipeline({ ...cfg, schoolId: req.user.school });
+  pipeline.push({ $limit: 5000 });
+  const rows = await model.aggregate(pipeline).allowDiskUse(true);
+
+  if (reportDoc) {
+    reportDoc.downloadHistory.unshift({ exportedBy: req.user._id, format, rowCount: rows.length });
+    if (reportDoc.downloadHistory.length > 20) reportDoc.downloadHistory.pop();
+    await reportDoc.save();
+  }
+
+  const reportName = (reportDoc?.name || `${cfg.module}-report`).replace(/\s+/g, '-');
+  const timestamp  = new Date().toISOString().split('T')[0];
+  const filename   = `${reportName}-${timestamp}`;
+  const columns    = cfg.fields?.length
+    ? cfg.fields
+    : Object.keys(rows[0] || {}).filter(k => !['_id','__v'].includes(k));
+
+  if (format === 'csv') {
+    const { Parser } = require('json2csv');
+    const csv = new Parser({ fields: columns }).parse(rows);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+    return res.send(csv);
+  }
+
+  if (format === 'xlsx') {
+    const ExcelJS = require('exceljs');
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'EduCore Reports';
+    wb.created = new Date();
+    const ws = wb.addWorksheet(reportName, { pageSetup: { paperSize: 9, orientation: 'landscape' } });
+    ws.addRow(columns.map(c => c.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())));
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+    rows.forEach((row, i) => {
+      const vals = columns.map(c => { const v = row[c]; if (v === null || v === undefined) return ''; if (typeof v === 'object') return JSON.stringify(v); return v; });
+      const r = ws.addRow(vals);
+      if (i % 2 === 0) r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    });
+    ws.columns.forEach(col => { col.width = Math.max(16, (col.header?.length || 0) + 4); });
+    ws.addRow([]);
+    ws.addRow([`Total: ${rows.length} rows`, `Generated: ${new Date().toLocaleString('en-IN')}`]);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+    await wb.xlsx.write(res);
+    return res.end();
+  }
+
+  if (format === 'pdf') {
+    const PDFDoc = require('pdfkit');
+    const doc = new PDFDoc({ margin: 40, size: 'A4', layout: 'landscape' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+    doc.pipe(res);
+    doc.fontSize(16).font('Helvetica-Bold').text(reportName, { align: 'center' });
+    doc.fontSize(9).font('Helvetica').text(`Generated: ${new Date().toLocaleString('en-IN')} | Rows: ${rows.length}`, { align: 'center' });
+    doc.moveDown(0.5);
+    const pageW = doc.page.width - 80;
+    const colW  = Math.max(55, Math.floor(pageW / columns.length));
+    let y = doc.y;
+    doc.rect(40, y, pageW, 18).fill('#1E3A8A');
+    doc.fill('#ffffff').fontSize(8).font('Helvetica-Bold');
+    columns.forEach((c, i) => {
+      doc.text(c.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase()), 40 + i * colW + 3, y + 4, { width: colW - 6, ellipsis: true });
+    });
+    doc.fill('#000000');
+    y += 18;
+    rows.slice(0, 300).forEach((row, idx) => {
+      if (y > doc.page.height - 60) { doc.addPage({ layout: 'landscape' }); y = 40; }
+      const rh = 16;
+      if (idx % 2 === 0) doc.rect(40, y, pageW, rh).fill('#F8FAFC');
+      doc.fill('#111827').fontSize(7.5).font('Helvetica');
+      columns.forEach((c, i) => {
+        let v = row[c]; if (v === null || v === undefined) v = '';
+        if (typeof v === 'boolean') v = v ? 'Yes' : 'No';
+        if (typeof v === 'object') v = JSON.stringify(v);
+        doc.text(String(v), 40 + i * colW + 3, y + 3, { width: colW - 6, ellipsis: true });
+      });
+      y += rh;
+    });
+    if (rows.length > 300) doc.moveDown().fontSize(9).text(`... and ${rows.length - 300} more rows. Download as Excel for full data.`, { align: 'center' });
+    doc.end();
+  }
+};

@@ -1,0 +1,78 @@
+// frontend/src/utils/transportAPI.js
+// All transport API helpers — import these in transport components
+
+import api from './api';
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+export const transportDashboardAPI = {
+  get: () => api.get('/transport/dashboard'),
+};
+
+// ─── Buses ────────────────────────────────────────────────────────────────────
+export const busAPI = {
+  getAll:       ()         => api.get('/transport/buses'),
+  getOne:       (id)       => api.get(`/transport/buses/${id}`),
+  create:       (data)     => api.post('/transport/buses', data),
+  update:       (id, data) => api.put(`/transport/buses/${id}`, data),
+  delete:       (id)       => api.delete(`/transport/buses/${id}`),
+  updateLocation: (id, loc) => api.post(`/transport/buses/${id}/location`, loc),
+  gpsHistory:   (id)       => api.get(`/transport/buses/${id}/gps-history`),
+};
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+export const routeAPI = {
+  getAll:  ()         => api.get('/transport/routes'),
+  getOne:  (id)       => api.get(`/transport/routes/${id}`),
+  create:  (data)     => api.post('/transport/routes', data),
+  update:  (id, data) => api.put(`/transport/routes/${id}`, data),
+  delete:  (id)       => api.delete(`/transport/routes/${id}`),
+};
+
+// ─── Stops ────────────────────────────────────────────────────────────────────
+export const stopAPI = {
+  getAll:     ()        => api.get('/transport/stops'),                       // every active stop (all routes)
+  getAllWithInactive: () => api.get('/transport/stops', { params: { includeInactive: 'true' } }),
+  getByRoute: (routeId) => api.get('/transport/stops', { params: { route: routeId } }),
+  resolve:    (stopId)  => api.get(`/transport/resolve-stop/${stopId}`),     // stop → route + bus
+  create:     (data)    => api.post('/transport/stops', data),
+  update:     (id, data)=> api.put(`/transport/stops/${id}`, data),
+  delete:     (id)      => api.delete(`/transport/stops/${id}`),
+  restore:    (id)      => api.put(`/transport/stops/${id}/restore`),
+};
+
+// ─── Assignments ──────────────────────────────────────────────────────────────
+export const assignmentAPI = {
+  getAll:  (params) => api.get('/transport/assignments', { params }),
+  assign:  (data)   => api.post('/transport/assignments', data),
+  remove:  (id, reason) => api.delete(`/transport/assignments/${id}`, { data: { reason: reason || '' } }),
+  // Full history for a student (active + removed), newest first.
+  getHistory: (studentId) => api.get('/transport/assignments', { params: { student: studentId, includeInactive: 'true' } }),
+  // Student-profile transport (auto-syncs to the Transport Module)
+  getForStudent:  (studentId)        => api.get(`/transport/student/${studentId}`),
+  saveForStudent: (studentId, data)  => api.put(`/transport/student/${studentId}`, data),
+};
+
+// ─── Trips ────────────────────────────────────────────────────────────────────
+export const tripAPI = {
+  today:       ()         => api.get('/transport/trips/today'),
+  start:       (data)     => api.post('/transport/trips', data),
+  updateStop:  (id, data) => api.put(`/transport/trips/${id}/stop`, data),
+  end:         (id)       => api.put(`/transport/trips/${id}/end`),
+  sendAlert:   (id, data) => api.post(`/transport/trips/${id}/alert`, data),
+};
+
+// ─── Fees ─────────────────────────────────────────────────────────────────────
+// Read-only. Transport fees are billed and collected through the FEE module
+// (decision 2026-07-30) so that the money reaches 4103 Transport Fee Income.
+// `generate` and `pay` were removed: the server now answers 410 on both, and
+// leaving callable wrappers around a closed door only invites someone to try.
+// The remaining two read historical transport fee records.
+export const transportFeeAPI = {
+  getAll:    (params)   => api.get('/transport/fees', { params }),
+  summary:   (params)   => api.get('/transport/fees/summary', { params }),
+};
+
+// ─── Student/Parent portal ────────────────────────────────────────────────────
+export const myTransportAPI = {
+  get: () => api.get('/transport/my-transport'),
+};

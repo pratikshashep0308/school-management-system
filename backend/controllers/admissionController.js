@@ -1,0 +1,690 @@
+const mongoose = require('mongoose');
+const Admission = require('../models/Admission');
+const Student   = require('../models/Student');
+const User      = require('../models/User');
+const bcrypt    = require('bcryptjs');
+
+// ─────────────────────────────────────────────
+// GET /api/admissions
+// ─────────────────────────────────────────────
+exports.getAdmissions = async (req, res) => {
+  const filter = { school: req.user.school };
+  if (req.query.status)           filter.status = req.query.status;
+  if (req.query.applyingForClass) filter.applyingForClass = req.query.applyingForClass;
+  if (req.query.priority)         filter.priority = req.query.priority;
+  if (req.query.source)           filter.source = req.query.source;
+  if (req.query.academicYear)     filter.academicYear = req.query.academicYear;
+
+  // Text search
+  if (req.query.search) {
+    const q = req.query.search;
+    filter.$or = [
+      { studentName:       { $regex: q, $options: 'i' } },
+      { applicationNumber: { $regex: q, $options: 'i' } },
+      { parentName:        { $regex: q, $options: 'i' } },
+      { parentEmail:       { $regex: q, $options: 'i' } },
+      { parentPhone:       { $regex: q, $options: 'i' } }
+    ];
+  }
+
+  const page  = Number(req.query.page)  || 1;
+  const limit = Number(req.query.limit) || 50;
+
+  // Date range filter (createdAt)
+  if (req.query.dateFrom || req.query.dateTo) {
+    filter.createdAt = {};
+    if (req.query.dateFrom) filter.createdAt.$gte = new Date(req.query.dateFrom);
+    if (req.query.dateTo)   filter.createdAt.$lte = new Date(req.query.dateTo + 'T23:59:59');
+  }
+
+  // Sort: ?sort=date_asc | date_desc (default) | name_asc | name_desc
+  let sort = { createdAt: -1 };
+  switch (req.query.sort) {
+    case 'date_asc':  sort = { createdAt:  1 }; break;
+    case 'date_desc': sort = { createdAt: -1 }; break;
+    case 'name_asc':  sort = { studentName:  1 }; break;
+    case 'name_desc': sort = { studentName: -1 }; break;
+  }
+
+  const [admissions, total] = await Promise.all([
+    Admission.find(filter)
+      .populate('processedBy', 'name')
+      .populate('interview.conductedBy', 'name')
+      .sort(sort)
+      .skip((page - 1) * limit)
+      .limit(limit),
+    Admission.countDocuments(filter)
+  ]);
+
+  res.json({ success: true, count: admissions.length, total, page, pages: Math.ceil(total / limit), data: admissions });
+};
+
+// ─────────────────────────────────────────────
+// GET /api/admissions/stats
+// ─────────────────────────────────────────────
+exports.getStats = async (req, res) => {
+  const school = new mongoose.Types.ObjectId(req.user.school);
+
+  const [statusStats, classStats, sourceStats, monthlyStats] = await Promise.all([
+    // By status
+    Admission.aggregate([
+      { $match: { school } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]),
+
+    // By class
+    Admission.aggregate([
+      { $match: { school } },
+      { $group: { _id: '$applyingForClass', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]),
+
+    // By source
+    Admission.aggregate([
+      { $match: { school } },
+      { $group: { _id: '$source', count: { $sum: 1 } } }
+    ]),
+
+    // Monthly trend (last 6 months)
+    Admission.aggregate([
+      { $match: { school, createdAt: { $gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000) } } },
+      { $group: {
+          _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+          count: { $sum: 1 }
+      }},
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ])
+  ]);
+
+  // Resolve class IDs to names
+  const ClassModel = mongoose.model('Class');
+  const allClasses = await ClassModel.find({ school: req.user.school }).select('name section').lean().catch(()=>[]);
+  const classNameMap = {};
+  allClasses.forEach(c => { classNameMap[c._id.toString()] = `${c.name}${c.section?' '+c.section:''}`.trim(); });
+
+  const statusResult = {
+    total: 0, pending: 0, under_review: 0, interview_scheduled: 0,
+    approved: 0, rejected: 0, enrolled: 0, waitlisted: 0
+  };
+  statusStats.forEach(s => {
+    statusResult[s._id] = s.count;
+    statusResult.total += s.count;
+  });
+
+  // Conversion rate
+  statusResult.conversionRate = statusResult.total > 0
+    ? ((statusResult.enrolled / statusResult.total) * 100).toFixed(1)
+    : 0;
+
+  res.json({
+    success: true,
+    data: {
+      status:  statusResult,
+      byClass: classStats.map(c => ({ class: classNameMap[c._id] || c._id || '—', count: c.count })),
+      bySource: sourceStats.map(s => ({ source: s._id || 'unknown', count: s.count })),
+      monthly: monthlyStats.map(m => ({
+        label: new Date(m._id.year, m._id.month - 1).toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
+        count: m.count
+      }))
+    }
+  });
+};
+
+// ─────────────────────────────────────────────
+// GET /api/admissions/:id
+// ─────────────────────────────────────────────
+exports.getAdmission = async (req, res) => {
+  const admission = await Admission.findById(req.params.id)
+    .populate('processedBy', 'name email')
+    .populate('interview.conductedBy', 'name')
+    .populate('timeline.by', 'name');
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// POST /api/admissions  (admin)
+// ─────────────────────────────────────────────
+//
+// ── Shared validation helpers (used by createAdmission and publicSubmit) ──
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+const PHONE_RE = /^[0-9+\-\s()]{7,20}$/;
+
+function validateAdmissionPayload(body) {
+  const errs = [];
+  const studentName = (body.studentName || body.name || '').trim();
+  if (!studentName) errs.push('Student Name is required');
+
+  // Email format (only if provided — fields are otherwise optional)
+  for (const field of ['parentEmail', 'fatherEmail', 'motherEmail', 'studentEmail']) {
+    const val = (body[field] || '').trim();
+    if (val && !EMAIL_RE.test(val)) errs.push(`Invalid email format in ${field}`);
+  }
+
+  // Phone format (digits, spaces, +, -, parens; 7-20 chars)
+  for (const field of ['parentPhone', 'fatherPhone', 'motherPhone', 'phone']) {
+    const val = (body[field] || '').trim();
+    if (val && !PHONE_RE.test(val)) errs.push(`Invalid phone format in ${field}`);
+  }
+
+  // Date of birth — must not be in the future
+  const dob = body.dateOfBirth || body.dob;
+  if (dob) {
+    const dobDate = new Date(dob);
+    if (isNaN(dobDate.getTime())) {
+      errs.push('Invalid date of birth');
+    } else if (dobDate > new Date()) {
+      errs.push('Date of birth cannot be in the future');
+    }
+  }
+  return errs;
+}
+
+async function isDuplicateAdmission(body, schoolId) {
+  // Match on parent phone OR parent email, scoped to same school + active (non-rejected) status
+  const Admission = require('../models/Admission');
+  const phone = (body.parentPhone || body.phone || '').trim();
+  const email = (body.parentEmail || body.email || '').trim().toLowerCase();
+  if (!phone && !email) return null;
+  const or = [];
+  if (phone) or.push({ parentPhone: phone });
+  if (email) or.push({ parentEmail: email });
+  return Admission.findOne({
+    school: schoolId,
+    status: { $nin: ['rejected', 'enrolled'] }, // rejected/enrolled = won't conflict
+    $or: or,
+  });
+}
+
+exports.createAdmission = async (req, res) => {
+  // Validate inputs
+  const errs = validateAdmissionPayload(req.body);
+  if (errs.length) {
+    return res.status(400).json({ success: false, message: errs.join('. ') });
+  }
+  // Duplicate check
+  const dupe = await isDuplicateAdmission(req.body, req.user.school);
+  if (dupe) {
+    return res.status(409).json({
+      success: false,
+      message: `An active admission already exists for this contact (${dupe.studentName || dupe.applicationNumber}). Please check existing applications first.`,
+      duplicateOf: dupe._id,
+    });
+  }
+
+  const admission = await Admission.create({
+    ...req.body,
+    school: req.user.school,
+    timeline: [{ action: 'Application created', byName: req.user.name, by: req.user.id, at: new Date() }]
+  });
+  res.status(201).json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// POST /api/admissions/public  (no auth)
+// ─────────────────────────────────────────────
+exports.publicSubmit = async (req, res) => {
+  try {
+    const { name, studentName, grade, parentName, phone, email, dob } = req.body;
+    const finalName = studentName || name;
+    if (!finalName) {
+      return res.status(400).json({ success: false, message: 'Student name is required' });
+    }
+    // Validate the rest of the payload
+    const validationBody = { ...req.body, studentName: finalName, dateOfBirth: dob || req.body.dateOfBirth };
+    const errs = validateAdmissionPayload(validationBody);
+    if (errs.length) {
+      return res.status(400).json({ success: false, message: errs.join('. ') });
+    }
+    const School = require('../models/School');
+    const school = await School.findOne();
+    // Duplicate check (against this school's active admissions)
+    if (school?._id) {
+      const dupe = await isDuplicateAdmission({ ...req.body, parentPhone: phone, parentEmail: email }, school._id);
+      if (dupe) {
+        return res.status(409).json({
+          success: false,
+          message: 'An admission with this contact already exists. Please contact the school office.',
+        });
+      }
+    }
+    const admission = await Admission.create({
+      ...req.body,
+      studentName:      finalName,
+      applyingForClass: grade || req.body.applyingForClass || '',
+      parentName:       parentName || '',
+      parentPhone:      phone || req.body.parentPhone || '',
+      parentEmail:      email || req.body.parentEmail || '',
+      dateOfBirth:      dob  || req.body.dateOfBirth  || '',
+      school:  school?._id,
+      status:  'pending',
+      source:  'online',
+      timeline: [{ action: 'Application submitted online', byName: parentName || finalName, at: new Date() }]
+    });
+    res.status(201).json({ success: true, data: { applicationNumber: admission.applicationNumber } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id
+// ─────────────────────────────────────────────
+exports.updateAdmission = async (req, res) => {
+  const admission = await Admission.findById(req.params.id);
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+
+  // Append to timeline
+  const timelineEntry = { action: 'Application details updated', byName: req.user.name, by: req.user.id, at: new Date() };
+  if (req.body.notes) timelineEntry.note = req.body.notes;
+
+  // Strip read-only / server-managed fields from the payload BEFORE the update.
+  // If we leave 'timeline' in the body, MongoDB throws:
+  //   "Updating the path 'timeline' would create a conflict at 'timeline'"
+  // because we're also trying to $push timeline. Same defense for _id and other
+  // immutable fields the frontend might echo back.
+  const {
+    _id, __v, school, status, applicationNumber, processedBy, processedAt,
+    timeline, createdAt, updatedAt,
+    documents,        // pull out separately — Mixed type needs special handling
+    customDocuments,  // also Mixed (via strict:false) — same treatment
+    ...safeBody
+  } = req.body;
+
+  // Apply ordinary fields via document.set so Mongoose tracks changes
+  Object.assign(admission, safeBody);
+
+  // Mixed type field: assign directly, then mark modified so Mongoose persists it.
+  // Without markModified, Mongoose can't detect changes inside Mixed/Object fields
+  // and silently skips writing them to MongoDB.
+  if (documents && typeof documents === 'object') {
+    admission.documents = { ...(admission.documents || {}), ...documents };
+    admission.markModified('documents');
+  }
+  if (Array.isArray(customDocuments)) {
+    admission.customDocuments = customDocuments;
+    admission.markModified('customDocuments');
+  }
+
+  // Append timeline entry
+  admission.timeline = admission.timeline || [];
+  admission.timeline.push(timelineEntry);
+  admission.markModified('timeline');
+
+  await admission.save();
+
+  // ── Mirror back to enrolled Student record ──────────────────────────────
+  // If this admission was already enrolled, the corresponding Student doc has
+  // an admissionSnapshot mirror that needs to stay in sync. We match by
+  // applicationNumber === Student.admissionNumber (the field copied at enrollment).
+  // Non-fatal: failures here shouldn't block the admission save.
+  try {
+    if (admission.applicationNumber) {
+      const Student = require('../models/Student');
+      // Student.admissionNumber may equal applicationNumber OR be suffixed with
+      // a timestamp at enrollment time (`${applicationNumber}-${suffix}`).
+      // Use a prefix-regex match so both shapes are handled.
+      const safeRegex = admission.applicationNumber.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      console.log(`[updateAdmission] mirror lookup: applicationNumber="${admission.applicationNumber}", regex="^${safeRegex}"`);
+      const stu = await Student.findOne({
+        admissionNumber: { $regex: '^' + safeRegex },
+      });
+      if (stu) {
+        // Build a fresh snapshot from the just-saved admission doc.
+        // Strip Mongo-internals and the timeline (large + irrelevant in snapshot).
+        const snap = admission.toObject ? admission.toObject() : { ...admission };
+        delete snap._id; delete snap.__v;
+        delete snap.timeline; delete snap.processedBy;
+
+        // DIAG: report what's actually inside the snapshot we're about to write.
+        const docKeys = snap.documents ? Object.keys(snap.documents).filter(k => snap.documents[k]) : [];
+        console.log(`[updateAdmission] writing snapshot — student=${stu.admissionNumber}, docs=[${docKeys.join(',')}], customDocs=${(snap.customDocuments||[]).length}, photo=${snap.studentPhoto ? 'yes' : 'no'}`);
+
+        stu.admissionSnapshot = snap;
+        stu.markModified('admissionSnapshot');
+        // Also mirror the top-level photo so portal pages that read from
+        // Student.studentPhoto stay current.
+        if (admission.studentPhoto !== undefined) stu.studentPhoto = admission.studentPhoto;
+        // Update top-level Student fields that are pulled from the admission
+        // (these power the table view, ID cards, and other quick references).
+        if (admission.parentName !== undefined)  stu.parentName  = admission.parentName  || '';
+        if (admission.parentPhone !== undefined) stu.parentPhone = admission.parentPhone || '';
+        if (admission.parentEmail !== undefined) stu.parentEmail = admission.parentEmail || '';
+        await stu.save();
+        console.log(`[updateAdmission] ✓ saved Student ${stu._id} (${stu.admissionNumber})`);
+
+        // The student's name lives on the linked User document. Update it too,
+        // otherwise table views (which read User.name) keep showing the old name.
+        if (admission.studentName && stu.user) {
+          try {
+            const User = require('../models/User');
+            await User.findByIdAndUpdate(stu.user, { name: admission.studentName });
+            console.log(`[updateAdmission] ✓ synced User name → "${admission.studentName}"`);
+          } catch (uErr) {
+            console.warn('[updateAdmission] User name sync failed:', uErr.message);
+          }
+        }
+      } else {
+        // List candidate students for debugging
+        const all = await Student.find({}, 'admissionNumber').limit(20).lean();
+        console.log(`[updateAdmission] ✗ no Student matched. Candidates: ${all.map(s => s.admissionNumber).join(', ')}`);
+      }
+    }
+  } catch (mirrorErr) {
+    console.error('[updateAdmission] student mirror FAILED:', mirrorErr);
+  }
+
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/status
+// ─────────────────────────────────────────────
+exports.updateStatus = async (req, res) => {
+  const { status, notes, rejectionReason } = req.body;
+  const validStatuses = ['pending','under_review','interview_scheduled','approved','rejected','enrolled','waitlisted'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status' });
+  }
+
+  const timelineEntry = {
+    action:  `Status changed to ${status.replace('_', ' ')}`,
+    note:    notes || rejectionReason || '',
+    byName:  req.user.name,
+    by:      req.user.id,
+    at:      new Date()
+  };
+
+  const update = {
+    status,
+    notes,
+    processedBy: req.user.id,
+    processedAt: new Date(),
+    $push: { timeline: timelineEntry }
+  };
+  if (rejectionReason) update.rejectionReason = rejectionReason;
+  // ── TC-ADM-06 — When reopening a rejected admission, clear stale rejection reason
+  if (status === 'pending') {
+    update.rejectionReason = '';
+  }
+
+  const admission = await Admission.findByIdAndUpdate(req.params.id, update, { new: true });
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/interview
+// Schedule or update interview
+// ─────────────────────────────────────────────
+exports.updateInterview = async (req, res) => {
+  const { date, time, mode, venue, score, remarks, completed } = req.body;
+
+  const interviewUpdate = {};
+  if (date)      interviewUpdate['interview.date']      = new Date(date);
+  if (time)      interviewUpdate['interview.time']      = time;
+  if (mode)      interviewUpdate['interview.mode']      = mode;
+  if (venue)     interviewUpdate['interview.venue']     = venue;
+  if (score !== undefined) interviewUpdate['interview.score']  = score;
+  if (remarks)   interviewUpdate['interview.remarks']   = remarks;
+  if (completed !== undefined) interviewUpdate['interview.completed'] = completed;
+  interviewUpdate['interview.scheduled'] = true;
+  interviewUpdate['interview.conductedBy'] = req.user.id;
+
+  const action = completed ? 'Interview completed' : 'Interview scheduled';
+  const timelineEntry = { action, note: remarks || '', byName: req.user.name, by: req.user.id, at: new Date() };
+
+  // Auto-update status when interview scheduled
+  if (!completed) interviewUpdate.status = 'interview_scheduled';
+
+  const admission = await Admission.findByIdAndUpdate(
+    req.params.id,
+    { $set: interviewUpdate, $push: { timeline: timelineEntry } },
+    { new: true }
+  );
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/documents
+// Update document checklist
+// ─────────────────────────────────────────────
+exports.updateDocuments = async (req, res) => {
+  const docUpdate = {};
+  Object.keys(req.body).forEach(key => {
+    docUpdate[`documents.${key}`] = req.body[key];
+  });
+
+  const timelineEntry = {
+    action:  'Document checklist updated',
+    byName:  req.user.name,
+    by:      req.user.id,
+    at:      new Date()
+  };
+
+  const admission = await Admission.findByIdAndUpdate(
+    req.params.id,
+    { $set: docUpdate, $push: { timeline: timelineEntry } },
+    { new: true }
+  );
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// PUT /api/admissions/:id/note
+// Add internal note
+// ─────────────────────────────────────────────
+exports.addNote = async (req, res) => {
+  const { note, isInternal } = req.body;
+  if (!note) return res.status(400).json({ success: false, message: 'Note is required' });
+
+  const timelineEntry = {
+    action:  isInternal ? '📌 Internal note added' : '💬 Note added',
+    note,
+    byName:  req.user.name,
+    by:      req.user.id,
+    at:      new Date()
+  };
+
+  const update = { $push: { timeline: timelineEntry } };
+  if (isInternal) update.$set = { internalNotes: note };
+  else             update.$set = { notes: note };
+
+  const admission = await Admission.findByIdAndUpdate(req.params.id, update, { new: true });
+  if (!admission) return res.status(404).json({ success: false, message: 'Application not found' });
+  res.json({ success: true, data: admission });
+};
+
+// ─────────────────────────────────────────────
+// DELETE /api/admissions/:id
+// ─────────────────────────────────────────────
+exports.deleteAdmission = async (req, res) => {
+  await Admission.findByIdAndDelete(req.params.id);
+  res.json({ success: true, message: 'Application deleted' });
+};
+
+// ─────────────────────────────────────────────
+// POST /api/admissions/:id/enroll
+// Creates a Student + User account from admission data
+// ─────────────────────────────────────────────
+exports.enrollFromAdmission = async (req, res) => {
+  try {
+    const { classId, rollNumber } = req.body;
+    if (!classId) return res.status(400).json({ success:false, message:'Class is required' });
+
+    const admission = await Admission.findOne({ _id: req.params.id, school: req.user.school });
+    if (!admission) return res.status(404).json({ success:false, message:'Admission not found' });
+    if (admission.status === 'enrolled') return res.status(400).json({ success:false, message:'Already enrolled' });
+
+    // Generate unique student email
+    const cleanName = (admission.studentName||'student').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const studentEmail = cleanName + '.' + Date.now() + '@student.local';
+
+    // Check email not taken
+    const existing = await User.findOne({ email: studentEmail });
+    if (existing) return res.status(400).json({ success:false, message:'Email conflict, try again' });
+
+    // Create User account
+    const hashed = await bcrypt.hash('Student@123', 10);
+    const studentUser = await User.create({
+      name:     admission.studentName,
+      email:    studentEmail,
+      phone:    admission.parentPhone || '',
+      password: hashed,
+      role:     'student',
+      school:   req.user.school,
+      isActive: true,
+    });
+
+    // Generate admission number
+    const admNo = admission.applicationNumber + '-' + Date.now().toString().slice(-4);
+
+    // ── Normalize enum fields to match Student model enums ────────────────────
+    // Category is now a free string (no enum). Store the original value as-is
+    // so state-specific categories (NT-A..D, EWS, SEBC, etc.) survive enrollment.
+    const normalizeCategory = (val) => {
+      if (!val) return undefined; // skip if blank
+      return String(val).trim();
+    };
+    const normalizeGender = (val) => {
+      if (!val) return 'other';
+      const v = String(val).trim().toLowerCase();
+      return ['male','female','other'].includes(v) ? v : 'other';
+    };
+
+    // Whitelist of valid blood group values (matches Student schema enum).
+    // Anything outside this list — including empty strings — must be omitted,
+    // not set to '', because the schema's enum validator rejects '' explicitly.
+    const VALID_BLOODS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
+    const bg = admission.bloodGroup;
+    const safeBloodGroup = bg && VALID_BLOODS.includes(bg) ? bg : undefined;
+
+    const studentDoc = {
+      user:            studentUser._id,
+      admissionNumber: admNo,
+      class:           classId,
+      gender:          normalizeGender(admission.gender),
+      dateOfBirth:     admission.dateOfBirth || null,
+      ...(safeBloodGroup ? { bloodGroup: safeBloodGroup } : {}),
+      parentName:      admission.parentName || '',
+      parentEmail:     admission.parentEmail || '',
+      parentPhone:     admission.parentPhone || '',
+      religion:        admission.religion || '',
+      studentPhoto:    admission.studentPhoto || '',
+      isActive:        true,
+      status:          'active',
+      school:          req.user.school,
+      // Mirror the full admission record so every field the user filled on the
+      // admission form is queryable from the student/portal/receipt views.
+      // Strip Mongo-internal fields and the timeline (which can be large).
+      admissionSnapshot: (() => {
+        const snap = admission.toObject ? admission.toObject() : { ...admission };
+        delete snap._id; delete snap.__v;
+        delete snap.timeline; delete snap.processedBy;
+        return snap;
+      })(),
+    };
+    // Roll number — only set if non-empty. Empty string '' triggers a duplicate-key
+    // error against the legacy unique index `rollNumber_1` because multiple students
+    // could end up with the same '' value. If the admin didn't provide one, auto-fill
+    // with a guaranteed-unique value derived from the admission number.
+    const trimmedRoll = (rollNumber || '').trim();
+    if (trimmedRoll) {
+      studentDoc.rollNumber = trimmedRoll;
+    } else {
+      // Auto-generated fallback: short suffix from admission number + timestamp.
+      // Admin can edit this later from the Students screen.
+      studentDoc.rollNumber = `AUTO-${admNo.slice(-6)}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+    }
+    // Only set category if we have a valid value — empty string would fail enum
+    const cat = normalizeCategory(admission.category);
+    if (cat) studentDoc.category = cat;
+
+    // Create Student document
+    const student = await Student.create(studentDoc);
+
+    // ── Auto-create / link Parent User account ───────────────────────────────
+    // We need a User record with role='parent' so parents can log into the
+    // portal. Match by email; if one already exists for another sibling, link
+    // to it (don't duplicate).
+    let parentUser = null;
+    let parentLoginInfo = null;
+    try {
+      const parentEmailRaw = (admission.parentEmail || admission.fatherEmail || admission.motherEmail || '').trim().toLowerCase();
+      if (parentEmailRaw) {
+        parentUser = await User.findOne({ email: parentEmailRaw });
+        if (!parentUser) {
+          const parentName = (admission.parentName || admission.fatherName || admission.motherName || `Parent of ${admission.studentName}`).trim();
+          const parentPhone = (admission.parentPhone || admission.fatherPhone || admission.motherPhone || '').trim();
+          const hashedParent = await bcrypt.hash('Parent@123', 10);
+          parentUser = await User.create({
+            name:     parentName,
+            email:    parentEmailRaw,
+            phone:    parentPhone,
+            password: hashedParent,
+            role:     'parent',
+            school:   req.user.school,
+            isActive: true,
+          });
+          parentLoginInfo = { email: parentEmailRaw, password: 'Parent@123', isNew: true };
+        } else {
+          parentLoginInfo = { email: parentEmailRaw, password: '(existing account — password unchanged)', isNew: false };
+        }
+        // Link student to parent (used by parent-portal queries)
+        if (parentUser) {
+          await Student.findByIdAndUpdate(student._id, { parentId: parentUser._id });
+        }
+      }
+    } catch (e) {
+      // Non-fatal — student is enrolled, parent linking can be retried later
+      console.error('Parent account auto-create failed:', e.message);
+    }
+
+    // Update admission status
+    await Admission.findByIdAndUpdate(admission._id, {
+      status: 'enrolled',
+      $push: { timeline: { action:'enrolled', note:'Enrolled as student', byName: req.user.name, by: req.user.id, at: new Date() }}
+    });
+
+    // Auto-apply class fee template (if any) — non-blocking on errors
+    try {
+      const { applyTemplateToStudent } = require('../services/classFeeTemplateService');
+      await applyTemplateToStudent({
+        studentId: student._id,
+        classId,
+        schoolId:  req.user.school,
+        createdBy: req.user._id,
+      });
+    } catch (e) {
+      console.error('Class fee template auto-apply failed:', e.message);
+    }
+
+    await student.populate([
+      { path:'user',  select:'name email' },
+      { path:'class', select:'name section' },
+    ]);
+
+    res.json({
+      success: true,
+      message: admission.studentName + ' enrolled successfully',
+      data: student,
+      loginEmail:    studentEmail,
+      loginPassword: 'Student@123',
+      parentLogin:   parentLoginInfo,
+    });
+  } catch (err) {
+    console.error('Enroll error:', err);
+    // Translate MongoDB duplicate-key errors into a friendly message
+    if (err.code === 11000) {
+      const dupField = Object.keys(err.keyPattern || {})[0] || 'field';
+      const dupVal   = err.keyValue?.[dupField] ?? '';
+      return res.status(409).json({
+        success: false,
+        message: `Cannot enroll: a student with the same ${dupField} (${dupVal}) already exists. Please assign a unique ${dupField} and try again.`,
+      });
+    }
+    res.status(500).json({ success:false, message: err.message || 'Enrollment failed' });
+  }
+};

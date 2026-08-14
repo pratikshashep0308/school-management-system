@@ -1,0 +1,109 @@
+// Build a WhatsApp share link with a pre-filled homework/assignment message.
+// Uses the standard wa.me endpoint — opens WhatsApp (app or web) so the user
+// can pick a contact/group and send. No API keys needed.
+
+// Rewrite any legacy/insecure attachment URL to the current public HTTPS domain.
+// Old homework saved links like http://80.225.252.56/uploads/x.jpg — those are
+// blocked as mixed-content on an HTTPS page, so we upgrade them here.
+const PUBLIC_ORIGIN = 'https://portal.thefuturestepschool.in';
+function normalizeUrl(url) {
+  if (!url) return url;
+  try {
+    // Replace the old IP origin (http or https) with the public domain.
+    let u = url.replace(/^https?:\/\/80\.225\.252\.56/i, PUBLIC_ORIGIN);
+    // If it's a bare /uploads path, prefix the domain.
+    if (u.startsWith('/uploads/')) u = PUBLIC_ORIGIN + u;
+    // If page is HTTPS but link is http on the same host, upgrade to https.
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && u.startsWith('http://')) {
+      u = u.replace(/^http:\/\//i, 'https://');
+    }
+    return u;
+  } catch { return url; }
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  try {
+    return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch { return ''; }
+}
+
+// item: { kind: 'Homework'|'Assignment', title, subject, class, dueDate, description, attachments }
+export function buildWhatsAppMessage(item) {
+  const lines = [];
+
+  lines.push(`*${item.kind || 'Homework'}*`);
+  if (item.title)   lines.push(`Title: ${item.title}`);
+  if (item.subject) lines.push(`Subject: ${item.subject}`);
+  if (item.class)   lines.push(`Class: ${item.class}`);
+  if (item.dueDate) lines.push(`Due Date: ${fmtDate(item.dueDate)}`);
+
+  if (item.description && item.description !== item.title) {
+    lines.push('');
+    lines.push(item.description);
+  }
+
+  // Attachments — each URL goes on its OWN line with nothing after it, so
+  // WhatsApp reliably detects it and renders a tappable link (and a preview).
+  const atts = Array.isArray(item.attachments) ? item.attachments.filter(a => a && a.url) : [];
+  if (atts.length) {
+    lines.push('');
+    atts.forEach((a) => {
+      lines.push(`${a.name || 'Attachment'} — tap to view:`);
+      lines.push(normalizeUrl(a.url));   // URL alone on its own line (domain, https)
+    });
+  }
+
+  if (item.school) { lines.push(''); lines.push(`_${item.school}_`); }
+
+  return lines.join('\n');
+}
+
+// Opens WhatsApp with the message pre-filled (no recipient — user picks one).
+export function shareOnWhatsApp(item) {
+  const text = encodeURIComponent(buildWhatsAppMessage(item));
+  window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+}
+
+// True if the device can share actual files via the native share sheet
+// (mobile Chrome/Safari over HTTPS). Desktop browsers generally cannot.
+export function canShareFiles() {
+  return typeof navigator !== 'undefined'
+    && !!navigator.canShare
+    && !!navigator.share;
+}
+
+// Fetch each attachment and open the native share sheet with the real files
+// (image/PDF). The teacher then taps WhatsApp and the actual file is sent.
+// Falls back to the text-only share if file sharing isn't supported.
+export async function shareFilesToWhatsApp(item) {
+  const atts = Array.isArray(item.attachments) ? item.attachments.filter(a => a && a.url) : [];
+  if (!atts.length || !canShareFiles()) {
+    return shareOnWhatsApp(item);
+  }
+
+  try {
+    const files = [];
+    for (const a of atts) {
+      const res = await fetch(normalizeUrl(a.url));
+      const blob = await res.blob();
+      const name = a.name || (/\.pdf($|\?)/i.test(a.url) ? 'attachment.pdf' : 'attachment.jpg');
+      files.push(new File([blob], name, { type: blob.type || 'application/octet-stream' }));
+    }
+
+    const payloadAll = { files, title: item.title || 'Homework', text: buildWhatsAppMessage(item) };
+    if (navigator.canShare(payloadAll)) {
+      await navigator.share(payloadAll);
+      return true;
+    }
+    const payloadOne = { files: [files[0]], title: item.title || 'Homework', text: buildWhatsAppMessage(item) };
+    if (navigator.canShare(payloadOne)) {
+      await navigator.share(payloadOne);
+      return true;
+    }
+    return shareOnWhatsApp(item);
+  } catch (err) {
+    if (err && err.name === 'AbortError') return false;   // user cancelled
+    return shareOnWhatsApp(item);
+  }
+}

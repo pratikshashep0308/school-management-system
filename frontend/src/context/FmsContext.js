@@ -1,0 +1,161 @@
+// frontend/src/context/FmsContext.js
+//
+// Resolves, once, whether the FMS plugin is switched on and what finance role
+// the signed-in person holds.
+//
+// ─── TWO DIFFERENT "NO" ANSWERS ─────────────────────────────────────────────
+// These must never be collapsed into a single "unavailable" state:
+//
+//   enabled: false      the FMS plugin is switched off (FMS_ENABLED unset).
+//                       Nobody can use it. This is a server setting.
+//
+//   hasRole: false      the plugin is running, but THIS person has no finance
+//                       role. Somebody else may well be using it fine.
+//
+// Collapsing them makes the first support call unanswerable: "the finance
+// section is missing" has two completely different fixes.
+//
+// ─── FMS ROLES ARE NOT SMS ROLES ────────────────────────────────────────────
+// The FMS keeps its own roles in fms_roleassignments, keyed by SMS user id.
+// An SMS administrator may hold no finance role at all, and that is correct —
+// running a school and keeping its books are different jobs.
+
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import fmsAPI from '../utils/fmsAPI';
+import { useAuth } from './AuthContext';
+
+const FmsContext = createContext(null);
+
+export const FmsProvider = ({ children }) => {
+  // AuthContext exposes `user`, NOT `token` — an earlier version destructured
+  // `token`, which was always undefined, so the guard below returned early every
+  // time and the status call was never made. The screen then reported "couldn't
+  // check the finance module", which was true but for an invisible reason.
+  //
+  // The token is not needed here anyway: utils/api.js attaches it via a request
+  // interceptor. All this context needs to know is whether somebody is signed in.
+  const { user } = useAuth() || {};
+  const signedIn = !!user;
+
+  const [state, setState] = useState({
+    loading: true,
+    enabled: false,
+    hasRole: false,
+    fmsRole: null,
+    financialYear: null,
+    currency: 'INR',
+    version: null,
+    error: null,
+    reason: null,
+  });
+
+  const load = useCallback(async () => {
+    // Nothing to resolve until somebody is signed in.
+    if (!signedIn) {
+      setState((s) => ({ ...s, loading: false, enabled: false, hasRole: false }));
+      return;
+    }
+
+    setState((s) => ({ ...s, loading: true, error: null }));
+
+    try {
+      const res = await fmsAPI.getStatus();
+      const data = res?.data?.data ?? res?.data ?? {};
+
+      if (!data.enabled) {
+        setState({
+          loading: false,
+          enabled: false,
+          hasRole: false,
+          fmsRole: null,
+          financialYear: null,
+          currency: data.currency || 'INR',
+          version: data.version || null,
+          error: null,
+          reason: 'pluginDisabled',
+        });
+        return;
+      }
+
+      // The plugin is on. Whether THIS person may use it is a separate question,
+      // answered by any endpoint that requires a finance role.
+      let hasRole = false;
+      let fmsRole = null;
+      let reason = null;
+
+      try {
+        // Ask the endpoint that actually knows. This previously called the
+        // notification-preferences endpoint, which returns preferences and no
+        // role — so fmsRole was always null and every role-gated menu entry was
+        // hidden from everybody, including a chairman with a valid assignment.
+        //
+        // /auth/session answers both questions at once and needs no permission,
+        // which matters: refusing to tell somebody their own role would leave
+        // the menu unable to draw itself.
+        const me = await fmsAPI.checkFinanceSession();
+        const body = me?.data?.data ?? me?.data ?? {};
+        hasRole = body.hasRole === true;
+        fmsRole = body.fmsRole ?? null;
+        if (!hasRole) reason = 'noFinanceRole';
+      } catch (err) {
+        const status = err?.response?.status;
+        const message = err?.response?.data?.error?.message || '';
+        if (status === 403 && /no fms role|no finance role/i.test(message)) {
+          hasRole = false;
+          reason = 'noFinanceRole';
+        } else {
+          // An unexpected failure is not the same as "no role" — surface it.
+          hasRole = false;
+          reason = 'statusCheckFailed';
+        }
+      }
+
+      setState({
+        loading: false,
+        enabled: true,
+        hasRole,
+        fmsRole,
+        financialYear: data.financialYear || null,
+        currency: data.currency || 'INR',
+        version: data.version || null,
+        error: null,
+        reason,
+      });
+    } catch (err) {
+      // A 404 here means the plugin is not mounted at all — the same practical
+      // situation as being switched off, and worth saying so plainly.
+      const status = err?.response?.status;
+      setState({
+        loading: false,
+        enabled: false,
+        hasRole: false,
+        fmsRole: null,
+        financialYear: null,
+        currency: 'INR',
+        version: null,
+        error: status === 404 ? null : err,
+        reason: status === 404 ? 'pluginDisabled' : 'statusCheckFailed',
+      });
+    }
+  }, [signedIn]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const value = {
+    ...state,
+    user,
+    refresh: load,
+    /** True only when the FMS is usable by this person. */
+    ready: state.enabled && state.hasRole && !state.loading,
+  };
+
+  return <FmsContext.Provider value={value}>{children}</FmsContext.Provider>;
+};
+
+export const useFms = () => {
+  const ctx = useContext(FmsContext);
+  if (!ctx) throw new Error('useFms must be used inside <FmsProvider>');
+  return ctx;
+};
+
+export default FmsContext;

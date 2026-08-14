@@ -1,0 +1,1225 @@
+// backend/controllers/feeController.js
+// Complete advanced fee management — builds on existing StudentFee ledger
+// Adds: FeeType CRUD, FeeAssignment, installments, discounts,
+//       transport fee integration, PDF receipt, Excel export, overdue tracking
+
+const mongoose  = require('mongoose');
+const { StudentFee, FeeStructure, FeePayment, Notification, FeeEditRequest } = require('../models/index');
+const Student   = require('../models/Student');
+const FeeType   = require('../models/FeeType');
+const FeeAssignment = require('../models/FeeAssignment');
+const { TransportAssignment } = require('../models/transportModels');
+const {
+  genReceiptNumber, fmt, calcFinalAmount, buildInstallments,
+  buildReceiptPDF, buildFeeExcel, checkOverdueAssignments,
+} = require('../services/feeService');
+
+// ─── Existing endpoints (kept 100% backward compatible) ──────────────────────
+
+const genReceipt = genReceiptNumber; // alias
+
+exports.getClassSummary = async (req, res) => {
+  const school = req.user.school;
+  const summary = await StudentFee.aggregate([
+    { $match: { school: new mongoose.Types.ObjectId(school) } },
+    { $group: {
+      _id: '$class',
+      totalStudents:  { $sum: 1 },
+      totalExpected:  { $sum: '$totalFees' },
+      totalCollected: { $sum: '$paidAmount' },
+      totalPending:   { $sum: '$pendingAmount' },
+      paidCount:    { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
+      partialCount: { $sum: { $cond: [{ $eq: ['$paymentStatus','partial'] }, 1, 0] } },
+      notPaidCount: { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
+    }},
+    { $lookup: { from: 'classes', localField: '_id', foreignField: '_id', as: 'classInfo' } },
+    { $unwind: { path: '$classInfo', preserveNullAndEmptyArrays: true } },
+    { $project: {
+      classId: '$_id', className: '$classInfo.name', grade: '$classInfo.grade',
+      section: '$classInfo.section', totalStudents: 1, totalExpected: 1,
+      totalCollected: 1, totalPending: 1, paidCount: 1, partialCount: 1, notPaidCount: 1,
+      collectionRate: { $cond: [{ $gt: ['$totalExpected', 0] },
+        { $multiply: [{ $divide: ['$totalCollected', '$totalExpected'] }, 100] }, 0] }
+    }},
+    { $sort: { grade: 1, section: 1 } }
+  ]);
+
+  const totals = summary.reduce((acc, c) => {
+    acc.totalStudents  += c.totalStudents;
+    acc.totalExpected  += c.totalExpected;
+    acc.totalCollected += c.totalCollected;
+    acc.totalPending   += c.totalPending;
+    acc.paidCount      += c.paidCount;
+    acc.partialCount   += c.partialCount;
+    acc.notPaidCount   += c.notPaidCount;
+    return acc;
+  }, { totalStudents:0, totalExpected:0, totalCollected:0, totalPending:0, paidCount:0, partialCount:0, notPaidCount:0 });
+
+  res.json({ success: true, data: { classes: summary, totals } });
+};
+
+exports.getStudentsFees = async (req, res) => {
+  const school = req.user.school;
+  const { classId, section, status, page = 1, limit = 50 } = req.query;
+  const filter = { school };
+  if (classId) filter.class = classId;
+  if (section) filter.section = section;
+  if (status)  filter.paymentStatus = status;
+
+  const [allRecords, total] = await Promise.all([
+    StudentFee.find(filter)
+      .populate({ path: 'student', populate: { path: 'user', select: 'name email profileImage' } })
+      .populate('class', 'name grade section')
+      .sort({ class: 1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit)),
+    StudentFee.countDocuments(filter)
+  ]);
+
+  // ── Drop orphan ledgers where the linked Student document is gone ──
+  // These show up as "—" in the UI and break "View" because student._id is null.
+  const records = allRecords.filter(r => r.student && r.student._id);
+  const orphanCount = allRecords.length - records.length;
+  if (orphanCount > 0) {
+    console.warn(`[fees] Skipped ${orphanCount} orphan StudentFee record(s) with deleted students.`);
+  }
+
+  // ── Self-healing: fix any student whose linked User has a blank name ─
+  // (Side effect of optional admission fields — old records may have empty names.)
+  // Falls back to parentName or admission/roll number so the UI never shows blank.
+  const User = require('../models/index').User;
+  for (const rec of records) {
+    const userDoc = rec.student?.user;
+    if (userDoc && (!userDoc.name || !userDoc.name.trim())) {
+      const fallback =
+        (rec.student?.parentName && rec.student.parentName.trim() + "'s child") ||
+        ('Student ' + (rec.student?.admissionNumber || rec.student?.rollNumber || rec.student?._id));
+      try {
+        await User.findByIdAndUpdate(userDoc._id, { name: fallback });
+        userDoc.name = fallback;        // patch the in-memory copy so this response reflects the fix
+      } catch (e) { /* ignore individual failures */ }
+    }
+  }
+
+  res.json({ success: true, data: records, total: total - orphanCount, page: Number(page), pages: Math.ceil(total / limit), orphanCount });
+};
+
+exports.getStudentFee = async (req, res) => {
+  const { studentId } = req.params;
+  const record = await StudentFee.findOne({ student: studentId, school: req.user.school })
+    .populate({ path: 'student', populate: { path: 'user', select: 'name email profileImage' } })
+    .populate('class', 'name grade section')
+    .populate('paymentHistory.collectedBy', 'name')
+    .populate('paymentHistory.feeStructure', 'name');
+
+  // Fetch FeeAssignments for this student regardless of whether a ledger exists
+  const assignments = await FeeAssignment.find({ student: studentId, school: req.user.school })
+    .populate('feeType', 'name category')
+    .populate('transportRoute', 'routeName routeNumber')
+    .sort({ createdAt: -1 });
+
+  // If there's neither a ledger nor any assignments, then truly nothing on file
+  if (!record && (!assignments || assignments.length === 0)) {
+    return res.status(404).json({ success: false, message: 'Fee record not found' });
+  }
+
+  res.json({ success: true, data: record, assignments });
+};
+
+exports.recordPayment = async (req, res) => {
+  const {
+    studentId, classId, section, totalFees, amount, method, transactionId,
+    month, year, remarks, feeStructureId, assignmentId,
+    // ── Receipt detail fields (optional, for rich printable receipts) ──
+    periodLabel, periodMonths, periodCovered,
+    items, subtotal, discountPct, discountAmt, totalAmount, parentName,
+  } = req.body;
+  if (!studentId || !amount || amount <= 0)
+    return res.status(400).json({ success: false, message: 'studentId and a positive amount are required' });
+
+  let record = await StudentFee.findOne({ student: studentId, school: req.user.school });
+  if (!record) {
+    if (!classId || !totalFees)
+      return res.status(400).json({ success: false, message: 'classId and totalFees required for first payment' });
+    record = new StudentFee({ student: studentId, class: classId, section: section || '', school: req.user.school, totalFees });
+  }
+  if (totalFees) record.totalFees = totalFees;
+
+  const receiptNumber = genReceipt();
+  // Snapshot ledger state BEFORE this payment so the receipt always shows
+  // accurate "previously paid" even after later payments are recorded.
+  const paidBeforeThis = record.paidAmount || 0;
+  // Compute balance AFTER this payment for snapshot on the receipt
+  const balanceAfter = Math.max(0, (record.totalFees || 0) - (paidBeforeThis + Number(amount)));
+
+  record.paymentHistory.push({
+    amount: Number(amount), paidOn: new Date(),
+    method: method || 'cash', transactionId, receiptNumber, month, year, remarks,
+    collectedBy: req.user._id, feeStructure: feeStructureId || null,
+    // Receipt fields
+    periodLabel, periodMonths, periodCovered,
+    items: Array.isArray(items) ? items : [],
+    subtotal, discountPct, discountAmt, totalAmount,
+    balanceAfter,
+    paidBeforeThis,
+    parentName,
+  });
+  await record.save();
+
+  // If tied to a FeeAssignment, update that too
+  if (assignmentId) {
+    const assignment = await FeeAssignment.findOne({ _id: assignmentId, school: req.user.school });
+    if (assignment) {
+      assignment.payments.push({ amount: Number(amount), paidOn: new Date(), method: method || 'cash', transactionId, receiptNumber, remarks, collectedBy: req.user._id });
+      await assignment.save();
+    }
+  }
+
+  await FeePayment.create({ student: studentId, feeStructure: feeStructureId || null, amount: Number(amount), method: method || 'cash', transactionId, receiptNumber, status: record.paymentStatus === 'paid' ? 'paid' : 'partial', month, year, remarks, collectedBy: req.user._id, school: req.user.school });
+
+  const updated = await StudentFee.findById(record._id)
+    .populate({ path: 'student', populate: { path: 'user', select: 'name email' } })
+    .populate('class', 'name grade section');
+
+  res.status(201).json({ success: true, data: updated, receiptNumber });
+};
+
+exports.getReceipt = async (req, res) => {
+  const { receiptNumber } = req.params;
+  const { format } = req.query;  // ?format=pdf
+
+  const record = await StudentFee.findOne(
+    { 'paymentHistory.receiptNumber': receiptNumber, school: req.user.school },
+    { 'paymentHistory.$': 1, student: 1, class: 1, totalFees: 1, paidAmount: 1, pendingAmount: 1 }
+  ).populate({ path: 'student', populate: { path: 'user', select: 'name email' } })
+   .populate('class', 'name grade section')
+   .populate('paymentHistory.collectedBy', 'name');
+
+  if (!record?.paymentHistory?.length)
+    return res.status(404).json({ success: false, message: 'Receipt not found' });
+
+  const payment = record.paymentHistory[0];
+  const data = {
+    // ── Identifiers ──
+    receiptNumber:  payment.receiptNumber,
+    studentName:    record.student?.user?.name || 'N/A',
+    rollNumber:     record.student?.rollNumber || record.student?.admissionNumber || 'N/A',
+    admissionNo:    record.student?.admissionNumber || 'N/A',
+    className:      record.class ? `${record.class.name}${record.class.section ? ' ' + record.class.section : ''}` : 'N/A',
+    parentName:     payment.parentName || record.student?.parentName || 'N/A',
+
+    // ── Payment basics ──
+    amount:         payment.amount,
+    deposit:        payment.amount,                                       // alias used by the receipt UI
+    method:         payment.method,
+    transactionId:  payment.transactionId,
+    paidOn:         payment.paidOn,
+    date:           payment.paidOn ? new Date(payment.paidOn).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '',
+    month:          payment.month,
+    collectedBy:    payment.collectedBy?.name || 'System',
+    remarks:        payment.remarks,
+
+    // ── Period / breakdown (newly stored fields) ──
+    periodLabel:    payment.periodLabel    || '',
+    periodMonths:   payment.periodMonths   || 1,
+    periodCovered:  payment.periodCovered  || payment.month || '',
+    items:          Array.isArray(payment.items) ? payment.items : [],
+    subtotal:       payment.subtotal      || payment.amount,
+    discountPct:    payment.discountPct   || 0,
+    discountAmt:    payment.discountAmt   || 0,
+    totalAmount:    payment.totalAmount   || payment.amount,
+    balance:        payment.balanceAfter != null ? payment.balanceAfter : record.pendingAmount,
+    paidBeforeThis: payment.paidBeforeThis != null
+                      ? payment.paidBeforeThis
+                      : Math.max(0, (record.paidAmount || 0) - (payment.amount || 0)), // best-effort fallback for OLD receipts
+
+    // ── Ledger snapshot ──
+    totalFees:      record.totalFees,
+    paidAmount:     record.paidAmount,
+    pendingAmount:  record.pendingAmount,
+  };
+
+  if (format === 'pdf') return buildReceiptPDF(res, data);
+  res.json({ success: true, data });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/fees/payment/:receiptNumber
+// Removes a single payment by receipt number. Updates the StudentFee ledger,
+// the FeePayment collection, and any linked FeeAssignment payments.
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/fees/payments-ledger
+//
+// Read-only. Returns receipts from the FeePayment collection.
+//
+// Added 2026-07-30 for one reason: this school runs THREE fee collection
+// stores — StudentFee.paymentHistory, FeeAssignment.payments and FeePayment —
+// and only the first two were reachable over the API. That meant nothing could
+// answer "is there a receipt in FeePayment that exists in neither of the
+// others", which is a question about whether any money has been collected that
+// no report has ever counted.
+//
+// Deliberately minimal: no writes, no side effects, and only the fields needed
+// to reconcile a receipt. Not a general-purpose payment feed.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getPaymentsLedger = async (req, res) => {
+  const filter = { school: req.user.school };
+  if (req.query.from || req.query.to) {
+    filter.paidOn = {};
+    if (req.query.from) filter.paidOn.$gte = new Date(req.query.from);
+    if (req.query.to)   filter.paidOn.$lte = new Date(req.query.to + 'T23:59:59');
+  }
+
+  const payments = await FeePayment.find(filter)
+    .select('receiptNumber amount paidOn method student')
+    .sort({ paidOn: -1 })
+    .lean();
+
+  res.json({ success: true, count: payments.length, data: payments });
+};
+
+exports.deletePayment = async (req, res) => {
+  const { receiptNumber } = req.params;
+  if (!receiptNumber) return res.status(400).json({ success: false, message: 'Receipt number required' });
+
+  // Find the StudentFee record that contains this payment
+  const record = await StudentFee.findOne({
+    'paymentHistory.receiptNumber': receiptNumber,
+    school: req.user.school,
+  });
+  if (!record) return res.status(404).json({ success: false, message: 'Payment not found' });
+
+  // Pull the payment out of the array
+  const before = record.paymentHistory.length;
+  record.paymentHistory = record.paymentHistory.filter(p => p.receiptNumber !== receiptNumber);
+  if (record.paymentHistory.length === before) {
+    return res.status(404).json({ success: false, message: 'Payment not found in record' });
+  }
+
+  // pre-save hook will recompute paidAmount, pendingAmount, paymentStatus
+  await record.save();
+
+  // Also delete from FeePayment collection (best-effort, don't fail on miss)
+  try { await FeePayment.deleteMany({ receiptNumber, school: req.user.school }); } catch (e) { /* ignore */ }
+
+  // Also pull from any FeeAssignment.payments that referenced this receipt
+  try {
+    await FeeAssignment.updateMany(
+      { 'payments.receiptNumber': receiptNumber, school: req.user.school },
+      { $pull: { payments: { receiptNumber } } }
+    );
+  } catch (e) { /* ignore */ }
+
+  res.json({ success: true, message: 'Payment deleted', receiptNumber });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/fees/ledger/:id
+// Delete a single StudentFee ledger record (the row in Fee Report).
+// Also clears the linked FeePayment + FeeAssignment.payments entries.
+// Use to remove orphan or corrupt fee records.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.deleteStudentFee = async (req, res) => {
+  const { id } = req.params;
+  const ledger = await StudentFee.findOne({ _id: id, school: req.user.school });
+  if (!ledger) return res.status(404).json({ success: false, message: 'Ledger not found' });
+
+  // Best-effort cleanup of related records
+  const receiptNumbers = (ledger.paymentHistory || []).map(p => p.receiptNumber).filter(Boolean);
+  try {
+    if (receiptNumbers.length) {
+      await FeePayment.deleteMany({ receiptNumber: { $in: receiptNumbers }, school: req.user.school });
+      await FeeAssignment.updateMany(
+        { 'payments.receiptNumber': { $in: receiptNumbers }, school: req.user.school },
+        { $pull: { payments: { receiptNumber: { $in: receiptNumbers } } } }
+      );
+    }
+  } catch (e) { /* non-fatal */ }
+
+  await StudentFee.deleteOne({ _id: id, school: req.user.school });
+  res.json({ success: true, message: 'Fee record deleted', id });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/fees/ledger/bulk-delete
+// Delete multiple StudentFee ledgers in one request.
+// body: { ids: [...] }
+// ─────────────────────────────────────────────────────────────────────────────
+exports.bulkDeleteStudentFees = async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) {
+    return res.status(400).json({ success: false, message: 'ids array required' });
+  }
+
+  const ledgers = await StudentFee.find({ _id: { $in: ids }, school: req.user.school });
+  if (!ledgers.length) return res.status(404).json({ success: false, message: 'No matching records' });
+
+  const allReceipts = ledgers.flatMap(l => (l.paymentHistory || []).map(p => p.receiptNumber).filter(Boolean));
+
+  try {
+    if (allReceipts.length) {
+      await FeePayment.deleteMany({ receiptNumber: { $in: allReceipts }, school: req.user.school });
+      await FeeAssignment.updateMany(
+        { 'payments.receiptNumber': { $in: allReceipts }, school: req.user.school },
+        { $pull: { payments: { receiptNumber: { $in: allReceipts } } } }
+      );
+    }
+  } catch (e) { /* non-fatal */ }
+
+  const result = await StudentFee.deleteMany({ _id: { $in: ids }, school: req.user.school });
+  res.json({ success: true, deletedCount: result.deletedCount });
+};
+
+
+exports.getRecentPayments = async (req, res) => {
+  const school = req.user.school;
+  const limit = parseInt(req.query.limit) || 10;
+  try {
+    const payments = await require('../models/index').StudentFee.aggregate([
+      { $match: { school: new (require('mongoose').Types.ObjectId)(school) } },
+      { $unwind: '$paymentHistory' },
+      { $sort: { 'paymentHistory.paidOn': -1 } },
+      { $limit: limit },
+      { $lookup: { from:'students', localField:'student', foreignField:'_id', as:'studentDoc' }},
+      { $unwind: { path:'$studentDoc', preserveNullAndEmptyArrays:true }},
+      { $lookup: { from:'users', localField:'studentDoc.user', foreignField:'_id', as:'userDoc' }},
+      { $unwind: { path:'$userDoc', preserveNullAndEmptyArrays:true }},
+      { $lookup: { from:'classes', localField:'class', foreignField:'_id', as:'classDoc' }},
+      { $unwind: { path:'$classDoc', preserveNullAndEmptyArrays:true }},
+      { $project: {
+        amount:        '$paymentHistory.amount',
+        paidOn:        '$paymentHistory.paidOn',
+        method:        '$paymentHistory.method',
+        receiptNumber: '$paymentHistory.receiptNumber',
+        month:         '$paymentHistory.month',
+        studentName:   '$userDoc.name',
+        className:     '$classDoc.name',
+        rollNumber:    '$studentDoc.rollNumber',
+      }}
+    ]);
+    res.json({ success:true, data: payments });
+  } catch(err) {
+    res.status(500).json({ success:false, message: err.message });
+  }
+};
+
+exports.getOverallSummary = async (req, res) => {
+  const school = new mongoose.Types.ObjectId(req.user.school);
+  const [stats] = await StudentFee.aggregate([
+    { $match: { school } },
+    { $group: {
+      _id: null,
+      totalStudents:  { $sum: 1 },
+      totalExpected:  { $sum: '$totalFees' },
+      totalCollected: { $sum: '$paidAmount' },
+      totalPending:   { $sum: '$pendingAmount' },
+      paidCount:    { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
+      partialCount: { $sum: { $cond: [{ $eq: ['$paymentStatus','partial'] }, 1, 0] } },
+      notPaidCount: { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
+    }}
+  ]);
+  res.json({ success: true, data: stats || {} });
+};
+
+exports.setupClassLedger = async (req, res) => {
+  const { classId, totalFees } = req.body;
+  if (!classId || !totalFees)
+    return res.status(400).json({ success: false, message: 'classId and totalFees required' });
+
+  const students = await Student.find({ class: classId, school: req.user.school, isActive: true });
+  const ops = students.map(s => ({
+    updateOne: {
+      filter: { student: s._id, school: req.user.school },
+      update: { $setOnInsert: { student: s._id, class: classId, section: s.section || '', school: req.user.school, totalFees, paidAmount: 0, pendingAmount: totalFees, paymentStatus: 'not_paid' } },
+      upsert: true,
+    }
+  }));
+
+  const result = await StudentFee.bulkWrite(ops);
+  res.json({ success: true, message: `Ledger setup: ${result.upsertedCount} new, ${result.matchedCount} existing` });
+};
+
+exports.getStructures = async (req, res) => {
+  const structures = await FeeStructure.find({ school: req.user.school }).populate('class', 'name grade section');
+  res.json({ success: true, data: structures });
+};
+exports.createStructure = async (req, res) => {
+  const s = await FeeStructure.create({ ...req.body, school: req.user.school });
+  res.status(201).json({ success: true, data: s });
+};
+exports.updateStructure = async (req, res) => {
+  const s = await FeeStructure.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  res.json({ success: true, data: s });
+};
+
+// ─── NEW: Fee Types ───────────────────────────────────────────────────────────
+
+exports.getFeeTypes = async (req, res) => {
+  const types = await FeeType.find({ school: req.user.school, isActive: true }).sort({ name: 1 });
+  res.json({ success: true, data: types });
+};
+
+exports.createFeeType = async (req, res) => {
+  const type = await FeeType.create({ ...req.body, school: req.user.school, createdBy: req.user._id });
+  res.status(201).json({ success: true, data: type });
+};
+
+exports.updateFeeType = async (req, res) => {
+  const type = await FeeType.findOneAndUpdate({ _id: req.params.id, school: req.user.school }, req.body, { new: true });
+  if (!type) return res.status(404).json({ success: false, message: 'Fee type not found' });
+  res.json({ success: true, data: type });
+};
+
+exports.deleteFeeType = async (req, res) => {
+  await FeeType.findOneAndUpdate({ _id: req.params.id, school: req.user.school }, { isActive: false });
+  res.json({ success: true, message: 'Fee type deactivated' });
+};
+
+// ─── NEW: Fee Assignments ──────────────────────────────────────────────────────
+
+exports.getAssignments = async (req, res) => {
+  const { studentId, classId, feeTypeId, status } = req.query;
+  const filter = { school: req.user.school };
+  if (studentId) filter.student = studentId;
+  if (classId)   filter.class   = classId;
+  if (feeTypeId) filter.feeType = feeTypeId;
+  if (status)    filter.status  = status;
+
+  const assignments = await FeeAssignment.find(filter)
+    .populate('feeType', 'name category')
+    .populate({ path: 'student', populate: { path: 'user', select: 'name email' } })
+    .populate('class', 'name grade section')
+    .populate('transportRoute', 'routeName routeNumber')
+    .sort({ createdAt: -1 });
+
+  res.json({ success: true, count: assignments.length, data: assignments });
+};
+
+exports.createAssignment = async (req, res) => {
+  const {
+    studentId, classId, section, feeTypeId, baseAmount,
+    discountPct, discountAmt, discountReason, dueDate,
+    month, year, lateFeePerDay, transportRouteId,
+    hasInstallments, installmentCount, firstDueDate, label,
+  } = req.body;
+
+  if (!feeTypeId || !baseAmount)
+    return res.status(400).json({ success: false, message: 'feeTypeId and baseAmount required' });
+  if (!studentId && !classId)
+    return res.status(400).json({ success: false, message: 'Either studentId or classId required' });
+
+  const finalAmount = calcFinalAmount(baseAmount, discountPct || 0, discountAmt || 0);
+
+  const baseDoc = {
+    feeType:       feeTypeId,
+    baseAmount,
+    discountPct:   discountPct   || 0,
+    discountAmt:   discountAmt   || 0,
+    discountReason: discountReason || '',
+    finalAmount,
+    lateFeePerDay: lateFeePerDay || 0,
+    transportRoute: transportRouteId || null,
+    dueDate:       dueDate ? new Date(dueDate) : null,
+    month, year,
+    school:        req.user.school,
+    createdBy:     req.user._id,
+    hasInstallments: !!hasInstallments,
+    installments:  hasInstallments ? buildInstallments(finalAmount, parseInt(installmentCount) || 2, firstDueDate || dueDate) : [],
+    pendingAmount: finalAmount,
+  };
+
+  // ── Assign to individual student ──────────────────────────────────────────
+  if (studentId) {
+    const assignment = await FeeAssignment.create({ ...baseDoc, student: studentId, class: classId || null, section });
+
+    // Also update StudentFee ledger total
+    await StudentFee.findOneAndUpdate(
+      { student: studentId, school: req.user.school },
+      { $inc: { totalFees: finalAmount, pendingAmount: finalAmount } },
+      { upsert: false }
+    );
+
+    return res.status(201).json({ success: true, count: 1, data: assignment });
+  }
+
+  // ── Bulk assign to entire class ───────────────────────────────────────────
+  const students = await Student.find({ class: classId, school: req.user.school, isActive: true });
+  if (!students.length)
+    return res.status(404).json({ success: false, message: 'No active students found in this class' });
+
+  const docs = students.map(s => ({ ...baseDoc, student: s._id, class: classId, section: s.section || section || '' }));
+  await FeeAssignment.insertMany(docs);
+
+  // Update each student's ledger
+  const ledgerOps = students.map(s => ({
+    updateOne: {
+      filter: { student: s._id, school: req.user.school },
+      update: { $inc: { totalFees: finalAmount, pendingAmount: finalAmount } },
+    }
+  }));
+  await StudentFee.bulkWrite(ledgerOps);
+
+  res.status(201).json({ success: true, count: students.length, message: `Fee assigned to ${students.length} students` });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSPORT FEE GENERATION
+// Creates a transport fee (as its own FeeAssignment line item) for every student
+// who has an ACTIVE transport assignment, using that student's own monthly fee.
+// - Skips students with no active transport.
+// - Won't double-charge: skips a student who already has a transport fee for the
+//   same month/year.
+// Body: { month, year, dueDate?, feeTypeId? }
+// If feeTypeId is omitted, a "Transport Fee" FeeType (category: transport) is
+// auto-created/found so the line shows correctly on receipts.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.generateTransportFees = async (req, res) => {
+  const { month, year, dueDate } = req.body;
+  if (!month || !year) {
+    return res.status(400).json({ success: false, message: 'month and year are required.' });
+  }
+
+  // Find (or create) the transport FeeType so the receipt line reads "Transport Fee".
+  let feeType = req.body.feeTypeId
+    ? await FeeType.findOne({ _id: req.body.feeTypeId, school: req.user.school })
+    : await FeeType.findOne({ school: req.user.school, category: 'transport', isActive: true });
+  if (!feeType) {
+    feeType = await FeeType.create({
+      name: 'Transport Fee', category: 'transport', isRecurring: true,
+      description: 'Monthly bus transport fee', school: req.user.school,
+    });
+  }
+
+  // All active transport assignments for this school.
+  const assignments = await TransportAssignment.find({
+    school: req.user.school, isActive: true,
+  }).select('student monthlyFee routeId');
+
+  if (!assignments.length) {
+    return res.json({ success: true, created: 0, skipped: 0, message: 'No students have active transport.' });
+  }
+
+  let created = 0, skipped = 0;
+  const ledgerOps = [];
+
+  for (const a of assignments) {
+    const amount = Number(a.monthlyFee) || 0;
+    if (amount <= 0) { skipped++; continue; }   // no fee set for this student
+
+    // Already billed transport for this month? Skip (idempotent — safe to re-run).
+    const exists = await FeeAssignment.findOne({
+      school: req.user.school, student: a.student,
+      feeType: feeType._id, month, year,
+    });
+    if (exists) { skipped++; continue; }
+
+    await FeeAssignment.create({
+      feeType:       feeType._id,
+      baseAmount:    amount,
+      finalAmount:   amount,
+      pendingAmount: amount,
+      discountPct: 0, discountAmt: 0, discountReason: '',
+      lateFeePerDay: 0,
+      transportRoute: a.routeId || null,
+      dueDate:       dueDate ? new Date(dueDate) : null,
+      month, year,
+      student:       a.student,
+      school:        req.user.school,
+      createdBy:     req.user._id,
+      hasInstallments: false, installments: [],
+    });
+    created++;
+    ledgerOps.push({
+      updateOne: {
+        filter: { student: a.student, school: req.user.school },
+        update: { $inc: { totalFees: amount, pendingAmount: amount } },
+      },
+    });
+  }
+
+  if (ledgerOps.length) await StudentFee.bulkWrite(ledgerOps);
+
+  res.status(201).json({
+    success: true, created, skipped,
+    message: `Transport fees: ${created} created, ${skipped} skipped (already billed or no fee) for ${month}/${year}.`,
+  });
+};
+
+exports.updateAssignment = async (req, res) => {
+  const assignment = await FeeAssignment.findOneAndUpdate(
+    { _id: req.params.id, school: req.user.school },
+    { ...req.body, updatedAt: new Date() },
+    { new: true }
+  ).populate('feeType', 'name');
+  if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  res.json({ success: true, data: assignment });
+};
+
+exports.deleteAssignment = async (req, res) => {
+  const a = await FeeAssignment.findOneAndDelete({ _id: req.params.id, school: req.user.school });
+  if (!a) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  res.json({ success: true, message: 'Assignment deleted' });
+};
+
+// ─── NEW: Pay against a specific assignment ───────────────────────────────────
+
+exports.payAssignment = async (req, res) => {
+  const { amount, method, transactionId, remarks, installmentNumber } = req.body;
+  if (!amount || amount <= 0)
+    return res.status(400).json({ success: false, message: 'Valid amount required' });
+
+  const assignment = await FeeAssignment.findOne({ _id: req.params.id, school: req.user.school })
+    .populate({ path: 'student', populate: { path: 'user', select: 'name' } })
+    .populate('feeType', 'name');
+
+  if (!assignment) return res.status(404).json({ success: false, message: 'Assignment not found' });
+  if (assignment.status === 'paid')
+    return res.status(400).json({ success: false, message: 'This fee is already fully paid' });
+
+  const receiptNumber = genReceipt();
+
+  // Add payment to assignment
+  assignment.payments.push({ amount: Number(amount), paidOn: new Date(), method: method || 'cash', transactionId, receiptNumber, remarks, collectedBy: req.user._id, installmentNumber });
+
+  // Update installment if specified
+  if (installmentNumber && assignment.hasInstallments) {
+    const inst = assignment.installments.find(i => i.number === installmentNumber);
+    if (inst) {
+      inst.paidAmount += Number(amount);
+      inst.paidOn     = new Date();
+      inst.status     = inst.paidAmount >= inst.amount ? 'paid' : 'partial';
+      inst.receiptNumber = receiptNumber;
+    }
+  }
+
+  await assignment.save();
+
+  // Sync to StudentFee ledger
+  if (assignment.student) {
+    const ledger = await StudentFee.findOne({ student: assignment.student._id || assignment.student, school: req.user.school });
+    if (ledger) {
+      ledger.paymentHistory.push({ amount: Number(amount), paidOn: new Date(), method: method || 'cash', transactionId, receiptNumber, remarks, collectedBy: req.user._id });
+      await ledger.save();
+    }
+  }
+
+  res.status(201).json({ success: true, data: assignment, receiptNumber });
+};
+
+// ─── NEW: Dashboard with today's collection ────────────────────────────────────
+
+exports.getDashboard = async (req, res) => {
+  const school = new mongoose.Types.ObjectId(req.user.school);
+  const today  = new Date();
+  const todayStart = new Date(today); todayStart.setHours(0,0,0,0);
+  const todayEnd   = new Date(today); todayEnd.setHours(23,59,59,999);
+
+  // Figures are derived from FeeAssignment (what is owed) and FeePayment (what
+  // was actually received). The older StudentFee ledger is not used here — it
+  // only covers a fraction of students and its amounts are not maintained,
+  // which made every card disagree with the others.
+  const [assignAgg, paidAgg, todayPayments, overdueCount, feeTypes] = await Promise.all([
+    FeeAssignment.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id: null,
+        totalExpected:   { $sum: { $ifNull: ['$finalAmount', '$baseAmount'] } },
+        assignmentCount: { $sum: 1 },
+        students:        { $addToSet: '$student' },
+        overdue:         { $sum: { $cond: [{ $eq: ['$status', 'overdue'] }, 1, 0] } },
+      }},
+    ]),
+    // Everything actually collected, regardless of full/partial status
+    FeePayment.aggregate([
+      { $match: { school } },
+      { $group: { _id: null, totalCollected: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+    FeePayment.find({ school, createdAt: { $gte: todayStart, $lte: todayEnd } }),
+    FeeAssignment.countDocuments({ school, status: 'overdue' }),
+    FeeType.countDocuments({ school, isActive: true }),
+  ]);
+
+  const a = assignAgg[0] || {};
+  const totalExpected  = a.totalExpected || 0;
+  const totalStudents  = (a.students || []).length;
+  const totalCollected = paidAgg[0]?.totalCollected || 0;
+  // Pending is always expected minus collected, so the cards can never disagree
+  const totalPending   = Math.max(0, totalExpected - totalCollected);
+  const collectionRate = totalExpected > 0
+    ? Math.round((totalCollected / totalExpected) * 1000) / 10   // 1 decimal
+    : 0;
+
+  const todayCollection = todayPayments.reduce((s, p) => s + (p.amount || 0), 0);
+
+  res.json({
+    success: true,
+    data: {
+      totalStudents,
+      assignmentCount: a.assignmentCount || 0,
+      totalExpected,
+      totalCollected,
+      totalPending,
+      collectionRate,
+      todayCollection,
+      todayCount: todayPayments.length,
+      paymentCount: paidAgg[0]?.count || 0,
+      overdueCount,
+      feeTypeCount: feeTypes,
+    },
+  });
+};
+
+// ─── NEW: Export fees report ──────────────────────────────────────────────────
+
+exports.exportFees = async (req, res) => {
+  const { classId, status, format = 'xlsx' } = req.query;
+  const filter = { school: req.user.school };
+  if (classId) filter.class = classId;
+  if (status)  filter.paymentStatus = status;
+
+  const records = await StudentFee.find(filter)
+    .populate({ path: 'student', populate: { path: 'user', select: 'name' } })
+    .populate('class', 'name grade section')
+    .lean();
+
+  const data = records.map(r => ({
+    studentName:    r.student?.user?.name || '',
+    admissionNo:    r.student?.admissionNumber || '',
+    className:      r.class ? `${r.class.name} ${r.class.section}` : '',
+    feeType:        'General',
+    totalFees:      r.totalFees,
+    paidAmount:     r.paidAmount,
+    pendingAmount:  r.pendingAmount,
+    status:         r.paymentStatus,
+    lastPayment:    r.paymentHistory?.slice(-1)[0]?.paidOn,
+  }));
+
+  const cls = classId
+    ? await require('../models/index').Class?.findById(classId).lean().catch(() => null)
+    : null;
+
+  const meta = {
+    title: cls ? `${cls.name} ${cls.section}` : 'All Classes',
+    period: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+    totalStudents:  data.length,
+    totalExpected:  data.reduce((s, r) => s + r.totalFees, 0),
+    totalCollected: data.reduce((s, r) => s + r.paidAmount, 0),
+    totalPending:   data.reduce((s, r) => s + r.pendingAmount, 0),
+  };
+
+  if (format === 'xlsx') {
+    const buffer = await buildFeeExcel(data, meta);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="fees-report-${Date.now()}.xlsx"`);
+    return res.send(buffer);
+  }
+
+  if (format === 'pdf') {
+    return buildReceiptPDF(res, { ...meta, receiptNumber: 'REPORT-' + Date.now(), studentName: meta.title, amount: meta.totalCollected, totalFees: meta.totalExpected, pendingAmount: meta.totalPending, paidAmount: meta.totalCollected, collectedBy: req.user.name });
+  }
+
+  res.status(400).json({ success: false, message: 'format must be xlsx or pdf' });
+};
+
+// ─── NEW: Receipt PDF download ────────────────────────────────────────────────
+
+exports.downloadReceipt = async (req, res) => {
+  const { receiptNumber } = req.params;
+  const record = await StudentFee.findOne(
+    { 'paymentHistory.receiptNumber': receiptNumber, school: req.user.school },
+    { 'paymentHistory.$': 1, student: 1, class: 1, totalFees: 1, paidAmount: 1, pendingAmount: 1 }
+  ).populate({ path: 'student', populate: { path: 'user', select: 'name' } })
+   .populate('class', 'name grade section')
+   .populate('paymentHistory.collectedBy', 'name');
+
+  if (!record?.paymentHistory?.length)
+    return res.status(404).json({ success: false, message: 'Receipt not found' });
+
+  const payment = record.paymentHistory[0];
+  buildReceiptPDF(res, {
+    receiptNumber:  payment.receiptNumber,
+    studentName:    record.student?.user?.name || 'N/A',
+    admissionNo:    record.student?.admissionNumber || 'N/A',
+    className:      record.class ? `${record.class.name} - ${record.class.section}` : 'N/A',
+    amount:         payment.amount,
+    method:         payment.method,
+    transactionId:  payment.transactionId,
+    paidOn:         payment.paidOn,
+    month:          payment.month,
+    collectedBy:    payment.collectedBy?.name || 'System',
+    totalFees:      record.totalFees,
+    paidAmount:     record.paidAmount,
+    pendingAmount:  record.pendingAmount,
+    remarks:        payment.remarks,
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /fees/analytics
+// Comprehensive school-wide fee analytics:
+//   totalFees, collected, pending, overdue, today, monthly trend,
+//   yearly comparison, fee-type breakdown, class leaderboard
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getAnalytics = async (req, res) => {
+  const school = new mongoose.Types.ObjectId(req.user.school);
+  const now    = new Date();
+
+  // ── Date boundaries ────────────────────────────────────────────────────────
+  const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+  const todayEnd   = new Date(now); todayEnd.setHours(23,59,59,999);
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const yearStart  = new Date(now.getFullYear(), 0, 1);
+  const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+  const prevYearEnd   = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+
+  // ── Run all aggregations in parallel ──────────────────────────────────────
+  const [
+    overallStats,
+    todayPayments,
+    monthlyPayments,
+    monthlyTrend,
+    yearlyComparison,
+    classSummary,
+    feeTypeSummary,
+    paymentMethodBreakdown,
+  ] = await Promise.all([
+
+    // 1. School-wide totals from StudentFee ledger
+    StudentFee.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id:            null,
+        totalStudents:  { $sum: 1 },
+        totalFees:      { $sum: '$totalFees' },
+        totalCollected: { $sum: '$paidAmount' },
+        totalPending:   { $sum: '$pendingAmount' },
+        paidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
+        partialCount:   { $sum: { $cond: [{ $eq: ['$paymentStatus','partial'] }, 1, 0] } },
+        notPaidCount:   { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
+      }},
+    ]),
+
+    // 2. Today's collection
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: todayStart, $lte: todayEnd } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+
+    // 3. This month's collection
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: monthStart, $lte: monthEnd } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]),
+
+    // 4. Monthly trend — last 12 months (Jan–Dec of current year)
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: yearStart } } },
+      { $group: {
+        _id:   { month: { $month: '$createdAt' }, year: { $year: '$createdAt' } },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+      }},
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]),
+
+    // 5. Yearly comparison — this year vs last year
+    FeePayment.aggregate([
+      { $match: { school, createdAt: { $gte: prevYearStart } } },
+      { $group: {
+        _id:   { year: { $year: '$createdAt' } },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+      }},
+      { $sort: { '_id.year': 1 } },
+    ]),
+
+    // 6. Class-wise breakdown (top and bottom performers)
+    StudentFee.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id:            '$class',
+        totalFees:      { $sum: '$totalFees' },
+        totalCollected: { $sum: '$paidAmount' },
+        totalPending:   { $sum: '$pendingAmount' },
+        studentCount:   { $sum: 1 },
+        paidCount:      { $sum: { $cond: [{ $eq: ['$paymentStatus','paid']    }, 1, 0] } },
+        notPaidCount:   { $sum: { $cond: [{ $eq: ['$paymentStatus','not_paid']}, 1, 0] } },
+      }},
+      { $lookup: { from: 'classes', localField: '_id', foreignField: '_id', as: '_class' } },
+      { $unwind: { path: '$_class', preserveNullAndEmptyArrays: true } },
+      { $addFields: {
+        className:      { $concat: [{ $ifNull: ['$_class.name',''] }, ' ', { $ifNull: ['$_class.section',''] }] },
+        grade:          '$_class.grade',
+        collectionRate: {
+          $cond: [
+            { $gt: ['$totalFees', 0] },
+            { $round: [{ $multiply: [{ $divide: ['$totalCollected','$totalFees'] }, 100] }, 1] },
+            0,
+          ],
+        },
+      }},
+      { $sort: { collectionRate: -1 } },
+    ]),
+
+    // 7. Fee-type breakdown (FeeAssignment grouped by feeType)
+    // Try FeeAssignment first; fall back gracefully if model doesn't exist yet
+    (async () => {
+      try {
+        const FeeAssignment = require('../models/FeeAssignment');
+        const FeeType       = require('../models/FeeType');
+        return await FeeAssignment.aggregate([
+          { $match: { school } },
+          { $group: {
+            _id:          '$feeType',
+            totalAmount:  { $sum: '$finalAmount' },
+            paidAmount:   { $sum: '$paidAmount' },
+            pendingAmount:{ $sum: '$pendingAmount' },
+            count:        { $sum: 1 },
+          }},
+          { $lookup: { from: 'feetypes', localField: '_id', foreignField: '_id', as: '_type' } },
+          { $unwind: { path: '$_type', preserveNullAndEmptyArrays: true } },
+          { $addFields: { typeName: { $ifNull: ['$_type.name','General'] }, category: '$_type.category' } },
+          { $sort: { totalAmount: -1 } },
+        ]);
+      } catch { return []; }
+    })(),
+
+    // 8. Payment method breakdown
+    FeePayment.aggregate([
+      { $match: { school } },
+      { $group: {
+        _id:   '$method',
+        total: { $sum: '$amount' },
+        count: { $sum: 1 },
+      }},
+      { $sort: { total: -1 } },
+    ]),
+  ]);
+
+  // ── Overdue count (from FeeAssignment if available) ────────────────────────
+  let overdueCount = 0;
+  try {
+    const FeeAssignment = require('../models/FeeAssignment');
+    overdueCount = await FeeAssignment.countDocuments({ school, status: 'overdue' });
+  } catch { overdueCount = 0; }
+
+  // ── Build monthly trend array (fill missing months with 0) ─────────────────
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const trendMap = {};
+  monthlyTrend.forEach(m => { trendMap[m._id.month] = m; });
+  const monthlyTrendFull = MONTH_NAMES.map((name, i) => {
+    const m = trendMap[i + 1];
+    return { month: name, monthNum: i + 1, total: m?.total || 0, count: m?.count || 0 };
+  });
+
+  // ── Yearly comparison ──────────────────────────────────────────────────────
+  const thisYearData = yearlyComparison.find(y => y._id.year === now.getFullYear());
+  const lastYearData = yearlyComparison.find(y => y._id.year === now.getFullYear() - 1);
+  const yearGrowth   = lastYearData?.total > 0
+    ? Math.round(((thisYearData?.total || 0) - lastYearData.total) / lastYearData.total * 100)
+    : null;
+
+  // ── Class leaderboard: top 5 and bottom 5 ─────────────────────────────────
+  const topClasses    = classSummary.slice(0, 5);
+  const bottomClasses = [...classSummary].sort((a, b) => a.collectionRate - b.collectionRate).slice(0, 5);
+
+  // ── Overall stats ──────────────────────────────────────────────────────────
+  const overall = overallStats[0] || {};
+
+  res.json({
+    success: true,
+    data: {
+      // Core totals
+      totalFees:         overall.totalFees      || 0,
+      totalCollected:    overall.totalCollected  || 0,
+      totalPending:      overall.totalPending    || 0,
+      totalOverdue:      overdueCount,
+      totalStudents:     overall.totalStudents   || 0,
+      paidCount:         overall.paidCount       || 0,
+      partialCount:      overall.partialCount    || 0,
+      notPaidCount:      overall.notPaidCount    || 0,
+      collectionRate:    overall.totalFees > 0
+        ? Math.round((overall.totalCollected / overall.totalFees) * 100) : 0,
+
+      // Time-based
+      todayCollection:   todayPayments[0]?.total   || 0,
+      todayCount:        todayPayments[0]?.count    || 0,
+      monthlyCollection: monthlyPayments[0]?.total  || 0,
+      monthlyCount:      monthlyPayments[0]?.count  || 0,
+
+      // Yearly
+      thisYearTotal:     thisYearData?.total || 0,
+      lastYearTotal:     lastYearData?.total || 0,
+      yearGrowthPct:     yearGrowth,
+
+      // Charts
+      monthlyTrend:       monthlyTrendFull,
+      classSummary,
+      topClasses,
+      bottomClasses,
+      feeTypeSummary,
+      paymentMethodBreakdown,
+    },
+  });
+};
+// ═══════════════════════════════════════════════════════════════════════════
+// FEE EDIT APPROVAL WORKFLOW
+// A payment, once recorded, is never edited directly. An admin submits a
+// change request; a *different* admin/HM approves it; only then is the
+// payment updated. Every step is logged with user, timestamp and the diff.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const EDITABLE_FIELDS = ['amount', 'method', 'paidOn', 'transactionId', 'remarks', 'month', 'year'];
+
+// ── POST /api/fees/payments/:receiptNumber/edit-request ─────────────────────
+// Body: { changes: { amount?, method?, ... }, reason }
+exports.requestPaymentEdit = async (req, res) => {
+  try {
+    const { receiptNumber } = req.params;
+    const { changes = {}, reason = '' } = req.body;
+
+    const payment = await FeePayment.findOne({ receiptNumber, school: req.user.school });
+    if (!payment) return res.status(404).json({ success: false, message: 'Payment not found' });
+
+    // Block a second request while one is already pending for this payment
+    const existing = await FeeEditRequest.findOne({ payment: payment._id, status: 'pending' });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: 'An edit request for this receipt is already awaiting approval.',
+      });
+    }
+
+    // Build the field-level diff, ignoring unchanged values
+    const diff = [];
+    EDITABLE_FIELDS.forEach(f => {
+      if (changes[f] === undefined) return;
+      const before = payment[f];
+      const after  = changes[f];
+      const same = (f === 'paidOn')
+        ? new Date(before).toISOString().slice(0,10) === new Date(after).toISOString().slice(0,10)
+        : String(before ?? '') === String(after ?? '');
+      if (!same) diff.push({ field: f, from: before ?? '', to: after });
+    });
+
+    if (!diff.length) {
+      return res.status(400).json({ success: false, message: 'No changes detected' });
+    }
+
+    const reqDoc = await FeeEditRequest.create({
+      payment:         payment._id,
+      receiptNumber:   payment.receiptNumber,
+      student:         payment.student,
+      changes:         diff,
+      reason,
+      status:          'pending',
+      requestedBy:     req.user._id,
+      requestedByName: req.user.name,
+      requestedAt:     new Date(),
+      school:          req.user.school,
+    });
+
+    res.json({
+      success: true,
+      message: 'Edit request submitted — awaiting approval by another administrator.',
+      data: reqDoc,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/fees/edit-requests?status=pending ──────────────────────────────
+exports.getFeeEditRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = { school: req.user.school };
+    if (status) filter.status = status;
+
+    const requests = await FeeEditRequest.find(filter)
+      .populate({ path: 'student', select: 'rollNumber admissionNumber user class', populate: [{ path: 'user', select: 'name' }, { path: 'class', select: 'name section' }] })
+      // The original payment, so the approver can see what they're approving
+      // rather than just an isolated before/after value.
+      .populate('payment')
+      .populate('requestedBy', 'name role')
+      .populate('reviewedBy',  'name role')
+      .sort({ requestedAt: -1 })
+      .lean();
+
+    res.json({ success: true, count: requests.length, data: requests });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── POST /api/fees/edit-requests/:id/review ─────────────────────────────────
+// Body: { action: 'approve' | 'reject', note }
+exports.reviewFeeEditRequest = async (req, res) => {
+  try {
+    const { action, note = '' } = req.body;
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ success: false, message: "action must be 'approve' or 'reject'" });
+    }
+
+    const reqDoc = await FeeEditRequest.findOne({ _id: req.params.id, school: req.user.school });
+    if (!reqDoc) return res.status(404).json({ success: false, message: 'Request not found' });
+    if (reqDoc.status !== 'pending') {
+      return res.status(400).json({ success: false, message: `This request was already ${reqDoc.status}.` });
+    }
+
+    // Four-eyes principle: the requester cannot approve their own change.
+    if (String(reqDoc.requestedBy) === String(req.user._id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot approve your own edit request. Another administrator must review it.',
+      });
+    }
+
+    if (action === 'approve') {
+      const payment = await FeePayment.findById(reqDoc.payment);
+      if (!payment) return res.status(404).json({ success: false, message: 'Original payment no longer exists' });
+
+      reqDoc.changes.forEach(c => {
+        if (!EDITABLE_FIELDS.includes(c.field)) return;
+        payment[c.field] = c.field === 'amount' ? Number(c.to)
+                         : c.field === 'year'   ? Number(c.to)
+                         : c.field === 'paidOn' ? new Date(c.to)
+                         : c.to;
+      });
+      await payment.save();
+
+      // Keep the student ledger in step with the corrected amount
+      try {
+        const amountChange = reqDoc.changes.find(c => c.field === 'amount');
+        if (amountChange) {
+          const delta = Number(amountChange.to) - Number(amountChange.from);
+          if (delta) {
+            await StudentFee.updateOne(
+              { student: payment.student },
+              { $inc: { paidAmount: delta, balance: -delta } }
+            );
+          }
+        }
+      } catch { /* ledger sync is best-effort; the payment record is source of truth */ }
+    }
+
+    reqDoc.status         = action === 'approve' ? 'approved' : 'rejected';
+    reqDoc.reviewedBy     = req.user._id;
+    reqDoc.reviewedByName = req.user.name;
+    reqDoc.reviewedAt     = new Date();
+    reqDoc.reviewNote     = note;
+    await reqDoc.save();
+
+    res.json({
+      success: true,
+      message: action === 'approve' ? 'Edit approved and applied' : 'Edit request rejected',
+      data: reqDoc,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

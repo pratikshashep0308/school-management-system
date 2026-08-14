@@ -1,0 +1,955 @@
+// frontend/src/pages/Admissions.js
+import React, { useEffect, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import { admissionAPI } from '../utils/admissionUtils';
+import api, { classAPI } from '../utils/api';
+import AdmissionDetailModal from '../components/admissions/AdmissionDetailModal';
+import AdmissionFormModal   from '../components/admissions/AdmissionFormModal';
+
+const fmt = n => (n||0).toLocaleString('en-IN');
+
+const STATUS_META = {
+  pending:             { label:'Pending',      color:'#D97706', bg:'#FEF3C7', border:'#FDE68A' },
+  under_review:        { label:'Under Review', color:'#2563EB', bg:'#DBEAFE', border:'#BFDBFE' },
+  approved:            { label:'Approved',     color:'#059669', bg:'#D1FAE5', border:'#A7F3D0' },
+  rejected:            { label:'Rejected',     color:'#DC2626', bg:'#FEE2E2', border:'#FECACA' },
+  enrolled:            { label:'Enrolled',     color:'#0D9488', bg:'#CCFBF1', border:'#99F6E4' },
+  waitlisted:          { label:'Waitlisted',   color:'#EA580C', bg:'#FFEDD5', border:'#FED7AA' },
+};
+
+function KPICard({ label, value, sub, color, bg, onClick, active }) {
+  return (
+    <div onClick={onClick} style={{
+      background: bg, border:`2px solid ${active ? color : 'transparent'}`,
+      borderRadius:14, padding:'14px 16px', cursor:onClick?'pointer':'default',
+      transition:'all 0.15s', flex:'1 1 0', minWidth:100,
+    }}>
+      <div style={{ fontSize:22, fontWeight:900, color }}>{value}</div>
+      <div style={{ fontSize:11, fontWeight:700, color, marginTop:2 }}>{label}</div>
+      {sub && <div style={{ fontSize:10, color:'#9CA3AF', marginTop:2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function EnrollModal({ app, onClose, onSuccess }) {
+  const [classes,   setClasses]  = React.useState([]);
+  const [enrolling, setEnrolling]= React.useState(false);
+
+  React.useEffect(()=>{
+    classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{});
+  },[]);
+
+  // Resolve class name from classes list
+  const resolveClass = () => {
+    if (!app.applyingForClass) return '—';
+    const cls = classes.find(c => c._id === app.applyingForClass);
+    return cls ? `${cls.name}${cls.section ? ' '+cls.section : ''}` : app.applyingForClass;
+  };
+
+  const handleEnroll = async () => {
+    setEnrolling(true);
+    try {
+      await api.post(`/admissions/${app._id}/enroll`, {
+        classId:    app.applyingForClass || '',
+        rollNumber: '',
+      });
+      toast.success(`✅ ${app.studentName} enrolled successfully!`);
+      onSuccess();
+    } catch(err) {
+      toast.error(err.response?.data?.message || 'Enrollment failed');
+    } finally { setEnrolling(false); }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.5)', padding:16 }}>
+      <div style={{ background:'#fff', borderRadius:16, width:'100%', maxWidth:420, boxShadow:'0 20px 60px rgba(0,0,0,0.2)', overflow:'hidden' }}>
+        {/* Header */}
+        <div style={{ padding:'18px 24px', borderBottom:'1px solid #E5E7EB', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#F0FDF4' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:16, color:'#065F46' }}>🎓 Enroll as Student</div>
+            <div style={{ fontSize:13, color:'#059669', marginTop:2 }}>{app.studentName}</div>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:8, border:'1px solid #D1FAE5', background:'#fff', cursor:'pointer', fontSize:18, color:'#6B7280' }}>×</button>
+        </div>
+
+        {/* Info */}
+        <div style={{ padding:'20px 24px' }}>
+          <div style={{ background:'#F8FAFC', borderRadius:12, padding:16, marginBottom:16, fontSize:13 }}>
+            {[
+              { label:'Student',     val: app.studentName || '—' },
+              { label:'Application', val: app.applicationNumber || '—' },
+              { label:'Class',       val: resolveClass() },
+              { label:'Parent',      val: `${app.parentName||'—'} · ${app.parentPhone||'—'}` },
+              { label:'Login Email', val: `${(app.studentName||'student').toLowerCase().replace(/\s+/g,'.').replace(/[^a-z0-9.]/g,'')}@futurestepschool.in` },
+              { label:'Password',    val: 'Student@123' },
+            ].map(r=>(
+              <div key={r.label} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start' }}>
+                <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', minWidth:90, paddingTop:1 }}>{r.label}</span>
+                <span style={{ fontSize:13, color:'#111827', fontWeight: r.label==='Password'||r.label==='Login Email' ? 700 : 400 }}>{r.val}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'10px 14px', fontSize:12, color:'#92400E' }}>
+            ℹ️ Student will be enrolled in the class they applied for. Login credentials shown above.
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ padding:'14px 24px', borderTop:'1px solid #E5E7EB', display:'flex', gap:10 }}>
+          <button onClick={onClose}
+            style={{ flex:1, padding:'11px', borderRadius:9, border:'1px solid #E5E7EB', background:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', color:'#6B7280' }}>
+            Cancel
+          </button>
+          <button onClick={handleEnroll} disabled={enrolling}
+            style={{ flex:2, padding:'11px', borderRadius:9, border:'none', background:enrolling?'#9CA3AF':'#059669', color:'#fff', fontSize:14, fontWeight:700, cursor:enrolling?'not-allowed':'pointer' }}>
+            {enrolling ? '⏳ Enrolling...' : '✓ Confirm Enrollment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppRow({ app, onView, onEdit, onDelete, onDownload, onStatusChange, onEnroll, onReject, onReopen, isAdmin, canEdit, classes }) {
+  const daysAgo = app.createdAt ? Math.floor((Date.now()-new Date(app.createdAt))/(1000*60*60*24)) : 0;
+  return (
+    <tr style={{ borderBottom:'0.5px solid #F3F4F6', cursor:'pointer', transition:'background 0.1s' }}
+      onMouseEnter={e=>e.currentTarget.style.background='#F8FAFF'}
+      onMouseLeave={e=>e.currentTarget.style.background='#fff'}
+      onClick={onView}>
+      <td style={{ padding:'12px 16px' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {(() => {
+            // Photo could be saved under different keys depending on which form
+            // wrote the record (`studentPhoto` from current form, `photo` from
+            // schema-declared field, `profilePhoto` from legacy imports).
+            const photo = app.studentPhoto || app.photo || app.profilePhoto || '';
+            return (
+              <div style={{ width:38, height:38, borderRadius:10, background: photo ? '#F3F4F6' : '#6366F1', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden' }}>
+                {photo
+                  ? <img src={photo} alt={app.studentName||''} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  : <span style={{ fontSize:15, fontWeight:700, color:'#fff' }}>{(app.studentName||'?')[0].toUpperCase()}</span>}
+              </div>
+            );
+          })()}
+          <div>
+            <div style={{ fontWeight:700, fontSize:13, color:'#111827' }}>{app.studentName}</div>
+            <div style={{ fontSize:11, color:'#9CA3AF', fontFamily:'monospace' }}>{app.applicationNumber}</div>
+            <div style={{ marginTop:3 }}>
+              {(()=>{
+                const sm = STATUS_META[app.status]||STATUS_META.pending;
+                return <span style={{ fontSize:10, fontWeight:700, color:sm.color, background:sm.bg, border:`1px solid ${sm.border}`, padding:'2px 8px', borderRadius:20 }}>{sm.label}</span>;
+              })()}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td style={{ padding:'12px 16px' }}>
+        <span style={{ fontWeight:700, fontSize:13, color:'#374151' }}>
+          {(() => {
+            const cls = classes.find(c => c._id === app.applyingForClass);
+            if (cls) return `${cls.name}${cls.section ? ' ' + cls.section : ''}`;
+            if (app.applyingForClass) return app.applyingForClass;
+            return '—';
+          })()}
+        </span>
+        {app.applyingForSection && <span style={{ color:'#9CA3AF' }}> – {app.applyingForSection}</span>}
+      </td>
+      <td style={{ padding:'12px 16px' }}>
+        <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>{app.parentName||'—'}</div>
+        <div style={{ fontSize:11, color:'#9CA3AF' }}>{app.parentPhone||''}</div>
+      </td>
+
+      <td style={{ padding:'12px 16px' }}>
+        <div style={{ fontSize:12, color:'#6B7280' }}>
+          {app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
+        </div>
+        {daysAgo > 0 && <div style={{ fontSize:10, color:'#9CA3AF' }}>{daysAgo}d ago</div>}
+      </td>
+
+      <td style={{ padding:'12px 16px' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+          <button onClick={onView}
+            style={{ fontSize:11, fontWeight:700, color:'#6366F1', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+            👁 View
+          </button>
+          <button onClick={()=>onDownload(app)}
+            style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#F0FDF4', border:'1px solid #BBF7D0', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+            ⬇ Download
+          </button>
+          {isAdmin && app.status==='pending' && (
+            <button onClick={()=>onStatusChange(app._id,'approved')}
+              style={{ fontSize:11, fontWeight:700, color:'#059669', background:'#D1FAE5', border:'1px solid #6EE7B7', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              ✓ Approve
+            </button>
+          )}
+          {isAdmin && app.status==='pending' && (
+            <button onClick={()=>onReject(app)}
+              style={{ fontSize:11, fontWeight:700, color:'#B91C1C', background:'#FEE2E2', border:'1px solid #FCA5A5', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              🚫 Reject
+            </button>
+          )}
+          {isAdmin && app.status==='rejected' && (
+            <button onClick={()=>onReopen(app)}
+              style={{ fontSize:11, fontWeight:700, color:'#6366F1', background:'#EEF2FF', border:'1px solid #C7D2FE', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              ↻ Reopen
+            </button>
+          )}
+          {canEdit && app.status!=='enrolled' && (
+            <button onClick={()=>onEnroll(app)}
+              style={{ fontSize:11, fontWeight:700, color:'#0D9488', background:'#CCFBF1', border:'1px solid #5EEAD4', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              🎓 Enroll
+            </button>
+          )}
+          {isAdmin && <>
+            <button onClick={()=>onEdit(app)}
+              style={{ fontSize:11, fontWeight:700, color:'#374151', background:'#F3F4F6', border:'1px solid #E5E7EB', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              ✎
+            </button>
+            <button onClick={()=>onDelete(app._id, app.studentName)}
+              style={{ fontSize:11, fontWeight:700, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'4px 10px', borderRadius:6, cursor:'pointer' }}>
+              ✕
+            </button>
+          </>}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+export default function Admissions() {
+  const { isAdmin, user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+  const canEdit = isAdmin || isTeacher;
+  const [applications, setApplications] = useState([]);
+  const [stats,        setStats]        = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [total,        setTotal]        = useState(0);
+  const [search,       setSearch]       = useState('');
+  const [statusFilter, setStatus]       = useState('');
+  const [classFilter,  setClass]        = useState('');
+  const [priorityFilter,setPriority]    = useState('');
+  const [sortBy,       setSortBy]       = useState('date_desc');
+  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateTo,       setDateTo]       = useState('');
+  const [page,         setPage]         = useState(1);
+  const [detailId,     setDetailId]     = useState(null);
+  const [formModal,    setFormModal]    = useState({ open:false, data:null });
+  const [enrollModal,  setEnrollModal]  = useState({ open:false, data:null });
+  const [rejectModal,  setRejectModal]  = useState({ open:false, app:null, reason:'' });
+  const [deleteModal,  setDeleteModal]  = useState({ open:false, id:null, name:'', input:'' });
+  const [classes,      setClasses]      = useState([]);
+  const limit = 20;
+
+  const downloadReceipt = (app) => {
+    const win = window.open('','_blank','width=820,height=950');
+
+    // ── Lookups & label maps ───────────────────────────────────────────────
+    const classObj = classes.find(c => c._id === app.applyingForClass);
+    const classDisplay = classObj
+      ? `${classObj.name}${classObj.section ? ' ' + classObj.section : ''}`
+      : (app.applyingForClass || '');
+
+    const orphanLabels = {
+      orphan: 'Orphan',
+      single_parent_mother: 'Single Parent (Mother)',
+      single_parent_father: 'Single Parent (Father)',
+      not_applicable: 'Not Applicable',
+    };
+    const yesNo = v => v === 'yes' ? 'Yes' : v === 'no' ? 'No' : '';
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    const esc = v => (v === null || v === undefined || v === '')
+      ? '—'
+      : String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+    // Father / mother data may be nested OR flat — fall back across both
+    const fatherName       = app.father?.name        || app.fatherName        || '';
+    const fatherOccupation = app.father?.occupation  || app.fatherOccupation  || '';
+    const fatherPhone      = app.father?.phone       || app.fatherPhone       || '';
+    const fatherAadhaar    = app.father?.aadhaar     || app.fatherAadhaar     || '';
+    const motherName       = app.mother?.name        || app.motherName        || '';
+    const motherOccupation = app.mother?.occupation  || app.motherOccupation  || '';
+    const motherPhone      = app.mother?.phone       || app.motherPhone       || '';
+    const motherAadhaar    = app.mother?.aadhaar     || app.motherAadhaar     || '';
+
+    // ── Documents ──────────────────────────────────────────────────────────
+    const stdDocsList = Object.entries(app.documents||{}).map(([k, v]) => {
+      const filled = v && (Array.isArray(v) ? v.length > 0
+        : typeof v === 'object' ? (v.submitted || v.url || v.data || (Array.isArray(v.files) && v.files.length))
+        : Boolean(v));
+      const niceName = k.replace(/([A-Z])/g,' $1').replace(/^./, c => c.toUpperCase()).trim();
+      return { name: niceName, filled };
+    });
+    const customDocsList = (app.customDocuments || [])
+      .filter(r => r && r.label)
+      .map(r => ({ name: r.label, filled: Array.isArray(r.files) && r.files.length > 0 }));
+    const allDocs = [...stdDocsList, ...customDocsList];
+    const filledCount = allDocs.filter(d => d.filled).length;
+
+    // ── Government IDs ─────────────────────────────────────────────────────
+    const govIds = (app.governmentIds || []).filter(r => r && (r.type || r.number));
+
+    // Address — handle both nested object and flat fields
+    const addrParts = [
+      app.address?.street  || (typeof app.address === 'string' ? app.address : ''),
+      app.address?.city    || app.city,
+      app.address?.state   || app.state,
+      app.address?.pincode || app.pincode,
+    ].filter(Boolean);
+
+    win.document.write(`
+      <html><head><title>Admission Receipt - ${esc(app.studentName)}</title>
+      <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family: Arial, sans-serif; padding: 22px; color: #111; font-size:11px; }
+        .header { text-align:center; border-bottom:3px solid #6366F1; padding-bottom:12px; margin-bottom:14px; }
+        .school-name { font-size:20px; font-weight:900; color:#1F2937; }
+        .school-sub { font-size:10px; color:#6B7280; margin-top:2px; }
+        .receipt-title { display:inline-block; margin-top:8px; padding:4px 14px; border:2px solid #6366F1; border-radius:6px; font-size:12px; font-weight:700; color:#6366F1; }
+        .app-no { margin:10px 0; text-align:center; background:#F8F8FF; border:1px solid #E0E0FF; border-radius:8px; padding:7px; font-size:11px; color:#374151; }
+        .app-no strong { color:#6366F1; font-size:13px; }
+        .status-badge { display:inline-block; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:700; background:#D1FAE5; color:#065F46; margin-left:6px; }
+        .section { margin-bottom:12px; page-break-inside:avoid; }
+        .section-title { font-size:10px; font-weight:700; color:#6366F1; text-transform:uppercase; letter-spacing:.08em; border-bottom:1.5px solid #E5E7EB; padding-bottom:4px; margin-bottom:7px; }
+        table { width:100%; border-collapse:collapse; font-size:10.5px; }
+        td { padding:4px 8px; border-bottom:0.5px solid #F3F4F6; vertical-align:top; }
+        td.lbl { color:#6B7280; width:22%; font-weight:600; }
+        td.val { color:#111827; }
+        .doc-grid { display:flex; flex-wrap:wrap; gap:4px; padding:3px 0; }
+        .doc-badge { padding:3px 8px; border-radius:20px; font-size:9.5px; font-weight:700; background:#EEF2FF; color:#4338CA; }
+        .doc-badge.missing { background:#F3F4F6; color:#9CA3AF; }
+        .footer { margin-top:18px; padding-top:10px; border-top:1.5px solid #E5E7EB; display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; font-size:10px; }
+        .sign-box { text-align:center; }
+        .sign-line { border-bottom:1px solid #374151; margin:18px auto 4px; width:120px; }
+        .notice { margin-top:12px; padding:7px 10px; background:#FFFBEB; border:1px solid #FDE68A; border-radius:7px; font-size:9.5px; color:#92400E; }
+        @page { margin:9mm; size:A4; }
+        @media print { body { padding:0; } }
+      </style></head><body>
+
+      <div class="header">
+        <div class="school-name">The Future Step School</div>
+        <div class="school-sub">Securing Future By Adaptive Learning | thefuturestepschool.in</div>
+        <div class="receipt-title">Admission Application Receipt</div>
+      </div>
+
+      <div class="app-no">
+        Application No: <strong>${esc(app.applicationNumber)}</strong>
+        <span class="status-badge">${esc((app.status||'submitted').toUpperCase())}</span>
+        &nbsp;|&nbsp;
+        Date: <strong>${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</strong>
+      </div>
+
+      <div class="section">
+        <div class="section-title">1. Student Information</div>
+        <table>
+          <tr>
+            <td class="lbl">First Name</td><td class="val">${esc(app.firstName)}</td>
+            <td class="lbl">Middle Name</td><td class="val">${esc(app.middleName)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Last Name</td><td class="val">${esc(app.lastName)}</td>
+            <td class="lbl">Full Name</td><td class="val"><strong>${esc(app.studentName)}</strong></td>
+          </tr>
+          <tr>
+            <td class="lbl">Class Applied</td><td class="val">${esc(classDisplay)}</td>
+            <td class="lbl">Registration No</td><td class="val">${esc(app.registrationNo)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Date of Admission</td><td class="val">${fmtDate(app.dateOfAdmission)}</td>
+            <td class="lbl">Academic Year</td><td class="val">${esc(app.academicYear)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Discount in Fee</td><td class="val">${app.discountInFee ? esc(app.discountInFee)+'%' : '—'}</td>
+            <td class="lbl">Mobile (SMS/WhatsApp)</td><td class="val">${esc(app.mobileForSMS)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Aadhaar Number</td><td class="val">${esc(app.aadhaarNumber)}</td>
+            <td class="lbl">Category</td><td class="val">${esc(app.category)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Non-Creamy Layer</td><td class="val">${esc(yesNo(app.nonCreamyLayer))}</td>
+            <td class="lbl">Email</td><td class="val">${esc(app.parentEmail || app.studentEmail)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">2. Other Information</div>
+        <table>
+          <tr>
+            <td class="lbl">Date of Birth</td><td class="val">${fmtDate(app.dateOfBirth)}</td>
+            <td class="lbl">Birth Form ID / NIC</td><td class="val">${esc(app.birthFormId)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Gender</td><td class="val">${esc(app.gender)}</td>
+            <td class="lbl">Orphan Status</td><td class="val">${esc(orphanLabels[app.orphanStudent] || app.orphanStudent)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Caste</td><td class="val">${esc(app.cast)}</td>
+            <td class="lbl">Religion</td><td class="val">${esc(app.religion)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Blood Group</td><td class="val">${esc(app.bloodGroup)}</td>
+            <td class="lbl">Total Siblings</td><td class="val">${esc(app.totalSiblings)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Nationality</td><td class="val">${esc(app.nationality)}</td>
+            <td class="lbl">Identification Mark</td><td class="val">${esc(app.identificationMark)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Disease (if any)</td><td class="val">${esc(app.disease)}</td>
+            <td class="lbl">Is Disabled?</td><td class="val">${esc(yesNo(app.isDisabled))}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Disability %</td><td class="val">${app.disabilityPercentage ? esc(app.disabilityPercentage)+'%' : '—'}</td>
+            <td class="lbl">Disability Type</td><td class="val">${esc(app.disabilityType)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Additional Note</td>
+            <td class="val" colspan="3">${esc(app.additionalNote)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">3. Parent / Guardian Information</div>
+        <table>
+          <tr>
+            <td class="lbl">Father's Name</td><td class="val">${esc(fatherName)}</td>
+            <td class="lbl">Father's Occupation</td><td class="val">${esc(fatherOccupation)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Father's Phone</td><td class="val">${esc(fatherPhone)}</td>
+            <td class="lbl">Father's Aadhaar</td><td class="val">${esc(fatherAadhaar)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Mother's Name</td><td class="val">${esc(motherName)}</td>
+            <td class="lbl">Mother's Occupation</td><td class="val">${esc(motherOccupation)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Mother's Phone</td><td class="val">${esc(motherPhone)}</td>
+            <td class="lbl">Mother's Aadhaar</td><td class="val">${esc(motherAadhaar)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Primary Contact</td><td class="val"><strong>${esc(app.parentName)}</strong></td>
+            <td class="lbl">Contact Phone</td><td class="val"><strong>${esc(app.parentPhone)}</strong></td>
+          </tr>
+          <tr>
+            <td class="lbl">Email</td>
+            <td class="val" colspan="3">${esc(app.parentEmail)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Address</td>
+            <td class="val" colspan="3">${esc(addrParts.join(', '))}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">4. Government IDs</div>
+        ${govIds.length ? `
+        <table>
+          ${govIds.map(g => `
+            <tr>
+              <td class="lbl">${esc(g.type)}</td>
+              <td class="val" colspan="3">${esc(g.number)}</td>
+            </tr>`).join('')}
+        </table>` : `<div style="font-size:10.5px;color:#9CA3AF;padding:4px 0">No Government IDs added</div>`}
+      </div>
+
+      <div class="section">
+        <div class="section-title">5. Bank Details</div>
+        <table>
+          <tr>
+            <td class="lbl">Account Holder</td><td class="val">${esc(app.bankAccountHolder)}</td>
+            <td class="lbl">Bank Name</td><td class="val">${esc(app.bankName)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Branch Name</td><td class="val">${esc(app.bankBranchName)}</td>
+            <td class="lbl">IFSC Code</td><td class="val">${esc(app.bankIfsc)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Account Number</td><td class="val">${esc(app.bankAccountNumber)}</td>
+            <td class="lbl">Branch Address</td><td class="val">${esc(app.bankBranchAddress)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <div class="section-title">6. Documents Submitted (${filledCount} / ${allDocs.length})</div>
+        <div class="doc-grid">
+          ${allDocs.length
+            ? allDocs.map(d => `<span class="doc-badge${d.filled ? '' : ' missing'}">${d.filled ? '✓' : '○'} ${esc(d.name)}</span>`).join('')
+            : '<span style="color:#9CA3AF;font-size:10.5px">No documents in checklist</span>'}
+        </div>
+        ${app.addressProofType ? `
+          <div style="margin-top:6px;font-size:10px;color:#6B7280">
+            Address Proof type: <strong style="color:#374151">${esc(app.addressProofType === '__other__' ? (app.addressProofTypeOther || 'Other') : app.addressProofType)}</strong>
+          </div>` : ''}
+      </div>
+
+      <div class="section">
+        <div class="section-title">7. Additional Information</div>
+        <table>
+          <tr>
+            <td class="lbl">Priority</td><td class="val">${esc(app.priority)}</td>
+            <td class="lbl">Source</td><td class="val">${esc(app.source)}</td>
+          </tr>
+          <tr>
+            <td class="lbl">Referred By</td><td class="val">${esc(app.referredBy)}</td>
+            <td class="lbl">Notes</td><td class="val">${esc(app.notes)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="notice">
+        ⚠️ This is a preliminary application receipt. Admission is confirmed only after document verification and approval by the school administration.
+      </div>
+
+      <div class="footer">
+        <div class="sign-box">
+          <div style="font-weight:700;margin-bottom:4px">Prepared By</div>
+          <div class="sign-line"></div>
+          <div>The Future Step School</div>
+        </div>
+        <div class="sign-box">
+          <div style="font-weight:700;margin-bottom:4px">Parent / Guardian Signature</div>
+          <div class="sign-line"></div>
+          <div>${esc(app.parentName)}</div>
+        </div>
+        <div class="sign-box">
+          <div style="font-weight:700;margin-bottom:4px">Received By</div>
+          <div class="sign-line"></div>
+          <div>School Admin</div>
+        </div>
+      </div>
+      </body></html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(()=>win.print(),600);
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { page, limit };
+      if (search)         params.search = search;
+      if (statusFilter)   params.status = statusFilter;
+      if (classFilter)    params.applyingForClass = classFilter;
+      if (priorityFilter) params.priority = priorityFilter;
+      if (sortBy)         params.sort = sortBy;
+      if (dateFrom)       params.dateFrom = dateFrom;
+      if (dateTo)         params.dateTo = dateTo;
+      const [res, statsRes] = await Promise.all([
+        admissionAPI.getAll(params),
+        admissionAPI.getStats(),
+      ]);
+      setApplications(res.data.data);
+      setTotal(res.data.total);
+      setStats(statsRes.data.data);
+    } catch { toast.error('Failed to load admissions'); }
+    finally { setLoading(false); }
+  }, [search, statusFilter, classFilter, priorityFilter, sortBy, dateFrom, dateTo, page]);
+
+  useEffect(() => { classAPI.getAll().then(r=>setClasses(r.data.data||[])).catch(()=>{}); }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, classFilter, priorityFilter, sortBy, dateFrom, dateTo]);
+
+  const handleStatusChange = async (id, status) => {
+    try {
+      await admissionAPI.updateStatus(id, { status });
+      toast.success(`Status updated to ${status}`);
+      load();
+    } catch { toast.error('Failed to update status'); }
+  };
+
+  // ── TC-ADM-05 — Reject opens a modal asking for reason ────────────────────
+  const handleReject = (app) => {
+    setRejectModal({ open: true, app, reason: '' });
+  };
+
+  const confirmReject = async () => {
+    const { app, reason } = rejectModal;
+    const trimmed = (reason || '').trim();
+    if (!trimmed) {
+      toast.error('Please enter a reason for rejection');
+      return;
+    }
+    try {
+      await admissionAPI.updateStatus(app._id, { status: 'rejected', rejectionReason: trimmed });
+      toast.success(`Application rejected: ${app.studentName || app.applicationNumber}`);
+      setRejectModal({ open: false, app: null, reason: '' });
+      load();
+    } catch {
+      toast.error('Failed to reject. Please try again.');
+    }
+  };
+
+  // ── TC-ADM — Delete now requires typing the student's name to confirm ────
+  const handleDelete = (id, name) => {
+    setDeleteModal({ open: true, id, name: name || '', input: '' });
+  };
+
+  // Names in the database sometimes contain double spaces (e.g. "himanshu  ashok
+  // thelari"). Collapse all runs of whitespace so a normally-typed name matches.
+  const normalizeName = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  const confirmDelete = async () => {
+    const { id, name, input } = deleteModal;
+    // Case-insensitive, whitespace-tolerant match
+    const expected = normalizeName(name);
+    const typed    = normalizeName(input);
+    if (!expected) {
+      // Fallback for records without a student name — treat as opt-in via "DELETE"
+      if (typed !== 'delete') {
+        toast.error('Type DELETE to confirm');
+        return;
+      }
+    } else if (typed !== expected) {
+      toast.error("Name doesn't match. Type the student's name exactly.");
+      return;
+    }
+    try {
+      await admissionAPI.delete(id);
+      toast.success('Admission permanently deleted');
+      setDeleteModal({ open: false, id: null, name: '', input: '' });
+      load();
+    } catch (err) {
+      // Surface the real reason — a generic message hides permission/404 errors.
+      const msg = err?.response?.data?.message
+        || (err?.response ? `Server error (${err.response.status})` : 'Could not reach the server');
+      console.error('Admission delete failed:', err?.response?.data || err);
+      toast.error(`Delete failed: ${msg}`);
+    }
+  };
+
+  // ── TC-ADM-06 — Reopen rejected admission ────────────────────────────────
+  const handleReopen = async (app) => {
+    const name = app.studentName || app.applicationNumber;
+    if (!window.confirm(`Reopen application for ${name}? Status will change back to Pending.`)) return;
+    try {
+      await admissionAPI.updateStatus(app._id, { status: 'pending' });
+      toast.success(`Reopened: ${name}. Now in Pending.`);
+      load();
+    } catch {
+      toast.error('Failed to reopen. Please try again.');
+    }
+  };
+
+  const s = stats?.status || {};
+  const convRate = s.conversionRate || 0;
+  const pipeline = [
+    { key:'',                    label:`All (${s.total||0})` },
+    { key:'pending',             label:`Pending (${s.pending||0})` },
+    { key:'under_review',        label:`Review (${s.under_review||0})` },
+    { key:'approved',            label:`Approved (${s.approved||0})` },
+    { key:'enrolled',            label:`Enrolled (${s.enrolled||0})` },
+    { key:'rejected',            label:`Rejected (${s.rejected||0})` },
+    { key:'waitlisted',          label:`Waitlisted (${s.waitlisted||0})` },
+  ];
+
+  const SEL = { padding:'7px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:12, background:'#fff', outline:'none' };
+
+  return (
+    <div className="animate-fade-in">
+      {/* ── Header ── */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20, flexWrap:'wrap', gap:12 }}>
+        <div>
+          <h1 className="font-display text-3xl text-ink">🎓 Admissions</h1>
+          <p className="text-sm text-muted mt-1">{fmt(total)} applications · {s.enrolled||0} enrolled · {convRate}% conversion rate</p>
+        </div>
+        {isAdmin && (
+          <button onClick={()=>setFormModal({open:true,data:null})}
+            style={{ padding:'10px 22px', borderRadius:10, background:'#6366F1', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer' }}>
+            + New Application
+          </button>
+        )}
+      </div>
+
+      {/* ── KPI Cards ── */}
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:20 }}>
+        {[
+          { label:'Total',       value:s.total||0,       color:'#374151', bg:'#F9FAFB', sub:null },
+          { label:'Pending',     value:s.pending||0,     color:'#D97706', bg:'#FEF3C7', sub:'awaiting review' },
+          { label:'Under Review',value:s.under_review||0,color:'#2563EB', bg:'#DBEAFE', sub:'being assessed' },
+          { label:'Approved',    value:s.approved||0,    color:'#059669', bg:'#D1FAE5', sub:'ready to enroll' },
+          { label:'Enrolled',    value:s.enrolled||0,    color:'#0D9488', bg:'#CCFBF1', sub:'admitted' },
+          { label:'Rejected',    value:s.rejected||0,    color:'#DC2626', bg:'#FEE2E2', sub:null },
+          { label:'Conversion',  value:`${convRate}%`,   color:'#6366F1', bg:'#EEF2FF', sub:'approval rate' },
+        ].map(k=>(
+          <KPICard key={k.label} {...k}
+            active={statusFilter===(k.label==='Total'?'':k.label.toLowerCase().replace(' ','_'))}
+            onClick={()=>{
+              if(k.label==='Total'||k.label==='Conversion') setStatus('');
+              else setStatus(Object.keys(STATUS_META).find(key=>STATUS_META[key].label===k.label)||'');
+            }}/>
+        ))}
+      </div>
+
+      {/* ── Pipeline tabs ── */}
+      <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:14, background:'#F3F4F6', borderRadius:10, padding:4 }}>
+        {pipeline.map(p=>(
+          <button key={p.key} onClick={()=>setStatus(p.key)}
+            style={{ padding:'7px 14px', borderRadius:8, fontSize:12, fontWeight:700, border:'none', cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s',
+              background:statusFilter===p.key?'#6366F1':'transparent',
+              color:statusFilter===p.key?'#fff':'#6B7280' }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Filters ── */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14, padding:'12px 16px', background:'#F8FAFC', borderRadius:12, alignItems:'center' }}>
+        <input placeholder="🔍 Search name, App#, parent, phone…" value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ ...SEL, minWidth:260 }}/>
+        <select value={classFilter} onChange={e=>setClass(e.target.value)} style={SEL}>
+          <option value="">All Classes</option>
+          {classes.map(c=><option key={c._id} value={c._id}>{c.name}{c.section ? ' '+c.section : ''}</option>)}
+        </select>
+        <select value={priorityFilter} onChange={e=>setPriority(e.target.value)} style={SEL}>
+          <option value="">All Priority</option>
+          <option value="urgent">🔴 Urgent</option>
+          <option value="high">🟠 High</option>
+          <option value="normal">⚪ Normal</option>
+        </select>
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={SEL} title="Sort by">
+          <option value="date_desc">📅 Newest first</option>
+          <option value="date_asc">📅 Oldest first</option>
+          <option value="name_asc">🔤 Name A → Z</option>
+          <option value="name_desc">🔤 Name Z → A</option>
+        </select>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' }}>From</span>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
+                 style={{ ...SEL, minWidth:130 }} title="Show admissions on or after this date" />
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'0.05em' }}>To</span>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
+                 style={{ ...SEL, minWidth:130 }} title="Show admissions on or before this date" />
+        </div>
+        {(search||statusFilter||classFilter||priorityFilter||dateFrom||dateTo||sortBy!=='date_desc') && (
+          <button onClick={()=>{setSearch('');setStatus('');setClass('');setPriority('');setDateFrom('');setDateTo('');setSortBy('date_desc');}}
+            style={{ fontSize:12, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', padding:'6px 12px', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
+            ✕ Clear all
+          </button>
+        )}
+        <div style={{ marginLeft:'auto', fontSize:12, color:'#9CA3AF', fontWeight:600 }}>
+          {fmt(total)} results
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      {loading ? (
+        <div style={{ padding:48, textAlign:'center', color:'#9CA3AF' }}>⏳ Loading...</div>
+      ) : applications.length > 0 && (
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          {(true) && (
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ background:'#0B1F4A' }}>
+                  {['Applicant','Class','Parent / Contact','Applied','Actions'].map(h=>(
+                    <th key={h} style={{ padding:'11px 16px', textAlign:'left', color:'#E2E8F0', fontSize:10, fontWeight:700, textTransform:'uppercase', whiteSpace:'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map(app=>(
+                  <AppRow key={app._id} app={app} isAdmin={isAdmin} canEdit={canEdit} classes={classes}
+                    onView={()=>setDetailId(app._id)}
+                    onEdit={(a)=>setFormModal({open:true,data:a})}
+                    onDelete={handleDelete}
+                    onDownload={(a)=>downloadReceipt(a)}
+                    onStatusChange={handleStatusChange}
+                    onEnroll={(a)=>setEnrollModal({open:true,data:a})}
+                    onReject={handleReject}
+                    onReopen={handleReopen}/>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )}
+
+          {/* Pagination */}
+        {total > limit && (
+          <div style={{ padding:'12px 16px', borderTop:'0.5px solid #F3F4F6', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:12, color:'#6B7280' }}>
+            <span>Showing {(page-1)*limit+1}–{Math.min(page*limit,total)} of {fmt(total)}</span>
+            <div style={{ display:'flex', gap:6 }}>
+              <button disabled={page===1} onClick={()=>setPage(p=>p-1)}
+                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:page===1?'not-allowed':'pointer', color:page===1?'#D1D5DB':'#374151' }}>← Prev</button>
+              {[...Array(Math.min(5,Math.ceil(total/limit)))].map((_,i)=>(
+                <button key={i} onClick={()=>setPage(i+1)}
+                  style={{ padding:'6px 12px', borderRadius:7, border:'1px solid', borderColor:page===i+1?'#6366F1':'#E5E7EB', background:page===i+1?'#6366F1':'#fff', color:page===i+1?'#fff':'#374151', cursor:'pointer', fontWeight:page===i+1?700:400 }}>
+                  {i+1}
+                </button>
+              ))}
+              <button disabled={page>=Math.ceil(total/limit)} onClick={()=>setPage(p=>p+1)}
+                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid #E5E7EB', background:'#fff', cursor:page>=Math.ceil(total/limit)?'not-allowed':'pointer', color:page>=Math.ceil(total/limit)?'#D1D5DB':'#374151' }}>Next →</button>
+            </div>
+          </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Modals ── */}
+      {detailId && (
+        <AdmissionDetailModal id={detailId}
+          onClose={()=>{setDetailId(null);load();}}/>
+      )}
+      {formModal.open && (
+        <AdmissionFormModal initial={formModal.data}
+          onClose={()=>setFormModal({open:false,data:null})}
+          onSuccess={()=>{setFormModal({open:false,data:null});load();}}/>
+      )}
+
+      {enrollModal.open && enrollModal.data && (
+        <EnrollModal
+          app={enrollModal.data}
+          onClose={()=>setEnrollModal({open:false,data:null})}
+          onSuccess={()=>{ setEnrollModal({open:false,data:null}); load(); }}
+        />
+      )}
+
+      {/* ── TC-ADM-05 Reject Reason Modal ── */}
+      {rejectModal.open && rejectModal.app && (
+        <div onClick={()=>setRejectModal({open:false,app:null,reason:''})}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex',
+                   alignItems:'center', justifyContent:'center', zIndex:200, padding:16 }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:500,
+                     boxShadow:'0 25px 50px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+            <div style={{ padding:'18px 22px', borderBottom:'1px solid #FECACA', background:'#FEF2F2' }}>
+              <div style={{ fontSize:16, fontWeight:800, color:'#B91C1C' }}>🚫 Reject Application</div>
+              <div style={{ fontSize:12, color:'#7F1D1D', marginTop:3 }}>
+                {rejectModal.app.studentName || rejectModal.app.applicationNumber}
+              </div>
+            </div>
+            <div style={{ padding:'20px 22px' }}>
+              <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#374151',
+                              textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>
+                Reason for rejection <span style={{ color:'#DC2626' }}>*</span>
+              </label>
+              <textarea
+                autoFocus
+                value={rejectModal.reason}
+                onChange={e=>setRejectModal(prev=>({ ...prev, reason:e.target.value }))}
+                placeholder="e.g. Class quota full, Documents incomplete, Did not meet age requirement…"
+                style={{ width:'100%', minHeight:100, padding:'10px 12px',
+                         border:'1.5px solid #E5E7EB', borderRadius:10, fontSize:13,
+                         fontFamily:'inherit', resize:'vertical', boxSizing:'border-box',
+                         color:'#111827', outline:'none' }}
+                onKeyDown={(e)=>{ if (e.key === 'Escape') setRejectModal({open:false,app:null,reason:''}); }}
+              />
+              <div style={{ fontSize:11, color:'#6B7280', marginTop:6 }}>
+                The reason will be saved with the application and shown if reopened later.
+              </div>
+            </div>
+            <div style={{ padding:'14px 22px', background:'#F9FAFB', borderTop:'1px solid #E5E7EB',
+                          display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button
+                onClick={()=>setRejectModal({open:false,app:null,reason:''})}
+                style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                         background:'#F3F4F6', border:'1px solid #E5E7EB', color:'#374151',
+                         cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={confirmReject}
+                disabled={!rejectModal.reason.trim()}
+                style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                         background: rejectModal.reason.trim() ? '#DC2626' : '#FCA5A5',
+                         color:'#fff', border:'none',
+                         cursor: rejectModal.reason.trim() ? 'pointer' : 'not-allowed' }}>
+                Confirm Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Permanent Confirmation Modal ── */}
+      {deleteModal.open && (
+        <div onClick={()=>setDeleteModal({open:false,id:null,name:'',input:''})}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', display:'flex',
+                   alignItems:'center', justifyContent:'center', zIndex:200, padding:16 }}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{ background:'#fff', borderRadius:14, width:'100%', maxWidth:520,
+                     boxShadow:'0 25px 50px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+            <div style={{ padding:'18px 22px', borderBottom:'1px solid #FECACA', background:'#FEF2F2' }}>
+              <div style={{ fontSize:16, fontWeight:800, color:'#B91C1C' }}>⚠ Permanent Delete</div>
+              <div style={{ fontSize:12, color:'#7F1D1D', marginTop:3 }}>
+                This action cannot be undone.
+              </div>
+            </div>
+            <div style={{ padding:'20px 22px' }}>
+              <div style={{ fontSize:13, color:'#374151', lineHeight:1.55, marginBottom:14 }}>
+                You are about to <b>permanently delete</b> the admission record for{' '}
+                <b style={{ color:'#111827' }}>{deleteModal.name || '(unnamed applicant)'}</b>.
+                The record will be gone forever and cannot be restored.
+              </div>
+              <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8,
+                            padding:'10px 12px', marginBottom:14, fontSize:12, color:'#92400E' }}>
+                💡 If you only want to mark this applicant as not accepted, use{' '}
+                <b>🚫 Reject</b> instead — that's reversible.
+              </div>
+              <label style={{ display:'block', fontSize:12, fontWeight:700, color:'#374151',
+                              letterSpacing:'0.05em', marginBottom:6 }}>
+                <span style={{ textTransform:'uppercase' }}>Type</span>{' '}
+                <span style={{ color:'#DC2626', fontFamily:'monospace', background:'#FEE2E2', padding:'2px 8px', borderRadius:4 }}>
+                  {deleteModal.name || 'DELETE'}
+                </span>
+                {' '}<span style={{ textTransform:'uppercase' }}>to confirm (case-insensitive)</span>
+              </label>
+              <input
+                autoFocus
+                value={deleteModal.input}
+                onChange={e=>setDeleteModal(prev=>({ ...prev, input:e.target.value }))}
+                placeholder={deleteModal.name || 'DELETE'}
+                style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #E5E7EB',
+                         borderRadius:10, fontSize:13, fontFamily:'inherit',
+                         boxSizing:'border-box', color:'#111827', outline:'none' }}
+                onKeyDown={(e)=>{
+                  if (e.key === 'Escape') setDeleteModal({open:false,id:null,name:'',input:''});
+                  if (e.key === 'Enter') confirmDelete();
+                }}
+              />
+            </div>
+            <div style={{ padding:'14px 22px', background:'#F9FAFB', borderTop:'1px solid #E5E7EB',
+                          display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button
+                onClick={()=>setDeleteModal({open:false,id:null,name:'',input:''})}
+                style={{ padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                         background:'#F3F4F6', border:'1px solid #E5E7EB', color:'#374151',
+                         cursor:'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={
+                  deleteModal.name
+                    ? normalizeName(deleteModal.input) !== normalizeName(deleteModal.name)
+                    : normalizeName(deleteModal.input) !== 'delete'
+                }
+                style={{
+                  padding:'8px 18px', borderRadius:8, fontSize:13, fontWeight:700,
+                  color:'#fff', border:'none',
+                  ...(((deleteModal.name && normalizeName(deleteModal.input) === normalizeName(deleteModal.name)) ||
+                      (!deleteModal.name && normalizeName(deleteModal.input) === 'delete'))
+                    ? { background:'#DC2626', cursor:'pointer' }
+                    : { background:'#FCA5A5', cursor:'not-allowed' }),
+                }}>
+                🗑 Permanently Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

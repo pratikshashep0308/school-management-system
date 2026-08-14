@@ -1,0 +1,80 @@
+// backend/routes/feeRoutes.js
+const express = require('express');
+const router  = express.Router();
+const { protect, authorize } = require('../middleware/auth');
+const ctrl = require('../controllers/feeController');
+const categoryReport = require('../controllers/feeCategoryReportController');
+// analytics is added as ctrl.getAnalytics
+
+router.use(protect);
+
+const ADMIN = ['superAdmin', 'schoolAdmin', 'accountant'];
+const STAFF = ['superAdmin', 'schoolAdmin', 'accountant', 'teacher'];
+
+// ─── Named routes FIRST (before /:id params) ─────────────────────────────────
+
+// Dashboard
+router.get('/dashboard',      authorize(...ADMIN), ctrl.getDashboard);
+router.get('/recent-payments', authorize(...ADMIN), ctrl.getRecentPayments);
+router.get('/analytics',      authorize(...ADMIN), ctrl.getAnalytics);   // ← NEW: school-wide analytics
+
+// Summary & analytics (existing — kept)
+router.get('/summary',        authorize(...ADMIN), ctrl.getOverallSummary);
+router.get('/class-summary',  authorize(...ADMIN), ctrl.getClassSummary);
+router.get('/students',       authorize(...ADMIN), ctrl.getStudentsFees);
+
+// Category-wise report: one row per student with expected/paid/pending for each
+// fee type. Separate from /students, which powers the existing report and
+// several other screens — reshaping that would put this work in the path of
+// every caller, including ones that only need a total.
+router.get('/category-report', authorize(...ADMIN), categoryReport.getCategoryReport);
+
+// Export
+router.get('/export',         authorize(...ADMIN), ctrl.exportFees);
+
+// ── Fee edit approval workflow (request → another admin approves) ───────────
+router.get('/edit-requests',                     authorize(...ADMIN), ctrl.getFeeEditRequests);
+router.post('/edit-requests/:id/review',         authorize('superAdmin', 'schoolAdmin'), ctrl.reviewFeeEditRequest);
+router.post('/payments/:receiptNumber/edit-request', authorize(...ADMIN), ctrl.requestPaymentEdit);
+
+// Fee Types (new)
+router.get('/types',          ctrl.getFeeTypes);
+router.post('/types',         authorize(...ADMIN), ctrl.createFeeType);
+router.put('/types/:id',      authorize(...ADMIN), ctrl.updateFeeType);
+router.delete('/types/:id',   authorize(...ADMIN), ctrl.deleteFeeType);
+
+// Fee Assignments (new)
+router.get('/assignments',             authorize(...ADMIN), ctrl.getAssignments);
+router.post('/assignments',            authorize(...ADMIN), ctrl.createAssignment);
+router.post('/generate-transport',     authorize(...ADMIN), ctrl.generateTransportFees);
+router.put('/assignments/:id',         authorize(...ADMIN), ctrl.updateAssignment);
+router.delete('/assignments/:id',      authorize(...ADMIN), ctrl.deleteAssignment);
+router.post('/assignments/:id/pay',    authorize(...ADMIN), ctrl.payAssignment);
+
+// Fee Structures (existing)
+router.get('/structures',       ctrl.getStructures);
+router.post('/structures',      authorize(...ADMIN), ctrl.createStructure);
+router.put('/structures/:id',   authorize(...ADMIN), ctrl.updateStructure);
+
+// Ledger setup (existing)
+router.post('/setup-ledger',    authorize(...ADMIN), ctrl.setupClassLedger);
+
+// Payment (existing + alias)
+router.post('/pay',             authorize(...ADMIN), ctrl.recordPayment);
+router.post('/payments',        authorize(...ADMIN), ctrl.recordPayment);  // alias used by frontend
+
+// Receipt — JSON + PDF download (existing + new)
+router.get('/receipt/:receiptNumber/pdf', ctrl.downloadReceipt);
+router.get('/receipt/:receiptNumber',     ctrl.getReceipt);
+
+// Delete a payment (admin only) — by receipt number
+router.delete('/payment/:receiptNumber', authorize(...ADMIN), ctrl.deletePayment);
+
+// Delete a fee ledger (admin only) — single + bulk
+router.delete('/ledger/:id',         authorize(...ADMIN), ctrl.deleteStudentFee);
+router.post('/ledger/bulk-delete',   authorize(...ADMIN), ctrl.bulkDeleteStudentFees);
+
+// Student ledger — student can see own (existing)
+router.get('/student/:studentId', ctrl.getStudentFee);
+
+module.exports = router;
