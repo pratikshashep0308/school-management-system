@@ -115,9 +115,42 @@ function checkPermission(moduleKey) {
       // afterwards, so a role can never gain more than the route permits.
       return next();
     } catch (err) {
-      // Never take the API down because of a permission-lookup failure.
-      console.error('[checkPermission] error:', err.message);
-      return next();
+      // ── ADR-13 — authorization infrastructure failure FAILS CLOSED ──────────
+      // Previously this returned next(), allowing the request. A transient error
+      // during permission resolution (matrix lookup, role resolution) must NOT
+      // grant access: an authorization layer that cannot decide must deny.
+      //
+      // The client receives a generic 403 with no internal detail. The full
+      // error is audited server-side, never returned.
+      const safeRef = `authz-${Date.now().toString(36)}`;
+      console.error(`[checkPermission] authorization failure ${safeRef}:`, err.message);
+
+      // Record the infrastructure failure per the audit policy. Best-effort and
+      // itself wrapped, so an audit failure cannot turn a deny back into an allow.
+      try {
+        const auditService = require('../services/auditService');
+        await auditService.audit({
+          actor: req.user?._id || null,
+          actorRoleSnapshot: req.user?.role || null,
+          action: 'authorization.failure',
+          module: moduleKey,
+          // No before/after state, and crucially no error internals or secrets.
+          before: null,
+          after: null,
+          source: 'checkPermission',
+          school: req.user?.school || null,
+          meta: { ref: safeRef, reason: 'authorization_dependency_error' },
+        });
+      } catch (auditErr) {
+        // Deny regardless. The audit is secondary to the security decision.
+        console.error(`[checkPermission] audit of ${safeRef} failed:`, auditErr.message);
+      }
+
+      return res.status(403).json({
+        success: false,
+        message: 'Authorization could not be verified for this request.',
+        ref: safeRef,
+      });
     }
   };
 }

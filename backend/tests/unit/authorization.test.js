@@ -158,11 +158,17 @@ describe('FP-043 — access-control auditing at the route handler', () => {
     expect(handlerSrc).toMatch(/action: 'permission\.matrix\.update'/);
   });
 
-  test('checkPermission does NOT audit — it runs on every request', () => {
+  test('checkPermission audits ONLY the failure path, not every request', () => {
+    // Per ADR-13, checkPermission audits authorization *failures* (the catch
+    // block), but must not audit on the normal allow/deny path — that would emit
+    // an entry per gated request. Verify the audit call sits inside the catch.
     const mwSrc = require('fs').readFileSync(
       require('path').resolve(__dirname, '../../middleware/checkPermission.js'), 'utf8');
-    // Logging here would emit an entry per gated request.
-    expect(mwSrc).not.toMatch(/auditService\.audit/);
+    const catchIdx = mwSrc.indexOf('} catch (err) {');
+    const auditIdx = mwSrc.indexOf('auditService.audit');
+    expect(auditIdx).toBeGreaterThan(catchIdx); // audit is inside the catch
+    // The normal branch returns next() without auditing: no audit call before the catch.
+    expect(mwSrc.slice(0, catchIdx)).not.toMatch(/auditService\.audit/);
   });
 
   test('the audit before/after mapping strips everything except role and permissions', () => {
