@@ -1,5 +1,7 @@
 // backend/controllers/attendanceController.js
 const mongoose  = require('mongoose');
+const attendanceThresholds = require('../config/attendanceThresholds');
+const School = require('../models/School');
 const { Attendance, Class, Notification, AttendanceSubmission } = require('../models/index');
 const Student   = require('../models/Student');
 const {
@@ -355,7 +357,11 @@ exports.getOverview = async (req, res) => {
 
 // ── GET /api/attendance/low-attendance — students below threshold ──────────────
 exports.getLowAttendance = async (req, res) => {
-  const { threshold = 75, classId, month, year } = req.query;
+  // R-3: the default comes from School.aiThresholds, not a literal. An explicit
+  // query parameter still overrides it for ad hoc reporting.
+  const schoolDoc = await School.findById(req.user.school).lean();
+  const { warningPct } = attendanceThresholds.resolveThresholds(schoolDoc);
+  const { threshold = warningPct, classId, month, year } = req.query;
   const m = month || (new Date().getMonth() + 1);
   const y = year  || new Date().getFullYear();
 

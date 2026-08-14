@@ -26,26 +26,73 @@ async function resolveStudent(req) {
       .populate('class', 'name grade section');
   }
   if (req.user.role === 'parent') {
-    // Primary: match by parent ObjectId (set when student is created with parentEmail)
-    let child = await Student.findOne({ parentId: req.user._id })
-      .populate('user', 'name email phone profileImage')
-      .populate('class', 'name grade section');
+    // ── FP-052 · GAP-PA-004 — multi-child resolution ────────────────────────
+    // This used findOne, so a parent with two children only ever saw one. The
+    // ParentDashboard child-switcher UI already exists (pages/ParentDashboard.js
+    // lines 298, 361, 455-481) and was rendering with at most one entry to
+    // switch between — the defect was here, in the backend, not in the UI.
+    //
+    // The same single-child assumption appears elsewhere; routes/homeworkRoutes.js:40
+    // carries a comment recording it being fixed there independently.
+    const children = await resolveChildren(req);
+    if (children.length === 0) return null;
 
-    // Fallback for legacy students: match by parentEmail string field
-    if (!child) {
-      child = await Student.findOne({ parentEmail: req.user.email, school: req.user.school })
-        .populate('user', 'name email phone profileImage')
-        .populate('class', 'name grade section');
-
-      // If found via email fallback, backfill the parent ObjectId so future lookups are fast
-      if (child) {
-        await Student.findByIdAndUpdate(child._id, { parentId: req.user._id, parent: req.user._id });
-        child.parent = req.user._id;
+    // An explicit childId selects; otherwise the first child is the default so
+    // existing single-child callers behave exactly as before.
+    const requested = req.query.childId || req.body?.childId;
+    if (requested) {
+      const match = children.find((c) => String(c._id) === String(requested));
+      if (!match) {
+        const err = new Error('CHILD_NOT_LINKED: that student is not linked to this parent.');
+        err.status = 403;
+        throw err;
       }
+      return match;
     }
-    return child;
+    return children[0];
   }
   return null;
+}
+
+/**
+ * Every student linked to the authenticated parent.
+ *
+ * FP-052 · GAP-PA-004. Student.parentId has always supported one-parent-to-many
+ * at the data level; only the query was single-child.
+ *
+ * Two linkage paths are supported, as before: the parentId ObjectId (set when a
+ * student is created with a parentEmail) and a legacy parentEmail string match.
+ * The email fallback backfills parentId so subsequent lookups use the index.
+ *
+ * @returns {Promise<Array>} deduplicated, roll-number ordered. Never null.
+ */
+async function resolveChildren(req) {
+  if (!req.user || req.user.role !== 'parent') return [];
+
+  const byId = await Student.find({ parentId: req.user._id })
+    .populate('user', 'name email phone profileImage')
+    .populate('class', 'name grade section')
+    .sort({ rollNumber: 1 });
+
+  const byEmail = await Student.find({
+    parentEmail: req.user.email,
+    school: req.user.school,
+    _id: { $nin: byId.map((c) => c._id) },
+  })
+    .populate('user', 'name email phone profileImage')
+    .populate('class', 'name grade section')
+    .sort({ rollNumber: 1 });
+
+  // Backfill so the email path is a one-time cost per student.
+  for (const child of byEmail) {
+    await Student.findByIdAndUpdate(child._id, {
+      parentId: req.user._id,
+      parent: req.user._id,
+    });
+    child.parent = req.user._id;
+  }
+
+  return [...byId, ...byEmail];
 }
 
 // ── GET /api/student/profile ─────────────────────────────────────────────────
@@ -247,7 +294,8 @@ exports.getDashboard = async (req, res) => {
       .populate('class', 'name grade section');
   } else {
     // parent — primary lookup by ObjectId
-    student = await Student.findOne({ parentId: req.user._id })
+    // FP-052 · GAP-PA-004 — honour the selected child rather than the first match.
+    student = await resolveStudent(req) || await Student.findOne({ parentId: req.user._id })
       .populate('user',  'name email phone profileImage')
       .populate('class', 'name grade section');
 
@@ -421,3 +469,7 @@ exports.getDashboard = async (req, res) => {
     },
   });
 };
+
+// FP-052: exported so the portal endpoint can return the full children array
+// that the existing ParentDashboard switcher already expects.
+module.exports.resolveChildren = resolveChildren;

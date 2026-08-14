@@ -47,6 +47,33 @@ const MeetingSchema = new mongoose.Schema({
   description: String,
   type:        { type: String, enum: MEETING_TYPES, default: 'other' },
 
+  // ── TFS-EOS delta additions — GAP-PLC-001, decision M-01 ───────────────────
+  // MeetingSchema is declared `strict: false` at the bottom of this file for
+  // forward compatibility. That is fine for genuinely unknown future fields, but
+  // it means a KNOWN field written without a declaration is accepted with no
+  // validation at all — a typo such as 'plc ' or 'PCL' would reach the database
+  // and never match a query.
+  //
+  // M-01: these two are declared EXPLICITLY so meetingSubtype is enum-validated.
+  // `strict: false` must not be relied upon for them.
+  //
+  // The enum carries only the value the approved requirement defines. No further
+  // workflow states are invented here (see also R-1, which declines to invent
+  // action-item statuses for the same reason).
+  meetingSubtype: {
+    type: String,
+    enum: {
+      values: ['plc', null],
+      message: 'MEETING_SUBTYPE_INVALID: `{VALUE}` is not an approved meeting subtype.',
+    },
+    default: null,
+  },
+
+  // Free-form per GAP-PLC-001 — the lesson-study cycle structure is not
+  // enumerated by any approved requirement, so it is stored as-is rather than
+  // constrained to invented states.
+  lessonStudyCycle: { type: mongoose.Schema.Types.Mixed, default: null },
+
   // When — startTime is the canonical anchor; endTime computed from duration
   // but stored so range queries (e.g. "meetings overlapping this hour") are fast.
   startTime:   { type: Date, required: true },
