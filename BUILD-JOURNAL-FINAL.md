@@ -140,3 +140,71 @@ A parent with one child behaves exactly as before — asserted as a regression t
 | F E2E | **NOT EXECUTED — ENVIRONMENT UNAVAILABLE** |
 | G Security | Partial — static and unit portions pass |
 | H Regression | PASS — all six characterisation guarantees green |
+
+---
+
+## DOMAIN & SERVICES tier — FP-034, FP-035, FP-036, FP-037
+
+**Commit `19d86ad`** · 412 tests, 19 suites, 0 failures
+
+### FP-034 — rolloverService
+
+Carries forward exactly two things (D-003). The new year is created as **draft**,
+not active: promotion needs it to exist before it can set `toAcademicYear`, but it
+must not activate until it begins.
+
+The Class model is stubbed to record any write attempt and the test asserts zero — D-002
+compliance is proven, not claimed.
+
+Maharashtra's year crosses a calendar boundary, so a June holiday shifts into the start
+year and a January one into the following year. **29 February is clamped to 28 in a
+non-leap year and reported**, rather than silently becoming 1 March and moving a school
+closure by a day.
+
+### FP-035 — historicalEnrolmentService
+
+The central assertion is negative. `Class.students[]` would return today's cohort
+labelled as last year's — not a partial answer but a wrong one that looks plausible. The
+Class model is stubbed to record access and every test asserts it is never touched.
+
+The first-year fallback is labelled `derived`, never `transition-backed`, so a caller can
+distinguish evidence from inference.
+
+### FP-036 — examResultProvider
+
+The single seam between assessment and promotion, which is what makes D-001 enforceable
+rather than aspirational — one place to check.
+
+Legacy `Result` reads are recorded against a stubbed model and asserted empty.
+
+**Retest resolution.** Policy is read from the **retest** group, not the original: a
+school decides "this counts as best-of" when scheduling the retest, and the original exam
+was set before anyone knew one would be needed. Chained retests resolve against the
+**full set**, not pairwise — pairwise `best` would discard a higher earlier mark, tested
+explicitly with 30 → 80 → 50 expecting 80.
+
+### FP-037 — promotionService
+
+All ten mandated integrity checks covered. **Live transaction validation remains
+ENVIRONMENT VALIDATION PENDING**; the unit tests use a mocked session and prove the call
+sequence, not that MongoDB honoured it.
+
+One transaction per **batch**, with one `$pull` and one `$addToSet` per class pair.
+Forty per-student transactions on the same `Class.students[]` document would produce
+write conflicts; D-004 mandates atomicity, not per-student granularity.
+
+`$addToSet` rather than `$push` makes a repeated target write idempotent by construction.
+
+The membership pre-condition converts a silent `$pull` no-op into
+`PROMOTION_SOURCE_MEMBERSHIP_MISMATCH`. Without it a promotion over drifted data would
+report success.
+
+**No fallback to sequential writes.** Forcing `startSession()` to fail is asserted to
+throw `TRANSACTIONS_UNAVAILABLE` naming the single-node remedy, having written nothing.
+
+### Defects found and fixed before commit
+
+| Defect | Resolution |
+|---|---|
+| Test required `models/Class`, which is registered by `models/index.js` | Corrected the require |
+| The anti-fallback assertion matched **its own explanatory comment** | Replaced with a behavioural test that forces `startSession()` to fail |
