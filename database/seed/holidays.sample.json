@@ -1,0 +1,25 @@
+{
+  "_comment": "Holiday import file for TFS-EOS. Copy to holidays.json and edit.",
+  "_fields": {
+    "label": "REQUIRED. Shown to the teacher when attendance marking is blocked.",
+    "date": "REQUIRED. yyyy-mm-dd. First day of the holiday.",
+    "endDate": "OPTIONAL. yyyy-mm-dd. Last day of a multi-day break. Omit for a single day. A range is ONE entry, not one per day.",
+    "recurringAnnually": "OPTIONAL, default false. TRUE only for fixed-date holidays that fall on the same calendar date every year. This flag is the ONLY thing year-end rollover carries forward.",
+    "type": "OPTIONAL, default 'school'. One of: national, regional, religious, school, other."
+  },
+  "_recurringWarning": "Festival dates that move with the lunar calendar (Diwali, Eid, Holi, Dussehra) must have recurringAnnually FALSE. Marking them true would carry the wrong date into next year, silently reopening the defect this feature fixes.",
+  "holidays": [
+    { "label": "Republic Day",      "date": "2027-01-26", "recurringAnnually": true,  "type": "national" },
+    { "label": "Independence Day",  "date": "2026-08-15", "recurringAnnually": true,  "type": "national" },
+    { "label": "Gandhi Jayanti",    "date": "2026-10-02", "recurringAnnually": true,  "type": "national" },
+    { "label": "Christmas Day",     "date": "2026-12-25", "recurringAnnually": true,  "type": "religious" },
+
+    { "label": "Diwali break",      "date": "2026-11-06", "endDate": "2026-11-12", "recurringAnnually": false, "type": "religious" },
+    { "label": "Holi",              "date": "2027-03-13", "recurringAnnually": false, "type": "religious" },
+    { "label": "Dussehra",          "date": "2026-10-20", "recurringAnnually": false, "type": "religious" },
+
+    { "label": "Summer vacation",   "date": "2027-05-01", "endDate": "2027-06-15", "recurringAnnually": false, "type": "school" },
+    { "label": "Winter break",      "date": "2026-12-24", "endDate": "2027-01-01", "recurringAnnually": false, "type": "school" },
+    { "label": "Founders Day",      "date": "2026-09-12", "recurringAnnually": true,  "type": "school" }
+  ]
+}
