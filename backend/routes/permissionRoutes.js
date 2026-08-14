@@ -169,3 +169,10 @@ router.post('/reset', authorize('superAdmin', 'schoolAdmin'), async (req, res) =
 });
 
 module.exports = router;
+
+// BP-002: expose the permission registry for the startup assertion and for tests.
+// Attached as properties on the router (a function) so `require(...)` continues to
+// return a mountable router and server.js is unaffected.
+module.exports.MODULES = MODULES;
+module.exports.ROLES = ROLES;
+module.exports.DEFAULT_GRANTS = DEFAULT_GRANTS;

@@ -124,38 +124,17 @@ require('./models/Salary');
 //   'none' → 403 on everything      'read' → 403 on POST/PUT/PATCH/DELETE
 //   'edit'/'admin' → allowed        (superAdmin always bypasses)
 // Routes with no module key (auth, portals, uploads) are never matrix-gated.
-const routes = [
-  ['/api/auth',           './routes/authRoutes'],
-  ['/api/students',       './routes/studentRoutes',      'students'],
-  ['/api/student-portal', './routes/studentPortalRoutes'],
-  ['/api/teachers',       './routes/teacherRoutes',      'teachers'],
-  ['/api/classes',        './routes/classRoutes',        'classes'],
-  ['/api/subjects',       './routes/subjectRoutes',      'subjects'],
-  ['/api/attendance',     './routes/attendanceRoutes',   'attendance'],
-  ['/api/exams',          './routes/examRoutes',         'exams'],
-  ['/api/exams-adv',      './routes/examAdvancedRoutes', 'exams'],
-  ['/api/fees',           './routes/feeRoutes',          'fees'],
-  ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
-  ['/api/homework',       './routes/homeworkRoutes',     'homework'],
-  ['/api/school',         './routes/schoolRoutes'],
-  ['/api/salary',         './routes/salaryRoutes',       'salary'],
-  ['/api/timetable',      './routes/timetableRoutes',    'timetable'],
-  ['/api/assignments',    './routes/assignmentRoutes',   'assignments'],
-  ['/api/library',        './routes/libraryRoutes',      'library'],
-  ['/api/transport',      './routes/transportRoutes',    'transport'],
-  ['/api/notifications',  './routes/notificationRoutes', 'notifications'],
-  ['/api/admissions',     './routes/admissionRoutes',    'admissions'],
-  ['/api/dashboard',      './routes/dashboardRoutes',    'dashboard'],
-  ['/api/reports',        './routes/reportRoutes',       'reports'],
-  ['/api/class-fee-templates', './routes/classFeeTemplateRoutes', 'fees'],
-  ['/api/meetings',       './routes/meetingRoutes',      'meetings'],
-  ['/api/admins',         './routes/adminRoutes',        'settings'],
-  ['/api/permissions',    './routes/permissionRoutes'],   // NOT matrix-gated:
-  //   every role must be able to READ its own permissions or the sidebar breaks.
-  //   Write access (PUT/POST) is restricted inside the route by authorize().
-  ['/api/behavioural-notes', './routes/behaviouralNoteRoutes', 'behaviourNotes'],
-  ['/api/uploads',        './routes/uploadRoutes'],
-];
+const { ROUTE_TABLE } = require('./config/routeTable');
+const routes = [...ROUTE_TABLE];
+
+// BP-002: fail fast if any mounted moduleKey is absent from the MODULES registry.
+// checkPermission fails open, so an unregistered key would silently leave that
+// route group ungoverned by the access-control matrix.
+const { assertModuleKeys } = require('./utils/assertModuleKeys');
+const { MODULES: REGISTERED_MODULES } = require('./routes/permissionRoutes');
+assertModuleKeys(routes, REGISTERED_MODULES);
+console.log('✅ Access-control module keys verified');
+
 
 // ─── FMS plugin (additive, toggleable) ───────────────────────────────────────
 // Mounted ONLY when FMS_ENABLED=true. When off, nothing is required, no FMS
