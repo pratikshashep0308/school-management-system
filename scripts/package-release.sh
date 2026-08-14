@@ -47,14 +47,22 @@ tar cf - \
   --exclude=BUILD-EVIDENCE --exclude=frontend/build --exclude=dist \
   backend frontend database scripts config \
   ecosystem.config.js INSTALLATION-GUIDE.md BUILD-MANIFEST.json \
-  README.md CHANGELOG.md RELEASE-NOTES.md 2>/dev/null \
+  README.md CHANGELOG.md RELEASE-NOTES.md \
+  MODE-B-VALIDATION-GUIDE.md RELEASE-MANIFEST.json 2>/dev/null \
   | (cd "$DEST" && tar xf -)
 
 mkdir -p "$DEST/docs"
-for f in INSTALLATION-GUIDE.md HOLIDAY-CALENDAR-GUIDE.md BUILD-JOURNAL.md FINAL-BUILD-VERIFICATION.md CHANGELOG.md RELEASE-NOTES.md; do
+for f in INSTALLATION-GUIDE.md HOLIDAY-CALENDAR-GUIDE.md BUILD-JOURNAL.md FINAL-BUILD-VERIFICATION.md CHANGELOG.md RELEASE-NOTES.md MODE-B-VALIDATION-GUIDE.md; do
   [ -f "$f" ] && cp "$f" "$DEST/docs/"
 done
 cp backend/.env.example "$DEST/.env.example" 2>/dev/null
+
+# Include the release audit reports (readiness, consistency, FP-096) so the
+# package is self-documenting about what was and was not validated.
+mkdir -p "$DEST/BUILD"
+for f in FINAL-RELEASE-READINESS-REPORT.md FINAL-CONSISTENCY-CHECK.md FP-096-RESULT.md FP-095-RELEASE-PACKAGE-REPORT.md FP-092-REGRESSION-REPORT.md; do
+  [ -f "BUILD/$f" ] && cp "BUILD/$f" "$DEST/BUILD/"
+done
 
 echo "-- secret scan"
 # Placeholders are permitted; real credentials are not. USERNAME:PASSWORD and
