@@ -208,3 +208,50 @@ throw `TRANSACTIONS_UNAVAILABLE` naming the single-node remedy, having written n
 |---|---|
 | Test required `models/Class`, which is registered by `models/index.js` | Corrected the require |
 | The anti-fallback assertion matched **its own explanatory comment** | Replaced with a behavioural test that forces `startSession()` to fail |
+
+---
+
+## DATABASE tier close-out — FP-020, FP-021, FP-022, FP-023, FP-025
+
+**Commit `c2fc283`** · 492 tests, 23 suites, 0 failures
+
+FP-020 PassportEntry: safeguarding is enforced in `parentVisibleFilter()`, which excludes
+wellbeing entries by **type as well as visibility** — a wellbeing entry mis-set to
+`parent` still cannot leak. GAP-SIS-001 resolves to *no* new field: `Student.learningPassportId`
+is not created, because entries are queried by `student` and a pointer would be a second
+representation able to drift.
+
+FP-021 subject models: the misconception flag is derived by `computeFlagged`, run on both
+validate and save and exposed as a static — not left in a `pre('validate')` hook that
+`validateSync()` skips.
+
+FP-022 Insight rejects any record without an explanation or a source reference; Consent is
+append-only across save and the four query update paths. Insight *generation* stays
+ADR-11-pending (FP-080).
+
+FP-023 NotificationProviderConfig carries **no plaintext credential field at all** — only
+`credentialsRef`. `toSafeJSON` returns a `credentialConfigured` boolean and the reference
+never appears in output.
+
+FP-025 migration: the canonical mongosh migration is retained; a programmatic twin at
+`database/lib/stamp-academic-year.js` carries identical logic as a Node module so the
+pre-flight, dry-run and idempotency behaviour is unit-tested with a fake db handle. The
+**pre-flight refuses** if any record predates the active year — `Result` has no date of its
+own, so a mis-stamp is unrecoverable and refusing is the only safe behaviour. Neither file
+has been executed against a real MongoDB: **ENVIRONMENT VALIDATION PENDING**.
+
+### SEC-001 recorded
+
+`checkPermission` fails open at **five** paths, not four — the `catch` block (error → allow)
+at line 120 is the fifth and most consequential, since a transient DB error during permission
+lookup results in the request being allowed. Documented as **RELEASE RISK / DECISION REQUIRED**
+(proposed ADR-13), explicitly not PASS and not FAIL. Full analysis in
+`BUILD-EVIDENCE/SECURITY-FINDING-SEC-001-checkPermission-failopen.md`.
+
+### Defects found and fixed
+
+| Defect | Resolution |
+|---|---|
+| `NumeracyMisconception.flagged` set only in `pre('validate')`, which `validateSync()` skips | Moved to a deterministic `computeFlagged` static, run on validate and save |
+| My Node-style 002 **overwrote the canonical mongosh 002** and added a duplicate dash-named rollback, breaking `buildArtifacts.test.js` | Restored the canonical migration; kept the tested logic as `database/lib/stamp-academic-year.js`; repointed the suite |
+| Two model tests used `validateSync()` / `enumValues` incorrectly | Corrected to behavioural assertions |
