@@ -139,6 +139,47 @@ describe('installation scripts', () => {
   });
 });
 
+describe('portability — no hardcoded local path in any generated artifact', () => {
+  const generated = [
+    ...DB_SCRIPTS,
+    ...SH.flatMap((n) => [`scripts/${n}.sh`, `scripts/${n}.ps1`]),
+    'scripts/package-release.sh',
+    'scripts/package-release.ps1',
+    'database/seed/import-holidays.js',
+    'config/academic-year-2026-27.env',
+  ];
+
+  test.each(generated)('%s contains no hardcoded user directory', (p) => {
+    const src = read(p);
+    // A build artifact that embeds one person's home directory is not portable,
+    // leaks the machine layout of whoever produced it, and breaks for everyone
+    // else. Placeholders and environment variables are fine; literals are not.
+    expect(src).not.toMatch(/C:\\Users\\(?!YourName|<)[A-Za-z]/);
+    expect(src).not.toMatch(/\/home\/(?!claude\b)[a-z]+\/(Desktop|Documents)/);
+  });
+
+  test('the release packager takes its destination as a parameter', () => {
+    const sh = read('scripts/package-release.sh');
+    expect(sh).toMatch(/--out/);
+    expect(sh).toMatch(/TFS_RELEASE_OUTPUT_DIR/);
+    expect(sh).toMatch(/NO PATH IS HARDCODED/);
+    const ps = read('scripts/package-release.ps1');
+    expect(ps).toMatch(/\$OutDir/);
+    expect(ps).toMatch(/TFS_RELEASE_OUTPUT_DIR/);
+  });
+
+  test('the release packager refuses to ship a package containing a local path', () => {
+    expect(read('scripts/package-release.sh')).toMatch(/local path scan/);
+    expect(read('scripts/package-release.sh')).toMatch(/exit 3/);
+    expect(read('scripts/package-release.ps1')).toMatch(/local path scan/);
+  });
+
+  test('stray shell-redirect output files are gitignored', () => {
+    const ig = read('.gitignore');
+    expect(ig).toMatch(/^3000$/m);
+  });
+});
+
 describe('secret scan — no credential in any generated artifact', () => {
   const files = [...DB_SCRIPTS, ...SH.flatMap((n) => [`scripts/${n}.sh`, `scripts/${n}.ps1`])];
 
