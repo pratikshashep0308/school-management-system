@@ -41,6 +41,10 @@ const ROUTE_TABLE = [
   ['/api/quality',        ['./routes/tfsApiRoutes', 'qualityRouter'],      'quality'],
   ['/api/notification-config', ['./routes/tfsApiRoutes', 'notificationRouter'], 'notificationConfig'],
   ['/api/audit-console',  ['./routes/tfsApiRoutes', 'auditRouter'],        'auditConsole'],
+  // FP-071 offline sync — no moduleKey: the per-operation handlers enforce
+  // their own authorization, so a matrix gate on the batch endpoint would be
+  // both redundant and wrong (it would gate on one key for many op types).
+  ['/api/sync',           './routes/syncRoutes',         null],
   ['/api/fees',           './routes/feeRoutes',          'fees'],
   ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
   ['/api/homework',       './routes/homeworkRoutes',     'homework'],
