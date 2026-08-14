@@ -282,9 +282,19 @@ describe('FP-090 — observable invariants after a real promotion run', () => {
 });
 
 describe('FP-090 — GAP-AI-005 structural proof', () => {
-  // The insight service is FP-080 (ADR-11). This dependency-direction proof is
-  // enabled once that module exists; marked skip so the gap shows in the report.
-  test.skip('DEPENDENCY PENDING (FP-080/ADR-11): insight service does not import Result/BehaviouralNote/enrolment models', () => {});
+  // The insight service is FP-080 (ADR-11). Now that it exists, prove by the
+  // import graph — not by comment — that it cannot reach raw record models.
+  test('insight service does not import Result/BehaviouralNote/enrolment models', () => {
+    const svcPath = require.resolve('../../services/insightService');
+    delete require.cache[svcPath];
+    require(svcPath);
+    const mod = require.cache[svcPath];
+    const forbidden = ['models/Result', 'models/BehaviouralNote', 'models/Student', 'models/PromotionRecord', 'models/Class'];
+    const children = mod.children.map((c) => c.id.replace(/\\/g, '/'));
+    children.forEach((child) => {
+      forbidden.forEach((f) => expect(child).not.toContain(f));
+    });
+  });
 
   test('the promotion engine does not accept an Insight as input (structural)', () => {
     // The promotion service must never couple to the insight layer — an insight
