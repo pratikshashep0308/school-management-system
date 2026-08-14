@@ -19,7 +19,7 @@ const FORM_EMPTY = { name:'', class:'', subject:'', examType:'unit', date:'', st
 const daysUntil  = d => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null;
 
 // ── Inline modal (avoids scroll issues with Modal component) ──────────────────
-function ExamFormModal({ form, setForm, onSave, onClose, saving, classes, subjects }) {
+function ExamFormModal({ form, setForm, onSave, onClose, saving, classes, subjects, examTypes = [] }) {
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const INP = { width:'100%', padding:'9px 12px', border:'1.5px solid #E5E7EB', borderRadius:8, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:'inherit', background:'#fff' };
   const LBL = { fontSize:11, fontWeight:700, display:'block', marginBottom:5, color:'#374151', textTransform:'uppercase', letterSpacing:'0.05em' };
@@ -673,6 +673,9 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
 // MAIN
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Exams() {
+  // The school's configured exam types. ExamGroup.examType is a REFERENCE to
+  // one of these, so the form must offer the real records rather than strings.
+  const [examTypes, setExamTypes] = useState([]);
   const [searchParams] = useSearchParams();
   const initialClass = searchParams.get('class') || '';
   const { isAdmin, isTeacher } = useAuth();
@@ -811,7 +814,7 @@ export default function Exams() {
       {tab==='setup'     && isAdmin && <ExamSetup />}
       {tab==='timetable' && <ExamTimetable exams={exams} classes={classes} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} initialClass={initialClass}/>}
 
-      {modal && <ExamFormModal form={form} setForm={setForm} onSave={handleSave} onClose={()=>{setModal(false);setForm(FORM_EMPTY);}} saving={saving} classes={classes} subjects={subjects}/>}
+      {modal && <ExamFormModal form={form} setForm={setForm} onSave={handleSave} onClose={()=>{setModal(false);setForm(FORM_EMPTY);}} saving={saving} classes={classes} subjects={subjects} examTypes={examTypes}/>}
     </div>
   );
 }
