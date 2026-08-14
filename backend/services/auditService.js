@@ -36,7 +36,7 @@ function diff(before, after) {
  * @param {object} [entry.actor]        User document or {_id, name, role}
  * @param {string} entry.action         e.g. 'PROMOTION_CONFIRMED'
  * @param {string} entry.module         moduleKey the action belongs to
- * @param {object} [entry.recordRef]    {collection, id}
+ * @param {object} [entry.recordRef]    {collectionName, id}
  * @param {object} [entry.before]       prior state (updates only)
  * @param {object} [entry.after]        new state
  * @param {string} [entry.source]       'ui'|'api'|'job'|'sync'|'migration'

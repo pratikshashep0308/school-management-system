@@ -26,7 +26,7 @@ const AuditLogSchema = new mongoose.Schema(
     module: { type: String, required: true },
 
     recordRef: {
-      collection: { type: String },
+      collectionName: { type: String },
       id: { type: mongoose.Schema.Types.ObjectId },
     },
 
