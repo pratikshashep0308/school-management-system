@@ -102,3 +102,87 @@ unregistered key becomes a startup failure instead of a silent matrix bypass.
 | Static — syntax, secret scan | PASS |
 | Local unit | PASS (39 total) |
 | Environment | NOT APPLICABLE |
+
+---
+
+## BP-010 / 012 / 013 / 014 / 030 / 031 — Calendar cluster and AuditLog
+
+| | |
+|---|---|
+| Files added | `models/AcademicYear.js`, `models/Holiday.js`, `models/SpecialEvent.js`, `models/AuditLog.js`, `services/auditService.js`, `services/calendarService.js`, plus unit suites |
+| Files modified | `services/attendanceService.js`, `controllers/attendanceController.js` |
+| Requirement IDs | GAP-CAL-001, GAP-CAL-002, GAP-CAL-006, GAP-CAL-007, GAP-CAL-009, GAP-CAL-010, GAP-CAL-011, GAP-AUD-001 |
+| LLD sections | §10.2, §10.8, §14, §17.2, §21, §28.1, Appendix R R.2.4–R.2.6, Appendix S §S.4 |
+| Commit | `b00b939` |
+
+**The defect being fixed.** `const schoolHolidays = {}` had a setter with no
+callers anywhere in the backend, so `isHoliday()` evaluated to
+`isWeekend(date) || false` — Sunday-only in practice. Every real school holiday
+was invisible, attendance was markable on festival days, and those absences fed
+consecutive-absence and sub-75% parent alerts as genuine truancy.
+
+**Design decisions taken.** ONE async helper, not two: LLD §17.2.2 named both a
+rewired `isHoliday()` and a parallel `isNonInstructionalDay()` without choosing,
+and two helpers with overlapping semantics would recreate the duplicated-check
+pattern that caused the original defect. `isHoliday()` is retained as a
+deprecated delegating wrapper; `setHolidays()` is a warning no-op so any unseen
+consumer fails loudly.
+
+The helper is **async**, so all three call sites are now awaited. The
+Specification's claim that call sites require no change is incorrect.
+
+`isNonInstructionalDay()` **fails closed** — if the calendar cannot be read,
+attendance marking is blocked. `checkAndSendAlerts` **fails open** by contrast,
+falling back to unfiltered counting with a loud log, because suppressing every
+parent alert would be worse than an occasional false positive.
+
+`getOverview` now returns `unmarked: 0` with a reason on non-instructional days.
+BR-CAL-03 said "suppress reminder", but no reminder mechanism exists in the
+codebase — the behaviour that actually needed changing was the unconditional
+`unmarked` computation, which produced a full-school alarm on every holiday.
+
+`excused` now leaves the sub-75% denominator entirely. Previously it counted in
+the denominator but not the numerator, silently penalising authorised absence.
+
+**Tests: 61 passed.** Both directions proven — a five-day festival break raises
+no alert, and a genuine five-day absence still does.
+
+---
+
+## Database and installation packages
+
+| | |
+|---|---|
+| Files added | `database/migrations/001`, `001.rollback`, `002`, `002.rollback`; `database/indexes/create-indexes.js`; `database/seed/seed-module-keys.js`; `database/validation/validate-db.js`; 8 `scripts/*.sh`; 8 `scripts/*.ps1` |
+| Requirement IDs | GAP-CAL-001, GAP-CAL-002, GAP-CAL-006, GAP-IAM-001, GAP-IAM-002, BR-SIS-04 |
+| LLD sections | §9, §10.2, §21, §26, Appendix S §S.6.1, §S.11.1 |
+
+**Safety properties built in.** Migration 002 runs the IR-H-06 pre-flight FIRST
+and **refuses** to stamp a school whose records predate the active year, rather
+than blanket-stamping them — `results` carries no date of its own, so a
+mis-stamped `academicYearId` could never be recovered. A dry-run mode is provided.
+
+Migration 001's rollback **refuses** to drop calendar collections that contain
+user-entered holidays.
+
+The index script never calls `dropIndex`. The Class unique index on
+`{name, section, school}` is protected by D-002 and is untouched.
+
+The seed never lowers or overwrites an existing grant — an administrator's
+settings survive re-runs.
+
+`check-mongodb` verifies replica-set capability and explains that a **single-node**
+replica set is sufficient, so nobody provisions hardware they do not need.
+
+Academic-year dates are **not defaulted anywhere**. Both the migration and the
+installer refuse to run without them, and a static test asserts no hardcoded
+year literal was introduced.
+
+**Tests: 67 passed** on the artifact gate, including a secret scan across all 22
+generated files.
+
+| Gate | Result |
+|---|---|
+| Static — syntax, structure, secret scan | PASS (67) |
+| Local unit | PASS (128 total) |
+| Environment — migration execution against MongoDB | NOT EXECUTED — ENVIRONMENT UNAVAILABLE |
