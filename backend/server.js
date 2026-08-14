@@ -156,7 +156,16 @@ const checkPermission = require('./middleware/checkPermission');
 
 routes.forEach(([path, file, moduleKey]) => {
   try {
-    const router = require(file);
+    // `file` is normally a module path. For the TFS-EOS aggregated routers it is
+    // a [modulePath, namedExport] tuple, because several routers share one file.
+    let router;
+    if (Array.isArray(file)) {
+      const [modulePath, exportName] = file;
+      router = require(modulePath)[exportName];
+      if (!router) throw new Error(`named export '${exportName}' not found in ${modulePath}`);
+    } else {
+      router = require(file);
+    }
     if (moduleKey) {
       // Enforce the Access Control matrix, then the route's own authorize().
       app.use(path, checkPermission(moduleKey), router);

@@ -30,6 +30,17 @@ const ROUTE_TABLE = [
   // ── TFS-EOS delta API routes (FP-050, FP-052) ──────────────────────────────
   ['/api/academic-calendar', './routes/academicCalendarRoutes', 'academicCalendar'],
   ['/api/sis',            './routes/sisRoutes',          'promotion'],
+
+  // ── TFS-EOS delta API (FP-053..FP-059) ─────────────────────────────────────
+  // Each sub-router is exported from routes/tfsApiRoutes.js; server.js resolves
+  // the named export. moduleKeys already registered in permissionRoutes MODULES.
+  ['/api/curriculum',     ['./routes/tfsApiRoutes', 'curriculumRouter'],   'curriculum'],
+  ['/api/lesson-plans',   ['./routes/tfsApiRoutes', 'plannerRouter'],      'lessonPlans'],
+  ['/api/passport',       ['./routes/tfsApiRoutes', 'passportRouter'],     'passport'],
+  ['/api/subject-modules',['./routes/tfsApiRoutes', 'subjectRouter'],      'subjectModules'],
+  ['/api/quality',        ['./routes/tfsApiRoutes', 'qualityRouter'],      'quality'],
+  ['/api/notification-config', ['./routes/tfsApiRoutes', 'notificationRouter'], 'notificationConfig'],
+  ['/api/audit-console',  ['./routes/tfsApiRoutes', 'auditRouter'],        'auditConsole'],
   ['/api/fees',           './routes/feeRoutes',          'fees'],
   ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
   ['/api/homework',       './routes/homeworkRoutes',     'homework'],
