@@ -229,3 +229,27 @@ fully undone.
 Migrations are idempotent — re-running an applied migration is a no-op. To roll
 back a stage, run its rollback script, then `git checkout` the prior commit.
 Each build stage is a separate commit for exactly this reason.
+
+## 16. Build machine vs target machine
+
+The **build machine** produced this package (source, tests, ZIP, checksum) and
+has no database. All database and runtime steps in this guide run on the
+**target deployment machine**, or a machine with network access to the target
+MongoDB. Never point the build machine's scripts at a production database.
+
+## 17. Security configuration
+
+- Set a strong `JWT_SECRET` in `backend/.env` (never commit it; `.env` is
+  gitignored and excluded from the package).
+- Provide `MONGO_URI` with least-privilege credentials scoped to the target
+  database. There is no localhost fallback — a missing `MONGO_URI` stops the run.
+- Notification, translation, and LLM providers are unconfigured boundaries
+  (ADR-05/10/11). Configure them only when the corresponding decision is resolved.
+
+## 18. MODE-B runtime validation
+
+After installation, follow `MODE-B-VALIDATION-GUIDE.md` to validate the running
+system against the real environment (connectivity, transactions, migration
+execution, promotion transaction behaviour, rollback, audit, authorization).
+Until MODE-B is executed against the target, treat the release as
+**BUILD COMPLETE — RUNTIME ENVIRONMENT VALIDATION PENDING**.
