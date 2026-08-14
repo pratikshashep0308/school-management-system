@@ -46,11 +46,12 @@ tar cf - \
   --exclude=node_modules --exclude=.git --exclude=.env \
   --exclude=BUILD-EVIDENCE --exclude=frontend/build --exclude=dist \
   backend frontend database scripts config \
-  ecosystem.config.js INSTALLATION-GUIDE.md BUILD-MANIFEST.json 2>/dev/null \
+  ecosystem.config.js INSTALLATION-GUIDE.md BUILD-MANIFEST.json \
+  README.md CHANGELOG.md RELEASE-NOTES.md 2>/dev/null \
   | (cd "$DEST" && tar xf -)
 
 mkdir -p "$DEST/docs"
-for f in INSTALLATION-GUIDE.md HOLIDAY-CALENDAR-GUIDE.md BUILD-JOURNAL.md FINAL-BUILD-VERIFICATION.md; do
+for f in INSTALLATION-GUIDE.md HOLIDAY-CALENDAR-GUIDE.md BUILD-JOURNAL.md FINAL-BUILD-VERIFICATION.md CHANGELOG.md RELEASE-NOTES.md; do
   [ -f "$f" ] && cp "$f" "$DEST/docs/"
 done
 cp backend/.env.example "$DEST/.env.example" 2>/dev/null
