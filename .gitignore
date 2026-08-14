@@ -17,3 +17,4 @@ frontend/.env.production
 # local Windows paths into the repository and the release package.
 3000
 *.log.tmp
+frontend/node_modules/
