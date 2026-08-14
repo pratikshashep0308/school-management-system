@@ -26,6 +26,10 @@ const ROUTE_TABLE = [
   // entry without also granting legacy access. examsAdvanced mirrors the exams
   // grant in DEFAULT_GRANTS, so no existing user loses access on deploy.
   ['/api/exams-adv',      './routes/examAdvancedRoutes', 'examsAdvanced'],
+
+  // ── TFS-EOS delta API routes (FP-050, FP-052) ──────────────────────────────
+  ['/api/academic-calendar', './routes/academicCalendarRoutes', 'academicCalendar'],
+  ['/api/sis',            './routes/sisRoutes',          'promotion'],
   ['/api/fees',           './routes/feeRoutes',          'fees'],
   ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
   ['/api/homework',       './routes/homeworkRoutes',     'homework'],
