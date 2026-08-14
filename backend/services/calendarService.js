@@ -37,6 +37,7 @@
 const mongoose = require('mongoose');
 require('../models/Holiday');
 require('../models/SpecialEvent');
+require('../models/AcademicYear');
 
 /** Sunday is a non-instructional day independently of the persisted calendar. */
 const SUNDAY = 0;
@@ -72,7 +73,8 @@ const cacheKey = (schoolId, date) =>
  * @param {*} schoolId
  * @param {object} [ctx]  optional context from createCalendarContext()
  * @returns {Promise<{blocked: boolean, reason: string|null, ref: *, label: string|null}>}
- *          reason is one of 'sunday' | 'holiday' | 'special-event' | null
+ *          reason is one of 'outside-academic-year' | 'holiday' | 'special-event' |
+ *          'sunday' | null
  */
 async function isNonInstructionalDay(date, schoolId, ctx) {
   if (!date) throw new Error('CALENDAR_DATE_REQUIRED');
@@ -103,7 +105,31 @@ async function isNonInstructionalDay(date, schoolId, ctx) {
       SpecialEvent.findOne({ ...spanQuery, instructionSuspended: true }).lean(),
     ]);
 
-    if (holiday) {
+    // ── Outside any academic year ────────────────────────────────────────────
+    // Checked FIRST because it is the broadest condition. Between academic years
+    // school is closed for weeks at a time — for Maharashtra State Board schools
+    // the break runs 1 May to 14 June — and those dates belong to no year. They
+    // are not Sundays and carry no Holiday record, so without this check
+    // attendance would be markable throughout the summer break.
+    //
+    // Recording the break as a Holiday is not the right fix: a holiday belongs to
+    // an academic year, and this window belongs to neither. The absence of a year
+    // IS the reason.
+    const AcademicYear = mongoose.model('AcademicYear');
+    const coveringYear = await AcademicYear.findOne({
+      school: schoolId,
+      startDate: { $lte: dayEnd },
+      endDate: { $gte: dayStart },
+    }).lean();
+
+    if (!coveringYear) {
+      result = {
+        blocked: true,
+        reason: 'outside-academic-year',
+        ref: null,
+        label: 'Outside the academic year',
+      };
+    } else if (holiday) {
       result = {
         blocked: true,
         reason: 'holiday',

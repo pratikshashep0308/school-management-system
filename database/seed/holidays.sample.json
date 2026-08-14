@@ -9,17 +9,63 @@
   },
   "_recurringWarning": "Festival dates that move with the lunar calendar (Diwali, Eid, Holi, Dussehra) must have recurringAnnually FALSE. Marking them true would carry the wrong date into next year, silently reopening the defect this feature fixes.",
   "holidays": [
-    { "label": "Republic Day",      "date": "2027-01-26", "recurringAnnually": true,  "type": "national" },
-    { "label": "Independence Day",  "date": "2026-08-15", "recurringAnnually": true,  "type": "national" },
-    { "label": "Gandhi Jayanti",    "date": "2026-10-02", "recurringAnnually": true,  "type": "national" },
-    { "label": "Christmas Day",     "date": "2026-12-25", "recurringAnnually": true,  "type": "religious" },
-
-    { "label": "Diwali break",      "date": "2026-11-06", "endDate": "2026-11-12", "recurringAnnually": false, "type": "religious" },
-    { "label": "Holi",              "date": "2027-03-13", "recurringAnnually": false, "type": "religious" },
-    { "label": "Dussehra",          "date": "2026-10-20", "recurringAnnually": false, "type": "religious" },
-
-    { "label": "Summer vacation",   "date": "2027-05-01", "endDate": "2027-06-15", "recurringAnnually": false, "type": "school" },
-    { "label": "Winter break",      "date": "2026-12-24", "endDate": "2027-01-01", "recurringAnnually": false, "type": "school" },
-    { "label": "Founders Day",      "date": "2026-09-12", "recurringAnnually": true,  "type": "school" }
-  ]
+    {
+      "label": "Republic Day",
+      "date": "2027-01-26",
+      "recurringAnnually": true,
+      "type": "national"
+    },
+    {
+      "label": "Independence Day",
+      "date": "2026-08-15",
+      "recurringAnnually": true,
+      "type": "national"
+    },
+    {
+      "label": "Gandhi Jayanti",
+      "date": "2026-10-02",
+      "recurringAnnually": true,
+      "type": "national"
+    },
+    {
+      "label": "Christmas Day",
+      "date": "2026-12-25",
+      "recurringAnnually": true,
+      "type": "religious"
+    },
+    {
+      "label": "Diwali break",
+      "date": "2026-11-06",
+      "endDate": "2026-11-12",
+      "recurringAnnually": false,
+      "type": "religious"
+    },
+    {
+      "label": "Holi",
+      "date": "2027-03-13",
+      "recurringAnnually": false,
+      "type": "religious"
+    },
+    {
+      "label": "Dussehra",
+      "date": "2026-10-20",
+      "recurringAnnually": false,
+      "type": "religious"
+    },
+    {
+      "label": "Winter break",
+      "date": "2026-12-24",
+      "endDate": "2027-01-01",
+      "recurringAnnually": false,
+      "type": "school",
+      "_note": "Spans the calendar year end but stays inside the academic year — valid."
+    },
+    {
+      "label": "Founders Day",
+      "date": "2026-09-12",
+      "recurringAnnually": true,
+      "type": "school"
+    }
+  ],
+  "_yearBoundaryNote": "Maharashtra State Board: the academic year runs 15 June to 30 April. The summer break (1 May to 14 June) falls BETWEEN academic years and belongs to neither. Do not record it as a holiday — the importer rejects dates outside the year, and the out-of-year attendance guard already blocks marking in that window."
 }

@@ -6,25 +6,37 @@
 const mongoose = require('mongoose');
 require('../../models/Holiday');
 require('../../models/SpecialEvent');
+require('../../models/AcademicYear');
 const cal = require('../../services/calendarService');
+
+// Maharashtra State Board: 15 June 2026 .. 30 April 2027.
+const YEAR_2026_27 = {
+  _id: 'ay1', name: '2026-27',
+  startDate: new Date('2026-06-15'), endDate: new Date('2027-04-30'),
+};
 
 const SCHOOL = new mongoose.Types.ObjectId();
 
 /** Stub the two model finders the service uses. */
-function stub({ holiday = null, event = null, holidays = [], events = [], throws = false }) {
+function stub({ holiday = null, event = null, holidays = [], events = [], throws = false,
+                year = YEAR_2026_27 }) {
   const H = mongoose.model('Holiday');
   const S = mongoose.model('SpecialEvent');
-  const orig = { hFind: H.findOne, sFind: S.findOne, hAll: H.find, sAll: S.find };
+  const A = mongoose.model('AcademicYear');
+  const orig = { hFind: H.findOne, sFind: S.findOne, hAll: H.find, sAll: S.find, aFind: A.findOne };
 
   const lean = (v) => ({ lean: async () => { if (throws) throw new Error('boom'); return v; } });
   H.findOne = () => lean(holiday);
   S.findOne = () => lean(event);
   H.find = () => lean(holidays);
   S.find = () => lean(events);
+  // Coverage is controlled by the caller: pass year:null to simulate a date
+  // that falls outside every academic year.
+  A.findOne = () => lean(year);
 
   return () => {
     H.findOne = orig.hFind; S.findOne = orig.sFind;
-    H.find = orig.hAll; S.find = orig.sAll;
+    H.find = orig.hAll; S.find = orig.sAll; A.findOne = orig.aFind;
   };
 }
 
@@ -43,7 +55,7 @@ describe('isNonInstructionalDay', () => {
   test('a SpecialEvent with instructionSuspended blocks', async () => {
     const restore = stub({ event: { _id: 'e1', label: 'Annual Exam Day' } });
     try {
-      const r = await cal.isNonInstructionalDay('2026-03-10', SCHOOL);
+      const r = await cal.isNonInstructionalDay('2027-03-10', SCHOOL);
       expect(r.blocked).toBe(true);
       expect(r.reason).toBe('special-event');
       expect(r.label).toBe('Annual Exam Day');
@@ -55,7 +67,7 @@ describe('isNonInstructionalDay', () => {
     // event simply never matches — modelled here by the finder returning null.
     const restore = stub({});
     try {
-      const r = await cal.isNonInstructionalDay('2026-03-11', SCHOOL); // a Wednesday
+      const r = await cal.isNonInstructionalDay('2027-03-10', SCHOOL); // a Wednesday
       expect(r.blocked).toBe(false);
       expect(r.reason).toBeNull();
     } finally { restore(); }
@@ -103,17 +115,19 @@ describe('isNonInstructionalDay', () => {
   test('memoises within a context — repeated same-day checks issue one query', async () => {
     const H = mongoose.model('Holiday');
     const S = mongoose.model('SpecialEvent');
-    const origH = H.findOne; const origS = S.findOne;
+    const A = mongoose.model('AcademicYear');
+    const origH = H.findOne; const origS = S.findOne; const origA = A.findOne;
     let calls = 0;
     H.findOne = () => { calls += 1; return { lean: async () => null }; };
     S.findOne = () => ({ lean: async () => null });
+    A.findOne = () => ({ lean: async () => YEAR_2026_27 });
     try {
       const ctx = cal.createCalendarContext();
       await cal.isNonInstructionalDay('2026-08-18', SCHOOL, ctx);
       await cal.isNonInstructionalDay('2026-08-18', SCHOOL, ctx);
       await cal.isNonInstructionalDay('2026-08-18', SCHOOL, ctx);
       expect(calls).toBe(1);
-    } finally { H.findOne = origH; S.findOne = origS; }
+    } finally { H.findOne = origH; S.findOne = origS; A.findOne = origA; }
   });
 });
 
@@ -171,6 +185,62 @@ describe('countWorkingDays', () => {
     });
     try {
       expect(await cal.countWorkingDays('2026-08-10', '2026-08-23', SCHOOL)).toBe(0);
+    } finally { restore(); }
+  });
+});
+
+
+describe('outside the academic year (Maharashtra State Board: 15 Jun .. 30 Apr)', () => {
+  test('a date in the summer break is blocked as outside-academic-year', async () => {
+    // 15 May 2027 — after the year ends on 30 April, before the next opens on
+    // 15 June. Not a Sunday. No Holiday record. Belongs to no academic year.
+    const restore = stub({ year: null });
+    try {
+      const r = await cal.isNonInstructionalDay('2027-05-15', SCHOOL);
+      expect(r.blocked).toBe(true);
+      expect(r.reason).toBe('outside-academic-year');
+    } finally { restore(); }
+  });
+
+  test('the day after the year ends is blocked', async () => {
+    const restore = stub({ year: null });
+    try {
+      const r = await cal.isNonInstructionalDay('2027-05-01', SCHOOL);
+      expect(r.blocked).toBe(true);
+      expect(r.reason).toBe('outside-academic-year');
+    } finally { restore(); }
+  });
+
+  test('the day before the year opens is blocked', async () => {
+    const restore = stub({ year: null });
+    try {
+      const r = await cal.isNonInstructionalDay('2026-06-14', SCHOOL);
+      expect(r.blocked).toBe(true);
+      expect(r.reason).toBe('outside-academic-year');
+    } finally { restore(); }
+  });
+
+  test('the first day of the academic year is NOT blocked', async () => {
+    const restore = stub({});
+    try {
+      const r = await cal.isNonInstructionalDay('2026-06-15', SCHOOL); // Monday
+      expect(r.blocked).toBe(false);
+    } finally { restore(); }
+  });
+
+  test('the last day of the academic year is NOT blocked', async () => {
+    const restore = stub({});
+    try {
+      const r = await cal.isNonInstructionalDay('2027-04-30', SCHOOL); // Friday
+      expect(r.blocked).toBe(false);
+    } finally { restore(); }
+  });
+
+  test('outside-academic-year takes precedence over a stray holiday record', async () => {
+    const restore = stub({ year: null, holiday: { _id: 'h', label: 'Stray' } });
+    try {
+      const r = await cal.isNonInstructionalDay('2027-05-15', SCHOOL);
+      expect(r.reason).toBe('outside-academic-year');
     } finally { restore(); }
   });
 });

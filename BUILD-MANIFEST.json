@@ -70,10 +70,12 @@
   },
   "buildPrompts": {
     "total": 59,
-    "executed": 8,
-    "passed": 8,
-    "gated": 4,
-    "notStarted": 47
+    "executed": 9,
+    "passed": 9,
+    "gatedOnDecision": 4,
+    "blockedByGatedDependency": 8,
+    "readyNotYetStarted": 38,
+    "note": "Corrected 14 Aug 2026: an earlier revision recorded executed:8 / notStarted:47. Nine prompts had been executed and the four gated prompts were counted outside notStarted. Total was 59 either way."
   },
   "artifacts": {
     "migrations": 2,
