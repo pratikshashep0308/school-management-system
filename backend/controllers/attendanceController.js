@@ -8,7 +8,8 @@ const {
   checkAndSendAlerts,
   generateQRToken,
   verifyQRToken,
-  isHoliday,
+  isNonInstructionalDay,
+  createCalendarContext,
   getWorkingDays,
   normalizeDate,
   buildExcelReport,
@@ -69,9 +70,24 @@ exports.markAttendance = async (req, res) => {
 
   const normalizedDate = normalizeDate(date);
 
-  // Block marking on Sundays / holidays
-  if (isHoliday(normalizedDate, req.user.school)) {
-    return res.status(400).json({ success: false, message: 'Cannot mark attendance on a holiday or Sunday' });
+  // Block marking on non-instructional days — BP-031 · GAP-CAL-009 · BR-CAL-01
+  // Now awaited: the calendar check is database-backed and therefore async.
+  // The human-readable message is preserved alongside the new machine-readable
+  // code, because existing frontend code matches on the message text (§22).
+  const calCtx = createCalendarContext();
+  const nonInstructional = await isNonInstructionalDay(
+    normalizedDate, req.user.school, calCtx
+  );
+  if (nonInstructional.blocked) {
+    return res.status(400).json({
+      success: false,
+      code: 'ATTENDANCE_BLOCKED_HOLIDAY',
+      reason: nonInstructional.reason,
+      label: nonInstructional.label,
+      message: nonInstructional.reason === 'sunday'
+        ? 'Cannot mark attendance on a holiday or Sunday'
+        : `Cannot mark attendance on a holiday or Sunday (${nonInstructional.label})`,
+    });
   }
 
   // ── Workflow gate ──────────────────────────────────────────────────────────
@@ -212,7 +228,10 @@ exports.getClassAttendance = async (req, res) => {
   if (!classId || !date) return res.status(400).json({ success: false, message: 'classId and date are required' });
 
   const normalizedDate = normalizeDate(date);
-  const isHol = isHoliday(normalizedDate, req.user.school);
+  // BP-031: awaited — see calendarService. Returns a structured reason so
+  // consumers never re-derive the rule.
+  const nonInstructional = await isNonInstructionalDay(normalizedDate, req.user.school);
+  const isHol = nonInstructional.blocked;
 
   const [students, records] = await Promise.all([
     Student.find({ class: classId, isActive: true, school: req.user.school })
@@ -244,6 +263,8 @@ exports.getClassAttendance = async (req, res) => {
   res.json({
     success: true,
     isHoliday: isHol,
+    nonInstructionalReason: nonInstructional.reason,
+    nonInstructionalLabel: nonInstructional.label,
     isMarked,
     data:    merged,
     summary: { total: students.length, present, absent, late, excused, unmarked },
@@ -308,9 +329,27 @@ exports.getOverview = async (req, res) => {
     classSummary[cid].total++;
   });
 
+  // BP-031 · GAP-CAL-011 · BR-CAL-03 (restated against the real component).
+  // The LLD said "suppress reminder", but no reminder mechanism exists in the
+  // codebase — there is nothing to suppress. The behaviour that actually needed
+  // changing is here: `unmarked` was computed unconditionally and `isHoliday`
+  // returned as a sibling flag for each consumer to interpret. On a holiday that
+  // produced a full-school "unmarked attendance" alarm on the Principal
+  // Dashboard. We now return 0 with a reason, so no consumer re-derives the rule.
+  const overviewDay = await isNonInstructionalDay(today, req.user.school);
+
   res.json({
     success: true,
-    data: { date: today, totalStudents, marked, unmarked, present, absent, late, percentage, classSummary, isHoliday: isHoliday(today, req.user.school) },
+    data: {
+      date: today,
+      totalStudents,
+      marked,
+      unmarked: overviewDay.blocked ? 0 : unmarked,
+      present, absent, late, percentage, classSummary,
+      isHoliday: overviewDay.blocked,
+      nonInstructionalReason: overviewDay.reason,
+      nonInstructionalLabel: overviewDay.label,
+    },
   });
 };
 

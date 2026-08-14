@@ -216,13 +216,55 @@ exports.getClassAnalytics = async (classId, schoolId, month, year) => {
  *   2. Student absent 3+ consecutive days → notify parent
  *   3. Daily absent notification for parents
  */
+/**
+ * checkAndSendAlerts — BP-031 · GAP-CAL-010 · BR-CAL-02
+ *
+ * IMPORTANT, and contrary to LLD §17.2.10 and the §29 row for CAL-010: this is
+ * NOT a nightly job. It is a fire-and-forget, non-awaited call inside
+ * markAttendance (attendanceController.js). There is no nightly alerts job in the
+ * §20 catalog, so the calendar filter is applied HERE rather than in a job that
+ * does not exist.
+ *
+ * The counting was record-based rather than day-based: Alert 2 counted
+ * consecutive `absent` Attendance RECORDS, and Alert 3 used the count of records
+ * in a 30-day window as its denominator. Neither consulted any calendar, so a
+ * five-day festival break read as five days of truancy.
+ *
+ * Both alerts now exclude non-instructional dates from the numerator AND the
+ * denominator. Records already written on holiday dates before this fix are
+ * FILTERED ON READ rather than deleted — they are historical fact.
+ *
+ * 'excused' is treated as neither present nor absent: it is removed from the
+ * denominator entirely, so an authorised absence neither helps nor harms the
+ * percentage. (Previously it counted in the denominator but not the numerator,
+ * which silently penalised authorised absence.)
+ */
 exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sentBy) => {
   const { Attendance, Notification } = require('../models/index');
   const Student = require('../models/Student');
+  const calendarService = require('./calendarService');
 
   const notificationsToCreate = [];
   const thirtyDaysAgo = new Date(date);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Non-instructional dates across the whole window, fetched once per call.
+  // Fail-open is correct HERE (unlike attendance marking): if the calendar is
+  // unreadable we fall back to the previous behaviour rather than suppressing
+  // every parent alert, and we log it loudly.
+  let blockedDates = new Set();
+  try {
+    blockedDates = await calendarService.nonInstructionalDatesInRange(
+      thirtyDaysAgo, new Date(date), schoolId
+    );
+  } catch (err) {
+    console.error(
+      '[attendance] calendar unavailable during alert computation; ' +
+      'falling back to unfiltered counting: ' + err.message
+    );
+  }
+  const isBlocked = (d) =>
+    blockedDates.has(new Date(d).toISOString().slice(0, 10));
 
   for (const item of attendanceData) {
     const student = await Student.findById(item.studentId)
@@ -250,11 +292,18 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
     }
 
     // ── Alert 2: Consecutive absences (3+ days) ───────────────────────────────
-    const recentRecords = await Attendance.find({
+    // Fetch a wider window than 5 records, because non-instructional records are
+    // filtered out below and would otherwise shorten the run artificially.
+    const recentRecordsRaw = await Attendance.find({
       student: item.studentId,
       date:    { $gte: thirtyDaysAgo, $lte: new Date(date) },
       school:  toId(schoolId),
-    }).sort({ date: -1 }).limit(5).lean();
+    }).sort({ date: -1 }).limit(30).lean();
+
+    // BR-CAL-02: exclude non-instructional dates. Any record written on a
+    // holiday before the calendar fix is historical fact and is filtered on
+    // read, never deleted.
+    const recentRecords = recentRecordsRaw.filter((r) => !isBlocked(r.date)).slice(0, 5);
 
     let consecutiveAbsent = 0;
     for (const r of recentRecords) {
@@ -276,11 +325,18 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
     }
 
     // ── Alert 3: Low attendance warning (<75%) ────────────────────────────────
-    const monthRecords = await Attendance.find({
+    const monthRecordsRaw = await Attendance.find({
       student: item.studentId,
       school:  toId(schoolId),
       date:    { $gte: thirtyDaysAgo },
     }).lean();
+
+    // BR-CAL-02: non-instructional dates leave both numerator and denominator.
+    // 'excused' leaves the denominator too — an authorised absence must not
+    // depress the percentage.
+    const monthRecords = monthRecordsRaw
+      .filter((r) => !isBlocked(r.date))
+      .filter((r) => r.status !== 'excused');
 
     if (monthRecords.length >= 10) {
       const present = monthRecords.filter(r => r.status === 'present' || r.status === 'late').length;
@@ -334,22 +390,59 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
 };
 
 // ─── HOLIDAY MANAGEMENT ───────────────────────────────────────────────────────
+// BP-030 · GAP-CAL-002, GAP-CAL-007
+//
+// The in-memory `schoolHolidays` object that used to live here had a setter with
+// no callers anywhere in the backend, so isHoliday() evaluated to
+// `isWeekend(date) || false` — Sunday-only in practice, with every real school
+// holiday invisible. Holiday state is now persisted (models/Holiday.js) and read
+// through the single helper in services/calendarService.js.
+//
+// isHoliday() is retained below as a DEPRECATED async wrapper so existing call
+// sites keep compiling. It is async because a database-backed check cannot be
+// synchronous; all three call sites in attendanceController must be awaited.
+const calendarService = require('./calendarService');
 
-// In-memory holiday list per school (in production, use a Holiday model)
-const schoolHolidays = {};
-
-exports.setHolidays = (schoolId, dates) => {
-  schoolHolidays[schoolId.toString()] = dates.map(d => normalizeDate(d).toISOString());
+/**
+ * @deprecated Use calendarService.isNonInstructionalDay(), which returns a
+ * structured reason instead of a bare boolean. Retained for one release.
+ * NOTE: now ASYNC — callers must await.
+ */
+exports.isHoliday = async (date, schoolId, ctx) => {
+  const result = await calendarService.isNonInstructionalDay(date, schoolId, ctx);
+  return result.blocked;
 };
 
-exports.getHolidays = (schoolId) => {
-  return (schoolHolidays[schoolId?.toString()] || []).map(d => new Date(d));
+/** Structured form — preferred. Returns {blocked, reason, ref, label}. */
+exports.isNonInstructionalDay = calendarService.isNonInstructionalDay;
+
+/** Per-request memoisation so one attendance POST makes one calendar query. */
+exports.createCalendarContext = calendarService.createCalendarContext;
+
+/** Range helpers used by the alert computation (BR-CAL-02). */
+exports.nonInstructionalDatesInRange = calendarService.nonInstructionalDatesInRange;
+exports.countWorkingDays = calendarService.countWorkingDays;
+
+/**
+ * @deprecated No-op shim. Holidays are persisted; use the Holiday model or the
+ * academic-calendar API. Kept for one release so any unseen consumer fails
+ * loudly rather than silently writing to an object nothing reads.
+ */
+exports.setHolidays = () => {
+  console.warn(
+    '[attendanceService] setHolidays() is a deprecated no-op. Holidays are ' +
+      'persisted in the Holiday collection — use the academic-calendar API.'
+  );
 };
 
-exports.isHoliday = (date, schoolId) => {
-  const key = normalizeDate(date).toISOString();
-  const holidays = schoolHolidays[schoolId?.toString()] || [];
-  return isWeekend(date) || holidays.includes(key);
+/**
+ * @deprecated Use calendarService.nonInstructionalDatesInRange(). Now async.
+ */
+exports.getHolidays = async (schoolId, from, to) => {
+  console.warn('[attendanceService] getHolidays() is deprecated — use calendarService.');
+  if (!from || !to) return [];
+  const set = await calendarService.nonInstructionalDatesInRange(from, to, schoolId);
+  return [...set].map((d) => new Date(d));
 };
 
 exports.getWorkingDays = getWorkingDays;
