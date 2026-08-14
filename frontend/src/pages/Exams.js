@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { examAPI, classAPI, subjectAPI } from '../utils/api';
+import api, { examAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 import ExamSetup from './Exams/ExamSetup';
@@ -57,7 +57,13 @@ function ExamFormModal({ form, setForm, onSave, onClose, saving, classes, subjec
             <div>
               <label style={LBL}>Exam Type</label>
               <select value={form.examType} onChange={e=>set('examType',e.target.value)} style={INP}>
-                {TYPE_LIST.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                {/* The school's own exam types. Falls back to the fixed list
+                    only if none are configured, so the form still works on a
+                    fresh install. */}
+                {examTypes.length > 0
+                  ? [<option key="" value="">Select a type…</option>,
+                     ...examTypes.map(t => <option key={t._id} value={t._id}>{t.name}</option>)]
+                  : TYPE_LIST.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
               </select>
             </div>
             <div>
@@ -683,8 +689,19 @@ export default function Exams() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [eRes,cRes,sRes] = await Promise.all([examAPI.getAll(),classAPI.getAll(),subjectAPI.getAll()]);
-      setExams(eRes.data.data||[]); setClasses(cRes.data.data||[]); setSubjects(sRes.data.data||[]);
+      // Exam types come from the database — there are 9 configured, and
+      // ExamGroup.examType is a REFERENCE to one of them, not a string. The
+      // hardcoded list the form used could never satisfy that reference.
+      const [eRes, cRes, sRes, tRes] = await Promise.all([
+        examAPI.getAll(),
+        classAPI.getAll(),
+        subjectAPI.getAll(),
+        api.get('/exams-adv/types').catch(() => ({ data: { data: [] } })),
+      ]);
+      setExams(eRes.data.data || []);
+      setClasses(cRes.data.data || []);
+      setSubjects(sRes.data.data || []);
+      setExamTypes(tRes?.data?.data || []);
     } catch { toast.error('Failed to load exams'); }
     finally { setLoading(false); }
   }, []);
@@ -708,15 +725,62 @@ export default function Exams() {
     setForm({ _id:exam._id, name:exam.name||'', class:exam.class?._id||exam.class||'', subject:exam.subject?._id||exam.subject||'', examType:exam.examType||'unit', date:exam.date?exam.date.split('T')[0]:'', startTime:exam.startTime||'', endTime:exam.endTime||'', totalMarks:exam.totalMarks||100, passingMarks:exam.passingMarks||35, instructions:exam.instructions||'' });
     setModal(true);
   };
+  // Creating an exam writes to the ADVANCED module — an ExamGroup with an
+  // ExamSubject inside it — not to the legacy `exams` collection.
+  //
+  // ─── WHY THIS CHANGED ───────────────────────────────────────────────────────
+  // The form wrote to `exams` while Result Entry, grading, publishing and every
+  // exam report read `examgroups`/`examsubjects`. Two systems that never met:
+  // an exam created here could never have marks entered against it, which is why
+  // the school has 9 exam types configured and has never recorded a single mark.
+  //
+  // Two calls where there was one. The second failing leaves an exam with no
+  // paper, which is a half-created exam — so it says so rather than reporting
+  // success and leaving somebody to find out at result entry.
   const handleSave = async () => {
     if (!form.name?.trim()) return toast.error('Exam name is required');
     if (!form.class)        return toast.error('Please select a class');
+    if (!form.subject)      return toast.error('Please select a subject');
     setSaving(true);
     try {
-      if (form._id) { await examAPI.update(form._id,form); toast.success('Exam updated'); }
-      else          { await examAPI.create(form);          toast.success('Exam created'); }
+      if (form._id) {
+        await examAPI.update(form._id, form);
+        toast.success('Exam updated');
+      } else {
+        const gRes = await api.post('/exams-adv/groups', {
+          name: form.name.trim(),
+          examType: form.examType || undefined,   // an ObjectId, or omitted
+          academicYear: form.academicYear || undefined,
+          startDate: form.date || undefined,
+          endDate: form.date || undefined,
+          status: 'scheduled',
+        });
+        const group = gRes?.data?.data;
+        if (!group?._id) throw new Error('The exam was not created');
+
+        try {
+          await api.post(`/exams-adv/groups/${group._id}/subjects`, {
+            subject: form.subject,
+            class: form.class,
+            date: form.date || undefined,
+            startTime: form.startTime || undefined,
+            endTime: form.endTime || undefined,
+            passingMarks: Number(form.passingMarks) || 35,
+            components: [{ name: 'Theory', maxMarks: Number(form.totalMarks) || 100 }],
+          });
+          toast.success('Exam created — marks can now be entered against it');
+        } catch (subErr) {
+          // The group exists but has no paper. Said plainly, with the id, so it
+          // can be found and completed rather than silently orphaned.
+          toast.error(
+            `Exam "${form.name}" was created but the subject could not be added: `
+            + (subErr.response?.data?.message || subErr.message),
+            { duration: 9000 }
+          );
+        }
+      }
       setModal(false); setForm(FORM_EMPTY); load();
-    } catch(err) { toast.error(err.response?.data?.message||'Failed to save'); }
+    } catch(err) { toast.error(err.response?.data?.message||err.message||'Failed to save'); }
     finally { setSaving(false); }
   };
   const handleDelete = async (id) => {
