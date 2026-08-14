@@ -21,7 +21,11 @@ const ROUTE_TABLE = [
   ['/api/subjects',       './routes/subjectRoutes',      'subjects'],
   ['/api/attendance',     './routes/attendanceRoutes',   'attendance'],
   ['/api/exams',          './routes/examRoutes',         'exams'],
-  ['/api/exams-adv',      './routes/examAdvancedRoutes', 'exams'],
+  // FP-040: the advanced module moves to its OWN moduleKey. Previously it shared
+  // 'exams' with the legacy module, so the matrix could not grant advanced-mark
+  // entry without also granting legacy access. examsAdvanced mirrors the exams
+  // grant in DEFAULT_GRANTS, so no existing user loses access on deploy.
+  ['/api/exams-adv',      './routes/examAdvancedRoutes', 'examsAdvanced'],
   ['/api/fees',           './routes/feeRoutes',          'fees'],
   ['/api/expenses',       './routes/expenseRoutes',      'expenses'],
   ['/api/homework',       './routes/homeworkRoutes',     'homework'],

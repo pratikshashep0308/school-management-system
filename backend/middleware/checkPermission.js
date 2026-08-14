@@ -62,11 +62,33 @@ function checkPermission(moduleKey) {
       // superAdmin bypasses the matrix entirely.
       if (role === 'superAdmin') return next();
 
-      const perms = await getPermissions(role, school);
+      let perms = await getPermissions(role, school);
 
       // No matrix configured for this role → don't interfere; the route's own
       // authorize() still applies.
       if (!perms) return next();
+
+      // ── FP-041 — secondary roles grant READ only ────────────────────────────
+      // Re-read from req.user (server-side), never from the JWT, so a stale token
+      // cannot widen access. A secondary role can raise 'none' to 'read'; it can
+      // never grant a write or lower an existing grant.
+      const secondaryRoles = Array.isArray(req.user?.secondaryRoles) ? req.user.secondaryRoles : [];
+      if (secondaryRoles.length > 0) {
+        perms = { ...perms };
+        for (const secondary of secondaryRoles) {
+          if (secondary === role) continue;
+          const secPerms = await getPermissions(secondary, school);
+          if (!secPerms) continue;
+          const secLevel = secPerms[moduleKey];
+          const hasReadable = secLevel === 'read' || secLevel === 'edit' || secLevel === 'admin';
+          const primaryDenied = perms[moduleKey] === undefined || perms[moduleKey] === null ||
+                                perms[moduleKey] === 'none' || perms[moduleKey] === false;
+          // Cap at read: a secondary edit/admin becomes read here.
+          if (hasReadable && primaryDenied) {
+            perms[moduleKey] = 'read';
+          }
+        }
+      }
 
       const level = perms[moduleKey];
 
