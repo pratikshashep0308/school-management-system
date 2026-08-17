@@ -18,3 +18,5 @@ frontend/.env.production
 3000
 *.log.tmp
 frontend/node_modules/
+
+tfs-eos-delta-build.bundle
