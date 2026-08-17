@@ -11,3 +11,10 @@ build/
 TheFutureStepSchool-win32-x64/frontend/.env.production
 
 frontend/.env.production
+
+# Accidental shell-redirect output. Two files literally named "3000" were
+# committed (crash logs from `serve -s build > 3000`), leaking a developer's
+# local Windows paths into the repository and the release package.
+3000
+*.log.tmp
+frontend/node_modules/

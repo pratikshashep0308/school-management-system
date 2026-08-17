@@ -5,6 +5,21 @@ const mongoose = require('mongoose');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Load a school's threshold configuration once per operation (FP-032, R-3).
+ * Returns a lean document or null; resolveThresholds() falls back to the
+ * approved defaults when null, so a missing School never breaks alerting.
+ */
+async function loadSchoolConfig(schoolId) {
+  try {
+    const School = require('../models/School');
+    return await School.findById(toId(schoolId)).select('aiThresholds').lean();
+  } catch (err) {
+    console.warn('[attendance] could not load school thresholds; using approved defaults:', err.message);
+    return null;
+  }
+}
+
 function toId(id) {
   try { return new mongoose.Types.ObjectId(id); } catch { return null; }
 }
@@ -44,6 +59,7 @@ function getWorkingDays(year, month, holidays = []) {
  * Full analytics for a single student — monthly %, trend, calendar, streaks
  */
 exports.getStudentAnalytics = async (studentId, schoolId, options = {}) => {
+  const schoolCfg = await loadSchoolConfig(schoolId);
   const { Attendance } = require('../models/index');
   const { month, year, months = 6 } = options;
 
@@ -130,8 +146,10 @@ exports.getStudentAnalytics = async (studentId, schoolId, options = {}) => {
     calendar,
     streaks:     { current: currentStreak, longest: longestStreak, consecutiveAbsent },
     records,
-    isLowAttendance: percentage < 75 && total >= 10,
-    alertLevel:  percentage < 60 ? 'critical' : percentage < 75 ? 'warning' : 'ok',
+    // R-3: thresholds from School.aiThresholds, never literals.
+    isLowAttendance: thresholds.isBelowWarning(percentage, schoolCfg) &&
+                     total >= thresholds.MIN_RECORDS_FOR_ALERT,
+    alertLevel:  thresholds.alertLevel(percentage, schoolCfg),
   };
 };
 
@@ -140,6 +158,7 @@ exports.getStudentAnalytics = async (studentId, schoolId, options = {}) => {
  * Analytics for a class — avg %, per-student breakdown, daily trend
  */
 exports.getClassAnalytics = async (classId, schoolId, month, year) => {
+  const schoolCfg = await loadSchoolConfig(schoolId);
   const { Attendance } = require('../models/index');
   const Student = require('../models/Student');
 
@@ -175,7 +194,13 @@ exports.getClassAnalytics = async (classId, schoolId, month, year) => {
   const breakdown = Object.values(studentStats).map(s => ({
     ...s,
     percentage: s.total > 0 ? Math.round(((s.present + s.late) / s.total) * 100) : 0,
-    alertLevel:  s.total >= 5 && ((s.present + s.late) / s.total) < 0.75 ? 'warning' : 'ok',
+    // R-3: previously `< 0.75` — the SAME rule as line 133's `< 75`, spelled as
+    // a fraction. Converting the ratio (never the threshold) is what stops the
+    // two representations diverging.
+    alertLevel:  s.total >= 5 &&
+                 thresholds.isBelowWarning(
+                   thresholds.ratioToPct((s.present + s.late) / s.total), schoolCfg
+                 ) ? 'warning' : 'ok',
   }));
 
   // Daily attendance for the month
@@ -195,7 +220,9 @@ exports.getClassAnalytics = async (classId, schoolId, month, year) => {
   const classAvgPct  = classTotal > 0 ? Math.round((classPresent / classTotal) * 100) : 0;
 
   const topStudents = [...breakdown].sort((a, b) => b.percentage - a.percentage).slice(0, 5);
-  const lowStudents = breakdown.filter(s => s.total >= 5 && s.percentage < 75).sort((a, b) => a.percentage - b.percentage);
+  const lowStudents = breakdown
+    .filter(s => s.total >= 5 && thresholds.isBelowWarning(s.percentage, schoolCfg))
+    .sort((a, b) => a.percentage - b.percentage);
   const workingDays = [...new Set(records.map(r => r.date.toISOString().split('T')[0]))].length;
 
   return {
@@ -216,13 +243,60 @@ exports.getClassAnalytics = async (classId, schoolId, month, year) => {
  *   2. Student absent 3+ consecutive days → notify parent
  *   3. Daily absent notification for parents
  */
+/**
+ * checkAndSendAlerts — BP-031 · GAP-CAL-010 · BR-CAL-02
+ *
+ * IMPORTANT, and contrary to LLD §17.2.10 and the §29 row for CAL-010: this is
+ * NOT a nightly job. It is a fire-and-forget, non-awaited call inside
+ * markAttendance (attendanceController.js). There is no nightly alerts job in the
+ * §20 catalog, so the calendar filter is applied HERE rather than in a job that
+ * does not exist.
+ *
+ * The counting was record-based rather than day-based: Alert 2 counted
+ * consecutive `absent` Attendance RECORDS, and Alert 3 used the count of records
+ * in a 30-day window as its denominator. Neither consulted any calendar, so a
+ * five-day festival break read as five days of truancy.
+ *
+ * Both alerts now exclude non-instructional dates from the numerator AND the
+ * denominator. Records already written on holiday dates before this fix are
+ * FILTERED ON READ rather than deleted — they are historical fact.
+ *
+ * 'excused' is treated as neither present nor absent: it is removed from the
+ * denominator entirely, so an authorised absence neither helps nor harms the
+ * percentage. (Previously it counted in the denominator but not the numerator,
+ * which silently penalised authorised absence.)
+ */
 exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sentBy) => {
   const { Attendance, Notification } = require('../models/index');
   const Student = require('../models/Student');
+  const calendarService = require('./calendarService');
+  const schoolDoc = await loadSchoolConfig(schoolId);
+// FP-032 (R-3): the single authoritative source for attendance thresholds.
+// FP-033 (R-2): presentation bands, deliberately independent of the above.
+const thresholds = require('../config/attendanceThresholds');
+const bands = require('../config/presentationBands');
 
   const notificationsToCreate = [];
   const thirtyDaysAgo = new Date(date);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Non-instructional dates across the whole window, fetched once per call.
+  // Fail-open is correct HERE (unlike attendance marking): if the calendar is
+  // unreadable we fall back to the previous behaviour rather than suppressing
+  // every parent alert, and we log it loudly.
+  let blockedDates = new Set();
+  try {
+    blockedDates = await calendarService.nonInstructionalDatesInRange(
+      thirtyDaysAgo, new Date(date), schoolId
+    );
+  } catch (err) {
+    console.error(
+      '[attendance] calendar unavailable during alert computation; ' +
+      'falling back to unfiltered counting: ' + err.message
+    );
+  }
+  const isBlocked = (d) =>
+    blockedDates.has(new Date(d).toISOString().slice(0, 10));
 
   for (const item of attendanceData) {
     const student = await Student.findById(item.studentId)
@@ -250,11 +324,18 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
     }
 
     // ── Alert 2: Consecutive absences (3+ days) ───────────────────────────────
-    const recentRecords = await Attendance.find({
+    // Fetch a wider window than 5 records, because non-instructional records are
+    // filtered out below and would otherwise shorten the run artificially.
+    const recentRecordsRaw = await Attendance.find({
       student: item.studentId,
       date:    { $gte: thirtyDaysAgo, $lte: new Date(date) },
       school:  toId(schoolId),
-    }).sort({ date: -1 }).limit(5).lean();
+    }).sort({ date: -1 }).limit(30).lean();
+
+    // BR-CAL-02: exclude non-instructional dates. Any record written on a
+    // holiday before the calendar fix is historical fact and is filtered on
+    // read, never deleted.
+    const recentRecords = recentRecordsRaw.filter((r) => !isBlocked(r.date)).slice(0, 5);
 
     let consecutiveAbsent = 0;
     for (const r of recentRecords) {
@@ -276,23 +357,30 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
     }
 
     // ── Alert 3: Low attendance warning (<75%) ────────────────────────────────
-    const monthRecords = await Attendance.find({
+    const monthRecordsRaw = await Attendance.find({
       student: item.studentId,
       school:  toId(schoolId),
       date:    { $gte: thirtyDaysAgo },
     }).lean();
 
-    if (monthRecords.length >= 10) {
+    // BR-CAL-02: non-instructional dates leave both numerator and denominator.
+    // 'excused' leaves the denominator too — an authorised absence must not
+    // depress the percentage.
+    const monthRecords = monthRecordsRaw
+      .filter((r) => !isBlocked(r.date))
+      .filter((r) => r.status !== 'excused');
+
+    if (monthRecords.length >= thresholds.MIN_RECORDS_FOR_ALERT) {
       const present = monthRecords.filter(r => r.status === 'present' || r.status === 'late').length;
       const pct = Math.round((present / monthRecords.length) * 100);
 
-      if (pct < 75) {
-        const level = pct < 60 ? '🔴 Critical' : '🟡 Warning';
+      if (thresholds.isBelowWarning(pct, schoolDoc)) {
+        const level = thresholds.isBelowCritical(pct, schoolDoc) ? '🔴 Critical' : '🟡 Warning';
         notificationsToCreate.push({
           title:       `${level}: ${studentName}'s Attendance is ${pct}%`,
-          message:     `${studentName} (${className}) has ${pct}% attendance over the last 30 days. Minimum required is 75%. Immediate improvement is needed.`,
+          message:     `${studentName} (${className}) has ${pct}% attendance over the last 30 days. Minimum required is ${thresholds.resolveThresholds(schoolDoc).warningPct}%. Immediate improvement is needed.`,
           type:        'alert',
-          priority:    pct < 60 ? 'urgent' : 'high',
+          priority:    thresholds.isBelowCritical(pct, schoolDoc) ? 'urgent' : 'high',
           audience:    'all',
           targetClass: toId(classId),
           sentBy:      toId(sentBy),
@@ -334,22 +422,59 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
 };
 
 // ─── HOLIDAY MANAGEMENT ───────────────────────────────────────────────────────
+// BP-030 · GAP-CAL-002, GAP-CAL-007
+//
+// The in-memory `schoolHolidays` object that used to live here had a setter with
+// no callers anywhere in the backend, so isHoliday() evaluated to
+// `isWeekend(date) || false` — Sunday-only in practice, with every real school
+// holiday invisible. Holiday state is now persisted (models/Holiday.js) and read
+// through the single helper in services/calendarService.js.
+//
+// isHoliday() is retained below as a DEPRECATED async wrapper so existing call
+// sites keep compiling. It is async because a database-backed check cannot be
+// synchronous; all three call sites in attendanceController must be awaited.
+const calendarService = require('./calendarService');
 
-// In-memory holiday list per school (in production, use a Holiday model)
-const schoolHolidays = {};
-
-exports.setHolidays = (schoolId, dates) => {
-  schoolHolidays[schoolId.toString()] = dates.map(d => normalizeDate(d).toISOString());
+/**
+ * @deprecated Use calendarService.isNonInstructionalDay(), which returns a
+ * structured reason instead of a bare boolean. Retained for one release.
+ * NOTE: now ASYNC — callers must await.
+ */
+exports.isHoliday = async (date, schoolId, ctx) => {
+  const result = await calendarService.isNonInstructionalDay(date, schoolId, ctx);
+  return result.blocked;
 };
 
-exports.getHolidays = (schoolId) => {
-  return (schoolHolidays[schoolId?.toString()] || []).map(d => new Date(d));
+/** Structured form — preferred. Returns {blocked, reason, ref, label}. */
+exports.isNonInstructionalDay = calendarService.isNonInstructionalDay;
+
+/** Per-request memoisation so one attendance POST makes one calendar query. */
+exports.createCalendarContext = calendarService.createCalendarContext;
+
+/** Range helpers used by the alert computation (BR-CAL-02). */
+exports.nonInstructionalDatesInRange = calendarService.nonInstructionalDatesInRange;
+exports.countWorkingDays = calendarService.countWorkingDays;
+
+/**
+ * @deprecated No-op shim. Holidays are persisted; use the Holiday model or the
+ * academic-calendar API. Kept for one release so any unseen consumer fails
+ * loudly rather than silently writing to an object nothing reads.
+ */
+exports.setHolidays = () => {
+  console.warn(
+    '[attendanceService] setHolidays() is a deprecated no-op. Holidays are ' +
+      'persisted in the Holiday collection — use the academic-calendar API.'
+  );
 };
 
-exports.isHoliday = (date, schoolId) => {
-  const key = normalizeDate(date).toISOString();
-  const holidays = schoolHolidays[schoolId?.toString()] || [];
-  return isWeekend(date) || holidays.includes(key);
+/**
+ * @deprecated Use calendarService.nonInstructionalDatesInRange(). Now async.
+ */
+exports.getHolidays = async (schoolId, from, to) => {
+  console.warn('[attendanceService] getHolidays() is deprecated — use calendarService.');
+  if (!from || !to) return [];
+  const set = await calendarService.nonInstructionalDatesInRange(from, to, schoolId);
+  return [...set].map((d) => new Date(d));
 };
 
 exports.getWorkingDays = getWorkingDays;
@@ -461,7 +586,8 @@ exports.buildExcelReport = async (data, meta, reportType = 'monthly') => {
     // Colour-code the percentage cell
     const pctCell = r.getCell(8);
     const pct = row.percentage || 0;
-    pctCell.font = { bold: true, color: { argb: pct >= 90 ? 'FF16A34A' : pct >= 75 ? 'FFD97706' : 'FFDC2626' } };
+    // R-2: presentation band, NOT a business threshold. Independent of aiThresholds.
+    pctCell.font = { bold: true, color: { argb: bands.attendanceArgb(pct) } };
     pctCell.alignment = { horizontal: 'center' };
   });
 
@@ -531,7 +657,8 @@ exports.buildPDFReport = (res, data, meta) => {
     values.forEach((v, i) => {
       if (i === 7) {
         const pct = row.percentage || 0;
-        doc.fill(pct >= 90 ? '#16A34A' : pct >= 75 ? '#D97706' : '#DC2626').font('Helvetica-Bold');
+        // R-2: presentation band, NOT a business threshold.
+        doc.fill(bands.attendanceHex(pct)).font('Helvetica-Bold');
       }
       doc.text(String(v), x + 3, y + 4, { width: cols[i] - 6, align: i > 1 ? 'center' : 'left', ellipsis: true });
       doc.fill('#111827').font('Helvetica');

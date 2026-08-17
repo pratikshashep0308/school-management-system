@@ -4,6 +4,10 @@ const express = require('express');
 const router = express.Router();
 const RolePermission = require('../models/RolePermission');
 const { clearPermissionCache } = require('../middleware/checkPermission');
+// FP-043 — access-control changes are audited at the ROUTE HANDLER, not in
+// checkPermission. checkPermission runs on every gated request; logging there
+// would emit an entry per request. A matrix EDIT is the sensitive event.
+const auditService = require('../services/auditService');
 const { protect, authorize } = require('../middleware/auth');
 
 // ── Canonical module list (columns of the matrix) ──
@@ -32,6 +36,33 @@ const MODULES = [
   { key: 'admissions',    label: 'Admissions' },
   { key: 'reports',       label: 'Reports' },
   { key: 'accessControl', label: 'Access Control' },
+
+  // ── TFS-EOS delta additions (FP-040) ───────────────────────────────────────
+  // 21 new keys. schoolAdmin auto-grants via MODULES.reduce above; every other
+  // role gets an explicit grant in DEFAULT_GRANTS below. A key with no grant
+  // falls to 'none' in defaultPermsFor, which is safe here but must never be the
+  // ONLY line of defence — see the note on checkPermission fail-open.
+  { key: 'academicCalendar',  label: 'Academic Calendar' },
+  { key: 'promotion',         label: 'Student Promotion' },
+  { key: 'examsAdvanced',     label: 'Advanced Exams' },
+  { key: 'studentInformation', label: 'Student Information' },
+  { key: 'competencies',      label: 'Competency Framework' },
+  { key: 'assessment',        label: 'Formative Assessment' },
+  { key: 'curriculum',        label: 'Curriculum Repository' },
+  { key: 'bestPractices',     label: 'Best Practice Library' },
+  { key: 'lessonPlans',       label: 'Lesson Planner' },
+  { key: 'passport',          label: 'Learning Passport' },
+  { key: 'subjectModules',    label: 'Subject Modules' },
+  { key: 'quality',           label: 'Quality & Accreditation' },
+  { key: 'insights',          label: 'AI Insights' },
+  { key: 'consent',           label: 'Consent & Privacy' },
+  { key: 'notificationConfig', label: 'Notification Providers' },
+  { key: 'auditConsole',      label: 'Audit Console' },
+  { key: 'messaging',         label: 'Parent Messaging' },
+  { key: 'peerObservations',  label: 'Peer Observations' },
+  { key: 'copilot',           label: 'AI Copilot' },
+  { key: 'principalCopilot',  label: 'Principal Copilot' },
+  { key: 'parentAI',          label: 'Parent-Facing AI' },
 ];
 
 const ROLES = [
@@ -42,6 +73,10 @@ const ROLES = [
   { key: 'transportManager', label: 'Transport Manager' },
   { key: 'student',          label: 'Student' },
   { key: 'parent',           label: 'Parent' },
+  // TFS-EOS delta (FP-040). Added HERE and to User.role — a role in only one
+  // place is invisible to the matrix. Both are governance oversight roles.
+  { key: 'trustee',            label: 'Trustee' },
+  { key: 'governanceCommittee', label: 'Governance Committee' },
 ];
 
 // Access levels (least → most). Stored in the DB per role×module.
@@ -65,12 +100,23 @@ function toLevel(v) {
 // superAdmin is intentionally excluded — it always has admin access.
 const DEFAULT_GRANTS = {
   schoolAdmin:      MODULES.reduce((m, x) => (m[x.key] = 'admin', m), {}),
-  teacher:          { dashboard:'read', students:'edit', classes:'read', subjects:'read', attendance:'edit', exams:'edit', assignments:'edit', homework:'edit', behaviourNotes:'edit', timetable:'read', meetings:'edit', admissions:'read', reports:'read' },
+  teacher:          { dashboard:'read', students:'edit', classes:'read', subjects:'read', attendance:'edit', exams:'edit', assignments:'edit', homework:'edit', behaviourNotes:'edit', timetable:'read', meetings:'edit', admissions:'read', reports:'read',
+                      // TFS-EOS: a teacher's day-to-day surface.
+                      academicCalendar:'read', examsAdvanced:'edit', studentInformation:'read', competencies:'read', assessment:'edit', curriculum:'edit', bestPractices:'edit', lessonPlans:'edit', passport:'edit', subjectModules:'edit', messaging:'edit', peerObservations:'edit', copilot:'edit', consent:'read' },
   accountant:       { dashboard:'read', students:'read', classes:'read', salary:'edit', exams:'read', fees:'edit', expenses:'edit', timetable:'read', meetings:'edit', reports:'read' },
   librarian:        { dashboard:'read', classes:'read', exams:'read', library:'edit', timetable:'read', meetings:'edit', reports:'read' },
   transportManager: { dashboard:'read', classes:'read', exams:'read', transport:'edit', timetable:'read', meetings:'edit', reports:'read' },
   student:          { dashboard:'read', homework:'read', meetings:'read' },
-  parent:           { dashboard:'read', homework:'read', meetings:'read' },
+  parent:           { dashboard:'read', homework:'read', meetings:'read',
+                      // TFS-EOS: parents see their own child's passport and messages;
+                      // per-child scoping is enforced in the controller (GAP-PA-004).
+                      passport:'read', messaging:'edit', consent:'edit', parentAI:'read' },
+
+  // TFS-EOS governance oversight — READ-CAPPED. These roles review, they do not
+  // operate. peerObservations is 'none': a governance reviewer must not read a
+  // private peer observation, and that is also enforced in the query layer.
+  trustee:          { dashboard:'read', reports:'read', quality:'read', auditConsole:'read', insights:'read', academicCalendar:'read' },
+  governanceCommittee: { dashboard:'read', reports:'read', quality:'read', auditConsole:'read' },
 };
 
 function defaultPermsFor(role) {
@@ -149,7 +195,35 @@ router.put('/', authorize('superAdmin', 'schoolAdmin'), async (req, res) => {
         };
       });
 
+    // Capture prior state for the audit before/after.
+    const affectedRoles = ops.map((o) => o.updateOne.filter.role);
+    const before = await RolePermission.find({
+      role: { $in: affectedRoles }, school: req.user.school,
+    }).lean();
+
     if (ops.length) await RolePermission.bulkWrite(ops);
+
+    // Clear the cache FIRST so the audit reflects what is now in force, then log.
+    clearPermissionCache();
+
+    const after = await RolePermission.find({
+      role: { $in: affectedRoles }, school: req.user.school,
+    }).lean();
+
+    await auditService.audit({
+      actor: req.user._id,
+      actorNameSnapshot: req.user.name,
+      actorRoleSnapshot: req.user.role,
+      action: 'permission.matrix.update',
+      module: 'accessControl',
+      recordRef: { collectionName: 'RolePermission', id: null },
+      // Only the grant maps — never a credential or token.
+      before: before.map((b) => ({ role: b.role, permissions: b.permissions })),
+      after: after.map((a) => ({ role: a.role, permissions: a.permissions })),
+      source: 'route',
+      school: req.user.school,
+    });
+
     res.json({ success: true, message: 'Permissions saved', count: ops.length });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -169,3 +243,10 @@ router.post('/reset', authorize('superAdmin', 'schoolAdmin'), async (req, res) =
 });
 
 module.exports = router;
+
+// BP-002: expose the permission registry for the startup assertion and for tests.
+// Attached as properties on the router (a function) so `require(...)` continues to
+// return a mountable router and server.js is unaffected.
+module.exports.MODULES = MODULES;
+module.exports.ROLES = ROLES;
+module.exports.DEFAULT_GRANTS = DEFAULT_GRANTS;

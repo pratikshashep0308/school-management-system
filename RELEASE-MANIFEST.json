@@ -1,0 +1,75 @@
+{
+  "product": "TFS-EOS Delta Build",
+  "releaseVersion": "1.0.0",
+  "buildIdentifier": "tfs-eos-delta-528c9ed",
+  "releaseStatus": "BUILD COMPLETE \u2014 RUNTIME ENVIRONMENT VALIDATION PENDING",
+  "git": {
+    "branch": "feature/tfs-eos-delta-build-final",
+    "commit": "528c9ed8a8f6a89ff31656d799f7716cc739b7e9",
+    "commitShort": "528c9ed",
+    "tag": "tfs-eos-delta-v1.0.0",
+    "pushedToRemote": false,
+    "pushNote": "No remote/credentials configured in build environment; tag and branch are local only."
+  },
+  "baseline": {
+    "lldVersion": "FINAL LLD 1.1",
+    "amendments": [
+      "A-01",
+      "A-02"
+    ],
+    "decisionRegisterRevision": "Rev 2 (incl. ADR-13 approved)"
+  },
+  "prompts": {
+    "totalFP": 62,
+    "completed": 61,
+    "modeBPending": [
+      "FP-096"
+    ]
+  },
+  "tests": {
+    "backend": {
+      "suites": 34,
+      "tests": 615,
+      "passed": 615,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "frontend": {
+      "suites": 6,
+      "tests": 39,
+      "passed": 39,
+      "failed": 0,
+      "skipped": 0
+    },
+    "total": {
+      "tests": 654,
+      "passed": 654,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "package": {
+    "filename": "TFS-EOS-DELTA-BUILD-v1.0.0-FINAL.zip",
+    "sha256": "see TFS-EOS-DELTA-BUILD-v1.0.0-FINAL.zip.sha256 (authoritative, computed over the final artifact)",
+    "sha256Note": "The manifest cannot embed the enclosing zip hash; the .sha256 sidecar is authoritative."
+  },
+  "buildTimestamp": "2026-08-14T23:11:08Z",
+  "openDecisions": {
+    "ADR-02": "OPEN \u2014 parent session model",
+    "ADR-05": "OPEN \u2014 concrete SMS/WhatsApp provider",
+    "ADR-10": "OPEN \u2014 translation vendor",
+    "ADR-11": "OPEN \u2014 LLM provider",
+    "ADR-14": "OPEN \u2014 permission-matrix completeness (fail-open gap, waived; not resolved)"
+  },
+  "modeA": "PASS",
+  "modeB": "ENVIRONMENT VALIDATION PENDING",
+  "environmentValidation": {
+    "mongoDbConnectivity": "NOT EXECUTED",
+    "transactionSupport": "NOT EXECUTED",
+    "migrationExecution": "NOT EXECUTED",
+    "livePromotionTransactionProof": "NOT EXECUTED",
+    "e2e": "NOT EXECUTED",
+    "productionValidated": false
+  }
+}

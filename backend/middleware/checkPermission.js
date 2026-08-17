@@ -62,11 +62,33 @@ function checkPermission(moduleKey) {
       // superAdmin bypasses the matrix entirely.
       if (role === 'superAdmin') return next();
 
-      const perms = await getPermissions(role, school);
+      let perms = await getPermissions(role, school);
 
       // No matrix configured for this role → don't interfere; the route's own
       // authorize() still applies.
       if (!perms) return next();
+
+      // ── FP-041 — secondary roles grant READ only ────────────────────────────
+      // Re-read from req.user (server-side), never from the JWT, so a stale token
+      // cannot widen access. A secondary role can raise 'none' to 'read'; it can
+      // never grant a write or lower an existing grant.
+      const secondaryRoles = Array.isArray(req.user?.secondaryRoles) ? req.user.secondaryRoles : [];
+      if (secondaryRoles.length > 0) {
+        perms = { ...perms };
+        for (const secondary of secondaryRoles) {
+          if (secondary === role) continue;
+          const secPerms = await getPermissions(secondary, school);
+          if (!secPerms) continue;
+          const secLevel = secPerms[moduleKey];
+          const hasReadable = secLevel === 'read' || secLevel === 'edit' || secLevel === 'admin';
+          const primaryDenied = perms[moduleKey] === undefined || perms[moduleKey] === null ||
+                                perms[moduleKey] === 'none' || perms[moduleKey] === false;
+          // Cap at read: a secondary edit/admin becomes read here.
+          if (hasReadable && primaryDenied) {
+            perms[moduleKey] = 'read';
+          }
+        }
+      }
 
       const level = perms[moduleKey];
 
@@ -93,9 +115,42 @@ function checkPermission(moduleKey) {
       // afterwards, so a role can never gain more than the route permits.
       return next();
     } catch (err) {
-      // Never take the API down because of a permission-lookup failure.
-      console.error('[checkPermission] error:', err.message);
-      return next();
+      // ── ADR-13 — authorization infrastructure failure FAILS CLOSED ──────────
+      // Previously this returned next(), allowing the request. A transient error
+      // during permission resolution (matrix lookup, role resolution) must NOT
+      // grant access: an authorization layer that cannot decide must deny.
+      //
+      // The client receives a generic 403 with no internal detail. The full
+      // error is audited server-side, never returned.
+      const safeRef = `authz-${Date.now().toString(36)}`;
+      console.error(`[checkPermission] authorization failure ${safeRef}:`, err.message);
+
+      // Record the infrastructure failure per the audit policy. Best-effort and
+      // itself wrapped, so an audit failure cannot turn a deny back into an allow.
+      try {
+        const auditService = require('../services/auditService');
+        await auditService.audit({
+          actor: req.user?._id || null,
+          actorRoleSnapshot: req.user?.role || null,
+          action: 'authorization.failure',
+          module: moduleKey,
+          // No before/after state, and crucially no error internals or secrets.
+          before: null,
+          after: null,
+          source: 'checkPermission',
+          school: req.user?.school || null,
+          meta: { ref: safeRef, reason: 'authorization_dependency_error' },
+        });
+      } catch (auditErr) {
+        // Deny regardless. The audit is secondary to the security decision.
+        console.error(`[checkPermission] audit of ${safeRef} failed:`, auditErr.message);
+      }
+
+      return res.status(403).json({
+        success: false,
+        message: 'Authorization could not be verified for this request.',
+        ref: safeRef,
+      });
     }
   };
 }

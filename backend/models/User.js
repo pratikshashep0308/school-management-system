@@ -25,8 +25,25 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['superAdmin', 'schoolAdmin', 'teacher', 'student', 'parent', 'accountant', 'librarian', 'transportManager'],
+    enum: ['superAdmin', 'schoolAdmin', 'teacher', 'student', 'parent', 'accountant', 'librarian', 'transportManager', 'trustee', 'governanceCommittee'],
     default: 'student'
+  },
+
+  // ── TFS-EOS delta (FP-041) — secondary roles ───────────────────────────────
+  // Additional roles grant READ access to their modules, on top of the primary
+  // role. Write always derives from the primary role — a secondary role can
+  // never escalate privilege. The JWT still carries only {id, role}; secondary
+  // roles are re-read server-side so a stale token cannot widen access.
+  secondaryRoles: {
+    type: [String],
+    default: [],
+    validate: {
+      validator(v) {
+        const allowed = ['schoolAdmin','teacher','accountant','librarian','transportManager','trustee','governanceCommittee'];
+        return v.every((r) => allowed.includes(r));
+      },
+      message: 'SECONDARY_ROLE_INVALID: {VALUE} is not an assignable secondary role.',
+    },
   },
   phone: { type: String, trim: true },
   profileImage: { type: String, default: '' },

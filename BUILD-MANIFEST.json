@@ -1,0 +1,104 @@
+{
+  "product": "The Future Step Rural Teaching Framework \u2014 TFS-EOS Delta Build",
+  "version": "1.0.0-rc1",
+  "buildDate": "2026-08-14T15:18:40Z",
+  "buildRun": "BR-2026-0001",
+  "git": {
+    "branch": "feature/tfs-eos-delta-build",
+    "commit": "23349573d94a37b18c3001caeddae8477d9efb29",
+    "commitShort": "2334957",
+    "baselineCommit": "cd81c50"
+  },
+  "engineeringBaseline": {
+    "requirementsVersion": "NOT SUPPLIED \u2014 Level 1 artifact absent",
+    "specificationVersion": "v1.2(2)",
+    "lldVersion": "v1.1",
+    "traceabilityVersion": "LLD v1.1 \u00a729 (77 rows)",
+    "buildPromptVersion": "BR-2026-0001 (59 prompts)",
+    "approvedDecisions": [
+      "D-001",
+      "D-002",
+      "D-003",
+      "D-004",
+      "D-005",
+      "D-006",
+      "D-007",
+      "D-008",
+      "D-009"
+    ],
+    "deploymentContext": "DEP-01"
+  },
+  "runtime": {
+    "node": ">=18",
+    "npm": ">=9",
+    "mongodb": ">=4.4 (replica set required for D-004 transactions)",
+    "mongosh": "required for migrations"
+  },
+  "buildStatus": {
+    "state": "BUILD RELEASE CANDIDATE",
+    "sourceCodeBuilds": true,
+    "staticChecksPass": true,
+    "unitTestsPass": true,
+    "databaseScriptsGenerated": true,
+    "installationScriptsGenerated": true,
+    "packageAssembled": true,
+    "knownSourceCodeBlockers": 0
+  },
+  "testStatus": {
+    "total": 128,
+    "passed": 128,
+    "failed": 0,
+    "notExecutedEnvironmentUnavailable": {
+      "integrationTier": "requires MONGO_URI_TEST",
+      "migrationExecution": "requires a reachable MongoDB deployment",
+      "e2e": "requires a running application and browser infrastructure"
+    },
+    "suites": [
+      "tests/characterisation (29) \u2014 the six no-change guarantees",
+      "tests/unit/assertModuleKeys (10)",
+      "tests/unit/calendarService (14)",
+      "tests/unit/attendanceAlerts (8)",
+      "tests/unit/buildArtifacts (67)"
+    ]
+  },
+  "environmentValidation": {
+    "state": "PENDING",
+    "mongodbConnectivity": "NOT EXECUTED \u2014 ENVIRONMENT UNAVAILABLE",
+    "transactionCapability": "NOT EXECUTED \u2014 ENVIRONMENT UNAVAILABLE",
+    "migrationExecution": "NOT EXECUTED \u2014 ENVIRONMENT UNAVAILABLE",
+    "installationValidation": "NOT EXECUTED \u2014 TARGET ENVIRONMENT UNAVAILABLE"
+  },
+  "buildPrompts": {
+    "total": 59,
+    "executed": 9,
+    "passed": 9,
+    "gatedOnDecision": 4,
+    "blockedByGatedDependency": 8,
+    "readyNotYetStarted": 38,
+    "note": "Corrected 14 Aug 2026: an earlier revision recorded executed:8 / notStarted:47. Nine prompts had been executed and the four gated prompts were counted outside notStarted. Total was 59 either way."
+  },
+  "artifacts": {
+    "migrations": 2,
+    "rollbacks": 2,
+    "indexScripts": 1,
+    "seedScripts": 1,
+    "validationScripts": 1,
+    "installScriptsBash": 8,
+    "installScriptsPowerShell": 8
+  },
+  "openInputs": [
+    "TFS_ACADEMIC_YEAR_START / TFS_ACADEMIC_YEAR_END \u2014 required by migration 001, deliberately not defaulted",
+    "Sign-off on LLD \u00a7S.11.2 (exam announcement granularity) \u2014 gates BP-036, BP-034, BP-052",
+    "Sign-off on LLD \u00a7S.11.3 (promotion publication gating) \u2014 gates BP-036, BP-034, BP-052",
+    "Original Level 1 requirements, or a written waiver accepting Specification v1.2 as the effective baseline"
+  ],
+  "secretsScan": {
+    "filesScanned": 22,
+    "credentialsFound": 0,
+    "envGitignored": true
+  },
+  "package": {
+    "filename": "TFS-EOS-DELTA-BUILD-v1.0-FINAL.zip",
+    "sha256": "968cb27df4ade83e07f8cf02119267430c42b212a8fc2a291ee6ed74d467215a"
+  }
+}

@@ -1,0 +1,10 @@
+label,date,endDate,recurringAnnually,type
+Republic Day,2027-01-26,,true,national
+Independence Day,2026-08-15,,true,national
+Gandhi Jayanti,2026-10-02,,true,national
+Christmas Day,2026-12-25,,true,religious
+Diwali break,2026-11-06,2026-11-12,false,religious
+Holi,2027-03-13,,false,religious
+Dussehra,2026-10-20,,false,religious
+Winter break,2026-12-24,2027-01-01,false,school
+Founders Day,2026-09-12,,true,school
