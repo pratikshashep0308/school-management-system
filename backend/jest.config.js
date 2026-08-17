@@ -12,7 +12,7 @@
  */
 module.exports = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/tests', '<rootDir>/fms'],
+  roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.js'],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   testTimeout: 20000,
