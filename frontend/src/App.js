@@ -58,6 +58,11 @@ import Teachers     from './pages/Teachers';
 import Classes      from './pages/Classes';
 import Subjects     from './pages/Subjects';
 import AccessControl from './pages/AccessControl';
+// TFS-EOS delta pages — wired here (staging finding #3: they existed and were
+// unit-tested but were never added to the router).
+import AcademicCalendar    from './pages/AcademicCalendar';
+import PromotionWorkflow   from './pages/PromotionWorkflow';
+import NotificationProviders from './pages/NotificationProviders';
 import Attendance   from './pages/Attendance';
 import Salary from './pages/Salary';
 import Exams        from './pages/Exams';
@@ -216,6 +221,10 @@ export default function App() {
               <Route path="classes"       element={<AdminRoute><Classes /></AdminRoute>} />
               <Route path="subjects"      element={<AdminRoute><Subjects /></AdminRoute>} />
               <Route path="access-control" element={<AdminRoute><AccessControl /></AdminRoute>} />
+              {/* TFS-EOS delta routes (staging finding #3) */}
+              <Route path="academic-calendar"     element={<AdminRoute><AcademicCalendar /></AdminRoute>} />
+              <Route path="promotion"             element={<AdminRoute><PromotionWorkflow /></AdminRoute>} />
+              <Route path="notification-providers" element={<AdminRoute><NotificationProviders /></AdminRoute>} />
               <Route path="attendance"    element={<AdminRoute><Attendance /></AdminRoute>} />
               <Route path="salary"       element={<AdminRoute><Salary /></AdminRoute>} />
               <Route path="exams"         element={<AdminRoute><Exams /></AdminRoute>} />

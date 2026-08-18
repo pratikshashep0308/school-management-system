@@ -15,6 +15,9 @@ const PATH_TO_MODULE = {
   '/behaviour-notes': 'behaviourNotes',
   '/meetings': 'meetings', '/notifications': 'notifications', '/admissions': 'admissions',
   '/reports': 'reports',
+  // TFS-EOS delta (staging finding #3) — keys match the seeded permission matrix.
+  '/academic-calendar': 'academicCalendar', '/promotion': 'promotion',
+  '/notification-providers': 'notificationConfig',
   // '/profile' has no module key — always visible.
 };
 
@@ -33,6 +36,7 @@ const MODULE_COLORS = {
   '/transport': '#00b3a4', '/homework': '#4f9dff', '/behaviour-notes': '#e0567a',
   '/timetable': '#e08a2b', '/meetings': '#2d9cdb', '/notifications': '#e0a030',
   '/admissions': '#43a047', '/reports': '#5b8def', '/profile': '#8a94a6',
+  '/academic-calendar': '#2d9cdb', '/promotion': '#7c6af5', '/notification-providers': '#e0a030',
 };
 const itemColor = (path) => MODULE_COLORS[path] || '#d4522a';
 
@@ -54,6 +58,11 @@ const MENU_ITEMS = [
   { path: '/teachers',      icon: '👤', label: 'Employees',      roles: ADMIN_ROLES },
   { path: '/classes',       icon: '🏛',  label: 'Classes',       roles: STAFF_ROLES },
   { path: '/subjects',      icon: '📖', label: 'Subjects',      roles: ['superAdmin','schoolAdmin'] },
+  // TFS-EOS delta pages (staging finding #3). Role gates the LINK; the backend
+  // module matrix (academicCalendar/promotion/notificationConfig) is authoritative.
+  { path: '/academic-calendar',     icon: '📆', label: 'Academic Calendar',     roles: ['superAdmin','schoolAdmin'] },
+  { path: '/promotion',             icon: '🎓', label: 'Promotion',             roles: ['superAdmin','schoolAdmin'] },
+  { path: '/notification-providers', icon: '📡', label: 'Notification Providers', roles: ['superAdmin','schoolAdmin'] },
   { path: '/salary',        icon: '💰', label: 'Salary',         roles: ['superAdmin','schoolAdmin','accountant'] },
   { path: '/attendance',    icon: '📅', label: 'Attendance',    roles: ['superAdmin','schoolAdmin','teacher'] },
   { path: '/exams',         icon: '📝', label: 'Exams',         roles: STAFF_ROLES },
