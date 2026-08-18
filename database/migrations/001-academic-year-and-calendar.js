@@ -55,10 +55,13 @@ if (isNaN(start.getTime()) || isNaN(end.getTime()) || start >= end) {
   quit(1);
 }
 
+const DRY_RUN = Boolean(_env('TFS_DRY_RUN'));
+
 print('== Migration 001: academic year and calendar ==');
+if (DRY_RUN) print('(DRY RUN — no writes will be made)');
 
 const applied = db.migrations.findOne({ _id: '001-academic-year-and-calendar' });
-if (applied && applied.completedAt) {
+if (applied && applied.completedAt && !DRY_RUN) {
   print('Already applied at ' + applied.completedAt + '. Nothing to do.');
   quit(0);
 }
@@ -78,6 +81,9 @@ schools.forEach(function (school) {
   const existing = db.academicyears.findOne({ school: school._id, name: YEAR_NAME });
   if (existing) {
     print('  ' + label + ': academic year ' + YEAR_NAME + ' already present');
+  } else if (DRY_RUN) {
+    print('  ' + label + ': WOULD create ' + YEAR_NAME);
+    created += 1;
   } else {
     db.academicyears.insertOne({
       name: YEAR_NAME,
@@ -97,17 +103,30 @@ schools.forEach(function (school) {
   // Align the legacy free-text label to the canonical format. Retained for
   // backward compatibility, never removed.
   if (school.academicYear !== YEAR_NAME) {
-    db.schools.updateOne({ _id: school._id }, { $set: { academicYear: YEAR_NAME } });
+    if (DRY_RUN) {
+      print('  ' + label + ': WOULD align academicYear label to ' + YEAR_NAME);
+    } else {
+      db.schools.updateOne({ _id: school._id }, { $set: { academicYear: YEAR_NAME } });
+    }
     aligned += 1;
   }
 });
 
 ['holidays', 'specialevents'].forEach(function (name) {
   if (db.getCollectionNames().indexOf(name) === -1) {
-    db.createCollection(name);
-    print('  created collection: ' + name);
+    if (DRY_RUN) {
+      print('  WOULD create collection: ' + name);
+    } else {
+      db.createCollection(name);
+      print('  created collection: ' + name);
+    }
   }
 });
+
+if (DRY_RUN) {
+  print('DRY RUN complete — would create ' + created + ' year(s), align ' + aligned + ' school label(s). No writes made.');
+  quit(0);
+}
 
 db.migrations.updateOne(
   { _id: '001-academic-year-and-calendar' },

@@ -28,9 +28,18 @@ const DB_SCRIPTS = [
 const SH = ['check-prerequisites', 'check-mongodb', 'install', 'migrate', 'seed', 'validate-db', 'start', 'stop'];
 
 describe('database package structure', () => {
-  test.each(['migrations', 'indexes', 'seed', 'validation', 'scripts'])(
+  // database/ ships migrations, indexes, seed, validation and lib. Operational
+  // scripts (install/migrate/seed/validate-db …) live at the repo root scripts/,
+  // NOT under database/scripts — the earlier 'scripts' assertion here was stale
+  // and failed on a clean checkout (staging finding #4b).
+  test.each(['migrations', 'indexes', 'seed', 'validation', 'lib'])(
     'database/%s exists', (d) => expect(exists(`database/${d}`)).toBe(true)
   );
+
+  test('operational scripts live at the repo root scripts/, not database/scripts', () => {
+    expect(exists('scripts')).toBe(true);
+    expect(exists('database/scripts')).toBe(false);
+  });
 
   test.each(DB_SCRIPTS)('%s is syntactically valid', (p) => {
     expect(() => new vm.Script(read(p))).not.toThrow();
