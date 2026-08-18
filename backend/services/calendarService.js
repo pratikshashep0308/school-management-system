@@ -42,15 +42,22 @@ require('../models/AcademicYear');
 /** Sunday is a non-instructional day independently of the persisted calendar. */
 const SUNDAY = 0;
 
+// Day boundaries are computed in UTC, not local time. Downstream code turns a
+// date into a string with `.toISOString().slice(0,10)`, which is UTC; using
+// local midnight (setHours) here would shift every date by the server's offset
+// on any non-UTC server (staging runs in IST, UTC+5:30), silently moving range
+// results back a day. setUTCHours keeps the boundary and the string in the same
+// frame. A date-only input like '2026-08-18' is parsed by Date as UTC midnight,
+// so this treats such inputs as that calendar day exactly.
 const startOfDay = (date) => {
   const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 };
 
 const endOfDay = (date) => {
   const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
+  d.setUTCHours(23, 59, 59, 999);
   return d;
 };
 
@@ -92,12 +99,21 @@ async function isNonInstructionalDay(date, schoolId, ctx) {
     const dayStart = startOfDay(target);
     const dayEnd = endOfDay(target);
 
-    // A record covers the target if it starts on or before the day ends and
-    // finishes on or after the day begins. endDate null means a single day.
+    // A record covers the target if it starts on or before the day ends AND
+    // finishes on or after the day begins. For a single-day holiday endDate is
+    // null, and its effective end is its OWN date — so the record covers the
+    // target only when its date falls within the queried day. Treating a null
+    // endDate as "no upper bound" (the original bug) made every day from the
+    // holiday onward match forever.
     const spanQuery = {
       school: schoolId,
       date: { $lte: dayEnd },
-      $or: [{ endDate: null }, { endDate: { $gte: dayStart } }],
+      $or: [
+        // Single day: the holiday's own date must be on/after the day begins.
+        { endDate: null, date: { $gte: dayStart } },
+        // Multi day: the span's end must be on/after the day begins.
+        { endDate: { $gte: dayStart } },
+      ],
     };
 
     const [holiday, event] = await Promise.all([
@@ -143,8 +159,10 @@ async function isNonInstructionalDay(date, schoolId, ctx) {
         ref: event._id,
         label: event.label,
       };
-    } else if (target.getDay() === SUNDAY) {
-      // Retained as an independent OR-term, exactly as before.
+    } else if (startOfDay(target).getUTCDay() === SUNDAY) {
+      // Retained as an independent OR-term, exactly as before. Uses the UTC
+      // day-of-week of the normalised day so it agrees with the UTC boundaries
+      // used everywhere else (getDay() would drift on a non-UTC server).
       result = { blocked: true, reason: 'sunday', ref: null, label: 'Sunday' };
     } else {
       result = { blocked: false, reason: null, ref: null, label: null };
@@ -180,10 +198,15 @@ async function nonInstructionalDatesInRange(startDate, endDate, schoolId) {
     const Holiday = mongoose.model('Holiday');
     const SpecialEvent = mongoose.model('SpecialEvent');
 
+    // Same span semantics as isNonInstructionalDay: a single-day holiday
+    // (endDate null) overlaps the range only if its own date is within it.
     const overlaps = {
       school: schoolId,
       date: { $lte: rangeEnd },
-      $or: [{ endDate: null }, { endDate: { $gte: rangeStart } }],
+      $or: [
+        { endDate: null, date: { $gte: rangeStart } },
+        { endDate: { $gte: rangeStart } },
+      ],
     };
 
     const [holidays, events] = await Promise.all([
@@ -202,10 +225,12 @@ async function nonInstructionalDatesInRange(startDate, endDate, schoolId) {
       }
     }
 
-    // Sundays in range.
+    // Sundays in range. Uses UTC day-of-week to stay consistent with the UTC
+    // day boundaries above (getDay() would use the server's local week on a
+    // non-UTC server and mis-identify the boundary days).
     let d = new Date(rangeStart);
     while (d <= rangeEnd) {
-      if (d.getDay() === SUNDAY) dates.add(d.toISOString().slice(0, 10));
+      if (d.getUTCDay() === SUNDAY) dates.add(d.toISOString().slice(0, 10));
       d = new Date(d.getTime() + 86400000);
     }
   } catch (err) {
