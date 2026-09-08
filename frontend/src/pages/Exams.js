@@ -8,9 +8,10 @@ import { LoadingState, EmptyState } from '../components/ui';
 import ExamSetup from './Exams/ExamSetup';
 import examAdvAPI from '../utils/examAPI';
 import {
-  ExamDashboardHome, MarksEntryView, ResultsView,
+  ExamDashboardHome, AllExamsGroups, MarksEntryView, ResultsView,
   ReportsView, DateSheetView, AwardListView,
 } from './Exams/DashboardViews';
+import QuestionPapers from './Exams/QuestionPapers';
 
 const TYPE_COLORS = {
   unit:       { bg:'#FEF3C7', color:'#92400E', border:'#F59E0B' },
@@ -807,6 +808,19 @@ export default function Exams() {
     catch { toast.error('Failed to delete'); }
   };
 
+  // Delete an advanced exam group. The backend refuses if marks exist and
+  // returns a clear message, which we surface rather than swallow.
+  const handleDeleteGroup = async (g) => {
+    if (!window.confirm(`Delete exam "${g.name}"? This cannot be undone.`)) return;
+    try {
+      await examAdvAPI.deleteGroup(g._id);
+      toast.success('Exam deleted');
+      load(); loadStats();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete exam');
+    }
+  };
+
   // ── The Action Center. Each entry maps to a hub section. `go` switches the
   //    hub; NOTHING here is dummy navigation. ────────────────────────────────
   const ACTIONS = [
@@ -821,6 +835,7 @@ export default function Exams() {
     { key:'setup',      icon:'🎯', label:'Grading Setup',     desc:'Configure grading schemes and grade bands.',              tint:'#16A34A', adminOnly:true  },
     { key:'setup',      icon:'🗂', label:'Exam Types',        desc:'Manage the school\u2019s exam types.',                     tint:'#9333EA', adminOnly:true  },
     { key:'reports',    icon:'📊', label:'Exam Reports',      desc:'Pass rates, averages and grade analytics.',               tint:'#DC2626', adminOnly:false },
+    { key:'questionpapers', icon:'📄', label:'Question Papers', desc:'Create, manage and print subject-wise question papers.', tint:'#0D9488', adminOnly:false },
   ];
 
   // Segmented internal navigation (NOT a second sidebar). The active section is
@@ -836,16 +851,19 @@ export default function Exams() {
     { key:'datesheet', label:'📄 Date Sheet' },
     { key:'awardlist', label:'📋 Award List' },
     { key:'reports',   label:'📊 Reports' },
+    { key:'questionpapers', label:'📄 Question Papers' },
   ].filter(n => !n.adminOnly || isAdmin);
 
-  const upcoming = exams.filter(e => e.date && new Date(e.date) >= new Date());
+  // Counts read the ADVANCED module (examgroups) so the header agrees with the
+  // dashboard tiles and with what All Exams now shows.
+  const upcomingGroups = groups.filter(g => g.startDate && new Date(g.startDate) >= new Date());
 
   return (
     <div className="animate-fade-in">
       <div className="page-header" style={{ marginBottom:16 }}>
         <div>
           <h2 className="font-display text-2xl text-ink">📝 Exam Management</h2>
-          <p className="text-sm text-muted mt-0.5">{exams.length} exams · {upcoming.length} upcoming · central hub for the exam module</p>
+          <p className="text-sm text-muted mt-0.5">{groups.length} exams · {upcomingGroups.length} upcoming · central hub for the exam module</p>
         </div>
       </div>
 
@@ -867,11 +885,12 @@ export default function Exams() {
       )}
 
       {section==='all' && (
-        <AllExams exams={exams} classes={classes} onEdit={openEdit} onDelete={handleDelete}
-          onAdd={openAdd} canEdit={canEdit} loading={loading} initialClass={initialClass}/>
+        <AllExamsGroups groups={groups} loading={loading} canEdit={canEdit}
+          onCreate={()=>openAdd()} onDelete={handleDeleteGroup}
+          onOpenMarks={()=>setSection('marks')} />
       )}
 
-      {/* "Create" opens All Exams with the create modal — the real exam form */}
+      {/* "Create" opens the same list with the real exam-create modal */}
       {section==='create' && (
         <>
           {canEdit && (
@@ -881,8 +900,9 @@ export default function Exams() {
               </button>
             </div>
           )}
-          <AllExams exams={exams} classes={classes} onEdit={openEdit} onDelete={handleDelete}
-            onAdd={openAdd} canEdit={canEdit} loading={loading} initialClass={initialClass}/>
+          <AllExamsGroups groups={groups} loading={loading} canEdit={canEdit}
+            onCreate={()=>openAdd()} onDelete={handleDeleteGroup}
+            onOpenMarks={()=>setSection('marks')} />
         </>
       )}
 
@@ -893,6 +913,7 @@ export default function Exams() {
       {section==='datesheet' && <DateSheetView groups={groups} />}
       {section==='awardlist' && <AwardListView groups={groups} />}
       {section==='reports'   && <ReportsView groups={groups} />}
+      {section==='questionpapers' && <QuestionPapers groups={groups} isAdmin={isAdmin} canEdit={canEdit} />}
 
       {modal && <ExamFormModal form={form} setForm={setForm} onSave={handleSave} onClose={()=>{setModal(false);setForm(FORM_EMPTY);}} saving={saving} classes={classes} subjects={subjects} examTypes={examTypes}/>}
     </div>
