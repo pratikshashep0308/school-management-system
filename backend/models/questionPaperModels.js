@@ -28,7 +28,9 @@ const QuestionSchema = new mongoose.Schema({
   difficulty:  { type: String, enum: DIFFICULTIES, default: 'medium' },
   instructions:{ type: String, default: '' },
 
-  // MCQ: the choices, plus which one is correct (index into options).
+  // Optional figure/diagram shown under the question text. Stores the URL
+  // returned by the existing POST /api/uploads/attachment endpoint.
+  imageUrl:    { type: String, default: '' },
   options:       [{ type: String }],
   correctAnswer: { type: String, default: '' },   // MCQ correct option / T-F / fill answer
 
@@ -86,6 +88,7 @@ const QuestionBankItemSchema = new mongoose.Schema({
   marks:       { type: Number, default: 1, min: 0 },
   difficulty:  { type: String, enum: DIFFICULTIES, default: 'medium' },
   instructions:{ type: String, default: '' },
+  imageUrl:    { type: String, default: '' },
   options:       [{ type: String }],
   correctAnswer: { type: String, default: '' },
   matchPairs: [{ left: { type: String }, right: { type: String } }],

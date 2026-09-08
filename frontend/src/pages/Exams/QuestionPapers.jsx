@@ -18,7 +18,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import examAdvAPI from '../../utils/examAPI';
-import { classAPI, subjectAPI } from '../../utils/api';
+import { classAPI, subjectAPI, uploadAPI } from '../../utils/api';
 import { calendarAPI } from '../../utils/tfsAPI';
 import { LoadingState, EmptyState } from '../../components/ui';
 
@@ -35,7 +35,7 @@ const TYPE_LABELS = {
 const DIFF_TINT = { easy:'#059669', medium:'#D97706', hard:'#DC2626' };
 
 const emptyQuestion = (order = 0) => ({
-  text:'', type:'mcq', marks:1, difficulty:'medium', instructions:'',
+  text:'', type:'mcq', marks:1, difficulty:'medium', instructions:'', imageUrl:'',
   options:['', '', '', ''], correctAnswer:'', matchPairs:[{ left:'', right:'' }], order,
 });
 
@@ -54,8 +54,9 @@ function printPaper(paper) {
         (q.matchPairs || []).map(p => `<tr><td>${esc(p.left)}</td><td>${esc(p.right)}</td></tr>`).join('') + '</table>';
     }
     const instr = q.instructions ? `<div class="instr">${esc(q.instructions)}</div>` : '';
+    const img = q.imageUrl ? `<div class="qimg"><img src="${esc(q.imageUrl)}" alt=""/></div>` : '';
     return `<div class="q"><div class="qhead"><span class="qno">Q${i + 1}.</span>
-      <span class="qtext">${esc(q.text)}</span><span class="qmarks">[${q.marks}]</span></div>${instr}${body}</div>`;
+      <span class="qtext">${esc(q.text)}</span><span class="qmarks">[${q.marks}]</span></div>${instr}${img}${body}</div>`;
   }).join('');
   w.document.write(`<html><head><title>${esc(paper.title)}</title><style>
     *{font-family:'Times New Roman',serif;} body{margin:32px;}
@@ -65,6 +66,7 @@ function printPaper(paper) {
     .q{margin-bottom:14px;} .qhead{display:flex;gap:8px;font-size:14px;}
     .qno{font-weight:bold;} .qtext{flex:1;} .qmarks{font-weight:bold;}
     .opts{margin:4px 0 0 32px;font-size:13px;} .instr{margin-left:32px;font-size:12px;color:#444;font-style:italic;}
+    .qimg{margin:6px 0 0 32px;} .qimg img{max-width:320px;max-height:240px;border:1px solid #ccc;}
     table.match{margin:6px 0 0 32px;border-collapse:collapse;font-size:13px;}
     table.match th,table.match td{border:1px solid #999;padding:4px 12px;text-align:left;}
     @media print{.noprint{display:none;}} .noprint{margin-bottom:12px;} button{padding:6px 14px;cursor:pointer;}
@@ -82,9 +84,22 @@ function esc(s) { return String(s ?? '').replace(/[&<>]/g, c => ({ '&':'&amp;','
 
 // ══════════════════════════════════════════════════════ QUESTION EDITOR ══════
 function QuestionEditor({ q, index, onChange, onRemove, onMove, onSaveToBank, isFirst, isLast }) {
+  const [uploading, setUploading] = useState(false);
   const set = (patch) => onChange({ ...q, ...patch });
   const setOpt = (i, v) => { const o = [...(q.options || [])]; o[i] = v; set({ options:o }); };
   const setPair = (i, k, v) => { const p = [...(q.matchPairs || [])]; p[i] = { ...p[i], [k]:v }; set({ matchPairs:p }); };
+
+  const uploadImage = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast.error('Please choose an image file');
+    setUploading(true);
+    try {
+      const r = await uploadAPI.attachment(file);
+      set({ imageUrl: r.data.data?.url || '' });
+      toast.success('Image added');
+    } catch (e) { toast.error(e.response?.data?.message || 'Upload failed'); }
+    finally { setUploading(false); }
+  };
 
   return (
     <div style={{ ...CARD, padding:16, borderLeft:`4px solid ${DIFF_TINT[q.difficulty] || '#9CA3AF'}` }}>
@@ -109,6 +124,22 @@ function QuestionEditor({ q, index, onChange, onRemove, onMove, onSaveToBank, is
 
       <textarea value={q.text} onChange={e=>set({ text:e.target.value })} placeholder="Question text…"
         rows={2} style={{ ...INP, resize:'vertical', marginBottom:10 }}/>
+
+      {/* Optional image — uploaded via the shared /uploads endpoint. Any type. */}
+      <div style={{ marginBottom:10 }}>
+        {q.imageUrl ? (
+          <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
+            <img src={q.imageUrl} alt="" style={{ maxWidth:180, maxHeight:130, borderRadius:8, border:'1px solid #E5E7EB' }}/>
+            <button onClick={()=>set({ imageUrl:'' })} style={{ ...GHOST, padding:'5px 10px', fontSize:12, color:'#DC2626', borderColor:'#FCA5A5', background:'#FEF2F2' }}>Remove image</button>
+          </div>
+        ) : (
+          <label style={{ ...GHOST, display:'inline-flex', alignItems:'center', gap:6, padding:'6px 12px', fontSize:12, cursor:'pointer' }}>
+            {uploading ? 'Uploading…' : '🖼 Add image'}
+            <input type="file" accept="image/*" style={{ display:'none' }} disabled={uploading}
+              onChange={e=>{ uploadImage(e.target.files?.[0]); e.target.value=''; }}/>
+          </label>
+        )}
+      </div>
 
       {q.type === 'mcq' && (
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
@@ -249,7 +280,7 @@ function PaperEditor({ paper, onBack, onSaved, classes, subjects, groups, years,
   const pickFromBank = (it) => {
     const q = {
       text:it.text, type:it.type, marks:it.marks, difficulty:it.difficulty,
-      instructions:it.instructions || '', options:it.options || ['', '', '', ''],
+      instructions:it.instructions || '', imageUrl:it.imageUrl || '', options:it.options || ['', '', '', ''],
       correctAnswer:it.correctAnswer || '', matchPairs:it.matchPairs || [{ left:'', right:'' }],
       order:(form.questions || []).length,
     };
@@ -262,7 +293,7 @@ function PaperEditor({ paper, onBack, onSaved, classes, subjects, groups, years,
     try {
       await examAdvAPI.bankCreate({
         text:q.text, type:q.type, marks:q.marks, difficulty:q.difficulty,
-        instructions:q.instructions, options:q.options, correctAnswer:q.correctAnswer,
+        instructions:q.instructions, imageUrl:q.imageUrl, options:q.options, correctAnswer:q.correctAnswer,
         matchPairs:q.matchPairs, class:form.class || undefined, subject:form.subject || undefined,
       });
       toast.success('Saved to question bank');
