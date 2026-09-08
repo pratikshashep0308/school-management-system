@@ -97,6 +97,95 @@ export function ExamDashboardHome({ stats, loading, actions, go, isAdmin }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════ ALL EXAMS ══
+// Lists exams from the ADVANCED module (examgroups) — the same collection the
+// Create form writes to and that Marks/Results/Reports read. The old All Exams
+// tab read the legacy `exams` collection, so a freshly-created exam never
+// appeared. This reads `groups`, so it does.
+//
+// A group's class/subject/date live on its child ExamSubjects, not the group,
+// and the groups-list endpoint doesn't return them; so each card shows the
+// group-level facts (name, type, date, classes, status) plus a subjects count,
+// with a "Manage marks" affordance rather than pretending to be a single paper.
+export function AllExamsGroups({ groups, loading, canEdit, onCreate, onDelete, onOpenMarks }) {
+  const [typeF, setTypeF]   = useState('');
+  const now = new Date();
+
+  const types = [...new Set(groups.map(g => g.examType?.name).filter(Boolean))];
+  const filtered = groups.filter(g => !typeF || g.examType?.name === typeF);
+  const upcoming = filtered.filter(g => g.startDate && new Date(g.startDate) >= now);
+  const past     = filtered.filter(g => !g.startDate || new Date(g.startDate) < now);
+
+  const STATUS_TINT = {
+    draft:'#6B7280', scheduled:'#D97706', ongoing:'#2563EB', completed:'#059669', published:'#7C3AED',
+  };
+
+  const Card = (g) => {
+    const d = g.startDate ? new Date(g.startDate) : null;
+    const cls = (g.classes || []).map(c => `${c.name || ''} ${c.section || ''}`.trim()).filter(Boolean);
+    return (
+      <div key={g._id} style={{ ...CARD, display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', padding:'16px 20px' }}>
+        <div style={{ width:52, height:52, borderRadius:12, background:'#F8FAFC', border:'1px solid #E5E7EB', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <div style={{ fontSize:18, fontWeight:900, color:'#111827', lineHeight:1 }}>{d?.getDate() || '—'}</div>
+          <div style={{ fontSize:10, color:'#6B7280', textTransform:'uppercase', fontWeight:700 }}>{d ? d.toLocaleString('default',{month:'short'}) : ''}</div>
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+            <span style={{ fontWeight:700, fontSize:15, color:'#111827' }}>{g.name}</span>
+            {g.examType?.name && <span style={{ fontSize:11, fontWeight:700, color:'#1E40AF', background:'#DBEAFE', padding:'2px 8px', borderRadius:20 }}>{g.examType.name}</span>}
+            <span style={{ fontSize:11, fontWeight:700, color:'#fff', background:STATUS_TINT[g.status] || '#6B7280', padding:'2px 8px', borderRadius:20 }}>{g.status}</span>
+          </div>
+          <div style={{ fontSize:13, color:'#6B7280' }}>
+            {cls.length ? cls.join(', ') : 'No class linked'}
+            {g.academicYear ? ` · ${g.academicYear}` : ''}
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+          <button onClick={()=>onOpenMarks(g._id)} style={{ padding:'7px 12px', borderRadius:8, border:'1px solid #E5E7EB', background:'#fff', cursor:'pointer', fontSize:12, fontWeight:700, color:'#374151' }}>📝 Marks</button>
+          {canEdit && (
+            <button onClick={()=>onDelete(g)} style={{ width:34, height:34, borderRadius:8, border:'1px solid #FCA5A5', background:'#FEF2F2', cursor:'pointer', fontSize:14, color:'#DC2626' }}>✕</button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:18 }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          <button onClick={()=>setTypeF('')} style={{ padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer', border:`1.5px solid ${typeF===''?'#111827':'#E5E7EB'}`, background:typeF===''?'#111827':'#fff', color:typeF===''?'#fff':'#6B7280' }}>All</button>
+          {types.map(t => (
+            <button key={t} onClick={()=>setTypeF(t)} style={{ padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, cursor:'pointer', border:`1.5px solid ${typeF===t?'#1D4ED8':'#E5E7EB'}`, background:typeF===t?'#DBEAFE':'#fff', color:typeF===t?'#1E40AF':'#6B7280' }}>{t}</button>
+          ))}
+        </div>
+        {canEdit && (
+          <button onClick={onCreate} style={{ marginLeft:'auto', padding:'8px 18px', borderRadius:9, fontSize:13, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>+ Create Exam</button>
+        )}
+      </div>
+
+      {loading ? <LoadingState /> : !filtered.length ? (
+        <EmptyState icon="📝" title="No exams found" subtitle="Create a new exam to get started" />
+      ) : (
+        <div>
+          {upcoming.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div style={{ marginBottom:10 }}><span style={{ background:'#FEF3C7', color:'#92400E', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:800 }}>📅 Upcoming — {upcoming.length}</span></div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>{upcoming.map(Card)}</div>
+            </div>
+          )}
+          {past.length > 0 && (
+            <div>
+              <div style={{ marginBottom:10 }}><span style={{ background:'#F3F4F6', color:'#6B7280', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:800 }}>✓ Past / Undated — {past.length}</span></div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>{past.map(Card)}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════ MARKS ENTRY ═══
 // Real marks entry. Pick an exam group → a subject/paper → enter marks per
 // component for each active student → save draft or publish. Writes through
