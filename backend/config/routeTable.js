@@ -26,6 +26,11 @@ const ROUTE_TABLE = [
   // entry without also granting legacy access. examsAdvanced mirrors the exams
   // grant in DEFAULT_GRANTS, so no existing user loses access on deploy.
   ['/api/exams-adv',      './routes/examAdvancedRoutes', 'examsAdvanced'],
+  // Question Paper Management — additive to the advanced exam module. Shares the
+  // 'examsAdvanced' matrix key so every role that can operate advanced exams can
+  // operate question papers, with no new key or matrix migration. Route-level
+  // authorize() enforces create/edit(STAFF) vs publish/delete(ADMIN).
+  ['/api/question-papers', './routes/questionPaperRoutes', 'examsAdvanced'],
 
   // ── TFS-EOS delta API routes (FP-050, FP-052) ──────────────────────────────
   ['/api/academic-calendar', './routes/academicCalendarRoutes', 'academicCalendar'],
