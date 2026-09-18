@@ -64,7 +64,15 @@ export default function ReportsDashboard() {
         reportAPI.getAll(),
       ]);
       setSummary(dash.data.data);
-      setPredefined(pre.data.data);
+      // Surface the Attendance Monitoring reports as cards inside the Reports
+      // module's Attendance section. They're `external` — clicking opens the
+      // dedicated monitoring page rather than the generic report runner.
+      const monitorCards = [
+        { id:'attn-monitor-daily',   name:'Daily Attendance Status',   description:'Which classes have / have not taken attendance today, with present & absent counts.', category:'Attendance', module:'attendance', external:true, route:'/reports/attendance-monitor' },
+        { id:'attn-monitor-recent',  name:'Recent Days Attendance',    description:'Class-wise taken / not-taken status over the last 7, 15 or 30 days.',                category:'Attendance', module:'attendance', external:true, route:'/reports/attendance-monitor' },
+        { id:'attn-monitor-monthly', name:'Monthly Attendance Monitor', description:'Per-class completion %, days taken vs missing, and the missing dates for a month.',    category:'Attendance', module:'attendance', external:true, route:'/reports/attendance-monitor' },
+      ];
+      setPredefined([...monitorCards, ...(pre.data.data || [])]);
       setSaved(list.data.data);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load reports');
@@ -228,18 +236,6 @@ export default function ReportsDashboard() {
           <StatCard icon="📈" label="This Month Collected" color="#06B6D4" value={fmtRs(summary.fees?.collectedThisMonth)} sub="Fee collection MTD" />
         </div>
       )}
-
-      {/* Attendance Monitoring — dedicated entry to the new monitoring reports */}
-      <button onClick={() => navigate('/reports/attendance-monitor')}
-        style={{ display:'flex', alignItems:'center', gap:14, width:'100%', textAlign:'left', cursor:'pointer',
-          background:'linear-gradient(90deg,#FFF7ED,#FFFFFF)', border:'1px solid #FED7AA', borderRadius:14, padding:'16px 20px', marginBottom:32 }}>
-        <span style={{ fontSize:26 }}>📅</span>
-        <span style={{ flex:1 }}>
-          <span style={{ display:'block', fontWeight:800, fontSize:15, color:'#9A3412' }}>Attendance Monitoring</span>
-          <span style={{ display:'block', fontSize:13, color:'#B45309' }}>See which classes have taken attendance today, over recent days, and this month — with missing dates and completion %.</span>
-        </span>
-        <span style={{ fontSize:13, fontWeight:700, color:'#EA580C' }}>Open →</span>
-      </button>
 
       {/* Quick Reports */}
       <div style={{ marginBottom: 32 }}>
