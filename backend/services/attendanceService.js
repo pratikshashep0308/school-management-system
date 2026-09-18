@@ -3,6 +3,15 @@
 
 const mongoose = require('mongoose');
 
+// FP-032 (R-3): the single authoritative source for attendance thresholds.
+// FP-033 (R-2): presentation bands, deliberately independent of the above.
+// These are module-level so every function here can use them — previously they
+// were declared inside checkAndSendAlerts(), so getStudentAnalytics(),
+// getClassAnalytics(), getLowAttendance() and the report builders threw
+// "thresholds is not defined" / "bands is not defined" at runtime.
+const thresholds = require('../config/attendanceThresholds');
+const bands = require('../config/presentationBands');
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -271,10 +280,6 @@ exports.checkAndSendAlerts = async (classId, date, attendanceData, schoolId, sen
   const Student = require('../models/Student');
   const calendarService = require('./calendarService');
   const schoolDoc = await loadSchoolConfig(schoolId);
-// FP-032 (R-3): the single authoritative source for attendance thresholds.
-// FP-033 (R-2): presentation bands, deliberately independent of the above.
-const thresholds = require('../config/attendanceThresholds');
-const bands = require('../config/presentationBands');
 
   const notificationsToCreate = [];
   const thirtyDaysAgo = new Date(date);
