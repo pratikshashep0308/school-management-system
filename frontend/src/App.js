@@ -79,6 +79,7 @@ import Meetings     from './pages/Meetings';
 
 // Pages — Report Module
 import ReportsDashboard from './pages/Reports/ReportsDashboard';
+import AttendanceMonitor from './pages/Reports/AttendanceMonitor';
 import CreateReport     from './pages/Reports/CreateReport';
 import ReportViewer     from './pages/Reports/ReportViewer';
 
@@ -245,6 +246,7 @@ export default function App() {
 
               {/* ── Report Module routes ── */}
               <Route path="reports"          element={<ReportRoute><ReportsDashboard /></ReportRoute>} />
+              <Route path="reports/attendance-monitor" element={<ReportRoute><AttendanceMonitor /></ReportRoute>} />
               <Route path="reports/create"   element={<ReportRoute><CreateReport /></ReportRoute>} />
               <Route path="reports/run"      element={<ReportRoute><ReportViewer /></ReportRoute>} />
               {/* Wrapped in ReportRoute like its siblings — a report that

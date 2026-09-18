@@ -223,11 +223,23 @@ export default function ReportsDashboard() {
           <StatCard icon="👥" label="Total Students"     color="#3B82F6" value={fmt(summary.students?.total)}        sub={`${fmt(summary.students?.active)} active`} />
           <StatCard icon="💰" label="Fees Collected"     color="#10B981" value={fmtRs(summary.fees?.paid)}           sub={`Rate: ${fmtPct(summary.fees?.collectionRate)}`} />
           <StatCard icon="⚠️" label="Fees Pending"       color="#EF4444" value={fmtRs(summary.fees?.pending)}        sub="Outstanding balance" onClick={() => navigate('/reports/run', { state: { config: predefined.find(p => p.id === 'fees-pending') || {} } })} />
-          <StatCard icon="📅" label="Today's Attendance" color="#F97316" value={fmtPct(summary.attendanceToday?.percentage)} sub={`${fmt(summary.attendanceToday?.present)} / ${fmt(summary.attendanceToday?.total)} present`} />
+          <StatCard icon="📅" label="Today's Attendance" color="#F97316" value={fmtPct(summary.attendanceToday?.percentage)} sub={`${fmt(summary.attendanceToday?.present)} / ${fmt(summary.attendanceToday?.total)} present`} onClick={() => navigate('/reports/attendance-monitor')} />
           <StatCard icon="📚" label="Library Issues"     color="#8B5CF6" value={fmt(summary.library?.activeIssues)}  sub="Books currently out" />
           <StatCard icon="📈" label="This Month Collected" color="#06B6D4" value={fmtRs(summary.fees?.collectedThisMonth)} sub="Fee collection MTD" />
         </div>
       )}
+
+      {/* Attendance Monitoring — dedicated entry to the new monitoring reports */}
+      <button onClick={() => navigate('/reports/attendance-monitor')}
+        style={{ display:'flex', alignItems:'center', gap:14, width:'100%', textAlign:'left', cursor:'pointer',
+          background:'linear-gradient(90deg,#FFF7ED,#FFFFFF)', border:'1px solid #FED7AA', borderRadius:14, padding:'16px 20px', marginBottom:32 }}>
+        <span style={{ fontSize:26 }}>📅</span>
+        <span style={{ flex:1 }}>
+          <span style={{ display:'block', fontWeight:800, fontSize:15, color:'#9A3412' }}>Attendance Monitoring</span>
+          <span style={{ display:'block', fontSize:13, color:'#B45309' }}>See which classes have taken attendance today, over recent days, and this month — with missing dates and completion %.</span>
+        </span>
+        <span style={{ fontSize:13, fontWeight:700, color:'#EA580C' }}>Open →</span>
+      </button>
 
       {/* Quick Reports */}
       <div style={{ marginBottom: 32 }}>

@@ -22,6 +22,8 @@ const {
   getAttendanceLogs,
 } = require('../controllers/attendanceController');
 
+const monitor = require('../controllers/attendanceMonitorController');
+
 router.use(protect);
 
 const ADMIN = ['superAdmin', 'schoolAdmin'];
@@ -41,6 +43,15 @@ router.get('/class',          getClassAttendance);
 router.get('/submission',  authorize(...STAFF), getSubmissionStatus);
 router.post('/approve',    authorize(...ADMIN), approveSubmission);
 router.get('/logs',        authorize(...STAFF), getAttendanceLogs);
+
+// ── Attendance monitoring reports (which classes took attendance) ────────────
+// Admin / School Admin only. All read-only aggregates over AttendanceSubmission.
+router.get('/monitor/dashboard',     authorize(...ADMIN), monitor.dashboard);
+router.get('/monitor/daily',         authorize(...ADMIN), monitor.dailyStatus);
+router.get('/monitor/recent',        authorize(...ADMIN), monitor.recentDays);
+router.get('/monitor/monthly',       authorize(...ADMIN), monitor.monthly);
+router.get('/monitor/class-history', authorize(...ADMIN), monitor.classHistory);
+router.get('/monitor/export',        authorize(...ADMIN), monitor.exportCsv);
 
 // ── QR endpoints ──────────────────────────────────────────────────────────────
 router.post('/qr-token', authorize(...STAFF), generateQR);

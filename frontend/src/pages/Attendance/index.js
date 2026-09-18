@@ -12,6 +12,7 @@ import ClasswiseReport         from './ClasswiseReport';
 import StudentAttendanceReport from './StudentAttendanceReport';
 import EmployeeAttendanceReport from './EmployeeAttendanceReport';
 import AttendanceLogs          from './AttendanceLogs';
+import AttendanceMonitor       from '../Reports/AttendanceMonitor';
 
 function QRAttendanceTab() {
   const NOW = new Date();
@@ -177,6 +178,7 @@ const TABS = [
   { key: 'employee',  label: '👤 Employees',        admin: true  },
   { key: 'qr',        label: '📱 QR Attendance',    admin: true  },
   { key: 'classwise', label: '📋 Classwise Report', admin: false },
+  { key: 'monitor',   label: '📈 Monitoring',       admin: true  },
   { key: 'stuReport', label: '📊 Student Report',   admin: false },
   { key: 'empReport', label: '📊 Employee Report',  admin: true  },
   { key: 'logs',      label: '🧾 Logs',             admin: false },
@@ -217,6 +219,7 @@ export default function Attendance() {
       {active === 'employee'  && <EmployeeAttendance />}
       {active === 'qr'        && <QRAttendanceTab />}
       {active === 'classwise' && <ClasswiseReport />}
+      {active === 'monitor'   && <AttendanceMonitor embedded />}
       {active === 'stuReport' && <StudentAttendanceReport />}
       {active === 'empReport' && <EmployeeAttendanceReport />}
       {active === 'logs'      && <AttendanceLogs />}
