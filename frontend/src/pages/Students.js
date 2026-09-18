@@ -1096,6 +1096,9 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
   const [exams,       setExams]       = useState([]);
   const [attendance,  setAttendance]  = useState([]);
   const [attSummary,  setAttSummary]  = useState({ total:0, present:0, absent:0, percentage:0 });
+  // Which month the attendance tab is showing. Defaults to the current month;
+  // prev/next buttons let the admin page back through earlier months.
+  const [attView,     setAttView]     = useState(() => { const n = new Date(); return { month: n.getMonth() + 1, year: n.getFullYear() }; });
   // eslint-disable-next-line no-unused-vars
   const [transport,   setTransport]   = useState(null);
   const [fees,        setFees]        = useState([]);
@@ -1197,11 +1200,10 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
           history.sort((x, y) => new Date(y.date) - new Date(x.date));
           setFeeHistory(history);
         }
-        // ── Real attendance for the current month ──
+        // ── Real attendance for the selected month ──
         try {
-          const now = new Date();
-          const month = now.getMonth() + 1;   // 1-based
-          const year  = now.getFullYear();
+          const month = attView.month;   // 1-based
+          const year  = attView.year;
           const attRes = await attendanceAPI.getByStudent(s._id, { month, year });
           const sum = attRes.data?.summary || { total:0, present:0, absent:0, percentage:0 };
           const calMap = attRes.data?.calendar || {};   // { 'YYYY-MM-DD': 'present'|'absent'|... }
@@ -1233,6 +1235,36 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
     };
     fetchData();
   }, [s._id]);
+
+  // Refetch just the attendance calendar when the admin pages to another month,
+  // without reloading the whole profile. Runs after the first load too, but the
+  // main effect already fetched the current month so this is a no-op there.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { month, year } = attView;
+        const attRes = await attendanceAPI.getByStudent(s._id, { month, year });
+        if (cancelled) return;
+        const sum = attRes.data?.summary || { total:0, present:0, absent:0, percentage:0 };
+        const calMap = attRes.data?.calendar || {};
+        setAttSummary(sum);
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const cal = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+          const key = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          cal.push({ day: d, status: calMap[key] || null });
+        }
+        setAttendance(cal);
+      } catch {
+        if (cancelled) return;
+        setAttSummary({ total:0, present:0, absent:0, percentage:0 });
+        setAttendance([]);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attView.month, attView.year, s._id]);
 
   // Create-or-link a parent User for this student. Uses the parent email/name
   // already on the student record; if the email is missing, the admin needs
@@ -1865,8 +1897,27 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                 </div>
               </div>
 
+              {/* Month navigation — page back through earlier months */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginTop:4 }}>
+                <button onClick={() => setAttView(v => { const m = v.month - 1; return m < 1 ? { month:12, year:v.year - 1 } : { month:m, year:v.year }; })}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold hover:bg-gray-50" style={{ cursor:'pointer' }}>← Prev</button>
+                <span className="text-sm font-bold text-ink" style={{ minWidth:150, textAlign:'center' }}>
+                  {new Date(attView.year, attView.month - 1, 1).toLocaleDateString('en-IN', { month:'long', year:'numeric' })}
+                </span>
+                {(() => {
+                  const now = new Date();
+                  const isCurrent = attView.month === now.getMonth() + 1 && attView.year === now.getFullYear();
+                  return (
+                    <button disabled={isCurrent}
+                      onClick={() => setAttView(v => { const m = v.month + 1; return m > 12 ? { month:1, year:v.year + 1 } : { month:m, year:v.year }; })}
+                      className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold hover:bg-gray-50"
+                      style={{ cursor: isCurrent ? 'not-allowed' : 'pointer', opacity: isCurrent ? 0.4 : 1 }}>Next →</button>
+                  );
+                })()}
+              </div>
+
               {attSummary.total === 0 ? (
-                <EmptyState icon="🗓️" title="No attendance marked this month" />
+                <EmptyState icon="🗓️" title="No attendance marked for this month" subtitle="Use ← Prev to view earlier months" />
               ) : (
                 <>
                   {attPct < 75 && (
@@ -1875,15 +1926,14 @@ function StudentProfileDrawer({ student: s, classes, canManage, knownPassword, o
                     </div>
                   )}
 
-                  {/* Real attendance calendar for the current month */}
-                  <Section title={'This Month — ' + new Date().toLocaleDateString('en-IN', { month:'long', year:'numeric' })}>
+                  {/* Real attendance calendar for the selected month */}
+                  <Section title={new Date(attView.year, attView.month - 1, 1).toLocaleDateString('en-IN', { month:'long', year:'numeric' })}>
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 40px)', gap:6, justifyContent:'start' }}>
                       {['S','M','T','W','T','F','S'].map((d,i) => (
                         <div key={'h'+i} className="text-center text-[10px] text-muted font-bold pb-1">{d}</div>
                       ))}
                       {(() => {
-                        const now = new Date();
-                        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay(); // 0=Sun
+                        const firstDay = new Date(attView.year, attView.month - 1, 1).getDay(); // 0=Sun
                         return Array.from({ length: firstDay }, (_, i) => <div key={'pad-'+i} />);
                       })()}
                       {attendance.map((a, i) => {
