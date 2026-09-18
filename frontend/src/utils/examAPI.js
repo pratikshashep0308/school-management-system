@@ -38,6 +38,22 @@ export const examAdvAPI = {
   // Results
   getResults: (groupId, params) => api.get(`/exams-adv/groups/${groupId}/results`, { params }),
   publish:    (groupId, publish) => api.put(`/exams-adv/groups/${groupId}/publish`, { publish }),
+
+  // ── Question Papers ──
+  qpMeta:        ()            => api.get('/question-papers/meta'),
+  qpList:        (params)      => api.get('/question-papers', { params }),
+  qpGet:         (id)          => api.get(`/question-papers/${id}`),
+  qpCreate:      (data)        => api.post('/question-papers', data),
+  qpUpdate:      (id, data)    => api.put(`/question-papers/${id}`, data),
+  qpPublish:     (id, publish) => api.put(`/question-papers/${id}/publish`, { publish }),
+  qpDuplicate:   (id)          => api.post(`/question-papers/${id}/duplicate`),
+  qpDelete:      (id)          => api.delete(`/question-papers/${id}`),
+
+  // ── Question Bank ──
+  bankList:   (params)   => api.get('/question-papers/bank/items', { params }),
+  bankCreate: (data)     => api.post('/question-papers/bank/items', data),
+  bankUpdate: (id, data) => api.put(`/question-papers/bank/items/${id}`, data),
+  bankDelete: (id)       => api.delete(`/question-papers/bank/items/${id}`),
 };
 
 export default examAdvAPI;

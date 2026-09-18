@@ -64,7 +64,15 @@ export default function ReportsDashboard() {
         reportAPI.getAll(),
       ]);
       setSummary(dash.data.data);
-      setPredefined(pre.data.data);
+      // Surface the Attendance Monitoring reports as cards inside the Reports
+      // module's Attendance section. They're `external` — clicking opens the
+      // dedicated monitoring page rather than the generic report runner.
+      const monitorCards = [
+        { id:'attn-monitor-daily',   name:'Daily Attendance Status',   description:'Which classes have / have not taken attendance today, with present & absent counts.', category:'Attendance', module:'attendance', external:true, route:'/reports/attendance-monitor' },
+        { id:'attn-monitor-recent',  name:'Recent Days Attendance',    description:'Class-wise taken / not-taken status over the last 7, 15 or 30 days.',                category:'Attendance', module:'attendance', external:true, route:'/reports/attendance-monitor' },
+        { id:'attn-monitor-monthly', name:'Monthly Attendance Monitor', description:'Per-class completion %, days taken vs missing, and the missing dates for a month.',    category:'Attendance', module:'attendance', external:true, route:'/reports/attendance-monitor' },
+      ];
+      setPredefined([...monitorCards, ...(pre.data.data || [])]);
       setSaved(list.data.data);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to load reports');
@@ -223,7 +231,7 @@ export default function ReportsDashboard() {
           <StatCard icon="👥" label="Total Students"     color="#3B82F6" value={fmt(summary.students?.total)}        sub={`${fmt(summary.students?.active)} active`} />
           <StatCard icon="💰" label="Fees Collected"     color="#10B981" value={fmtRs(summary.fees?.paid)}           sub={`Rate: ${fmtPct(summary.fees?.collectionRate)}`} />
           <StatCard icon="⚠️" label="Fees Pending"       color="#EF4444" value={fmtRs(summary.fees?.pending)}        sub="Outstanding balance" onClick={() => navigate('/reports/run', { state: { config: predefined.find(p => p.id === 'fees-pending') || {} } })} />
-          <StatCard icon="📅" label="Today's Attendance" color="#F97316" value={fmtPct(summary.attendanceToday?.percentage)} sub={`${fmt(summary.attendanceToday?.present)} / ${fmt(summary.attendanceToday?.total)} present`} />
+          <StatCard icon="📅" label="Today's Attendance" color="#F97316" value={fmtPct(summary.attendanceToday?.percentage)} sub={`${fmt(summary.attendanceToday?.present)} / ${fmt(summary.attendanceToday?.total)} present`} onClick={() => navigate('/reports/attendance-monitor')} />
           <StatCard icon="📚" label="Library Issues"     color="#8B5CF6" value={fmt(summary.library?.activeIssues)}  sub="Books currently out" />
           <StatCard icon="📈" label="This Month Collected" color="#06B6D4" value={fmtRs(summary.fees?.collectedThisMonth)} sub="Fee collection MTD" />
         </div>

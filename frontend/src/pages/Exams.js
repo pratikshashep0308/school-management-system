@@ -6,6 +6,12 @@ import api, { examAPI, classAPI, subjectAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingState, EmptyState } from '../components/ui';
 import ExamSetup from './Exams/ExamSetup';
+import examAdvAPI from '../utils/examAPI';
+import {
+  ExamDashboardHome, AllExamsGroups, MarksEntryView, ResultsView,
+  ReportsView, DateSheetView, AwardListView,
+} from './Exams/DashboardViews';
+import QuestionPapers from './Exams/QuestionPapers';
 
 const TYPE_COLORS = {
   unit:       { bg:'#FEF3C7', color:'#92400E', border:'#F59E0B' },
@@ -672,19 +678,29 @@ function ExamTimetable({ exams, classes, canEdit, onEdit, onDelete, onAdd, initi
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ══════════════════════════════════════════════════════════════════════════════
+// The Exam Dashboard is the CENTRAL HUB. The global sidebar has ONLY one item
+// ("Exams" → /exams); every exam function is reached from inside here through
+// the Action Center cards and the segmented internal navigation below — never
+// from sidebar submenus.
 export default function Exams() {
-  // The school's configured exam types. ExamGroup.examType is a REFERENCE to
-  // one of these, so the form must offer the real records rather than strings.
-  const [examTypes, setExamTypes] = useState([]);
   const [searchParams] = useSearchParams();
   const initialClass = searchParams.get('class') || '';
   const { isAdmin, isTeacher } = useAuth();
   const canEdit = isAdmin || isTeacher;
-  const [tab,      setTab]     = useState('all');
+
+  // Which hub section is showing. 'dashboard' is the landing view.
+  const [section, setSection] = useState('dashboard');
+
+  // Legacy `exams` collection (used by All Exams / Timetable cards) plus the
+  // advanced `examgroups` used by marks, results, reports, date sheet, awards.
+  const [examTypes, setExamTypes] = useState([]);
   const [exams,    setExams]   = useState([]);
+  const [groups,   setGroups]  = useState([]);
   const [classes,  setClasses] = useState([]);
   const [subjects, setSubjects]= useState([]);
+  const [stats,    setStats]   = useState({});
   const [loading,  setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [modal,    setModal]   = useState(false);
   const [form,     setForm]    = useState(FORM_EMPTY);
   const [saving,   setSaving]  = useState(false);
@@ -692,29 +708,37 @@ export default function Exams() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Exam types come from the database — there are 9 configured, and
-      // ExamGroup.examType is a REFERENCE to one of them, not a string. The
-      // hardcoded list the form used could never satisfy that reference.
-      const [eRes, cRes, sRes, tRes] = await Promise.all([
+      const [eRes, cRes, sRes, tRes, gRes] = await Promise.all([
         examAPI.getAll(),
         classAPI.getAll(),
         subjectAPI.getAll(),
         api.get('/exams-adv/types').catch(() => ({ data: { data: [] } })),
+        examAdvAPI.getGroups().catch(() => ({ data: { data: [] } })),
       ]);
       setExams(eRes.data.data || []);
       setClasses(cRes.data.data || []);
       setSubjects(sRes.data.data || []);
       setExamTypes(tRes?.data?.data || []);
+      setGroups(gRes?.data?.data || []);
     } catch { toast.error('Failed to load exams'); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const r = await examAdvAPI.dashboard();
+      setStats(r.data.data || {});
+    } catch { /* stats are best-effort; the hub still works without them */ }
+    finally { setStatsLoading(false); }
+  }, []);
 
-  // Accepts a prefill so clicking "+" in an empty grid cell opens the form on
-  // that date and session. Without it the click would open a blank form and the
-  // cell you chose would be forgotten — worse than no "+" at all, because it
-  // looks like it did something.
+  useEffect(() => { load(); loadStats(); }, [load, loadStats]);
+
+  // Refresh dashboard stats whenever we return to the landing view, so counts
+  // reflect marks just entered in another section.
+  useEffect(() => { if (section === 'dashboard') loadStats(); }, [section, loadStats]);
+
   const openAdd  = (prefill) => {
     setForm({
       ...FORM_EMPTY,
@@ -728,18 +752,12 @@ export default function Exams() {
     setForm({ _id:exam._id, name:exam.name||'', class:exam.class?._id||exam.class||'', subject:exam.subject?._id||exam.subject||'', examType:exam.examType||'unit', date:exam.date?exam.date.split('T')[0]:'', startTime:exam.startTime||'', endTime:exam.endTime||'', totalMarks:exam.totalMarks||100, passingMarks:exam.passingMarks||35, instructions:exam.instructions||'' });
     setModal(true);
   };
-  // Creating an exam writes to the ADVANCED module — an ExamGroup with an
-  // ExamSubject inside it — not to the legacy `exams` collection.
-  //
-  // ─── WHY THIS CHANGED ───────────────────────────────────────────────────────
-  // The form wrote to `exams` while Result Entry, grading, publishing and every
-  // exam report read `examgroups`/`examsubjects`. Two systems that never met:
-  // an exam created here could never have marks entered against it, which is why
-  // the school has 9 exam types configured and has never recorded a single mark.
-  //
-  // Two calls where there was one. The second failing leaves an exam with no
-  // paper, which is a half-created exam — so it says so rather than reporting
-  // success and leaving somebody to find out at result entry.
+
+  // Creating an exam writes to the ADVANCED module (an ExamGroup plus an
+  // ExamSubject inside it), which is what marks, results, publishing and every
+  // exam report read from. See the long note kept in git history — the legacy
+  // `exams` collection never met the advanced one, so an exam created there
+  // could never have marks entered against it.
   const handleSave = async () => {
     if (!form.name?.trim()) return toast.error('Exam name is required');
     if (!form.class)        return toast.error('Please select a class');
@@ -752,15 +770,15 @@ export default function Exams() {
       } else {
         const gRes = await api.post('/exams-adv/groups', {
           name: form.name.trim(),
-          examType: form.examType || undefined,   // an ObjectId, or omitted
+          examType: form.examType || undefined,
           academicYear: form.academicYear || undefined,
           startDate: form.date || undefined,
           endDate: form.date || undefined,
+          classes: form.class ? [form.class] : undefined,
           status: 'scheduled',
         });
         const group = gRes?.data?.data;
         if (!group?._id) throw new Error('The exam was not created');
-
         try {
           await api.post(`/exams-adv/groups/${group._id}/subjects`, {
             subject: form.subject,
@@ -769,12 +787,10 @@ export default function Exams() {
             startTime: form.startTime || undefined,
             endTime: form.endTime || undefined,
             passingMarks: Number(form.passingMarks) || 35,
-            components: [{ name: 'Theory', maxMarks: Number(form.totalMarks) || 100 }],
+            components: { theory: { max: Number(form.totalMarks) || 100, enabled: true } },
           });
           toast.success('Exam created — marks can now be entered against it');
         } catch (subErr) {
-          // The group exists but has no paper. Said plainly, with the id, so it
-          // can be found and completed rather than silently orphaned.
           toast.error(
             `Exam "${form.name}" was created but the subject could not be added: `
             + (subErr.response?.data?.message || subErr.message),
@@ -782,37 +798,122 @@ export default function Exams() {
           );
         }
       }
-      setModal(false); setForm(FORM_EMPTY); load();
+      setModal(false); setForm(FORM_EMPTY); load(); loadStats();
     } catch(err) { toast.error(err.response?.data?.message||err.message||'Failed to save'); }
     finally { setSaving(false); }
   };
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this exam?')) return;
-    try { await examAPI.delete(id); toast.success('Deleted'); load(); }
+    try { await examAPI.delete(id); toast.success('Deleted'); load(); loadStats(); }
     catch { toast.error('Failed to delete'); }
   };
 
-  const upcoming = exams.filter(e => e.date && new Date(e.date) >= new Date());
+  // Delete an advanced exam group. The backend refuses if marks exist and
+  // returns a clear message, which we surface rather than swallow.
+  const handleDeleteGroup = async (g) => {
+    if (!window.confirm(`Delete exam "${g.name}"? This cannot be undone.`)) return;
+    try {
+      await examAdvAPI.deleteGroup(g._id);
+      toast.success('Exam deleted');
+      load(); loadStats();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete exam');
+    }
+  };
+
+  // ── The Action Center. Each entry maps to a hub section. `go` switches the
+  //    hub; NOTHING here is dummy navigation. ────────────────────────────────
+  const ACTIONS = [
+    { key:'create',     icon:'➕', label:'Create New Exam',  desc:'Create and configure a new examination.',                 tint:'#1D4ED8', adminOnly:false },
+    { key:'setup',      icon:'⚙️', label:'Exam Setup',       desc:'Exam types, grading schemes, weightage and passing marks.', tint:'#6366F1', adminOnly:true  },
+    { key:'marks',      icon:'📝', label:'Add / Update Marks',desc:'Enter and manage student marks per subject.',             tint:'#059669', adminOnly:false },
+    { key:'results',    icon:'🎓', label:'Result Card',       desc:'Generate individual student result cards.',               tint:'#7C3AED', adminOnly:false },
+    { key:'results',    icon:'🏆', label:'Result Sheet',      desc:'Generate ranked class-wise result sheets.',               tint:'#DB2777', adminOnly:false },
+    { key:'timetable',  icon:'📅', label:'Exam Schedule',     desc:'Create and manage examination schedules.',                tint:'#D97706', adminOnly:false },
+    { key:'datesheet',  icon:'📄', label:'Date Sheet',        desc:'Generate printable student / class date sheets.',         tint:'#0891B2', adminOnly:false },
+    { key:'awardlist',  icon:'📋', label:'Blank Award List',  desc:'Generate printable blank award lists for marking.',       tint:'#EA580C', adminOnly:false },
+    { key:'setup',      icon:'🎯', label:'Grading Setup',     desc:'Configure grading schemes and grade bands.',              tint:'#16A34A', adminOnly:true  },
+    { key:'setup',      icon:'🗂', label:'Exam Types',        desc:'Manage the school\u2019s exam types.',                     tint:'#9333EA', adminOnly:true  },
+    { key:'reports',    icon:'📊', label:'Exam Reports',      desc:'Pass rates, averages and grade analytics.',               tint:'#DC2626', adminOnly:false },
+    { key:'questionpapers', icon:'📄', label:'Question Papers', desc:'Create, manage and print subject-wise question papers.', tint:'#0D9488', adminOnly:false },
+  ];
+
+  // Segmented internal navigation (NOT a second sidebar). The active section is
+  // highlighted. Admin-only sections are hidden from non-admins.
+  const NAV = [
+    { key:'dashboard', label:'📊 Dashboard' },
+    { key:'all',       label:'📝 All Exams' },
+    { key:'create',    label:'➕ Create' },
+    { key:'setup',     label:'⚙️ Setup', adminOnly:true },
+    { key:'marks',     label:'📝 Marks' },
+    { key:'results',   label:'🏆 Results' },
+    { key:'timetable', label:'📅 Schedule' },
+    { key:'datesheet', label:'📄 Date Sheet' },
+    { key:'awardlist', label:'📋 Award List' },
+    { key:'reports',   label:'📊 Reports' },
+    { key:'questionpapers', label:'📄 Question Papers' },
+  ].filter(n => !n.adminOnly || isAdmin);
+
+  // Counts read the ADVANCED module (examgroups) so the header agrees with the
+  // dashboard tiles and with what All Exams now shows.
+  const upcomingGroups = groups.filter(g => g.startDate && new Date(g.startDate) >= new Date());
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header" style={{ marginBottom:20 }}>
+      <div className="page-header" style={{ marginBottom:16 }}>
         <div>
-          <h2 className="font-display text-2xl text-ink">📝 Exams & Results</h2>
-          <p className="text-sm text-muted mt-0.5">{exams.length} total · {upcoming.length} upcoming</p>
+          <h2 className="font-display text-2xl text-ink">📝 Exam Management</h2>
+          <p className="text-sm text-muted mt-0.5">{groups.length} exams · {upcomingGroups.length} upcoming · central hub for the exam module</p>
         </div>
       </div>
 
+      {/* Segmented internal navigation — the exam module's own nav, inside the page */}
       <div style={{ display:'flex', gap:4, background:'#F3F4F6', borderRadius:10, padding:4, marginBottom:22, flexWrap:'wrap' }}>
-        {[{ key:'all', label:'📝 All Exams' },{ key:'recent', label:'🕐 Recent / Upcoming' },{ key:'timetable', label:'🗓 Exam Timetable' },{ key:'results', label:'📊 Result Entry' },{ key:'setup', label:'⚙️ Setup' }].map(t=>(
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{ padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:700, border:'none', cursor:'pointer', transition:'all 0.15s', background:tab===t.key?'#1D4ED8':'transparent', color:tab===t.key?'#fff':'#6B7280' }}>{t.label}</button>
+        {NAV.map(n => (
+          <button key={n.key} onClick={()=>setSection(n.key)}
+            style={{ padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:700, border:'none', cursor:'pointer', transition:'all 0.15s',
+                     background: section===n.key ? '#1D4ED8' : 'transparent',
+                     color:      section===n.key ? '#fff' : '#6B7280' }}>
+            {n.label}
+          </button>
         ))}
       </div>
 
-      {tab==='all'       && <AllExams      exams={exams} classes={classes} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} canEdit={canEdit} loading={loading} initialClass={initialClass}/>}
-      {tab==='recent'    && <RecentExams   exams={exams}/>}
-      {tab==='setup'     && isAdmin && <ExamSetup />}
-      {tab==='timetable' && <ExamTimetable exams={exams} classes={classes} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} initialClass={initialClass}/>}
+      {section==='dashboard' && (
+        <ExamDashboardHome stats={stats} loading={statsLoading} actions={ACTIONS} isAdmin={isAdmin}
+          go={(k)=>setSection(k)} />
+      )}
+
+      {section==='all' && (
+        <AllExamsGroups groups={groups} loading={loading} canEdit={canEdit}
+          onCreate={()=>openAdd()} onDelete={handleDeleteGroup}
+          onOpenMarks={()=>setSection('marks')} />
+      )}
+
+      {/* "Create" opens the same list with the real exam-create modal */}
+      {section==='create' && (
+        <>
+          {canEdit && (
+            <div style={{ marginBottom:16 }}>
+              <button onClick={()=>openAdd()} style={{ padding:'10px 20px', borderRadius:9, fontSize:14, fontWeight:700, background:'#1D4ED8', color:'#fff', border:'none', cursor:'pointer' }}>
+                ➕ Create New Exam
+              </button>
+            </div>
+          )}
+          <AllExamsGroups groups={groups} loading={loading} canEdit={canEdit}
+            onCreate={()=>openAdd()} onDelete={handleDeleteGroup}
+            onOpenMarks={()=>setSection('marks')} />
+        </>
+      )}
+
+      {section==='setup'     && isAdmin && <ExamSetup />}
+      {section==='marks'     && <MarksEntryView groups={groups} />}
+      {section==='results'   && <ResultsView groups={groups} isAdmin={isAdmin} />}
+      {section==='timetable' && <ExamTimetable exams={exams} classes={classes} canEdit={canEdit} onEdit={openEdit} onDelete={handleDelete} onAdd={openAdd} initialClass={initialClass}/>}
+      {section==='datesheet' && <DateSheetView groups={groups} />}
+      {section==='awardlist' && <AwardListView groups={groups} />}
+      {section==='reports'   && <ReportsView groups={groups} />}
+      {section==='questionpapers' && <QuestionPapers groups={groups} isAdmin={isAdmin} canEdit={canEdit} />}
 
       {modal && <ExamFormModal form={form} setForm={setForm} onSave={handleSave} onClose={()=>{setModal(false);setForm(FORM_EMPTY);}} saving={saving} classes={classes} subjects={subjects} examTypes={examTypes}/>}
     </div>

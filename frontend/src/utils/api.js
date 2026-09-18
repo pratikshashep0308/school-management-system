@@ -103,6 +103,14 @@ export const attendanceAPI = {
   // Submission workflow (submit → edit → approve) + audit log
   getSubmission:    (params)            => api.get('/attendance/submission', { params }),
   approve:          (data)              => api.post('/attendance/approve', data),
+
+  // ── Monitoring reports (which classes have/haven't taken attendance) ──
+  monitorDashboard:    ()       => api.get('/attendance/monitor/dashboard'),
+  monitorDaily:        (params) => api.get('/attendance/monitor/daily', { params }),
+  monitorRecent:       (params) => api.get('/attendance/monitor/recent', { params }),
+  monitorMonthly:      (params) => api.get('/attendance/monitor/monthly', { params }),
+  monitorClassHistory: (params) => api.get('/attendance/monitor/class-history', { params }),
+  monitorExportCsv:    (params) => api.get('/attendance/monitor/export', { params, responseType: 'blob' }),
 };
 
 // ── EXAMS ─────────────────────────────────────────────────────────────────────
